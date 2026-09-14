@@ -45,8 +45,9 @@
 | `TASK-009` | Foundation App | Implement `apps/foundation/` portal models and school management views (`spec/03`) | Completed |
 | `TASK-011` | Entitlements | Implement `foundation_entitlements` gating (`spec/02 §6`) and `GET /me` | Completed |
 | `TASK-012` | Student Records | Implement `Student`, `Guardian`, and `GuardianLink` models (`spec/02 §2`) | Completed |
-| `TASK-013` | Staff Records | Implement `Staff` model and offboarding lifecycle (`spec/02 §2, §5`) | Next Up |
-| `TASK-014` | Bulk Import | Implement atomic student XLSX import with dry-run diff preview (`spec/02 §5`) | Pending |
+| `TASK-013` | Staff Records | Implement `Staff` model and offboarding lifecycle (`spec/02 §2, §5`) | Completed |
+| `TASK-014` | Bulk Import | Implement atomic student XLSX import with dry-run diff preview (`spec/02 §5`) | Next Up |
+
 
 ---
 

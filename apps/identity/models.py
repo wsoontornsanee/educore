@@ -522,4 +522,83 @@ class GuardianLink(TenantModel):
         return f"{self.guardian.person.full_name} -> {self.student.person.full_name} ({self.relation})"
 
 
+class Staff(TenantModel):
+    """Staff member profile linked to Person PII and User account (spec/02 §2, §5)."""
+    TYPE_PERMANENT = 'PERMANENT'
+    TYPE_CONTRACT = 'CONTRACT'
+    TYPE_HONORARY = 'HONORARY'
+    EMPLOYMENT_CHOICES = [
+        (TYPE_PERMANENT, 'Tetap (Permanent)'),
+        (TYPE_CONTRACT, 'Kontrak (Contract)'),
+        (TYPE_HONORARY, 'Honorer (Honorary)'),
+    ]
+
+    STATUS_ACTIVE = 'ACTIVE'
+    STATUS_ON_LEAVE = 'ON_LEAVE'
+    STATUS_OFFBOARDED = 'OFFBOARDED'
+    STATUS_CHOICES = [
+        (STATUS_ACTIVE, 'Aktif (Active)'),
+        (STATUS_ON_LEAVE, 'Cuti (On Leave)'),
+        (STATUS_OFFBOARDED, 'Berhenti / Offboarded'),
+    ]
+
+    person = models.ForeignKey(
+        Person,
+        on_delete=models.PROTECT,
+        related_name='staff_profiles',
+        help_text="Reference to Person PII vault (spec/02 §2)"
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name='staff_profiles',
+        help_text="Associated user account for staff system access"
+    )
+    school = models.ForeignKey(
+        School,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='staff_members',
+        help_text="Specific school assignment (null if foundation-wide staff)"
+    )
+    nip = models.CharField(
+        max_length=32,
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="Nomor Induk Pegawai"
+    )
+    employment_type = models.CharField(
+        max_length=32,
+        choices=EMPLOYMENT_CHOICES,
+        default=TYPE_PERMANENT,
+        db_index=True
+    )
+    join_date = models.DateField(help_text="Tanggal mulai bekerja")
+    resignation_date = models.DateField(null=True, blank=True, help_text="Tanggal berhenti / offboarding")
+    resignation_reason = models.TextField(blank=True, default='', help_text="Alasan offboarding")
+    status = models.CharField(
+        max_length=32,
+        choices=STATUS_CHOICES,
+        default=STATUS_ACTIVE,
+        db_index=True
+    )
+
+    class Meta:
+        db_table = 'staff'
+        verbose_name = 'Staf / Pendidik'
+        verbose_name_plural = 'Daftar Staf & Pendidik'
+        indexes = [
+            models.Index(fields=['foundation_id', 'status']),
+            models.Index(fields=['foundation_id', 'school_id']),
+            models.Index(fields=['foundation_id', 'nip']),
+        ]
+
+    def __str__(self):
+        school_name = self.school.name if self.school else "Yayasan"
+        return f"{self.person.full_name} ({self.nip or 'No NIP'} - {school_name} - {self.status})"
+
+
+
 
