@@ -23,7 +23,15 @@ class HasRequiredPermission(permissions.BasePermission):
             return False
 
         # Fail-closed guardrail (IAM-010): view MUST declare required_permission
-        required_permission = getattr(view, 'required_permission', None)
+        required_permission = None
+        if hasattr(view, 'get_required_permission') and callable(view.get_required_permission):
+            required_permission = view.get_required_permission()
+        elif hasattr(view, 'action_permissions') and hasattr(view, 'action'):
+            required_permission = view.action_permissions.get(view.action)
+
+        if not required_permission:
+            required_permission = getattr(view, 'required_permission', None)
+
         if not required_permission:
             raise PermissionDenied("Akses ditolak: Handler API tidak mendefinisikan required_permission (IAM-010).")
 
@@ -34,12 +42,22 @@ class HasRequiredPermission(permissions.BasePermission):
 
         # Resolve optional school context from view kwargs or query params
         school_id = None
-        if hasattr(view, 'kwargs') and 'school_id' in view.kwargs:
-            try:
-                school_id = int(view.kwargs['school_id'])
-            except (ValueError, TypeError):
-                pass
-        elif hasattr(request, 'query_params') and 'school_id' in request.query_params:
+        if hasattr(view, 'kwargs') and view.kwargs:
+            if 'school_id' in view.kwargs:
+                try:
+                    school_id = int(view.kwargs['school_id'])
+                except (ValueError, TypeError):
+                    pass
+            elif 'pk' in view.kwargs:
+                basename = getattr(view, 'basename', None)
+                model = getattr(getattr(view, 'queryset', None), 'model', None)
+                if basename == 'school' or (model and model.__name__ == 'School'):
+                    try:
+                        school_id = int(view.kwargs['pk'])
+                    except (ValueError, TypeError):
+                        pass
+
+        if school_id is None and hasattr(request, 'query_params') and 'school_id' in request.query_params:
             try:
                 school_id = int(request.query_params['school_id'])
             except (ValueError, TypeError):
