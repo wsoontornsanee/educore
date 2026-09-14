@@ -24,6 +24,7 @@ intended to be fed to Claude Code one at a time (or as a set).
 | 14 | `14-compliance-and-integrations.md` | UU PDP, DAPODIK/EMIS, gateways | 01 |
 | 15 | `15-reporting-and-analytics.md` | Rollup tables, dashboards, exports | all |
 | 16 | `16-currency-and-money.md` | Multi-currency, DECIMAL(18,2), display contract | 01 |
+| 17 | `17-design-system-and-ui.md` | Design system, UI components, typography, colours, mockups | 01 |
 
 ## Architecture in one paragraph
 
