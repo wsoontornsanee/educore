@@ -81,5 +81,15 @@
   - 9 new automated tests across `apps/foundation/tests/` (total 41 tests passing).
   - PR #6 merged into `main`.
 
-
-
+## Step 1.5: Feature Entitlements Gating & User Profile API
+- **Date:** 2026-09-14
+- **Milestone:** Step 1.5 Completed & Merged (PR #7) - Milestone M1 (Pilot Core) 100% Complete
+- **Details:**
+  - Implemented `FoundationEntitlement` model (`foundation_entitlements` table) with `TenantModel` inheritance, school-level overrides (`school_id`), module choices (`academic`, `attendance`, `finance`, `wallet`, `campus_life`, `payroll`, `analytics`, `hardware`), and JSON limits (`IAM-023`, `IAM-025`).
+  - Implemented `apps/identity/entitlements.py` engine resolving entitlements hierarchically: School override -> Foundation default -> Enabled by default (`IAM-024`).
+  - Implemented DRF permission `RequiresModuleEntitlement` and custom exception `ModuleNotEntitled` (HTTP 403 `MODULE_NOT_ENTITLED`).
+  - Implemented `GET /api/v1/me` (`CurrentUserView`) returning authenticated user profile, roles, assigned schools, and active module entitlement flags.
+  - Implemented `/api/v1/foundation/entitlements/` (`FoundationEntitlementViewSet`) with RBAC gating (`school_config.read` / `school_config.write`).
+  - Updated `seed_demo_foundation` to seed all 8 canonical modules for the demo foundation idempotently.
+  - 5 new automated tests in `apps/identity/tests/test_entitlements.py` (total 46 tests passing).
+  - PR #7 merged into `main`.
