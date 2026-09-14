@@ -106,3 +106,15 @@
   - 5 new automated tests in `apps/identity/tests/test_students.py` testing multi-tenancy isolation, sibling guardian links across schools, state transitions, and soft deletion (total 51 tests passing).
   - PR #8 merged into `main`.
 
+## Step 2.2: Staff Model, Directory API, and Offboarding Lifecycle (TASK-013)
+- **Date:** 2026-09-15
+- **Milestone:** Step 2.2 Completed & Merged (PR #9)
+- **Details:**
+  - Implemented `Staff` model (`staff` table) inheriting `core.models.TenantModel` with protected references to `Person` PII vault and `User` account, optional `School` foreign key, `nip`, `employment_type` (`PERMANENT|CONTRACT|HONORARY`), `join_date`, `resignation_date`, `resignation_reason`, and `status` (`ACTIVE|ON_LEAVE|OFFBOARDED`).
+  - Implemented atomic staff offboarding service `offboard_staff()` (`IAM-021`): transitions status to `OFFBOARDED`, suspends `User` account, invalidates active sessions within 60 seconds, revokes/soft-deletes `RoleAssignment` entries, publishes `identity.staff.offboarded` domain event with class reassignment payload, and writes an `AuditEvent`.
+  - Implemented `StaffViewSet` (`/api/v1/staff/` and `/api/v1/staff/:id/offboard/`) with RBAC enforcement (`school_config.read` / `school_config.write`).
+  - Created forward migration `apps/identity/migrations/0005_staff.py`.
+  - 3 new automated tests in `apps/identity/tests/test_staff.py` asserting creation, 3-layer tenancy isolation, and offboarding lifecycle execution (total 54 tests passing).
+  - PR #9 merged into `main`.
+
+
