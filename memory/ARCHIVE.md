@@ -68,4 +68,18 @@
   - 7 new automated tests in `apps/identity/tests/test_rbac.py` (total 32 tests passing).
   - PR #5 merged into `main`.
 
+## Step 1.4: Foundation Portal Views, School Management API, and Dashboard KPIs
+- **Date:** 2026-09-14
+- **Milestone:** Step 1.4 Completed & Merged (PR #6) - Milestone M1 Acceptance Achieved
+- **Details:**
+  - Achieved Milestone M1 acceptance goal: Foundation admin authenticates and views schools under their Yayasan via `/api/v1/schools/`.
+  - Implemented `RptFoundationKPI` model (`rpt_foundation_kpis`) with `MoneyField` (`DECIMAL(18,2)`) for high-performance dashboard KPI rollups (`spec/03 §4`, `FND-005`).
+  - Implemented `SchoolViewSet` (`/api/v1/schools/`) with 3-layer tenancy scoping, RBAC action permissions (`school_config.read` / `school_config.write`), soft deletion enforcement (`deleted_at`), and immutable `AuditEvent` logging.
+  - Implemented `FoundationSettingsView` (`/api/v1/foundation/settings`) and `FoundationKPIView` (`/api/v1/foundation/kpis`).
+  - Implemented `StandardCursorPagination` in `apps/core/pagination.py` enforcing `-created_at` ordering across all cursor-paginated endpoints.
+  - Updated `TenancyMiddleware` to support `_force_auth_user` for API client tests.
+  - 9 new automated tests across `apps/foundation/tests/` (total 41 tests passing).
+  - PR #6 merged into `main`.
+
+
 
