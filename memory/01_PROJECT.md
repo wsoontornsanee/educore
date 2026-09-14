@@ -34,11 +34,11 @@
 | Task ID | Component | Description | Status |
 |---|---|---|---|
 | `TASK-001` | Core Setup | Step 0 Skeleton & Foundation primitives | Completed |
-| `TASK-008` | Identity Models | Implement `Foundations`, `Schools`, `Users`, `Persons` (PII vault), `RoleAssignments` per `spec/02 §2` | Next Up |
+| `TASK-008A`| Identity Core | Implement `Foundation` and `School` models + `seed_demo_foundation` | Completed |
+| `TASK-008B`| Identity Auth | Implement `User` model, `Person` (PII vault), and authentication services | Next Up |
 | `TASK-009` | Foundation App | Implement `apps/foundation/` portal models and school management views (`spec/03`) | Pending |
 | `TASK-010` | RBAC & Auth | Enforce role permissions matrix, session auth for web, JWT for mobile (`spec/02 §3, §4`) | Pending |
 | `TASK-011` | Entitlements | Implement `foundation_entitlements` gating (`spec/02 §6`) | Pending |
-| `TASK-012` | Seed Data | Create `Yayasan Demo` fixture with two schools (e.g. SDIT and SMP IT) for demoable local environment | Pending |
 
 ---
 

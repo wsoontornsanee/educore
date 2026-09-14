@@ -34,6 +34,7 @@ INSTALLED_APPS = [
 
     # EduCore Apps
     'apps.core.apps.CoreConfig',
+    'apps.identity.apps.IdentityConfig',
 ]
 
 MIDDLEWARE = [
