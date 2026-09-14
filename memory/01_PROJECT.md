@@ -9,11 +9,11 @@
 ---
 
 ## 2. Current Build Status
-- **Current Step:** Step 0 Complete — Ready for Step 1 (`identity`, `foundation`).
+- **Current Step:** Milestone M1 (Step 1) Complete — Ready for Milestone M2 (Step 2: Student & Staff Records).
 - **Target Milestone:** Pilot Core (P0: Milestones M0–M4).
   - *M0 (Step 0) [DONE]:* Django project skeleton, `core` app (`TenantModel`, `MoneyField`, `AuditEvent`, `DomainEvent`, `TaskQueue`, `JobRun`, `drain_tasks`, advisory locks, crontab).
-  - *M1 (Step 1) [NEXT UP]:* Tenancy, auth, RBAC, seed data (`identity`, `foundation`). Demo: Foundation admin logs in, sees two schools.
-  - *M2 (Step 2):* Student/staff records + bulk XLSX import (`identity`).
+  - *M1 (Step 1) [DONE]:* Tenancy, auth, RBAC, feature entitlements, foundation portal, seed data (`identity`, `foundation`). Demo: Foundation admin logs in, sees two schools.
+  - *M2 (Step 2) [NEXT UP]:* Student/staff records + bulk XLSX import (`identity`).
   - *M3 (Step 3):* Credentials, gate attendance events, edge agent stub (`attendance`, `hardware`).
   - *M4 (Step 4):* Notifications service + WhatsApp arrival messaging (`notifications`).
 
@@ -30,10 +30,11 @@
 7. **UU PDP Person PII Vault Isolation:** Identity-bearing PII (`nik`, `dob`, `gender`, `address`) is stored exclusively in `persons` (`Person` model), while `users` (`User` model) holds only auth credentials, phone/email identifiers, and account lockout security fields.
 8. **RBAC Scope Isolation & Fail-Closed Guardrails:** Roles are assigned at either `FOUNDATION` scope or `SCHOOL` scope. `HasRequiredPermission` strictly fails closed if a view forgets to define `required_permission` (`IAM-010`), and school-scoped roles cannot access sibling schools (`IAM-012`).
 9. **Layer 3 Tenancy & Standard CursorPagination:** Layer 3 multi-tenancy derivation from authenticated user in `TenancyMiddleware` + `TenantManager` completely seals cross-tenant visibility (returning 404 for sibling foundation entities). `StandardCursorPagination` enforces `-created_at` ordering across all list endpoints.
+10. **Granular Feature Entitlements Hierarchy:** `foundation_entitlements` evaluates per-school overrides before foundation-wide defaults (`IAM-023`). Disabled modules raise HTTP 403 `MODULE_NOT_ENTITLED` (`IAM-024`) via `RequiresModuleEntitlement`, and `GET /api/v1/me` exposes active module flags to hide navigation surfaces dynamically.
 
 ---
 
-## 4. Active Tasks & Immediate Next Actions (Step 1)
+## 4. Active Tasks & Immediate Next Actions (Step 2 / Milestone M2)
 
 | Task ID | Component | Description | Status |
 |---|---|---|---|
@@ -42,7 +43,10 @@
 | `TASK-008B`| Identity Auth | Implement `User` model, `Person` (PII vault), and authentication services | Completed |
 | `TASK-010` | RBAC & Auth | Enforce role permissions matrix, session auth for web, JWT for mobile (`spec/02 §3, §4`) | Completed |
 | `TASK-009` | Foundation App | Implement `apps/foundation/` portal models and school management views (`spec/03`) | Completed |
-| `TASK-011` | Entitlements | Implement `foundation_entitlements` gating (`spec/02 §6`) | Next Up |
+| `TASK-011` | Entitlements | Implement `foundation_entitlements` gating (`spec/02 §6`) and `GET /me` | Completed |
+| `TASK-012` | Student Records | Implement `Student`, `Guardian`, and `GuardianLink` models (`spec/02 §2`) | Next Up |
+| `TASK-013` | Staff Records | Implement `Staff` model and offboarding lifecycle (`spec/02 §2, §5`) | Pending |
+| `TASK-014` | Bulk Import | Implement atomic student XLSX import with dry-run diff preview (`spec/02 §5`) | Pending |
 
 ---
 
