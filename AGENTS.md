@@ -37,9 +37,18 @@ At the beginning of every session, you MUST read these files in order:
 
 ---
 
-## 4. Git & Code Quality Workflow
+## 4. Mandatory SOP & Development Process
 
-- Always write tests alongside new functionality (targeting ≥80% coverage on business logic).
-- Verify all migrations run forward and cleanly on MySQL 8.
-- Commits must be atomic, conventional, and preceded by passing test suites:
-  - `feat(...)`, `fix(...)`, `docs(...)`, `test(...)`, `refactor(...)`.
+Every task must strictly adhere to the following 5-phase SOP:
+1. **Plan:** Research requirements, specifications, and impact. Create an explicit technical implementation plan with user confirmation before executing changes.
+2. **Dev:** Write clean, modular, typed code conforming to all architecture constraints.
+3. **Test:** Write and run automated tests (≥80% coverage on business logic). Verify all forward migrations and lint checks.
+4. **PR:** Prepare atomic conventional commits on a feature branch and open a clean Pull Request.
+5. **Wait for PR Merged & Deploy Instruction:** Never deploy or merge unilaterally; wait for explicit PR merge approval and subsequent deployment instructions from the user.
+
+---
+
+## 5. Destructive Operations Guardrail
+
+- **Strict Confirmation Required:** Never execute any `DELETE`, `TRUNCATE`, `DROP`, or bulk destructive operation without an explicit `WHERE` clause and explicit confirmation from the user.
+- Academic and financial data must NEVER be physically deleted; only soft-deletion (`deleted_at`) is permitted. Compensating entries are required for ledger corrections.
