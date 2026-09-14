@@ -47,9 +47,9 @@ class TenancyMiddleware:
     def __call__(self, request):
         foundation_id = None
 
-        # 1. From authenticated user
-        user = getattr(request, 'user', None)
-        if user and user.is_authenticated:
+        # 1. From authenticated user or test client _force_auth_user
+        user = getattr(request, '_force_auth_user', getattr(request, 'user', None))
+        if user and getattr(user, 'is_authenticated', False):
             foundation_id = getattr(user, 'foundation_id', None)
 
         # 2. From header (for service-to-service or privileged API access)

@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     # EduCore Apps
     'apps.core.apps.CoreConfig',
     'apps.identity.apps.IdentityConfig',
+    'apps.foundation.apps.FoundationConfig',
 ]
 
 MIDDLEWARE = [
@@ -140,7 +141,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Django REST Framework configuration (spec/01 §8.1, spec/16 §6)
 REST_FRAMEWORK = {
     'COERCE_DECIMAL_TO_STRING': True,  # CUR-026: serialize MoneyField/Decimal as string
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.CursorPagination',
+    'DEFAULT_PAGINATION_CLASS': 'apps.core.pagination.StandardCursorPagination',
     'PAGE_SIZE': 50,
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
