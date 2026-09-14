@@ -56,3 +56,16 @@
   - 6 new automated tests in `apps/identity/tests/test_users_and_auth.py` (total 25 tests passing).
   - PR #4 merged into `main`.
 
+## Step 1.3: Role Assignment Model, RBAC Matrix, and Permission Enforcement
+- **Date:** 2026-09-14
+- **Milestone:** Step 1.3 Completed & Merged (PR #5)
+- **Details:**
+  - Implemented `RoleAssignment` model (`apps/identity/models.py`) with `TenantModel` inheritance, `FOUNDATION` and `SCHOOL` scoping, unique constraints, and composite indexes.
+  - Implemented RBAC matrix and evaluator engine (`apps/identity/rbac.py`) mapping 6 canonical roles (`foundation_admin`, `school_admin`, `finance_officer`, `teacher`, `counsellor`, `parent`) across 11 functional domains (`spec/02 §4.2`).
+  - Enforced scope isolation preventing school-scoped roles from accessing sibling schools (`IAM-012`).
+  - Implemented DRF permission classes (`apps/identity/permissions.py`): `HasRequiredPermission` with fail-closed enforcement on missing `view.required_permission` (`IAM-010`), and `IsFoundationAdmin`.
+  - Updated `seed_demo_foundation` to assign `foundation_admin` at `FOUNDATION` scope to the demo admin user idempotently.
+  - 7 new automated tests in `apps/identity/tests/test_rbac.py` (total 32 tests passing).
+  - PR #5 merged into `main`.
+
+
