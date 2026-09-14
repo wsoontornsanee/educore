@@ -88,6 +88,19 @@ class Command(BaseCommand):
                 )
                 self.stdout.write(self.style.SUCCESS(f"  - Created Demo Admin: {admin_user.full_name} ({admin_user.phone_e164})"))
             else:
+                admin_user = User.all_tenants.get(phone_e164=admin_phone)
                 self.stdout.write(self.style.SUCCESS(f"  - Demo Admin already exists ({admin_phone})"))
+
+            # Idempotently assign FOUNDATION_ADMIN role
+            from apps.identity.rbac import assign_role, ROLE_FOUNDATION_ADMIN, SCOPE_FOUNDATION
+            assign_role(
+                user=admin_user,
+                role=ROLE_FOUNDATION_ADMIN,
+                scope_type=SCOPE_FOUNDATION,
+                scope_id=foundation.id,
+                foundation_id=foundation.id,
+                created_by="seed_demo_foundation"
+            )
+            self.stdout.write(self.style.SUCCESS(f"  - Assigned Role: {ROLE_FOUNDATION_ADMIN} (Scope: FOUNDATION {foundation.id})"))
 
         self.stdout.write(self.style.SUCCESS("Demo seeding completed successfully."))

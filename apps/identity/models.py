@@ -215,3 +215,51 @@ class OTPChallenge(models.Model):
     @property
     def is_valid(self) -> bool:
         return not self.is_expired and self.verified_at is None and self.attempts < self.max_attempts
+
+class RoleAssignment(TenantModel):
+    """Assignment of a role to a user, scoped to either FOUNDATION or SCHOOL (spec/02 §2, §4)."""
+    SCOPE_FOUNDATION = 'FOUNDATION'
+    SCOPE_SCHOOL = 'SCHOOL'
+    SCOPE_CHOICES = [
+        (SCOPE_FOUNDATION, 'Foundation'),
+        (SCOPE_SCHOOL, 'School'),
+    ]
+
+    ROLE_FOUNDATION_ADMIN = 'foundation_admin'
+    ROLE_SCHOOL_ADMIN = 'school_admin'
+    ROLE_FINANCE_OFFICER = 'finance_officer'
+    ROLE_TEACHER = 'teacher'
+    ROLE_COUNSELLOR = 'counsellor'
+    ROLE_PARENT = 'parent'
+    ROLE_CHOICES = [
+        (ROLE_FOUNDATION_ADMIN, 'Foundation Admin'),
+        (ROLE_SCHOOL_ADMIN, 'School Admin'),
+        (ROLE_FINANCE_OFFICER, 'Finance Officer'),
+        (ROLE_TEACHER, 'Teacher'),
+        (ROLE_COUNSELLOR, 'Counsellor'),
+        (ROLE_PARENT, 'Parent'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='role_assignments')
+    role = models.CharField(max_length=32, choices=ROLE_CHOICES, db_index=True)
+    scope_type = models.CharField(max_length=16, choices=SCOPE_CHOICES, default=SCOPE_SCHOOL, db_index=True)
+    scope_id = models.BigIntegerField(db_index=True, help_text="ID of Foundation if scope_type=FOUNDATION, or School if scope_type=SCHOOL")
+
+    class Meta:
+        db_table = 'role_assignments'
+        verbose_name = 'Penugasan Peran'
+        verbose_name_plural = 'Daftar Penugasan Peran'
+        indexes = [
+            models.Index(fields=['foundation_id', 'user', 'role']),
+            models.Index(fields=['foundation_id', 'scope_type', 'scope_id']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'user', 'role', 'scope_type', 'scope_id'],
+                name='unique_user_role_scope'
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.user.phone_e164} -> {self.role} ({self.scope_type}:{self.scope_id})"
+
