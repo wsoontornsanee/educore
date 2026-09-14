@@ -1,0 +1,23 @@
+# Core Django & REST Framework
+django>=5.1,<5.2
+djangorestframework>=3.15,<3.16
+djangorestframework-simplejwt>=5.3,<5.4
+
+# Database
+mysqlclient>=2.2.4
+pymysql>=1.1.1
+
+# UI & Rendering
+django-htmx>=1.19,<1.20
+Pillow>=10.4.0
+openpyxl>=3.1.5
+weasyprint>=62.3
+
+# Utilities & Security
+requests>=2.32.3
+cryptography>=43.0.1
+python-dateutil>=2.9.0
+
+# Testing & Quality
+pytest>=8.3.2
+pytest-django>=4.9.0

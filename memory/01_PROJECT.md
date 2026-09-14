@@ -8,10 +8,10 @@
 ---
 
 ## 2. Current Build Status
-- **Current Step:** Step 0 — Foundation & Skeleton Setup (`apps/core`).
+- **Current Step:** Step 0 Complete — Moving to Step 1 (`identity`, `foundation`).
 - **Target Milestone:** Pilot Core (P0: Milestones M0–M4).
-  - *M0 (Step 0):* Django project skeleton, `core` app (`TenantModel`, `MoneyField`, `AuditEvent`, `DomainEvent`, `TaskQueue`, `JobRun`, `drain_tasks`, advisory locks, crontab).
-  - *M1 (Step 1):* Tenancy, auth, RBAC, seed data (`identity`, `foundation`).
+  - *M0 (Step 0) [DONE]:* Django project skeleton, `core` app (`TenantModel`, `MoneyField`, `AuditEvent`, `DomainEvent`, `TaskQueue`, `JobRun`, `drain_tasks`, advisory locks, crontab).
+  - *M1 (Step 1) [NEXT]:* Tenancy, auth, RBAC, seed data (`identity`, `foundation`). Foundation admin logs in, sees two schools.
   - *M2 (Step 2):* Student/staff records + bulk XLSX import.
   - *M3 (Step 3):* Credentials, gate attendance events, edge agent stub (`attendance`, `hardware`).
   - *M4 (Step 4):* Notifications service + WhatsApp arrival messaging (`notifications`).
@@ -22,12 +22,13 @@
 
 | Task ID | Component | Description | Status |
 |---|---|---|---|
-| `TASK-001` | Memory | Establish agent memory system (`memory/`, `AGENTS.md`, `CLAUDE.md`, `SOUL.md`, `USER.md`) | In Progress |
-| `TASK-002` | Env & Deps | Configure `requirements.txt` and verify Python environment | Pending |
-| `TASK-003` | Django Skeleton | Set up project layout `educore/settings/`, `educore/middleware/`, `manage.py` | Pending |
-| `TASK-004` | Core Models | Implement `TenantModel`, `TenantManager`, `MoneyField`, `AuditEvent`, `DomainEvent`, `TaskQueue`, `JobRun` | Pending |
-| `TASK-005` | Locking & Tasks | Implement MySQL advisory lock utility and `drain_tasks` management command | Pending |
-| `TASK-006` | Verification | Write automated tests for tenancy, money, locks, and cron job logging; run migrations | Pending |
+| `TASK-001` | Memory | Establish agent memory system (`memory/`, `AGENTS.md`, `CLAUDE.md`, `SOUL.md`, `USER.md`) | Completed |
+| `TASK-002` | Env & Deps | Configure `requirements.txt` and verify Python environment | Completed |
+| `TASK-003` | Django Skeleton | Set up project layout `educore/settings/`, `educore/middleware/`, `manage.py` | Completed |
+| `TASK-004` | Core Models | Implement `TenantModel`, `TenantManager`, `MoneyField`, `AuditEvent`, `DomainEvent`, `TaskQueue`, `JobRun` | Completed |
+| `TASK-005` | Locking & Tasks | Implement MySQL advisory lock utility and `drain_tasks` management command | Completed |
+| `TASK-006` | Verification | Write automated tests for tenancy, money, locks, and cron job logging; run migrations | Completed |
+| `TASK-007` | Step 1 Prep | Begin Step 1: `apps/identity/` and `apps/foundation/` models, authentication, RBAC matrix, seed data | Next Up |
 
 ---
 

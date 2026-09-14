@@ -1,0 +1,21 @@
+# deploy/crontab — Canonical schedule for EduCore background jobs (ARC-013)
+# Note: Server cron runs in UTC; each management command internally honors school timezones (ARC-014).
+
+* * * * *      python /app/manage.py drain_tasks --limit 200            # generic async queue
+* * * * *      python /app/manage.py ingest_device_events               # edge agent event intake sweep
+*/5 * * * *    python /app/manage.py refresh_reporting --scope=dashboard
+*/5 * * * *    python /app/manage.py sync_payment_status                # poll pending payment intents
+*/10 * * * *   python /app/manage.py check_device_health                # offline device alerts
+*/15 * * * *   python /app/manage.py send_due_notifications             # scheduled + quiet-hours release
+0 * * * *      python /app/manage.py expire_sessions
+30 6 * * *     python /app/manage.py mark_absent_students               # after absent_cutoff per school
+0 17 * * *     python /app/manage.py send_digests
+0 18 * * *     python /app/manage.py reconcile_payments --date=today
+0 19 * * *     python /app/manage.py reconcile_wallet_balances
+0 20 * * *     python /app/manage.py refresh_reporting --scope=full
+0 21 * * *     python /app/manage.py run_arrears_ladder
+0 22 * * *     python /app/manage.py enforce_retention --dry-run=false
+0 23 * * *     python /app/manage.py backup_database
+25 2 25 * *    python /app/manage.py generate_invoices --next-period
+0 3 1 * *      python /app/manage.py close_metering_month
+0 4 * * 0      python /app/manage.py settle_merchants
