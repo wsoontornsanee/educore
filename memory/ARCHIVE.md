@@ -42,3 +42,17 @@
   - Implemented `seed_demo_foundation` management command, creating `Yayasan Al-Hikmah Nusantara` with SD, SMP, and SMA campuses.
   - 4 automated tests implemented in `apps/identity/tests/test_foundation_school.py`, asserting multi-tenant query isolation, soft deletion, and command idempotency (total 19 tests passing).
   - PR #3 merged into `main`.
+
+## Step 1.2: Custom User Model, Persons PII Vault, and Phone/Email OTP Authentication
+- **Date:** 2026-09-14
+- **Milestone:** Step 1.2 Completed & Merged (PR #4)
+- **Details:**
+  - Implemented custom `User` model (`apps/identity/models.py`) supporting dual phone E.164 (`+62...`) and email authentication, account lockout protection (`IAM-008`: 10 failed attempts locks account for 15 minutes), and TOTP MFA secrets.
+  - Implemented `Person` PII vault model complying with UU PDP No. 27/2022 (`nik`, `full_name`, `dob`, `gender`, `address`).
+  - Implemented `OTPChallenge` model and services (`apps/identity/services.py`) with 5-minute TTL, 6-digit cryptographic generation, rate limiting (max 3 per 15 min), and 5-attempt brute-force protection.
+  - Implemented `DualAuthBackend` (`apps/identity/backends.py`) supporting phone/email login with password or OTP.
+  - Updated `seed_demo_foundation` to seed demo Yayasan superadmin user (`+6281234567890`, `admin@alhikmah.sch.id`).
+  - Consolidated initial identity migrations into a clean `0001_initial.py` to satisfy Django's swappable user model migration constraints.
+  - 6 new automated tests in `apps/identity/tests/test_users_and_auth.py` (total 25 tests passing).
+  - PR #4 merged into `main`.
+
