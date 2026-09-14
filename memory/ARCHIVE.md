@@ -93,3 +93,16 @@
   - Updated `seed_demo_foundation` to seed all 8 canonical modules for the demo foundation idempotently.
   - 5 new automated tests in `apps/identity/tests/test_entitlements.py` (total 46 tests passing).
   - PR #7 merged into `main`.
+
+## Step 2.1: Student, Guardian, and GuardianLink Models (TASK-012)
+- **Date:** 2026-09-14
+- **Milestone:** Step 2.1 Completed & Merged (PR #8)
+- **Details:**
+  - Implemented `Student` model (`students` table) with `TenantModel` inheritance, `School` foreign key (`on_delete=models.PROTECT`), `Person` PII vault foreign key (`on_delete=models.PROTECT`), `nisn`, `nis`, `photo_key`, and `status` choices.
+  - Implemented student lifecycle state machine (`IAM-019`): `PROSPECT -> ACTIVE -> (INACTIVE | GRADUATED | TRANSFERRED_OUT)`. `transition_status()` validates transitions and publishes transactional `identity.student.status_changed` domain event.
+  - Implemented `Guardian` model (`guardians` table) anchored to `Person` PII vault and optional `User` account for mobile phone OTP authentication (`IAM-009`, `IAM-014`).
+  - Implemented `GuardianLink` model (`guardian_links` table) representing the relationship between a guardian and a student with composite unique constraint `[foundation_id, guardian, student]`, flags `is_primary`, `can_pickup`, `financial_responsible` (`IAM-015`), and relation types (`FATHER|MOTHER|GUARDIAN`).
+  - Created forward migration `apps/identity/migrations/0004_guardian_student_guardianlink_and_more.py`.
+  - 5 new automated tests in `apps/identity/tests/test_students.py` testing multi-tenancy isolation, sibling guardian links across schools, state transitions, and soft deletion (total 51 tests passing).
+  - PR #8 merged into `main`.
+
