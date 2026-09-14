@@ -305,3 +305,221 @@ class FoundationEntitlement(TenantModel):
         return f"[{scope}] {self.module_key} -> {status_text}"
 
 
+class Student(TenantModel):
+    """Student profile linked to a School and Person PII record (spec/02 §2, §5)."""
+    STATUS_PROSPECT = 'PROSPECT'
+    STATUS_ACTIVE = 'ACTIVE'
+    STATUS_INACTIVE = 'INACTIVE'
+    STATUS_GRADUATED = 'GRADUATED'
+    STATUS_TRANSFERRED_OUT = 'TRANSFERRED_OUT'
+
+    STATUS_CHOICES = [
+        (STATUS_PROSPECT, 'Calon Siswa (Prospect)'),
+        (STATUS_ACTIVE, 'Aktif (Active)'),
+        (STATUS_INACTIVE, 'Nonaktif (Inactive)'),
+        (STATUS_GRADUATED, 'Lulus (Graduated)'),
+        (STATUS_TRANSFERRED_OUT, 'Pindah Keluar (Transferred Out)'),
+    ]
+
+    # Permitted lifecycle state machine transitions (IAM-019)
+    VALID_STATUS_TRANSITIONS = {
+        STATUS_PROSPECT: {STATUS_ACTIVE, STATUS_INACTIVE},
+        STATUS_ACTIVE: {STATUS_INACTIVE, STATUS_GRADUATED, STATUS_TRANSFERRED_OUT},
+        STATUS_INACTIVE: {STATUS_ACTIVE},  # Re-activation permitted
+        STATUS_GRADUATED: set(),            # Terminal state
+        STATUS_TRANSFERRED_OUT: set(),      # Terminal state
+    }
+
+    school = models.ForeignKey(
+        School,
+        on_delete=models.PROTECT,
+        related_name='students',
+        help_text="The school/madrasah where the student is currently enrolled"
+    )
+    person = models.ForeignKey(
+        Person,
+        on_delete=models.PROTECT,
+        related_name='student_profiles',
+        help_text="Reference to Person PII vault (spec/02 §2, spec/14 §4)"
+    )
+    nisn = models.CharField(
+        max_length=10,
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="Nomor Induk Siswa Nasional (10 digits)"
+    )
+    nis = models.CharField(
+        max_length=32,
+        db_index=True,
+        help_text="Nomor Induk Siswa (internal school registration number)"
+    )
+    photo_key = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        help_text="Local filesystem key / relative path to student profile picture"
+    )
+    status = models.CharField(
+        max_length=32,
+        choices=STATUS_CHOICES,
+        default=STATUS_PROSPECT,
+        db_index=True,
+        help_text="Current enrollment status (IAM-019)"
+    )
+
+    class Meta:
+        db_table = 'students'
+        verbose_name = 'Siswa'
+        verbose_name_plural = 'Daftar Siswa'
+        indexes = [
+            models.Index(fields=['foundation_id', 'school_id', 'status']),
+            models.Index(fields=['foundation_id', 'nis']),
+            models.Index(fields=['foundation_id', 'nisn']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'school_id', 'nis'],
+                name='unique_school_student_nis'
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.person.full_name} (NIS: {self.nis} - {self.status})"
+
+    def transition_status(self, new_status: str, actor_id: str = None, reason: str = ''):
+        """Execute a validated lifecycle state transition (IAM-019) and record domain event."""
+        if new_status == self.status:
+            return
+
+        valid_targets = self.VALID_STATUS_TRANSITIONS.get(self.status, set())
+        if new_status not in valid_targets:
+            raise ValueError(
+                f"Invalid status transition from {self.status} to {new_status} for student {self.id}."
+            )
+
+        old_status = self.status
+        self.status = new_status
+        if actor_id:
+            self.updated_by = actor_id
+        self.save(update_fields=['status', 'updated_at', 'updated_by'])
+
+        from apps.core.services import record_domain_event
+        record_domain_event(
+            name='identity.student.status_changed',
+            foundation_id=self.foundation_id,
+            payload={
+                'student_id': self.id,
+                'school_id': self.school_id,
+                'old_status': old_status,
+                'new_status': new_status,
+                'actor_id': actor_id,
+                'reason': reason,
+            }
+        )
+
+
+class Guardian(TenantModel):
+    """Parent / legal guardian profile (spec/02 §2, IAM-009, IAM-014).
+    
+    A guardian is anchored to a Person PII record and optionally to a User account
+    for logging into the mobile portal via phone OTP.
+    """
+    person = models.ForeignKey(
+        Person,
+        on_delete=models.PROTECT,
+        related_name='guardian_profiles',
+        help_text="Reference to Person PII vault (spec/02 §2)"
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='guardian_profiles',
+        help_text="Associated user account for mobile login (null if not yet invited/registered)"
+    )
+    occupation = models.CharField(
+        max_length=128,
+        blank=True,
+        default='',
+        help_text="Pekerjaan wali murid (e.g. Pegawai Swasta, Wiraswasta, Guru)"
+    )
+
+    class Meta:
+        db_table = 'guardians'
+        verbose_name = 'Wali Murid'
+        verbose_name_plural = 'Daftar Wali Murid'
+        indexes = [
+            models.Index(fields=['foundation_id', 'person']),
+            models.Index(fields=['foundation_id', 'user']),
+        ]
+
+    def __str__(self):
+        return f"Wali: {self.person.full_name} ({self.occupation or 'Wali'})"
+
+
+class GuardianLink(TenantModel):
+    """Relationship link between a Guardian and a Student (spec/02 §2, §4, IAM-014, IAM-015)."""
+    RELATION_FATHER = 'FATHER'
+    RELATION_MOTHER = 'MOTHER'
+    RELATION_GUARDIAN = 'GUARDIAN'
+
+    RELATION_CHOICES = [
+        (RELATION_FATHER, 'Ayah (Father)'),
+        (RELATION_MOTHER, 'Ibu (Mother)'),
+        (RELATION_GUARDIAN, 'Wali (Guardian)'),
+    ]
+
+    guardian = models.ForeignKey(
+        Guardian,
+        on_delete=models.CASCADE,
+        related_name='student_links',
+        help_text="The parent or legal guardian"
+    )
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.CASCADE,
+        related_name='guardian_links',
+        help_text="The linked student"
+    )
+    relation = models.CharField(
+        max_length=16,
+        choices=RELATION_CHOICES,
+        default=RELATION_GUARDIAN,
+        help_text="Hubungan kekeluargaan (Ayah, Ibu, atau Wali)"
+    )
+    is_primary = models.BooleanField(
+        default=False,
+        help_text="Whether this guardian is the primary contact for communications"
+    )
+    can_pickup = models.BooleanField(
+        default=True,
+        help_text="Whether this guardian is authorized for student campus pickup"
+    )
+    financial_responsible = models.BooleanField(
+        default=False,
+        help_text="Whether this guardian receives invoices and can view financial arrears (IAM-015)"
+    )
+
+    class Meta:
+        db_table = 'guardian_links'
+        verbose_name = 'Hubungan Siswa-Wali'
+        verbose_name_plural = 'Daftar Hubungan Siswa-Wali'
+        indexes = [
+            models.Index(fields=['foundation_id', 'guardian']),
+            models.Index(fields=['foundation_id', 'student']),
+            models.Index(fields=['foundation_id', 'financial_responsible']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'guardian', 'student'],
+                name='unique_guardian_student_link'
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.guardian.person.full_name} -> {self.student.person.full_name} ({self.relation})"
+
+
+
