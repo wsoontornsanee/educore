@@ -87,3 +87,53 @@ class IsFoundationAdmin(permissions.BasePermission):
             scope_id=foundation_id,
             deleted_at__isnull=True,
         ).exists()
+
+class ModuleNotEntitled(PermissionDenied):
+    """Exception raised when accessing a disabled module (IAM-024).
+    
+    Renders HTTP 403 with stable code MODULE_NOT_ENTITLED.
+    """
+    default_detail = "Modul tidak aktif untuk institusi ini."
+    default_code = "MODULE_NOT_ENTITLED"
+
+class RequiresModuleEntitlement(permissions.BasePermission):
+    """DRF permission class gating endpoints by foundation feature entitlement (IAM-023, IAM-024)."""
+
+    def has_permission(self, request, view) -> bool:
+        required_module = getattr(view, 'required_module', None)
+        if not required_module:
+            return True
+
+        from .entitlements import is_module_entitled
+
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        if not foundation_id:
+            return False
+
+        school_id = None
+        if hasattr(view, 'kwargs') and view.kwargs:
+            if 'school_id' in view.kwargs:
+                try:
+                    school_id = int(view.kwargs['school_id'])
+                except (ValueError, TypeError):
+                    pass
+            elif 'pk' in view.kwargs:
+                basename = getattr(view, 'basename', None)
+                model = getattr(getattr(view, 'queryset', None), 'model', None)
+                if basename == 'school' or (model and model.__name__ == 'School'):
+                    try:
+                        school_id = int(view.kwargs['pk'])
+                    except (ValueError, TypeError):
+                        pass
+
+        if school_id is None and hasattr(request, 'query_params') and 'school_id' in request.query_params:
+            try:
+                school_id = int(request.query_params['school_id'])
+            except (ValueError, TypeError):
+                pass
+
+        if not is_module_entitled(foundation_id, required_module, school_id):
+            raise ModuleNotEntitled(f"Modul '{required_module}' tidak aktif untuk institusi ini.")
+
+        return True
+

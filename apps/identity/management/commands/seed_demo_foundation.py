@@ -103,4 +103,14 @@ class Command(BaseCommand):
             )
             self.stdout.write(self.style.SUCCESS(f"  - Assigned Role: {ROLE_FOUNDATION_ADMIN} (Scope: FOUNDATION {foundation.id})"))
 
+            # Seed default feature entitlements for all 8 modules (IAM-023, IAM-025)
+            from apps.identity.entitlements import ALL_MODULES, set_module_entitlement
+            for module in ALL_MODULES:
+                set_module_entitlement(
+                    foundation_id=foundation.id,
+                    module_key=module,
+                    enabled=True,
+                )
+            self.stdout.write(self.style.SUCCESS(f"  - Seeded Entitlements: All {len(ALL_MODULES)} modules enabled"))
+
         self.stdout.write(self.style.SUCCESS("Demo seeding completed successfully."))

@@ -263,3 +263,45 @@ class RoleAssignment(TenantModel):
     def __str__(self):
         return f"{self.user.phone_e164} -> {self.role} ({self.scope_type}:{self.scope_id})"
 
+class FoundationEntitlement(TenantModel):
+    """Feature entitlements gating modules per foundation and per school (spec/02 §6, IAM-023)."""
+    MODULE_ACADEMIC = 'academic'
+    MODULE_ATTENDANCE = 'attendance'
+    MODULE_FINANCE = 'finance'
+    MODULE_WALLET = 'wallet'
+    MODULE_CAMPUS_LIFE = 'campus_life'
+    MODULE_PAYROLL = 'payroll'
+    MODULE_ANALYTICS = 'analytics'
+    MODULE_HARDWARE = 'hardware'
+
+    MODULE_CHOICES = [
+        (MODULE_ACADEMIC, 'Academic'),
+        (MODULE_ATTENDANCE, 'Attendance'),
+        (MODULE_FINANCE, 'Finance'),
+        (MODULE_WALLET, 'Wallet / Canteen'),
+        (MODULE_CAMPUS_LIFE, 'Campus Life'),
+        (MODULE_PAYROLL, 'Payroll'),
+        (MODULE_ANALYTICS, 'Analytics'),
+        (MODULE_HARDWARE, 'Hardware & IoT'),
+    ]
+
+    school_id = models.BigIntegerField(null=True, blank=True, db_index=True, help_text="Null for foundation-wide default, or specific school ID")
+    module_key = models.CharField(max_length=32, choices=MODULE_CHOICES, db_index=True)
+    enabled = models.BooleanField(default=True, db_index=True)
+    limits = models.JSONField(default=dict, blank=True, help_text="Plan tier limits or quotas (JSON)")
+
+    class Meta:
+        db_table = 'foundation_entitlements'
+        verbose_name = 'Hak Akses Modul'
+        verbose_name_plural = 'Daftar Hak Akses Modul'
+        indexes = [
+            models.Index(fields=['foundation_id', 'module_key']),
+            models.Index(fields=['foundation_id', 'school_id', 'module_key']),
+        ]
+
+    def __str__(self):
+        scope = f"School {self.school_id}" if self.school_id else "Foundation-wide"
+        status_text = "ENABLED" if self.enabled else "DISABLED"
+        return f"[{scope}] {self.module_key} -> {status_text}"
+
+
