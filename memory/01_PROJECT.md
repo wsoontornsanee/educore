@@ -28,6 +28,7 @@
 5. **Worker Task Draining:** `drain_tasks` uses `SELECT ... FOR UPDATE SKIP LOCKED` where supported (MySQL 8) and safely executes tasks under the task's originating `foundation_id` context.
 6. **Swappable User Model in Initial Migration:** Django requires custom `AUTH_USER_MODEL` to be declared in the app's initial migration (`0001_initial.py`) because `admin.0001_initial` depends on `('identity', '__first__')`. Attempting to introduce `User` in `0002_...` triggers a lazy reference `ValueError` in `admin.LogEntry.user`.
 7. **UU PDP Person PII Vault Isolation:** Identity-bearing PII (`nik`, `dob`, `gender`, `address`) is stored exclusively in `persons` (`Person` model), while `users` (`User` model) holds only auth credentials, phone/email identifiers, and account lockout security fields.
+8. **RBAC Scope Isolation & Fail-Closed Guardrails:** Roles are assigned at either `FOUNDATION` scope or `SCHOOL` scope. `HasRequiredPermission` strictly fails closed if a view forgets to define `required_permission` (`IAM-010`), and school-scoped roles cannot access sibling schools (`IAM-012`).
 
 ---
 
@@ -38,8 +39,8 @@
 | `TASK-001` | Core Setup | Step 0 Skeleton & Foundation primitives | Completed |
 | `TASK-008A`| Identity Core | Implement `Foundation` and `School` models + `seed_demo_foundation` | Completed |
 | `TASK-008B`| Identity Auth | Implement `User` model, `Person` (PII vault), and authentication services | Completed |
-| `TASK-010` | RBAC & Auth | Enforce role permissions matrix, session auth for web, JWT for mobile (`spec/02 §3, §4`) | Next Up |
-| `TASK-009` | Foundation App | Implement `apps/foundation/` portal models and school management views (`spec/03`) | Pending |
+| `TASK-010` | RBAC & Auth | Enforce role permissions matrix, session auth for web, JWT for mobile (`spec/02 §3, §4`) | Completed |
+| `TASK-009` | Foundation App | Implement `apps/foundation/` portal models and school management views (`spec/03`) | Next Up |
 | `TASK-011` | Entitlements | Implement `foundation_entitlements` gating (`spec/02 §6`) | Pending |
 
 ---

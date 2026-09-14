@@ -2,8 +2,8 @@
 from django.contrib.auth.base_user import BaseUserManager
 from apps.core.managers import TenantManager, AllTenantsManager
 
-class UserManager(BaseUserManager, TenantManager):
-    """Multi-tenant User Manager supporting phone E.164 and email authentication."""
+class CustomBaseUserManager(BaseUserManager):
+    """Base manager mixin providing phone E.164 and email user creation."""
 
     def create_user(self, phone_e164, password=None, **extra_fields):
         if not phone_e164:
@@ -36,6 +36,10 @@ class UserManager(BaseUserManager, TenantManager):
 
         return self.create_user(phone_e164, password, **extra_fields)
 
-class AllUsersManager(BaseUserManager, AllTenantsManager):
+class UserManager(CustomBaseUserManager, TenantManager):
+    """Multi-tenant User Manager supporting phone E.164 and email authentication."""
+    pass
+
+class AllUsersManager(CustomBaseUserManager, AllTenantsManager):
     """Unscoped user manager for global authentication lookup and admin ops."""
     pass
