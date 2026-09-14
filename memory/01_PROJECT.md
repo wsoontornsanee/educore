@@ -8,31 +8,40 @@
 ---
 
 ## 2. Current Build Status
-- **Current Step:** Step 0 Complete — Moving to Step 1 (`identity`, `foundation`).
+- **Current Step:** Step 0 Complete — Ready for Step 1 (`identity`, `foundation`).
 - **Target Milestone:** Pilot Core (P0: Milestones M0–M4).
   - *M0 (Step 0) [DONE]:* Django project skeleton, `core` app (`TenantModel`, `MoneyField`, `AuditEvent`, `DomainEvent`, `TaskQueue`, `JobRun`, `drain_tasks`, advisory locks, crontab).
-  - *M1 (Step 1) [NEXT]:* Tenancy, auth, RBAC, seed data (`identity`, `foundation`). Foundation admin logs in, sees two schools.
-  - *M2 (Step 2):* Student/staff records + bulk XLSX import.
+  - *M1 (Step 1) [NEXT UP]:* Tenancy, auth, RBAC, seed data (`identity`, `foundation`). Demo: Foundation admin logs in, sees two schools.
+  - *M2 (Step 2):* Student/staff records + bulk XLSX import (`identity`).
   - *M3 (Step 3):* Credentials, gate attendance events, edge agent stub (`attendance`, `hardware`).
   - *M4 (Step 4):* Notifications service + WhatsApp arrival messaging (`notifications`).
 
 ---
 
-## 3. Active Tasks & Immediate Next Actions
+## 3. Step 0 Retrospective & Key Architectural Discoveries
 
-| Task ID | Component | Description | Status |
-|---|---|---|---|
-| `TASK-001` | Memory | Establish agent memory system (`memory/`, `AGENTS.md`, `CLAUDE.md`, `SOUL.md`, `USER.md`) | Completed |
-| `TASK-002` | Env & Deps | Configure `requirements.txt` and verify Python environment | Completed |
-| `TASK-003` | Django Skeleton | Set up project layout `educore/settings/`, `educore/middleware/`, `manage.py` | Completed |
-| `TASK-004` | Core Models | Implement `TenantModel`, `TenantManager`, `MoneyField`, `AuditEvent`, `DomainEvent`, `TaskQueue`, `JobRun` | Completed |
-| `TASK-005` | Locking & Tasks | Implement MySQL advisory lock utility and `drain_tasks` management command | Completed |
-| `TASK-006` | Verification | Write automated tests for tenancy, money, locks, and cron job logging; run migrations | Completed |
-| `TASK-007` | Step 1 Prep | Begin Step 1: `apps/identity/` and `apps/foundation/` models, authentication, RBAC matrix, seed data | Next Up |
+1. **Fail-Closed Tenancy:** `TenantManager.get_queryset()` was designed to return `.none()` if no active thread-local `foundation_id` is set. This guarantees zero cross-tenant data leaks if an endpoint or command forgets to scope context.
+2. **Float Rejection in MoneyField:** Validating at both `to_python` and `get_prep_value` prevents any accidental Python `float` assignment, ensuring all financial calculations retain strict decimal precision (`CUR-005`).
+3. **Database Driver Agnosticism for Dev/CI:** Integrated `pymysql.install_as_MySQLdb()` fallback in `educore/__init__.py` allowing seamless development on platforms without precompiled C-wheels for `mysqlclient`, alongside `docker-compose.yml` for local MySQL 8.
+4. **Advisory Lock Safety:** Named MySQL locks (`GET_LOCK`) cleanly prevent overlapping cron job executions across horizontal app nodes. Fallback in-memory mutex allows offline tests to verify locking semantics without external services.
+5. **Worker Task Draining:** `drain_tasks` uses `SELECT ... FOR UPDATE SKIP LOCKED` where supported (MySQL 8) and safely executes tasks under the task's originating `foundation_id` context.
 
 ---
 
-## 4. Open Technical & Product Decisions
+## 4. Active Tasks & Immediate Next Actions (Step 1)
+
+| Task ID | Component | Description | Status |
+|---|---|---|---|
+| `TASK-001` | Core Setup | Step 0 Skeleton & Foundation primitives | Completed |
+| `TASK-008` | Identity Models | Implement `Foundations`, `Schools`, `Users`, `Persons` (PII vault), `RoleAssignments` per `spec/02 §2` | Next Up |
+| `TASK-009` | Foundation App | Implement `apps/foundation/` portal models and school management views (`spec/03`) | Pending |
+| `TASK-010` | RBAC & Auth | Enforce role permissions matrix, session auth for web, JWT for mobile (`spec/02 §3, §4`) | Pending |
+| `TASK-011` | Entitlements | Implement `foundation_entitlements` gating (`spec/02 §6`) | Pending |
+| `TASK-012` | Seed Data | Create `Yayasan Demo` fixture with two schools (e.g. SDIT and SMP IT) for demoable local environment | Pending |
+
+---
+
+## 5. Open Technical & Product Decisions
 
 From `spec/appendix.md §3`:
 
@@ -48,5 +57,5 @@ From `spec/appendix.md §3`:
 
 ---
 
-## 5. Blockers & Risks
+## 6. Blockers & Risks
 - None currently active.
