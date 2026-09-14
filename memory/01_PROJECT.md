@@ -4,6 +4,7 @@
 - **Name:** EduCore (Sistem Operasi Sekolah Swasta)
 - **Target Institutions:** Indonesian private schools (sekolah swasta, madrasah, pesantren modern, SPK/National-Plus).
 - **Core Stack:** Python 3.12, Django 5.x LTS monolith, MySQL 8.0, cron background scheduling, HTMX + Tailwind for web, React Native (Expo) for mobile.
+- **Design System:** `spec/17-design-system-and-ui.md` (Plus Jakarta Sans + IBM Plex Sans/Mono, Merah flag-saturated `#C8102E`, institutional square 0px radii, 5 mandatory screen states).
 
 ---
 
