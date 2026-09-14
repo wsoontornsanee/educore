@@ -1,9 +1,18 @@
 """Identity and Tenancy models (spec/02, spec/03).
 
-Defines Foundation (the root multi-tenant organization) and School (operating unit).
+Defines:
+- Foundation: root multi-tenant entity
+- School: educational operating unit
+- User: custom auth model supporting phone and email authentication
+- Person: PII vault isolated for UU PDP compliance
+- OTPChallenge: 6-digit WhatsApp/SMS OTP challenges
 """
+from datetime import timedelta
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
+from django.utils import timezone
 from apps.core.models import TenantModel
+from .managers import UserManager, AllUsersManager
 
 class Foundation(models.Model):
     """The governing foundation (Yayasan) managing one or more schools (spec/02 §2, spec/03)."""
@@ -28,7 +37,7 @@ class Foundation(models.Model):
     id = models.BigAutoField(primary_key=True)
     legal_name = models.CharField(max_length=255, help_text="Legal registered name, e.g. Yayasan Pendidikan Islam Al-Hikmah")
     brand_name = models.CharField(max_length=128, help_text="Public-facing brand name, e.g. Al-Hikmah Nusantara")
-    npwp = models.CharField(max_length=32, blank=True, default='', help_text="Indonesian tax identification number (Nomor Pokok Wajib Pajak)")
+    npwp = models.CharField(max_length=32, blank=True, default='', help_text="Nomor Pokok Wajib Pajak")
     address = models.TextField(blank=True, default='', help_text="Official registered address")
     timezone = models.CharField(max_length=32, default='Asia/Jakarta', help_text="Default timezone: Asia/Jakarta, Asia/Makassar, or Asia/Jayapura")
     reporting_currency = models.CharField(max_length=3, default='IDR', help_text="Currency for consolidated reporting (CUR-007)")
@@ -47,13 +56,13 @@ class Foundation(models.Model):
 
 class School(TenantModel):
     """An educational operating unit (school/madrasah) belonging to a Foundation (spec/02 §2)."""
-    LEVEL_SD = 'SD'       # Sekolah Dasar
-    LEVEL_SMP = 'SMP'     # Sekolah Menengah Pertama
-    LEVEL_SMA = 'SMA'     # Sekolah Menengah Atas
-    LEVEL_SMK = 'SMK'     # Sekolah Menengah Kejuruan
-    LEVEL_MI = 'MI'       # Madrasah Ibtidaiyah
-    LEVEL_MTS = 'MTs'     # Madrasah Tsanawiyah
-    LEVEL_MA = 'MA'       # Madrasah Aliyah
+    LEVEL_SD = 'SD'
+    LEVEL_SMP = 'SMP'
+    LEVEL_SMA = 'SMA'
+    LEVEL_SMK = 'SMK'
+    LEVEL_MI = 'MI'
+    LEVEL_MTS = 'MTs'
+    LEVEL_MA = 'MA'
 
     LEVEL_CHOICES = [
         (LEVEL_SD, 'SD (Sekolah Dasar)'),
@@ -68,7 +77,7 @@ class School(TenantModel):
     name = models.CharField(max_length=128, help_text="e.g. SMP Al-Hikmah Nusantara")
     npsn = models.CharField(max_length=16, unique=True, db_index=True, help_text="Nomor Pokok Sekolah Nasional (8 digits)")
     level = models.CharField(max_length=16, choices=LEVEL_CHOICES)
-    curriculum = models.CharField(max_length=64, default='KURIKULUM_MERDEKA', help_text="e.g. KURIKULUM_MERDEKA, K13, CAMBRIDGE, IB")
+    curriculum = models.CharField(max_length=64, default='KURIKULUM_MERDEKA')
     timezone = models.CharField(max_length=32, default='Asia/Jakarta')
     base_currency = models.CharField(max_length=3, default='IDR', help_text="School base currency (CUR-007)")
     is_active = models.BooleanField(default=True)
@@ -84,3 +93,125 @@ class School(TenantModel):
 
     def __str__(self):
         return f"{self.name} (NPSN: {self.npsn})"
+
+class Person(TenantModel):
+    """PII Vault table isolating personal identity data for UU PDP compliance (spec/02 §2, spec/14 §4).
+    
+    Identity-bearing PII (NIK, DOB, address) lives only in persons.
+    Other tables reference person_id.
+    """
+    GENDER_MALE = 'L'
+    GENDER_FEMALE = 'P'
+    GENDER_CHOICES = [
+        (GENDER_MALE, 'Laki-laki'),
+        (GENDER_FEMALE, 'Perempuan'),
+    ]
+
+    nik = models.CharField(max_length=16, blank=True, null=True, db_index=True, help_text="Nomor Induk Kependudukan (16 digits)")
+    full_name = models.CharField(max_length=128, help_text="Full legal name per birth certificate / KTP")
+    dob = models.DateField(null=True, blank=True, help_text="Tanggal lahir")
+    gender = models.CharField(max_length=1, choices=GENDER_CHOICES, blank=True, default='')
+    address = models.TextField(blank=True, default='', help_text="Alamat domisili lengkap")
+
+    class Meta:
+        db_table = 'persons'
+        verbose_name = 'Data Pribadi (PII)'
+        verbose_name_plural = 'Data Pribadi (PII)'
+        indexes = [
+            models.Index(fields=['foundation_id', 'nik']),
+        ]
+
+    def __str__(self):
+        return f"{self.full_name} (NIK: {self.nik or '-'})"
+
+class User(AbstractBaseUser, PermissionsMixin, TenantModel):
+    """Custom User model supporting dual phone E.164 and email authentication (spec/02 §2, §3)."""
+    STATUS_ACTIVE = 'ACTIVE'
+    STATUS_SUSPENDED = 'SUSPENDED'
+    STATUS_INACTIVE = 'INACTIVE'
+    STATUS_CHOICES = [
+        (STATUS_ACTIVE, 'Active'),
+        (STATUS_SUSPENDED, 'Suspended'),
+        (STATUS_INACTIVE, 'Inactive'),
+    ]
+
+    phone_e164 = models.CharField(max_length=20, unique=True, db_index=True, help_text="Nomor HP format E.164 (+62...)")
+    email = models.EmailField(max_length=255, unique=True, null=True, blank=True, db_index=True)
+    full_name = models.CharField(max_length=128)
+    status = models.CharField(max_length=32, choices=STATUS_CHOICES, default=STATUS_ACTIVE, db_index=True)
+    mfa_secret = models.CharField(max_length=64, blank=True, default='', help_text="Base32 TOTP secret for staff MFA")
+    
+    # Account lockout (IAM-008: 10 failed attempts in 15 min locks account)
+    failed_login_attempts = models.PositiveIntegerField(default=0)
+    locked_until = models.DateTimeField(null=True, blank=True)
+
+    is_staff = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    date_joined = models.DateTimeField(default=timezone.now)
+
+    objects = UserManager()
+    all_tenants = AllUsersManager()
+
+    USERNAME_FIELD = 'phone_e164'
+    REQUIRED_FIELDS = ['full_name']
+
+    class Meta:
+        db_table = 'users'
+        verbose_name = 'Pengguna'
+        verbose_name_plural = 'Daftar Pengguna'
+        indexes = [
+            models.Index(fields=['foundation_id', 'status']),
+            models.Index(fields=['foundation_id', 'email']),
+        ]
+
+    def __str__(self):
+        return f"{self.full_name} ({self.phone_e164})"
+
+    @property
+    def is_locked(self) -> bool:
+        """Return True if account is currently locked due to failed login attempts."""
+        if self.locked_until and self.locked_until > timezone.now():
+            return True
+        return False
+
+    def record_login_failure(self):
+        """Record a failed login attempt and lock if threshold exceeded (IAM-008)."""
+        self.failed_login_attempts += 1
+        if self.failed_login_attempts >= 10:
+            self.locked_until = timezone.now() + timedelta(minutes=15)
+        self.save(update_fields=['failed_login_attempts', 'locked_until'])
+
+    def record_login_success(self):
+        """Reset failed attempt counters upon successful login."""
+        if self.failed_login_attempts > 0 or self.locked_until is not None:
+            self.failed_login_attempts = 0
+            self.locked_until = None
+            self.save(update_fields=['failed_login_attempts', 'locked_until'])
+
+class OTPChallenge(models.Model):
+    """WhatsApp/SMS OTP authentication challenge (IAM-002, IAM-003)."""
+    id = models.BigAutoField(primary_key=True)
+    phone_e164 = models.CharField(max_length=20, db_index=True)
+    code_hash = models.CharField(max_length=128, help_text="Hashed 6-digit OTP code")
+    expires_at = models.DateTimeField(db_index=True)
+    attempts = models.PositiveIntegerField(default=0)
+    max_attempts = models.PositiveIntegerField(default=5)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = 'otp_challenges'
+        indexes = [
+            models.Index(fields=['phone_e164', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"OTP to {self.phone_e164} (Expires: {self.expires_at})"
+
+    @property
+    def is_expired(self) -> bool:
+        return timezone.now() > self.expires_at
+
+    @property
+    def is_valid(self) -> bool:
+        return not self.is_expired and self.verified_at is None and self.attempts < self.max_attempts

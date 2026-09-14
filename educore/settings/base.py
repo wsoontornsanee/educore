@@ -127,6 +127,14 @@ STATICFILES_DIRS = [BASE_DIR / 'frontend' / 'static'] if (BASE_DIR / 'frontend' 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# Custom User Model & Authentication (spec/02 §2, §3)
+AUTH_USER_MODEL = 'identity.User'
+
+AUTHENTICATION_BACKENDS = [
+    'apps.identity.backends.DualAuthBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Django REST Framework configuration (spec/01 §8.1, spec/16 §6)
