@@ -32,3 +32,13 @@
   - Defined typography scale with Plus Jakarta Sans, IBM Plex Sans, and tabular IBM Plex Mono.
   - Integrated full surface mockups: Foundation Dashboard (1440px), Live Gate Console (3s polling), Teacher Gradebook (keyboard-first), Parent Mobile App, and Canteen POS (tablet).
   - Merged into `main` and synced with `spec/EduCore-Design-System.pdf`.
+
+## Step 1.1: Foundation & School Core Entities + Demo Seeder
+- **Date:** 2026-09-14
+- **Milestone:** Step 1.1 Completed & Merged (PR #3)
+- **Details:**
+  - Implemented `Foundation` model as the top-level multi-tenancy anchor (NPWP, address, reporting currency IDR, plan tier, status).
+  - Implemented `School` model inheriting `core.models.TenantModel` (NPSN, educational level, curriculum, base currency IDR, composite indexes).
+  - Implemented `seed_demo_foundation` management command, creating `Yayasan Al-Hikmah Nusantara` with SD, SMP, and SMA campuses.
+  - 4 automated tests implemented in `apps/identity/tests/test_foundation_school.py`, asserting multi-tenant query isolation, soft deletion, and command idempotency (total 19 tests passing).
+  - PR #3 merged into `main`.
