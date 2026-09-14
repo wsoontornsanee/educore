@@ -1,7 +1,7 @@
 """Seed demo foundation and schools fixture (spec/01 §7, spec/02, spec/17 §7.1)."""
 from django.core.management.base import BaseCommand
 from django.db import transaction
-from apps.identity.models import Foundation, School
+from apps.identity.models import Foundation, School, Person, User
 
 class Command(BaseCommand):
     help = "Seeds initial demo Yayasan and campus schools idempotently."
@@ -67,5 +67,27 @@ class Command(BaseCommand):
                 )
                 s_status = "Created" if s_created else "Updated"
                 self.stdout.write(self.style.SUCCESS(f"  - {s_status} School: {school.name} (NPSN: {school.npsn}, Level: {school.level})"))
+
+            # Seed demo foundation admin user idempotently
+            admin_phone = "+6281234567890"
+            admin_email = "admin@alhikmah.sch.id"
+            if not User.all_tenants.filter(phone_e164=admin_phone).exists():
+                admin_user = User.objects.create_superuser(
+                    phone_e164=admin_phone,
+                    email=admin_email,
+                    password="DemoAdminPassword123!",
+                    foundation_id=foundation.id,
+                    full_name="KH. Ahmad Dahlan (Ketua Yayasan)",
+                )
+                Person.all_tenants.create(
+                    foundation_id=foundation.id,
+                    full_name="KH. Ahmad Dahlan",
+                    nik="3171012345670001",
+                    gender=Person.GENDER_MALE,
+                    address="Jl. Pendidikan No. 45, Jakarta Selatan",
+                )
+                self.stdout.write(self.style.SUCCESS(f"  - Created Demo Admin: {admin_user.full_name} ({admin_user.phone_e164})"))
+            else:
+                self.stdout.write(self.style.SUCCESS(f"  - Demo Admin already exists ({admin_phone})"))
 
         self.stdout.write(self.style.SUCCESS("Demo seeding completed successfully."))

@@ -19,13 +19,15 @@
 
 ---
 
-## 3. Step 0 Retrospective & Key Architectural Discoveries
+## 3. Retrospectives & Key Architectural Discoveries
 
 1. **Fail-Closed Tenancy:** `TenantManager.get_queryset()` was designed to return `.none()` if no active thread-local `foundation_id` is set. This guarantees zero cross-tenant data leaks if an endpoint or command forgets to scope context.
 2. **Float Rejection in MoneyField:** Validating at both `to_python` and `get_prep_value` prevents any accidental Python `float` assignment, ensuring all financial calculations retain strict decimal precision (`CUR-005`).
 3. **Database Driver Agnosticism for Dev/CI:** Integrated `pymysql.install_as_MySQLdb()` fallback in `educore/__init__.py` allowing seamless development on platforms without precompiled C-wheels for `mysqlclient`, alongside `docker-compose.yml` for local MySQL 8.
 4. **Advisory Lock Safety:** Named MySQL locks (`GET_LOCK`) cleanly prevent overlapping cron job executions across horizontal app nodes. Fallback in-memory mutex allows offline tests to verify locking semantics without external services.
 5. **Worker Task Draining:** `drain_tasks` uses `SELECT ... FOR UPDATE SKIP LOCKED` where supported (MySQL 8) and safely executes tasks under the task's originating `foundation_id` context.
+6. **Swappable User Model in Initial Migration:** Django requires custom `AUTH_USER_MODEL` to be declared in the app's initial migration (`0001_initial.py`) because `admin.0001_initial` depends on `('identity', '__first__')`. Attempting to introduce `User` in `0002_...` triggers a lazy reference `ValueError` in `admin.LogEntry.user`.
+7. **UU PDP Person PII Vault Isolation:** Identity-bearing PII (`nik`, `dob`, `gender`, `address`) is stored exclusively in `persons` (`Person` model), while `users` (`User` model) holds only auth credentials, phone/email identifiers, and account lockout security fields.
 
 ---
 
@@ -35,9 +37,9 @@
 |---|---|---|---|
 | `TASK-001` | Core Setup | Step 0 Skeleton & Foundation primitives | Completed |
 | `TASK-008A`| Identity Core | Implement `Foundation` and `School` models + `seed_demo_foundation` | Completed |
-| `TASK-008B`| Identity Auth | Implement `User` model, `Person` (PII vault), and authentication services | Next Up |
+| `TASK-008B`| Identity Auth | Implement `User` model, `Person` (PII vault), and authentication services | Completed |
+| `TASK-010` | RBAC & Auth | Enforce role permissions matrix, session auth for web, JWT for mobile (`spec/02 §3, §4`) | Next Up |
 | `TASK-009` | Foundation App | Implement `apps/foundation/` portal models and school management views (`spec/03`) | Pending |
-| `TASK-010` | RBAC & Auth | Enforce role permissions matrix, session auth for web, JWT for mobile (`spec/02 §3, §4`) | Pending |
 | `TASK-011` | Entitlements | Implement `foundation_entitlements` gating (`spec/02 §6`) | Pending |
 
 ---

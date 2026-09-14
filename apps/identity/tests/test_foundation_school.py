@@ -112,7 +112,16 @@ class FoundationAndSchoolModelTests(TestCase):
             levels = {s.level for s in schools}
             self.assertEqual(levels, {School.LEVEL_SD, School.LEVEL_SMP, School.LEVEL_SMA})
 
+            # Check demo admin user
+            from apps.identity.models import User, Person
+            admin_user = User.objects.get(phone_e164="+6281234567890")
+            self.assertTrue(admin_user.is_superuser)
+            self.assertEqual(admin_user.email, "admin@alhikmah.sch.id")
+            person = Person.objects.get(foundation_id=foundation.id)
+            self.assertEqual(person.nik, "3171012345670001")
+
         # 2nd run: assert idempotency (counts do not duplicate)
         call_command('seed_demo_foundation')
         self.assertEqual(Foundation.objects.filter(brand_name="Yayasan Al-Hikmah Nusantara").count(), 1)
         self.assertEqual(School.all_tenants.count(), 3)
+        self.assertEqual(User.all_tenants.filter(phone_e164="+6281234567890").count(), 1)
