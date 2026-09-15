@@ -129,3 +129,40 @@ class RptActiveStudent(TenantModel):
 
     def __str__(self):
         return f"{self.school.name} - {self.month:%Y-%m}: {self.active_count} active"
+
+
+class RptDailyFinance(TenantModel):
+    """Daily finance rollup per school (spec/15 §2). Feeds the "Collection
+    performance" report (spec/15 §3). Rebuilt by `refresh_reporting`.
+
+    `outstanding` is a live snapshot, not a per-day delta like the others — this
+    schema has no historical point-in-time balance_due ledger, so it carries the
+    CURRENT total outstanding balance at the time of the refresh, attached
+    identically to every day-row written in that run (documented limitation, same
+    spirit as every other rollup's "accurate as of computation time" simplification).
+    """
+    school = models.ForeignKey(School, on_delete=models.PROTECT, related_name='daily_finance_reports')
+    date = models.DateField()
+    currency = models.CharField(max_length=3, default='IDR')
+    billed = MoneyField(default=Decimal('0.00'))
+    collected = MoneyField(default=Decimal('0.00'))
+    outstanding = MoneyField(default=Decimal('0.00'))
+    payments_count = models.PositiveIntegerField(default=0)
+    fees = MoneyField(default=Decimal('0.00'))
+    computed_at = models.DateTimeField(help_text=_("RPT-005: data freshness timestamp"))
+
+    class Meta:
+        db_table = 'rpt_daily_finance'
+        indexes = [
+            models.Index(fields=['foundation_id', 'school_id', 'date']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'school', 'date', 'currency'],
+                condition=models.Q(deleted_at__isnull=True),
+                name='unique_rpt_daily_finance_per_school_day',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.school.name} - {self.date} ({self.currency})"

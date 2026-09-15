@@ -5,7 +5,13 @@ from django.db.models import Count, Sum
 from django.utils import timezone
 
 from apps.identity.models import School
-from apps.reporting.models import RptAcademicPerformance, RptActiveStudent, RptDailyAttendance, RptWalletActivity
+from apps.reporting.models import (
+    RptAcademicPerformance,
+    RptActiveStudent,
+    RptDailyAttendance,
+    RptDailyFinance,
+    RptWalletActivity,
+)
 
 DASHBOARD_LOOKBACK_DAYS = 2
 
@@ -286,3 +292,74 @@ def refresh_active_students(scope: str, since=None) -> dict:
             rows_written += 1
 
     return {'rows_written': rows_written, 'scope': scope}
+
+
+def refresh_daily_finance(scope: str, since=None) -> dict:
+    """spec/15 §2: rebuild rpt_daily_finance, one row per school per day.
+
+    billed/collected/fees/payments_count are true per-day deltas from Invoice/Payment
+    event logs. outstanding is a live snapshot (see RptDailyFinance docstring) —
+    computed once per school per refresh call and attached identically to every
+    day-row written in that run.
+    """
+    from apps.finance.models import Invoice, InvoiceStatus, Payment, PaymentStatus
+
+    now = timezone.now()
+    earliest_invoice = None
+    if since is None and scope != 'dashboard':
+        earliest_invoice = Invoice.all_tenants.filter(deleted_at__isnull=True).order_by('issue_date').values_list('issue_date', flat=True).first()
+    start_date = _report_start_date(scope, since, earliest_invoice)
+
+    NON_FINAL_STATUSES = [InvoiceStatus.ISSUED, InvoiceStatus.PARTIALLY_PAID]
+
+    rows_written = 0
+    for school in School.all_tenants.filter(deleted_at__isnull=True):
+        billed_by_day = dict(
+            Invoice.all_tenants.filter(
+                foundation_id=school.foundation_id, school=school,
+                issue_date__gte=start_date, deleted_at__isnull=True,
+            ).values_list('issue_date').annotate(total=Sum('total')).values_list('issue_date', 'total')
+        )
+        settled_payments = Payment.all_tenants.filter(
+            foundation_id=school.foundation_id, school=school, status=PaymentStatus.SETTLED,
+            settled_at__date__gte=start_date, deleted_at__isnull=True,
+        )
+        collected_by_day = dict(
+            settled_payments.values_list('settled_at__date').annotate(total=Sum('amount')).values_list('settled_at__date', 'total')
+        )
+        fees_by_day = dict(
+            settled_payments.values_list('settled_at__date').annotate(total=Sum('fee')).values_list('settled_at__date', 'total')
+        )
+        payments_count_by_day = dict(
+            settled_payments.values_list('settled_at__date').annotate(count=Count('id')).values_list('settled_at__date', 'count')
+        )
+
+        outstanding = Invoice.all_tenants.filter(
+            foundation_id=school.foundation_id, school=school,
+            status__in=NON_FINAL_STATUSES, deleted_at__isnull=True,
+        ).aggregate(total=Sum('total'))['total'] or Decimal('0.00')
+        paid_on_open_invoices = Invoice.all_tenants.filter(
+            foundation_id=school.foundation_id, school=school,
+            status__in=NON_FINAL_STATUSES, deleted_at__isnull=True,
+        ).aggregate(total=Sum('paid'))['total'] or Decimal('0.00')
+        outstanding -= paid_on_open_invoices
+
+        days = set(billed_by_day) | set(collected_by_day) | set(fees_by_day) | set(payments_count_by_day)
+        for day in days:
+            RptDailyFinance.all_tenants.update_or_create(
+                foundation_id=school.foundation_id,
+                school=school,
+                date=day,
+                currency='IDR',
+                defaults={
+                    'billed': billed_by_day.get(day, Decimal('0.00')),
+                    'collected': collected_by_day.get(day, Decimal('0.00')),
+                    'fees': fees_by_day.get(day, Decimal('0.00')),
+                    'payments_count': payments_count_by_day.get(day, 0),
+                    'outstanding': outstanding,
+                    'computed_at': now,
+                },
+            )
+            rows_written += 1
+
+    return {'rows_written': rows_written, 'start_date': str(start_date), 'scope': scope}
