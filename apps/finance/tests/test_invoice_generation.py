@@ -1,5 +1,7 @@
 ﻿from decimal import Decimal
 import datetime
+from django.db import connection as default_connection
+from django.db.utils import load_backend
 from django.test import TestCase
 
 from apps.identity.models import Foundation, Person, School, Student, User, Guardian, GuardianLink
@@ -201,6 +203,16 @@ class InvoiceGenerationTests(TestCase):
         """Verify advisory lock prevents overlapping concurrent generation runs (spec/06 §9.9)."""
         with advisory_lock('generate_invoices', timeout=0) as acquired1:
             self.assertTrue(acquired1)
-            # A second concurrent attempt must fail to acquire lock
-            with advisory_lock('generate_invoices', timeout=0) as acquired2:
-                self.assertFalse(acquired2)
+            # A second, genuinely separate session must fail to acquire the lock.
+            # MySQL's GET_LOCK lets the SAME session re-acquire a name it
+            # already holds (non-blocking since MySQL 5.7.5), so this needs an
+            # actually different connection to exercise real cross-process
+            # rejection — not just a second call on the one connection
+            # Django's TestCase reuses for the whole test.
+            backend = load_backend(default_connection.settings_dict['ENGINE'])
+            conn2 = backend.DatabaseWrapper(default_connection.settings_dict, alias='invoice_lock_test_second')
+            try:
+                with advisory_lock('generate_invoices', timeout=0, db_connection=conn2) as acquired2:
+                    self.assertFalse(acquired2)
+            finally:
+                conn2.close()
