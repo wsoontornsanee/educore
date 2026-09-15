@@ -74,3 +74,9 @@ from apps.finance.services.convenience_fee import (
     get_effective_convenience_fee_policy,
     set_school_convenience_fee_policy,
 )
+from apps.finance.services.bank_statement_parser import (
+    BankStatementParseError,
+    parse_bank_statement,
+    parse_camt053,
+    parse_mt940,
+)

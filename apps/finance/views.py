@@ -1004,7 +1004,10 @@ from apps.finance.models import (
     PaymentDiscrepancy,
     DiscrepancyResolution,
 )
-from apps.finance.services.reconciliation import resolve_discrepancy as svc_resolve_discrepancy
+from apps.finance.services.reconciliation import (
+    reconcile_bank_statement_file,
+    resolve_discrepancy as svc_resolve_discrepancy,
+)
 
 
 class GatewaySettlementBatchSerializer:
@@ -1130,3 +1133,54 @@ class ReconciliationDiscrepancyResolveView(APIView):
             return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(PaymentDiscrepancySerializer.to_representation(discrepancy))
+
+
+class ReconciliationBankStatementUploadView(APIView):
+    """POST /finance/reconciliation/bank-statements/upload/  — spec/14 CMP-026.
+
+    Upload a bank-provided MT940 or CAMT.053 statement file for direct-bank-VA
+    settlement reconciliation (the file-based counterpart to the gateway
+    reconciliation batches above — see reconcile_bank_statement_file).
+
+    Body (multipart): file, format ('MT940'|'CAMT053'), bank_code (e.g. 'BCA'),
+    settlement_date ('YYYY-MM-DD'), dry_run (optional, default false).
+    """
+    permission_classes = [permissions.IsAuthenticated, HasRequiredPermission]
+    required_permission = 'finance.payment.write'
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        foundation_id = request.user.foundation_id
+        uploaded_file = request.FILES.get('file')
+        file_format = request.data.get('format', '')
+        bank_code = request.data.get('bank_code', '')
+        settlement_date_str = request.data.get('settlement_date', '')
+        dry_run = str(request.data.get('dry_run', 'false')).lower() in ('true', '1')
+
+        if not uploaded_file:
+            return Response({'error': _("Field 'file' wajib diisi.")}, status=status.HTTP_400_BAD_REQUEST)
+        if not bank_code:
+            return Response({'error': _("Field 'bank_code' wajib diisi.")}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            settlement_date = timezone.datetime.strptime(settlement_date_str, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            return Response(
+                {'error': _("Field 'settlement_date' harus format YYYY-MM-DD.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        raw_content = uploaded_file.read()
+        content = raw_content.decode('utf-8', errors='replace') if file_format.upper() == 'MT940' else raw_content
+
+        result = reconcile_bank_statement_file(
+            file_content=content,
+            file_format=file_format,
+            bank_code=bank_code,
+            settlement_date=settlement_date,
+            foundation_id=foundation_id,
+            dry_run=dry_run,
+        )
+        if 'error' in result:
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result)
