@@ -17,6 +17,7 @@ from apps.academic.views import (
     HomeworkViewSet,
     LearningObjectiveViewSet,
     LessonPlanViewSet,
+    PeriodGridView,
     ReportCardPolicyView,
     ReportCardViewSet,
     StudentAttainmentView,
@@ -53,5 +54,6 @@ urlpatterns = [
     path('students/<int:student_id>/report-cards/', StudentReportCardView.as_view(), name='student-report-cards'),
     path('schools/<int:school_id>/report-card-policy/', ReportCardPolicyView.as_view(), name='report-card-policy'),
     path('schools/<int:school_id>/broadcast-policy/', BroadcastPolicyView.as_view(), name='broadcast-policy'),
+    path('schools/<int:school_id>/period-grid/', PeriodGridView.as_view(), name='period-grid'),
     path('', include(router.urls)),
 ]

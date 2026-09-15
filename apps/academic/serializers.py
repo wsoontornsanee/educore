@@ -17,6 +17,7 @@ from apps.academic.models import (
     HomeworkSubmission,
     LearningObjective,
     LessonPlan,
+    PeriodGridSlot,
     ReportCard,
     ReportCardPolicy,
     Subject,
@@ -275,3 +276,22 @@ class BroadcastPolicySerializer(serializers.ModelSerializer):
         model = BroadcastPolicy
         fields = ['id', 'foundation_id', 'school', 'teacher_can_broadcast', 'created_at', 'updated_at']
         read_only_fields = ['id', 'foundation_id', 'school', 'created_at', 'updated_at']
+
+
+class PeriodGridSlotSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PeriodGridSlot
+        fields = ['id', 'day_of_week', 'period_no', 'start_time', 'end_time', 'is_break', 'label']
+        read_only_fields = ['id']
+
+
+class PeriodGridSlotInputSerializer(serializers.Serializer):
+    period_no = serializers.IntegerField(min_value=1)
+    start_time = serializers.TimeField()
+    end_time = serializers.TimeField()
+    is_break = serializers.BooleanField(required=False, default=False)
+    label = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class PeriodGridSetSerializer(serializers.Serializer):
+    periods = PeriodGridSlotInputSerializer(many=True)

@@ -325,6 +325,36 @@ class TimetableSubstitution(TenantModel):
         return f"{self.slot} on {self.date}: {self.original_teacher} -> {self.substitute_teacher}"
 
 
+class PeriodGridSlot(TenantModel):
+    """One period of a school's per-weekday timetable grid, e.g. a shortened Friday
+    schedule or a mid-morning break slot (ACD-018, spec/04 §5). Opt-in: a school with
+    no configured grid keeps the old free-`period_no` behavior on `TimetableSlot`.
+    """
+    school = models.ForeignKey(School, on_delete=models.PROTECT, related_name='period_grid_slots')
+    day_of_week = models.PositiveSmallIntegerField(choices=DayOfWeek.choices)
+    period_no = models.PositiveSmallIntegerField()
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    is_break = models.BooleanField(default=False)
+    label = models.CharField(max_length=64, blank=True, default='')
+
+    class Meta:
+        db_table = 'period_grid_slots'
+        indexes = [
+            models.Index(fields=['foundation_id', 'school_id', 'day_of_week']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'school', 'day_of_week', 'period_no'],
+                condition=models.Q(deleted_at__isnull=True),
+                name='unique_period_grid_slot',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.school.name} - {self.get_day_of_week_display()} P{self.period_no} ({self.start_time}-{self.end_time})"
+
+
 class HomeworkSubmissionStatus(models.TextChoices):
     """ACD-028: homework submission lifecycle (NOT_STARTED is derived, never stored)."""
     SUBMITTED = 'SUBMITTED', _('Terkumpul')
