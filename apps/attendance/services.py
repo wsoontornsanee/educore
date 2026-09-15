@@ -269,3 +269,338 @@ def verify_credential(
         'student': credential.student,
         'staff': credential.staff,
     }
+
+
+@transaction.atomic
+def ingest_gate_events(
+    foundation_id: str,
+    school_id: str,
+    events_data: list,
+    user: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """
+    Batched, idempotent ingestion of gate scan events from edge gateways (spec/05 §2, §4, spec/12 §3).
+    
+    Implements:
+    - HW-005: Idempotency on client-generated event_uuid.
+    - ATT-007: Debouncing of duplicate scans within debounce_seconds without re-notifying.
+    - ATT-008: Direction inference per device (with alternating state for BIDIRECTIONAL devices).
+    - ATT-009: Rejected scan recording for unknown/revoked credentials.
+    - ATT-001: Automatic daily attendance status derivation (HADIR vs TERLAMBAT).
+    - ATT-006: Dispatch of attendance.gate.scanned domain event for non-duplicate accepted scans.
+    """
+    import datetime
+    from apps.hardware.models import Device, DeviceDirection
+    from apps.attendance.models import (
+        AttendanceDay, AttendanceRule, AttendanceSource, AttendanceStatus,
+        GateDirection, GateEvent, GateEventStatus, GateMethod
+    )
+    from apps.identity.models import Student, Staff
+    import dateutil.parser
+
+    rule = AttendanceRule.objects.filter(
+        foundation_id=foundation_id,
+        school_id=school_id,
+        deleted_at__isnull=True
+    ).first()
+
+    late_after_time = rule.late_after_time if rule else datetime.time(7, 15, 0)
+    debounce_seconds = rule.debounce_seconds if rule else 120
+
+    accepted_count = 0
+    rejected_count = 0
+    debounced_count = 0
+    duplicate_uuid_count = 0
+    processed_events = []
+
+    actor_id = str(user.id) if user and getattr(user, 'id', None) else ''
+
+    for item in events_data:
+        event_uuid = item.get('event_uuid')
+        if not event_uuid:
+            continue
+
+        # 1. Idempotency check on client-generated event_uuid (HW-005)
+        existing = GateEvent.objects.filter(
+            foundation_id=foundation_id,
+            event_uuid=event_uuid
+        ).first()
+        if existing:
+            duplicate_uuid_count += 1
+            processed_events.append(existing)
+            continue
+
+        device_id = item.get('device_id')
+        try:
+            device = Device.objects.get(id=device_id, foundation_id=foundation_id, school_id=school_id)
+        except Device.DoesNotExist:
+            continue
+
+        # Parse occurred_at
+        occurred_at = item.get('occurred_at')
+        if isinstance(occurred_at, str):
+            occurred_at = dateutil.parser.isoparse(occurred_at)
+        if timezone.is_naive(occurred_at):
+            occurred_at = timezone.make_aware(occurred_at, timezone.get_current_timezone())
+
+        method = item.get('method', GateMethod.RFID)
+        confidence = item.get('confidence')
+        photo_key = item.get('photo_key', '')
+        replayed = item.get('replayed', False)
+        raw_uid = str(item.get('raw_uid', '')).strip()
+
+        credential = None
+        student = None
+        staff = None
+        event_status = GateEventStatus.ACCEPTED
+        reject_reason = ''
+
+        # 2. Verify Credential / Resolve Holder
+        if raw_uid:
+            res = verify_credential(foundation_id=foundation_id, uid=raw_uid)
+            if not res['valid']:
+                event_status = GateEventStatus.REJECTED
+                reject_reason = res.get('reason', _('Kredensial tidak valid'))
+                rejected_count += 1
+            else:
+                credential = res.get('credential')
+                student = res.get('student')
+                staff = res.get('staff')
+        elif item.get('student_id'):
+            try:
+                student = Student.objects.get(id=item['student_id'], foundation_id=foundation_id, school_id=school_id)
+            except Student.DoesNotExist:
+                event_status = GateEventStatus.REJECTED
+                reject_reason = _('Siswa tidak ditemukan')
+                rejected_count += 1
+        elif item.get('staff_id'):
+            try:
+                staff = Staff.objects.get(id=item['staff_id'], foundation_id=foundation_id, school_id=school_id)
+            except Staff.DoesNotExist:
+                event_status = GateEventStatus.REJECTED
+                reject_reason = _('Staf tidak ditemukan')
+                rejected_count += 1
+
+        # 3. Direction inference (ATT-008)
+        direction = item.get('direction')
+        if not direction:
+            if device.direction in [GateDirection.IN, GateDirection.OUT]:
+                direction = device.direction
+            else:
+                # Device is BIDIRECTIONAL: alternate from student's last accepted event that date
+                last_event = None
+                if student:
+                    last_event = GateEvent.objects.filter(
+                        foundation_id=foundation_id,
+                        student=student,
+                        occurred_at__date=occurred_at.date(),
+                        status=GateEventStatus.ACCEPTED,
+                        deleted_at__isnull=True
+                    ).order_by('-occurred_at').first()
+                elif staff:
+                    last_event = GateEvent.objects.filter(
+                        foundation_id=foundation_id,
+                        staff=staff,
+                        occurred_at__date=occurred_at.date(),
+                        status=GateEventStatus.ACCEPTED,
+                        deleted_at__isnull=True
+                    ).order_by('-occurred_at').first()
+
+                if last_event and last_event.direction == GateDirection.IN:
+                    direction = GateDirection.OUT
+                else:
+                    direction = GateDirection.IN
+
+        # 4. Debounce check (ATT-007)
+        is_duplicate_scan = False
+        if event_status == GateEventStatus.ACCEPTED and (student or staff):
+            holder_filter = {'student': student} if student else {'staff': staff}
+            debounce_window_start = occurred_at - timedelta(seconds=debounce_seconds)
+            recent_scan_exists = GateEvent.objects.filter(
+                foundation_id=foundation_id,
+                direction=direction,
+                status=GateEventStatus.ACCEPTED,
+                occurred_at__gte=debounce_window_start,
+                occurred_at__lte=occurred_at,
+                deleted_at__isnull=True,
+                **holder_filter
+            ).exists()
+            if recent_scan_exists:
+                is_duplicate_scan = True
+                debounced_count += 1
+
+        gate_event = GateEvent.objects.create(
+            foundation_id=foundation_id,
+            event_uuid=event_uuid,
+            school=device.school,
+            device=device,
+            student=student,
+            staff=staff,
+            credential=credential,
+            raw_uid=raw_uid,
+            direction=direction,
+            occurred_at=occurred_at,
+            method=method,
+            confidence=confidence,
+            photo_key=photo_key,
+            status=event_status,
+            reject_reason=reject_reason,
+            is_duplicate_scan=is_duplicate_scan,
+            replayed=replayed,
+            created_by=actor_id,
+            updated_by=actor_id,
+        )
+
+        if event_status == GateEventStatus.ACCEPTED:
+            accepted_count += 1
+
+            # 5. Trigger notification event only for non-duplicate scans (ATT-006, ATT-007)
+            if not is_duplicate_scan:
+                record_domain_event(
+                    name='attendance.gate.scanned',
+                    foundation_id=foundation_id,
+                    payload={
+                        'gate_event_id': str(gate_event.id),
+                        'event_uuid': str(gate_event.event_uuid),
+                        'school_id': str(device.school_id),
+                        'device_id': str(device.id),
+                        'student_id': str(student.id) if student else None,
+                        'staff_id': str(staff.id) if staff else None,
+                        'direction': direction,
+                        'occurred_at': occurred_at.isoformat(),
+                        'method': method,
+                    }
+                )
+
+            # 6. Derive/update Daily Attendance summary for students (ATT-001)
+            if student:
+                update_daily_attendance_from_gate(
+                    foundation_id=foundation_id,
+                    school_id=school_id,
+                    student=student,
+                    occurred_at=occurred_at,
+                    direction=direction,
+                    late_after_time=late_after_time,
+                )
+
+        processed_events.append(gate_event)
+
+    return {
+        'total': len(events_data),
+        'accepted': accepted_count,
+        'rejected': rejected_count,
+        'debounced': debounced_count,
+        'duplicates_skipped': duplicate_uuid_count,
+        'events': processed_events,
+    }
+
+
+def update_daily_attendance_from_gate(
+    foundation_id: str,
+    school_id: str,
+    student: Any,
+    occurred_at: Any,
+    direction: str,
+    late_after_time: Any,
+) -> Any:
+    """
+    Updates or creates an AttendanceDay record from an accepted gate scan event (ATT-001).
+    """
+    from apps.attendance.models import AttendanceDay, AttendanceSource, AttendanceStatus, GateDirection
+
+    event_date = occurred_at.date()
+    attendance_day, _ = AttendanceDay.objects.get_or_create(
+        foundation_id=foundation_id,
+        school_id=school_id,
+        student=student,
+        date=event_date,
+        defaults={
+            'status': AttendanceStatus.ALPA,
+            'source': AttendanceSource.GATE,
+        }
+    )
+
+    # If already manually overridden by staff, preserve staff status (ATT-003)
+    is_staff_override = attendance_day.is_override
+
+    if direction == GateDirection.IN:
+        if not attendance_day.first_in_at or occurred_at < attendance_day.first_in_at:
+            attendance_day.first_in_at = occurred_at
+
+        if not is_staff_override:
+            # Derive HADIR vs TERLAMBAT per ATT-001
+            # Compare time in school local timezone
+            scan_time = occurred_at.time()
+            if scan_time <= late_after_time:
+                attendance_day.status = AttendanceStatus.HADIR
+            else:
+                attendance_day.status = AttendanceStatus.TERLAMBAT
+            attendance_day.source = AttendanceSource.GATE
+
+    elif direction == GateDirection.OUT:
+        if not attendance_day.last_out_at or occurred_at > attendance_day.last_out_at:
+            attendance_day.last_out_at = occurred_at
+
+    attendance_day.save()
+    return attendance_day
+
+
+@transaction.atomic
+def override_attendance_day(
+    foundation_id: str,
+    attendance_day: Any,
+    new_status: str,
+    note: str,
+    user: Optional[Any] = None,
+) -> Any:
+    """
+    Staff override of a derived daily attendance status (spec/05 §3 ATT-003).
+    Requires a non-empty reason note, retains original status, and logs an immutable audit event.
+    """
+    if not note or not str(note).strip():
+        raise ValidationError(_("Catatan alasan wajib diisi saat melakukan override kehadiran staf."))
+
+    actor_id = str(user.id) if user and getattr(user, 'id', None) else ''
+
+    if not attendance_day.is_override:
+        attendance_day.original_status = attendance_day.status
+
+    old_status = attendance_day.status
+    attendance_day.status = new_status
+    attendance_day.is_override = True
+    attendance_day.note = str(note).strip()
+    attendance_day.updated_by = actor_id
+    attendance_day.save(update_fields=['status', 'original_status', 'is_override', 'note', 'updated_by', 'updated_at'])
+
+    audit(
+        action='attendance.day.overridden',
+        entity_type='AttendanceDay',
+        entity_id=attendance_day.id,
+        actor_id=actor_id,
+        foundation_id=foundation_id,
+        school_id=attendance_day.school_id,
+        diff={
+            'student_id': str(attendance_day.student_id),
+            'date': attendance_day.date.isoformat(),
+            'old_status': old_status,
+            'new_status': new_status,
+            'note': attendance_day.note,
+        }
+    )
+
+    record_domain_event(
+        name='attendance.day.overridden',
+        foundation_id=foundation_id,
+        payload={
+            'attendance_day_id': str(attendance_day.id),
+            'student_id': str(attendance_day.student_id),
+            'school_id': str(attendance_day.school_id),
+            'date': attendance_day.date.isoformat(),
+            'old_status': old_status,
+            'new_status': new_status,
+            'note': attendance_day.note,
+        }
+    )
+
+    return attendance_day
+
