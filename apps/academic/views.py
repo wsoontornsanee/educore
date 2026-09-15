@@ -81,6 +81,7 @@ from apps.academic.services import (
     TimetableConflictError,
     WeightConfigError,
     approve_report_card,
+    assign_homework,
     assign_substitution,
     auto_submit_if_expired,
     compute_remaining_seconds,
@@ -333,6 +334,16 @@ class HomeworkViewSet(TenantScopedModelViewSet):
         'submissions': 'grades.read',
         'remind': 'grades.write', 'completion': 'grades.read',
     }
+
+    def perform_create(self, serializer):
+        homework = assign_homework(
+            class_subject=serializer.validated_data['class_subject'],
+            title=serializer.validated_data['title'],
+            instructions=serializer.validated_data.get('instructions', ''),
+            assigned_at=serializer.validated_data['assigned_at'],
+            due_at=serializer.validated_data['due_at'],
+        )
+        serializer.instance = homework
 
     @action(detail=True, methods=['get', 'post'], url_path='submissions')
     def submissions(self, request, pk=None):
