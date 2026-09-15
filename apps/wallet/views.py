@@ -16,6 +16,8 @@ from apps.wallet.models import (
     POSTransaction,
     POSTransactionStatus,
     Product,
+    WalletRefundRequest,
+    WalletRefundStatus,
     WalletReconciliation,
     WalletReconciliationStatus,
     WalletTransaction,
@@ -34,6 +36,8 @@ from apps.wallet.serializers import (
     ProductSerializer,
     ReconciliationCashSettleSerializer,
     ReconciliationWriteOffSerializer,
+    RefundMarkDonatedSerializer,
+    RefundMarkPaidSerializer,
     SpendRuleSerializer,
     TopupSerializer,
     WalletSerializer,
@@ -50,8 +54,11 @@ from apps.wallet.services import (
     get_or_create_spend_rule,
     get_or_create_wallet,
     get_reconciliation_queue,
+    get_refund_queue,
     get_school_reconciliation_exposure,
     invoice_reconciliation_case,
+    mark_refund_donated,
+    mark_refund_paid,
     pos_session,
     pos_sync,
     process_offline_pos_batch,
@@ -447,3 +454,74 @@ class WalletReconciliationResendNoticeView(WalletReconciliationCaseView):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({'id': case.id})
+
+
+class WalletRefundQueueView(APIView):
+    """GET /wallet-refunds?school_id&status (WAL-026)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'finance.payment.read'
+
+    def get(self, request):
+        foundation_id = get_current_foundation_id()
+        school_id = request.query_params.get('school_id')
+        if not school_id:
+            return Response({'error': _("Parameter school_id wajib diisi.")}, status=status.HTTP_400_BAD_REQUEST)
+
+        school = School.objects.filter(id=school_id, foundation_id=foundation_id).first()
+        if not school:
+            return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        status_param = request.query_params.get('status', WalletRefundStatus.PENDING)
+        return Response({'school_id': school.id, 'requests': get_refund_queue(school, status=status_param)})
+
+
+class WalletRefundActionView(APIView):
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'finance.payment.write'
+
+    def _get_request(self, request, refund_id):
+        foundation_id = get_current_foundation_id()
+        return WalletRefundRequest.objects.filter(id=refund_id, foundation_id=foundation_id).first()
+
+
+class WalletRefundMarkPaidView(WalletRefundActionView):
+    def post(self, request, refund_id):
+        refund_request = self._get_request(request, refund_id)
+        if not refund_request:
+            return Response({'error': _("Permintaan tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        payload = RefundMarkPaidSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+
+        try:
+            mark_refund_paid(
+                refund_request,
+                payload.validated_data.get('bank_name', ''),
+                payload.validated_data.get('account_number', ''),
+                payload.validated_data.get('account_holder_name', ''),
+                payload.validated_data.get('reference', ''),
+                actor=request.user,
+            )
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        refund_request.refresh_from_db()
+        return Response({'id': refund_request.id, 'status': refund_request.status})
+
+
+class WalletRefundMarkDonatedView(WalletRefundActionView):
+    def post(self, request, refund_id):
+        refund_request = self._get_request(request, refund_id)
+        if not refund_request:
+            return Response({'error': _("Permintaan tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        payload = RefundMarkDonatedSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+
+        try:
+            mark_refund_donated(refund_request, request.user, payload.validated_data['donation_consent'])
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        refund_request.refresh_from_db()
+        return Response({'id': refund_request.id, 'status': refund_request.status})

@@ -148,3 +148,14 @@ class ReconciliationCashSettleSerializer(serializers.Serializer):
 
 class ReconciliationWriteOffSerializer(serializers.Serializer):
     reason = serializers.CharField(max_length=255)
+
+
+class RefundMarkPaidSerializer(serializers.Serializer):
+    bank_name = serializers.CharField(max_length=64, required=False, allow_blank=True, default='')
+    account_number = serializers.CharField(max_length=64, required=False, allow_blank=True, default='')
+    account_holder_name = serializers.CharField(max_length=128, required=False, allow_blank=True, default='')
+    reference = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class RefundMarkDonatedSerializer(serializers.Serializer):
+    donation_consent = serializers.BooleanField()

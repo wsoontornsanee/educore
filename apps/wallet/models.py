@@ -296,3 +296,40 @@ class WalletReconciliation(TenantModel):
 
     def __str__(self):
         return f"{self.student.nis} - {self.currency} {self.shortfall} ({self.status})"
+
+
+class WalletRefundStatus(models.TextChoices):
+    PENDING = 'PENDING', _('Menunggu')
+    PAID = 'PAID', _('Dibayar')
+    DONATED = 'DONATED', _('Didonasikan')
+
+
+class WalletRefundRequest(TenantModel):
+    """A residual wallet balance queued for refund on student exit (spec/07 §7, WAL-026/027).
+
+    A PENDING row is never auto-resolved by anything — the balance remains the
+    guardian's liability on the books indefinitely until a bendahara acts on it.
+    """
+    wallet = models.ForeignKey(Wallet, on_delete=models.PROTECT, related_name='refund_requests')
+    student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name='wallet_refund_requests')
+    amount = MoneyField()
+    currency = models.CharField(max_length=3, default='IDR')
+    status = models.CharField(max_length=16, choices=WalletRefundStatus.choices, default=WalletRefundStatus.PENDING)
+    requested_at = models.DateTimeField()
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.ForeignKey('identity.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    guardian_bank_name = models.CharField(max_length=64, blank=True, default='')
+    guardian_bank_account_number = models.CharField(max_length=64, blank=True, default='')
+    guardian_account_holder_name = models.CharField(max_length=128, blank=True, default='')
+    donation_consent = models.BooleanField(default=False)
+    notes = models.CharField(max_length=255, blank=True, default='')
+
+    class Meta:
+        db_table = 'wallet_refund_requests'
+        indexes = [
+            models.Index(fields=['foundation_id', 'status']),
+            models.Index(fields=['foundation_id', 'wallet_id', 'status']),
+        ]
+
+    def __str__(self):
+        return f"{self.student.nis} - {self.currency} {self.amount} ({self.status})"
