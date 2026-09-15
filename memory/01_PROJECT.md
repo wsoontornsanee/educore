@@ -37,6 +37,7 @@
 12. **Idempotent Gate Ingestion & Debouncing:** Ingestion accepts batches indexed by client `event_uuid` (`HW-005`), filtering rapid repeated scans within `debounce_seconds` (`ATT-007`) and inferring in/out direction automatically for bidirectional turnstiles (`ATT-008`).
 13. **Live Gate Console & Edge Synchronization:** Real-time gate monitoring uses cursor-based polling (`ARC-015`, `ATT-013`) by monotonically increasing ID without heavy websocket infra; offline edge devices sync credential whitelists and rules incrementally via timestamp-filtered deltas (`spec/12 §3, §7`).
 14. **Multi-Channel Notification Ladder & WhatsApp Gate Alerts:** Inbound gate scans trigger parent arrival WhatsApp messages in < 5s (`ATT-006`). Deduplication prevents re-notifying on debounce (`NTF-003`, `ATT-007`), quiet hours defer non-critical messages (`NTF-002`), emergency alerts bypass restrictions (`NTF-013`), and provider outages automatically cascade across fallback channels (`WHATSAPP` -> `PUSH` -> `SMS` -> `EMAIL`, `NTF-006`).
+15. **Gapless Invoice Numbering & Idempotent Generation:** Invoices use sequential per-school per-year counters (`InvoiceNumberSequence`) allocated via `SELECT ... FOR UPDATE` (`FIN-004`). Monthly generation runs are strictly idempotent per `(student, period)`, exclude non-active students (`FIN-005`), calculate explicit IDR `PEMBULATAN` line items (`FIN-008c`), support dry-run previewing (`FIN-008`), and are locked by advisory locks (`ARC-007`).
 
 ---
 
@@ -59,7 +60,7 @@
 | `TASK-018` | Notifications | Notification templates, recipient resolution, dispatch queue, provider stub (`spec/13`) | Completed |
 | `TASK-019` | WhatsApp Arrival | Gate scan WhatsApp arrival notification, quiet hours, status webhook (`spec/05 §4 ATT-006`, `spec/13 §4, §6`) | Completed |
 | `TASK-020` | Fee Structures | Implement fee items, schedules (SPP, Uang Pangkal), discount policies, and rounding (`spec/06 §2`, `spec/16`) | Completed |
-| `TASK-021` | Invoice Generation | Monthly batch invoice generation, rounding line item (`PEMBULATAN`), and notifications (`spec/06 §3`) | Planned |
+| `TASK-021` | Invoice Generation | Monthly batch invoice generation, rounding line item (`PEMBULATAN`), and notifications (`spec/06 §3`) | Completed |
 | `TASK-022` | VA & Payments | Virtual Account allocation, payment webhook processing, double-entry ledger journals (`spec/06 §4, §5`, `spec/16`) | Planned |
 
 

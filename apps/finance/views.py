@@ -8,11 +8,15 @@ from rest_framework.response import Response
 from apps.core.pagination import StandardCursorPagination
 from apps.core.services import audit
 from apps.identity.permissions import HasRequiredPermission
+from apps.identity.models import School
 from apps.finance.models import (
     Discount,
     DiscountStatus,
     FeePlan,
     FeeType,
+    Invoice,
+    InvoiceLine,
+    InvoiceStatus,
     SiblingDiscountPolicy,
     StudentFeeAssignment,
 )
@@ -20,11 +24,18 @@ from apps.finance.serializers import (
     DiscountSerializer,
     FeePlanSerializer,
     FeeTypeSerializer,
+    InvoiceSerializer,
     SiblingDiscountPolicySerializer,
     StudentFeeAssignmentSerializer,
 )
-from apps.finance.services import approve_discount, create_discount_with_approval_check
-from educore.middleware.tenancy import get_current_foundation_id
+from apps.finance.services import (
+    approve_discount,
+    cancel_invoice,
+    create_discount_with_approval_check,
+    generate_monthly_invoices,
+    write_off_invoice,
+)
+from educore.middleware.tenancy import get_current_foundation_id, tenant_context
 
 
 class FeeTypeViewSet(viewsets.ModelViewSet):
@@ -258,3 +269,103 @@ class SiblingDiscountPolicyViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         foundation_id = get_current_foundation_id()
         serializer.save(foundation_id=foundation_id)
+
+
+class InvoiceViewSet(viewsets.ModelViewSet):
+    """Student invoice management and batch generation (spec/06 §3, §8)."""
+    serializer_class = InvoiceSerializer
+    pagination_class = StandardCursorPagination
+    permission_classes = [HasRequiredPermission]
+    action_permissions = {
+        'list': 'finance.invoice.read',
+        'retrieve': 'finance.invoice.read',
+        'create': 'finance.invoice.write',
+        'update': 'finance.invoice.write',
+        'partial_update': 'finance.invoice.write',
+        'destroy': 'finance.invoice.write',
+        'generate': 'finance.invoice.write',
+        'cancel': 'finance.invoice.write',
+        'write_off': 'finance.invoice.write',
+    }
+
+    def get_queryset(self):
+        foundation_id = get_current_foundation_id()
+        if not foundation_id:
+            return Invoice.objects.none()
+        qs = Invoice.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True).prefetch_related('lines').order_by('-created_at')
+        
+        school_id = self.request.query_params.get('school_id')
+        if school_id:
+            qs = qs.filter(school_id=school_id)
+            
+        student_id = self.request.query_params.get('student_id')
+        if student_id:
+            qs = qs.filter(student_id=student_id)
+            
+        period = self.request.query_params.get('period')
+        if period:
+            qs = qs.filter(period=period)
+            
+        status_param = self.request.query_params.get('status')
+        if status_param:
+            qs = qs.filter(status=status_param)
+
+        overdue_param = self.request.query_params.get('overdue')
+        if overdue_param and overdue_param.lower() in ['true', '1']:
+            qs = qs.filter(
+                due_date__lt=timezone.localdate(),
+                status__in=[InvoiceStatus.ISSUED, InvoiceStatus.PARTIALLY_PAID],
+            )
+
+        return qs
+
+    @action(detail=False, methods=['post'], url_path='generate')
+    def generate(self, request):
+        """Monthly batch invoice generation / dry-run preview (FIN-002, FIN-008)."""
+        foundation_id = get_current_foundation_id()
+        school_id = request.data.get('school_id')
+        period = request.data.get('period')
+        dry_run = request.data.get('dry_run', False)
+
+        if not school_id or not period:
+            return Response(
+                {'error': _("Parameter school_id dan period wajib diisi.")},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        school = School.objects.filter(id=school_id, foundation_id=foundation_id).first()
+        if not school:
+            return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        with tenant_context(foundation_id):
+            report = generate_monthly_invoices(
+                school=school,
+                period=period,
+                dry_run=dry_run,
+                triggered_by=request.user,
+            )
+
+        return Response(report, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='cancel')
+    def cancel(self, request, pk=None):
+        """Cancel an unpaid invoice (FIN-009)."""
+        invoice = self.get_object()
+        reason = request.data.get('reason', '')
+        try:
+            cancelled = cancel_invoice(invoice, request.user, reason)
+            return Response(self.get_serializer(cancelled).data)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='write-off')
+    def write_off(self, request, pk=None):
+        """Write off an overdue invoice (FIN-009)."""
+        invoice = self.get_object()
+        reason = request.data.get('reason', '')
+        try:
+            written_off = write_off_invoice(invoice, request.user, reason)
+            return Response(self.get_serializer(written_off).data)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
