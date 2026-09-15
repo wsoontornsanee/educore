@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'apps.attendance.apps.AttendanceConfig',
     'apps.notifications.apps.NotificationsConfig',
     'apps.finance.apps.FinanceConfig',
+    'apps.academic.apps.AcademicConfig',
 ]
 
 MIDDLEWARE = [
