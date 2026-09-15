@@ -918,3 +918,198 @@ def invoice_reconciliation_case(case: WalletReconciliation, actor=None) -> Walle
         )
 
     return case
+
+
+def get_reconciliation_queue(school, status=WalletReconciliationStatus.OPEN):
+    """REC-025: cases for a school, newest-detected first, with roster context attached."""
+    from apps.academic.models import ClassEnrollment
+
+    cases = list(
+        WalletReconciliation.objects.filter(
+            foundation_id=school.foundation_id, student__school=school, status=status, deleted_at__isnull=True,
+        ).select_related('student__person', 'wallet').order_by('-detected_at')
+    )
+
+    student_ids = [c.student_id for c in cases]
+    class_by_student = dict(
+        ClassEnrollment.objects.filter(
+            foundation_id=school.foundation_id, student_id__in=student_ids, is_active=True, deleted_at__isnull=True,
+        ).select_related('class_group').values_list('student_id', 'class_group__name')
+    )
+
+    now = timezone.now()
+    rows = []
+    for case in cases:
+        receipt = get_notice_delivery_receipt(case)
+        rows.append({
+            'id': case.id,
+            'student_id': case.student_id,
+            'student_name': case.student.person.full_name if case.student.person else '',
+            'class_name': class_by_student.get(case.student_id, ''),
+            'shortfall': str(case.shortfall),
+            'currency': case.currency,
+            'detected_at': case.detected_at.isoformat(),
+            'age_hours': round((now - case.detected_at).total_seconds() / 3600, 1),
+            'status': case.status,
+            'notice': receipt,
+            'reminder_sent_at': case.reminder_sent_at.isoformat() if case.reminder_sent_at else None,
+        })
+    return rows
+
+
+def get_school_reconciliation_exposure(school) -> Decimal:
+    """REC-028: total open shortfall exposure for a school, shown in the queue header."""
+    total = WalletReconciliation.objects.filter(
+        foundation_id=school.foundation_id, student__school=school,
+        status=WalletReconciliationStatus.OPEN, deleted_at__isnull=True,
+    ).aggregate(total=Sum('shortfall'))['total'] or Decimal('0.00')
+    return total.quantize(Decimal('0.01'))
+
+
+def get_notice_delivery_receipt(case: WalletReconciliation) -> dict:
+    """REC-027: whether the guardian was actually reached — 'sent' and 'delivered' differ."""
+    from apps.notifications.models import NotificationIntent
+
+    if not case.notice_sent_at:
+        return {'status': 'NOT_SENT', 'channel': None}
+
+    detected_date = timezone.localtime(case.detected_at).date()
+    dedupe_key = f"wallet_recon:{case.wallet_id}:{detected_date.isoformat()}"
+    intent = NotificationIntent.objects.filter(
+        foundation_id=case.foundation_id, dedupe_key=dedupe_key,
+    ).order_by('-created_at').first()
+
+    if not intent:
+        return {'status': 'UNKNOWN', 'channel': None}
+
+    delivery = intent.deliveries.order_by('-sent_at').first()
+    return {
+        'status': intent.status,
+        'channel': delivery.channel if delivery else None,
+        'delivery_status': delivery.status if delivery else None,
+    }
+
+
+def settle_reconciliation_with_cash(case: WalletReconciliation, amount: Decimal, reference: str, actor=None) -> WalletTransaction:
+    """REC-026: bendahara records a cash payment at the school office. Reuses the normal
+    top-up path so the existing settlement logic (TASK-035) fires unchanged."""
+    return topup_wallet(
+        case.wallet, amount, 'CASH', f"reconciliation_cash:{case.id}:{timezone.now().timestamp()}",
+        reference=reference or f"Pelunasan tunai - kasus #{case.id}",
+    )
+
+
+def write_off_reconciliation_case(case: WalletReconciliation, actor, reason: str) -> WalletReconciliation:
+    """REC-015: school-admin action with a reason. Restores only this case's shortfall to
+    the wallet balance, leaving any other OPEN cases for the same wallet untouched."""
+    from apps.notifications.models import NotificationCategory
+    from apps.notifications.services import dispatch_intent
+
+    if case.status != WalletReconciliationStatus.OPEN:
+        raise ValueError(f"INVALID_STATE: case is {case.status}, not OPEN.")
+
+    case.status = WalletReconciliationStatus.WRITTEN_OFF
+    case.written_off_by = actor
+    case.write_off_reason = reason
+    case.save(update_fields=['status', 'written_off_by', 'write_off_reason', 'updated_at'])
+
+    # allow_negative=True: this restores only THIS case's amount — the wallet may
+    # legitimately remain negative if other OPEN cases still cover the remainder.
+    record_wallet_transaction(
+        case.wallet, WalletTransactionType.ADJUSTMENT, case.shortfall,
+        f"reconciliation_writeoff:{case.id}", reference=f"Write-off: {reason}", allow_negative=True,
+    )
+
+    audit(
+        action='wallet.reconciliation.written_off',
+        entity_type='WalletReconciliation',
+        entity_id=case.id,
+        foundation_id=case.foundation_id,
+        diff={'reason': reason, 'amount': str(case.shortfall)},
+    )
+
+    student = case.student
+    for link in _resolve_financial_guardians(student):
+        guardian = link.guardian
+        if not guardian.user:
+            continue
+        dispatch_intent(
+            foundation_id=case.foundation_id,
+            category=NotificationCategory.WALLET_RECONCILIATION,
+            template_key='wallet.recon.settled',
+            payload={'student_name': student.person.full_name if student.person else ''},
+            school_id=student.school_id,
+            recipient_user=guardian.user,
+            recipient_phone=getattr(guardian.user, 'phone_e164', ''),
+            recipient_name=guardian.person.full_name if guardian.person else '',
+            dedupe_key=f"wallet_recon_writeoff:{case.id}",
+        )
+
+    return case
+
+
+def resend_reconciliation_notice(case: WalletReconciliation, actor=None) -> list:
+    """REC-026: force a fresh notice for a case whose original send failed on every channel."""
+    from apps.notifications.models import NotificationCategory
+    from apps.notifications.services import dispatch_intent
+
+    if case.status != WalletReconciliationStatus.OPEN:
+        raise ValueError(f"INVALID_STATE: case is {case.status}, not OPEN.")
+
+    wallet = case.wallet
+    open_cases = list(
+        WalletReconciliation.objects.filter(
+            foundation_id=wallet.foundation_id, wallet=wallet,
+            status=WalletReconciliationStatus.OPEN, deleted_at__isnull=True,
+        )
+    )
+    total_shortfall = sum((c.shortfall for c in open_cases), Decimal('0.00'))
+    detected_date = timezone.localtime(case.detected_at).date()
+    deadline_date = detected_date + timedelta(days=7)
+    student = wallet.student
+
+    intents = []
+    for link in _resolve_financial_guardians(student):
+        guardian = link.guardian
+        if not guardian.user:
+            continue
+        intents.append(dispatch_intent(
+            foundation_id=wallet.foundation_id,
+            category=NotificationCategory.WALLET_RECONCILIATION,
+            template_key='wallet.recon.notice',
+            payload={
+                'guardian_name': guardian.person.full_name if guardian.person else '',
+                'student_name': student.person.full_name if student.person else '',
+                'school_name': student.school.name if student.school else '',
+                'shortfall': str(total_shortfall),
+                'txn_count': str(len(open_cases)),
+                'detected_date': detected_date.isoformat(),
+                'deadline_date': deadline_date.isoformat(),
+                'deep_link': 'educore://wallet',
+            },
+            school_id=student.school_id,
+            recipient_user=guardian.user,
+            recipient_phone=getattr(guardian.user, 'phone_e164', ''),
+            recipient_email=getattr(guardian.user, 'email', ''),
+            recipient_name=guardian.person.full_name if guardian.person else '',
+            dedupe_key=f"wallet_recon_resend:{wallet.id}:{timezone.now().timestamp()}",
+            immediate=True,
+        ))
+
+    from apps.notifications.models import IntentStatus
+    if any(i.status == IntentStatus.DISPATCHED for i in intents):
+        now = timezone.now()
+        for c in open_cases:
+            if not c.notice_sent_at:
+                c.notice_sent_at = now
+                c.save(update_fields=['notice_sent_at', 'updated_at'])
+
+    audit(
+        action='wallet.reconciliation.notice_resent',
+        entity_type='WalletReconciliation',
+        entity_id=case.id,
+        foundation_id=case.foundation_id,
+        diff={'wallet_id': wallet.id, 'case_count': len(open_cases)},
+    )
+
+    return intents

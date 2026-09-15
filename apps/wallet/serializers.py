@@ -139,3 +139,12 @@ class OfflinePOSTransactionSerializer(serializers.Serializer):
 class POSBatchCreateSerializer(serializers.Serializer):
     terminal_id = serializers.IntegerField()
     transactions = OfflinePOSTransactionSerializer(many=True)
+
+
+class ReconciliationCashSettleSerializer(serializers.Serializer):
+    amount = serializers.DecimalField(max_digits=18, decimal_places=2)
+    reference = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class ReconciliationWriteOffSerializer(serializers.Serializer):
+    reason = serializers.CharField(max_length=255)
