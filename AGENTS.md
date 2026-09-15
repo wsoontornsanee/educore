@@ -40,11 +40,17 @@ At the beginning of every session, you MUST read these files in order:
 ## 4. Mandatory SOP & Development Process
 
 Every task must strictly adhere to the following 5-phase SOP:
-1. **Plan:** Research requirements, specifications, and impact. Create an explicit technical implementation plan with user confirmation before executing changes.
+1. **Plan:**
+   - Research requirements, specifications, and impact.
+   - Create an explicit technical implementation plan with user confirmation before executing changes.
+   - **Notion Task Protocol:** Create a task in Notion database "Astra Educore" (`3dc347a6-6594-8077-98be-d83d694d6f10`), include the Implementation Plan in the body, and track branch and initial status (`In progress`).
+   - **Open Items & Non-Goals Protocol:** For ANY open item, deferred requirement, or slice non-goal (e.g., items blocked on design decisions, out-of-repo client scopes, optional/MAY spec capabilities, or future milestone follow-ups), MUST immediately create a corresponding Notion task with status `Todo` and descriptive context so it is tracked for follow-up and never forgotten.
 2. **Dev:** Write clean, modular, typed code conforming to all architecture constraints.
 3. **Test:** Write and run automated tests (≥80% coverage on business logic). Verify all forward migrations and lint checks.
 4. **PR:** Prepare atomic conventional commits on a feature branch and open a clean Pull Request.
-5. **Wait for PR Merged & Deploy Instruction:** Never deploy or merge unilaterally; wait for explicit PR merge approval and subsequent deployment instructions from the user.
+5. **Wait for PR Merged & Deploy Instruction:**
+   - Never deploy or merge unilaterally; wait for explicit PR merge approval and subsequent deployment instructions from the user.
+   - Upon task completion / merge, update the Notion task status to `Done` with PR link and verification summary in `Logs`.
 
 ---
 
