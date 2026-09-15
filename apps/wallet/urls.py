@@ -18,7 +18,9 @@ from apps.wallet.views import (
     WalletRefundMarkDonatedView,
     WalletRefundMarkPaidView,
     WalletRefundQueueView,
+    WalletTopupIntentView,
     WalletTopupView,
+    WalletTopupWebhookView,
     WalletTransactionsView,
 )
 
@@ -32,6 +34,8 @@ urlpatterns = [
     path('wallets/<int:student_id>/', WalletDetailView.as_view(), name='wallet-detail'),
     path('wallets/<int:student_id>/transactions/', WalletTransactionsView.as_view(), name='wallet-transactions'),
     path('wallets/<int:student_id>/topup/', WalletTopupView.as_view(), name='wallet-topup'),
+    path('wallets/<int:student_id>/topup-intents/', WalletTopupIntentView.as_view(), name='wallet-topup-intent'),
+    path('webhooks/wallet-topup/<str:provider>/', WalletTopupWebhookView.as_view(), name='wallet-topup-webhook'),
     path('wallets/<int:student_id>/rules/', SpendRuleView.as_view(), name='wallet-rules'),
     path('pos/sessions/', POSSessionView.as_view(), name='pos-sessions'),
     path('pos/sync/', POSSyncView.as_view(), name='pos-sync'),

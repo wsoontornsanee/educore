@@ -51,6 +51,8 @@ class WalletTransactionStatus(models.TextChoices):
 class WalletTopupMethod(models.TextChoices):
     CASH = 'CASH', _('Tunai di Kantor Sekolah')
     MANUAL = 'MANUAL', _('Penyesuaian Manual')
+    VA = 'VA', _('Virtual Account')
+    QRIS = 'QRIS', _('QRIS')
 
 
 class WalletTransaction(TenantModel):
@@ -333,3 +335,45 @@ class WalletRefundRequest(TenantModel):
 
     def __str__(self):
         return f"{self.student.nis} - {self.currency} {self.amount} ({self.status})"
+
+
+class WalletTopupIntentStatus(models.TextChoices):
+    PENDING = 'PENDING', _('Menunggu Pembayaran')
+    SETTLED = 'SETTLED', _('Selesai')
+    EXPIRED = 'EXPIRED', _('Kedaluwarsa')
+    FAILED = 'FAILED', _('Gagal')
+
+
+class WalletTopupIntent(TenantModel):
+    """A pending gateway-based wallet top-up (WAL-005: VA/QRIS).
+
+    Reuses apps.finance's stable per-student VA allocator and generic
+    PaymentProvider.create_qris/verify_webhook/parse_webhook (via lazy import) —
+    those are amount/student-parameterized, not Invoice-specific. A separate
+    intent model (rather than extending finance.PaymentIntent) avoids forcing an
+    optional/nullable Invoice relationship onto a model that is structurally
+    invoice-coupled everywhere else it is used.
+    """
+    wallet = models.ForeignKey(Wallet, on_delete=models.PROTECT, related_name='topup_intents')
+    student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name='wallet_topup_intents')
+    method = models.CharField(max_length=8, choices=WalletTopupMethod.choices)
+    provider = models.CharField(max_length=16, default='MOCK')
+    amount = MoneyField()
+    currency = models.CharField(max_length=3, default='IDR')
+    va_bank = models.CharField(max_length=16, blank=True, default='')
+    va_number = models.CharField(max_length=32, blank=True, default='')
+    qris_payload = models.CharField(max_length=255, blank=True, default='')
+    external_id = models.CharField(max_length=64, unique=True)
+    status = models.CharField(max_length=16, choices=WalletTopupIntentStatus.choices, default=WalletTopupIntentStatus.PENDING)
+    expires_at = models.DateTimeField()
+    settled_at = models.DateTimeField(null=True, blank=True)
+    wallet_transaction = models.ForeignKey(WalletTransaction, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+
+    class Meta:
+        db_table = 'wallet_topup_intents'
+        indexes = [
+            models.Index(fields=['foundation_id', 'wallet_id', 'status']),
+        ]
+
+    def __str__(self):
+        return f"{self.student.nis} - {self.method} {self.currency} {self.amount} ({self.status})"

@@ -1,5 +1,5 @@
 from django.utils.translation import gettext_lazy as _
-from rest_framework import status, viewsets
+from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -39,6 +39,8 @@ from apps.wallet.serializers import (
     RefundMarkDonatedSerializer,
     RefundMarkPaidSerializer,
     SpendRuleSerializer,
+    TopupIntentCreateSerializer,
+    TopupIntentSerializer,
     TopupSerializer,
     WalletSerializer,
     WalletTransactionSerializer,
@@ -46,10 +48,12 @@ from apps.wallet.serializers import (
 from apps.wallet.services import (
     CurrencyMismatchError,
     InsufficientBalanceError,
+    InvalidWebhookError,
     SettlementStateError,
     SpendNotAllowedError,
     VoidWindowExpiredError,
     WalletNotActiveError,
+    create_wallet_topup_intent,
     generate_settlement_statement_pdf,
     get_or_create_spend_rule,
     get_or_create_wallet,
@@ -63,6 +67,7 @@ from apps.wallet.services import (
     pos_sync,
     process_offline_pos_batch,
     process_pos_transaction,
+    process_wallet_topup_webhook,
     resend_reconciliation_notice,
     run_merchant_settlement,
     set_spend_rule,
@@ -141,6 +146,50 @@ class WalletTopupView(APIView):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(WalletTransactionSerializer(record).data, status=status.HTTP_201_CREATED)
+
+
+class WalletTopupIntentView(APIView):
+    """POST /wallets/:student_id/topup-intents (WAL-005: VA/QRIS)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'wallet.topup.write'
+
+    def post(self, request, student_id):
+        foundation_id = get_current_foundation_id()
+        student = _get_student_or_404(student_id, foundation_id)
+        if not student:
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        wallet = get_or_create_wallet(student)
+
+        payload = TopupIntentCreateSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+
+        try:
+            intent = create_wallet_topup_intent(
+                wallet, student, student.school,
+                payload.validated_data['method'],
+                payload.validated_data['amount'],
+                bank=payload.validated_data.get('bank') or None,
+                provider_name=payload.validated_data.get('provider') or 'MOCK',
+            )
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(TopupIntentSerializer(intent).data, status=status.HTTP_201_CREATED)
+
+
+class WalletTopupWebhookView(APIView):
+    """Public signature-verified wallet top-up webhook (WAL-005, mirrors finance's PaymentWebhookView)."""
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
+    def post(self, request, provider):
+        try:
+            result = process_wallet_topup_webhook(provider, request.data, request.headers)
+            return Response(result, status=status.HTTP_200_OK)
+        except InvalidWebhookError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class SpendRuleView(APIView):

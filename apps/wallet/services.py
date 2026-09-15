@@ -25,6 +25,9 @@ from apps.wallet.models import (
     WalletRefundRequest,
     WalletRefundStatus,
     WalletStatus,
+    WalletTopupIntent,
+    WalletTopupIntentStatus,
+    WalletTopupMethod,
     WalletTransaction,
     WalletTransactionStatus,
     WalletTransactionType,
@@ -52,6 +55,10 @@ class VoidWindowExpiredError(ValueError):
 
 
 class SettlementStateError(ValueError):
+    pass
+
+
+class InvalidWebhookError(ValueError):
     pass
 
 
@@ -144,6 +151,111 @@ def topup_wallet(wallet: Wallet, amount: Decimal, method: str, idempotency_key: 
         wallet, WalletTransactionType.TOPUP, amount, idempotency_key,
         reference=reference or method,
     )
+
+
+def create_wallet_topup_intent(
+    wallet: Wallet, student, school, method: str, amount: Decimal, bank: str = None, provider_name: str = 'MOCK',
+) -> WalletTopupIntent:
+    """WAL-005: create a VA/QRIS top-up intent, reusing apps.finance's gateway abstraction.
+
+    The VA is the SAME stable per-student-per-bank number finance uses for invoices
+    (get_or_create_student_va is not invoice-specific) — the guardian only ever has
+    one VA per bank regardless of what it's used to pay for.
+    """
+    if amount <= Decimal('0.00'):
+        raise ValueError("INVALID_AMOUNT: top-up amount must be positive.")
+    if method not in (WalletTopupMethod.VA, WalletTopupMethod.QRIS):
+        raise ValueError(f"UNSUPPORTED_METHOD: '{method}' is not a gateway top-up method.")
+
+    from apps.finance.services.payment_providers import get_payment_provider
+    from apps.finance.services.payments import get_or_create_student_va
+
+    expires_at = timezone.now() + timedelta(hours=24)
+    provider = get_payment_provider(provider_name)
+
+    va_bank = ''
+    va_number = ''
+    qris_payload = ''
+    if method == WalletTopupMethod.VA:
+        va_bank = (bank or 'BCA').upper()
+        va_obj = get_or_create_student_va(student=student, school=school, bank=va_bank, provider_name=provider_name)
+        va_number = va_obj.va_number
+    else:
+        qr_data = provider.create_qris(student=student, school=school, amount=amount, expires_at=expires_at)
+        qris_payload = qr_data.get('qris_payload', '')
+
+    intent = WalletTopupIntent.objects.create(
+        foundation_id=wallet.foundation_id,
+        wallet=wallet,
+        student=student,
+        method=method,
+        provider=provider_name.upper(),
+        amount=amount,
+        currency=wallet.currency,
+        va_bank=va_bank,
+        va_number=va_number,
+        qris_payload=qris_payload,
+        external_id=f"WALLET-{wallet.id}-{timezone.now().strftime('%Y%m%d%H%M%S%f')}",
+        status=WalletTopupIntentStatus.PENDING,
+        expires_at=expires_at,
+    )
+    audit(
+        action='wallet.topup_intent.created',
+        entity_type='WalletTopupIntent',
+        entity_id=intent.id,
+        foundation_id=wallet.foundation_id,
+        diff={'method': method, 'amount': str(amount)},
+    )
+    return intent
+
+
+def process_wallet_topup_webhook(provider_name: str, payload: dict, headers: dict = None) -> dict:
+    """WAL-005: process a gateway webhook for a wallet top-up intent.
+
+    Idempotent on external_id via WalletTopupIntent.status and record_wallet_transaction's
+    own idempotency_key check (belt and suspenders, matching apps.finance's webhook pattern).
+    """
+    from apps.finance.services.payment_providers import get_payment_provider
+
+    provider = get_payment_provider(provider_name)
+    if not provider.verify_webhook(payload, headers):
+        raise InvalidWebhookError("INVALID_SIGNATURE: webhook signature verification failed.")
+
+    parsed = provider.parse_webhook(payload)
+    external_id = parsed['external_id']
+
+    intent = WalletTopupIntent.all_tenants.filter(external_id=external_id).first()
+    if not intent:
+        raise InvalidWebhookError(f"UNKNOWN_INTENT: no wallet top-up intent for external_id={external_id}.")
+
+    if intent.status == WalletTopupIntentStatus.SETTLED:
+        return {'status': 'already_settled', 'intent_id': intent.id}
+
+    if parsed['status'] != 'SETTLED':
+        return {'status': intent.status, 'intent_id': intent.id}
+
+    from educore.middleware.tenancy import tenant_context
+
+    with tenant_context(intent.foundation_id):
+        wallet = Wallet.objects.get(id=intent.wallet_id)
+        tx = topup_wallet(
+            wallet, parsed['amount'], intent.method, idempotency_key=f"topup_intent:{intent.id}",
+            reference=f"{intent.method} via {provider_name.upper()}",
+        )
+
+        intent.status = WalletTopupIntentStatus.SETTLED
+        intent.settled_at = timezone.now()
+        intent.wallet_transaction = tx
+        intent.save(update_fields=['status', 'settled_at', 'wallet_transaction', 'updated_at'])
+
+    audit(
+        action='wallet.topup_intent.settled',
+        entity_type='WalletTopupIntent',
+        entity_id=intent.id,
+        foundation_id=intent.foundation_id,
+        diff={'amount': str(parsed['amount']), 'wallet_transaction_id': tx.id},
+    )
+    return {'status': 'settled', 'intent_id': intent.id, 'wallet_transaction_id': tx.id}
 
 
 def adjust_wallet(wallet: Wallet, amount: Decimal, reason: str, idempotency_key: str, actor=None) -> WalletTransaction:

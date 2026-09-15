@@ -39,6 +39,27 @@ class TopupSerializer(serializers.Serializer):
     reference = serializers.CharField(required=False, allow_blank=True, default='')
 
 
+class TopupIntentCreateSerializer(serializers.Serializer):
+    method = serializers.ChoiceField(choices=['VA', 'QRIS'])
+    amount = serializers.DecimalField(max_digits=18, decimal_places=2)
+    bank = serializers.CharField(required=False, allow_blank=True, default='')
+    provider = serializers.CharField(required=False, allow_blank=True, default='MOCK')
+
+
+class TopupIntentSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    method = serializers.CharField()
+    provider = serializers.CharField()
+    amount = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    currency = serializers.CharField()
+    va_bank = serializers.CharField()
+    va_number = serializers.CharField()
+    qris_payload = serializers.CharField()
+    external_id = serializers.CharField()
+    status = serializers.CharField()
+    expires_at = serializers.DateTimeField()
+
+
 class SpendRuleSerializer(serializers.ModelSerializer):
     daily_limit = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True, allow_null=True, required=False)
 
