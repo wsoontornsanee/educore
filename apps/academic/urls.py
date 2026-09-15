@@ -10,6 +10,7 @@ from apps.academic.views import (
     ClassGroupViewSet,
     ClassSubjectViewSet,
     ExamAttemptViewSet,
+    ExpectedPeriodsView,
     ExamQuestionViewSet,
     ExamViewSet,
     GradebookView,
@@ -55,5 +56,6 @@ urlpatterns = [
     path('schools/<int:school_id>/report-card-policy/', ReportCardPolicyView.as_view(), name='report-card-policy'),
     path('schools/<int:school_id>/broadcast-policy/', BroadcastPolicyView.as_view(), name='broadcast-policy'),
     path('schools/<int:school_id>/period-grid/', PeriodGridView.as_view(), name='period-grid'),
+    path('schools/<int:school_id>/expected-periods/', ExpectedPeriodsView.as_view(), name='expected-periods'),
     path('', include(router.urls)),
 ]
