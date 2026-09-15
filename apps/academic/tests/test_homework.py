@@ -13,6 +13,7 @@ from apps.academic.services import (
     get_homework_completion,
     grade_homework_submission,
     remind_unsubmitted,
+    store_homework_submission_file,
     submit_homework,
 )
 from apps.academic.tests.base import build_academic_fixture
@@ -298,3 +299,89 @@ class HomeworkCreateViewTests(TestCase):
             template_key='academic.homework.assigned',
         ).first()
         self.assertIsNotNone(intent)
+
+
+class HomeworkFileUploadTests(TestCase):
+    def setUp(self):
+        self.fx = build_academic_fixture()
+        self.homework = make_homework(self.fx, due_delta_hours=48)
+
+    def test_valid_pdf_upload_stored_on_disk(self):
+        from django.conf import settings
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from pathlib import Path
+
+        upload = SimpleUploadedFile('tugas.pdf', b'%PDF-1.4 fake content', content_type='application/pdf')
+        meta = store_homework_submission_file(self.homework, upload)
+
+        self.assertEqual(meta['filename'], 'tugas.pdf')
+        self.assertEqual(meta['content_type'], 'application/pdf')
+        self.assertTrue(meta['key'].startswith(f'homework_submissions/{self.homework.id}/'))
+
+        stored_path = Path(settings.MEDIA_ROOT) / meta['key']
+        self.assertTrue(stored_path.exists())
+        self.assertEqual(stored_path.read_bytes(), b'%PDF-1.4 fake content')
+        stored_path.unlink()
+
+    def test_oversized_file_rejected(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from apps.academic.services import MAX_SUBMISSION_FILE_SIZE
+
+        upload = SimpleUploadedFile('big.pdf', b'x' * 10, content_type='application/pdf')
+        upload.size = MAX_SUBMISSION_FILE_SIZE + 1  # simulate an oversized file without allocating it
+
+        with self.assertRaises(InvalidSubmissionFilesError):
+            store_homework_submission_file(self.homework, upload)
+
+    def test_disallowed_content_type_rejected(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        upload = SimpleUploadedFile('virus.exe', b'MZ', content_type='application/x-msdownload')
+        with self.assertRaises(InvalidSubmissionFilesError):
+            store_homework_submission_file(self.homework, upload)
+
+    def test_returned_key_round_trips_through_submit_homework(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        upload = SimpleUploadedFile('tugas.pdf', b'%PDF-1.4 fake content', content_type='application/pdf')
+        meta = store_homework_submission_file(self.homework, upload)
+
+        submission = submit_homework(self.homework, self.fx['student'], text="Selesai", files=[meta])
+        self.assertEqual(submission.files, [meta])
+
+
+class HomeworkFileUploadViewTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.fx = build_academic_fixture()
+        RoleAssignment.all_tenants.create(
+            foundation_id=self.fx['foundation'].id, user=self.fx['teacher_user'], role='teacher',
+            scope_type=RoleAssignment.SCOPE_SCHOOL, scope_id=self.fx['school'].id,
+        )
+        self.homework = make_homework(self.fx, due_delta_hours=48)
+
+    def test_upload_file_via_api(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+        upload = SimpleUploadedFile('tugas.pdf', b'%PDF-1.4 fake content', content_type='application/pdf')
+        res = self.client.post(
+            f'/api/v1/academic/homework/{self.homework.id}/upload-file/', {'file': upload}, format='multipart',
+        )
+        self.assertEqual(res.status_code, 201, res.content)
+        self.assertEqual(res.json()['filename'], 'tugas.pdf')
+
+    def test_cross_tenant_upload_returns_404(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        fx_b = build_academic_fixture(foundation_name="Yayasan Upload B")
+        RoleAssignment.all_tenants.create(
+            foundation_id=fx_b['foundation'].id, user=fx_b['teacher_user'], role='teacher',
+            scope_type=RoleAssignment.SCOPE_SCHOOL, scope_id=fx_b['school'].id,
+        )
+        self.client.force_authenticate(user=fx_b['teacher_user'])
+        upload = SimpleUploadedFile('tugas.pdf', b'%PDF-1.4', content_type='application/pdf')
+        res = self.client.post(
+            f'/api/v1/academic/homework/{self.homework.id}/upload-file/', {'file': upload}, format='multipart',
+        )
+        self.assertEqual(res.status_code, 404)

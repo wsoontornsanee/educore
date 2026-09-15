@@ -4,6 +4,7 @@ from collections import Counter
 from datetime import timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
+from uuid import uuid4
 
 from django.conf import settings
 from django.utils import timezone
@@ -391,6 +392,39 @@ def validate_submission_files(files) -> None:
             raise InvalidSubmissionFilesError(f"FILE_TOO_LARGE: '{f.get('filename', '?')}' exceeds 20MB.")
         if content_type not in ALLOWED_SUBMISSION_CONTENT_TYPES:
             raise InvalidSubmissionFilesError(f"UNSUPPORTED_FILE_TYPE: '{content_type}' is not accepted.")
+
+
+def store_homework_submission_file(homework: Homework, uploaded_file) -> dict:
+    """ACD-027: validate and persist one uploaded homework attachment, returning the
+    {key, filename, size, content_type} dict submit_homework's `files` list expects.
+
+    Reuses validate_submission_files (wrapped as a one-item list) rather than
+    duplicating its size/content-type rules. Written directly to MEDIA_ROOT via
+    pathlib, matching the existing raw-filesystem convention (render_report_card_pdf,
+    generate_settlement_statement_pdf) — no Django storage abstraction is used
+    anywhere else in this codebase.
+    """
+    file_meta = {
+        'filename': uploaded_file.name,
+        'size': uploaded_file.size,
+        'content_type': uploaded_file.content_type,
+    }
+    validate_submission_files([file_meta])
+
+    output_dir = Path(settings.MEDIA_ROOT) / 'homework_submissions' / str(homework.id)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    key = f"homework_submissions/{homework.id}/{uuid4().hex}_{uploaded_file.name}"
+    with open(Path(settings.MEDIA_ROOT) / key, 'wb') as out:
+        for chunk in uploaded_file.chunks():
+            out.write(chunk)
+
+    return {
+        'key': key,
+        'filename': uploaded_file.name,
+        'size': uploaded_file.size,
+        'content_type': uploaded_file.content_type,
+    }
 
 
 def assign_homework(class_subject, title, instructions, assigned_at, due_at) -> Homework:

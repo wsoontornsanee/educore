@@ -1,6 +1,7 @@
 from django.utils.translation import gettext_lazy as _
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -49,6 +50,7 @@ from apps.academic.serializers import (
     ExamQuestionSerializer,
     ExamSerializer,
     GradeEssaySerializer,
+    HomeworkFileUploadSerializer,
     HomeworkGradeSerializer,
     HomeworkSerializer,
     HomeworkSubmissionSerializer,
@@ -111,6 +113,7 @@ from apps.academic.services import (
     set_period_grid,
     start_attempt,
     submit_attempt,
+    store_homework_submission_file,
     submit_homework,
 )
 
@@ -346,7 +349,19 @@ class HomeworkViewSet(TenantScopedModelViewSet):
         'partial_update': 'grades.write', 'destroy': 'grades.write',
         'submissions': 'grades.read',
         'remind': 'grades.write', 'completion': 'grades.read',
+        'upload_file': 'grades.write',
     }
+
+    @action(detail=True, methods=['post'], url_path='upload-file', parser_classes=[MultiPartParser])
+    def upload_file(self, request, pk=None):
+        homework = self.get_object()
+        payload = HomeworkFileUploadSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        try:
+            file_meta = store_homework_submission_file(homework, payload.validated_data['file'])
+        except InvalidSubmissionFilesError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(file_meta, status=status.HTTP_201_CREATED)
 
     def perform_create(self, serializer):
         homework = assign_homework(
