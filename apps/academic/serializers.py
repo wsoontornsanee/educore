@@ -152,6 +152,10 @@ class HomeworkSubmitSerializer(serializers.Serializer):
     files = serializers.ListField(child=serializers.DictField(), required=False, default=list)
 
 
+class HomeworkFileUploadSerializer(serializers.Serializer):
+    file = serializers.FileField()
+
+
 class HomeworkGradeSerializer(serializers.Serializer):
     score = serializers.DecimalField(max_digits=6, decimal_places=2, allow_null=True, required=False)
     feedback = serializers.CharField(required=False, allow_blank=True, default='')
