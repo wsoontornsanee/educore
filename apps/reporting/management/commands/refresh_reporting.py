@@ -13,6 +13,7 @@ from apps.core.models import JobRun
 from apps.reporting.services import (
     refresh_academic_performance,
     refresh_active_students,
+    refresh_ar_aging,
     refresh_daily_attendance,
     refresh_daily_finance,
     refresh_wallet_activity,
@@ -26,6 +27,7 @@ REFRESHERS = [
     ('rpt_academic_performance', refresh_academic_performance),
     ('rpt_active_students', refresh_active_students),
     ('rpt_daily_finance', refresh_daily_finance),
+    ('rpt_ar_aging', refresh_ar_aging),
 ]
 
 

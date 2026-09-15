@@ -8,6 +8,7 @@ from apps.identity.models import School
 from apps.reporting.models import (
     RptAcademicPerformance,
     RptActiveStudent,
+    RptArAging,
     RptDailyAttendance,
     RptDailyFinance,
     RptWalletActivity,
@@ -363,3 +364,55 @@ def refresh_daily_finance(scope: str, since=None) -> dict:
             rows_written += 1
 
     return {'rows_written': rows_written, 'start_date': str(start_date), 'scope': scope}
+
+
+def refresh_ar_aging(scope: str, since=None) -> dict:
+    """spec/15 §2: rebuild rpt_ar_aging(school_id, student_id, as_of, bucket, currency, amount).
+    Rolls up outstanding open invoices per student per aging bucket as of today.
+    """
+    from apps.finance.models import Invoice, InvoiceStatus
+    from apps.finance.services.ar_aging import get_aging_bucket
+
+    now = timezone.now()
+    today = now.date()
+    rows_written = 0
+
+    NON_FINAL_STATUSES = [InvoiceStatus.ISSUED, InvoiceStatus.PARTIALLY_PAID]
+
+    for school in School.all_tenants.filter(deleted_at__isnull=True):
+        invoices = Invoice.all_tenants.filter(
+            foundation_id=school.foundation_id,
+            school=school,
+            status__in=NON_FINAL_STATUSES,
+            deleted_at__isnull=True,
+        ).select_related('student')
+
+        student_buckets: dict[tuple[int, str, str], dict] = {}
+        for invoice in invoices:
+            balance = invoice.balance_due
+            if balance <= Decimal('0.00'):
+                continue
+            bucket = get_aging_bucket(invoice.due_date, today)
+            key = (invoice.student_id, bucket, invoice.currency)
+            if key not in student_buckets:
+                student_buckets[key] = {'amount': Decimal('0.00'), 'count': 0, 'student': invoice.student}
+            student_buckets[key]['amount'] += balance
+            student_buckets[key]['count'] += 1
+
+        for (student_id, bucket, currency), data in student_buckets.items():
+            RptArAging.all_tenants.update_or_create(
+                foundation_id=school.foundation_id,
+                school=school,
+                student=data['student'],
+                as_of=today,
+                bucket=bucket,
+                currency=currency,
+                defaults={
+                    'amount': data['amount'],
+                    'invoices_count': data['count'],
+                    'computed_at': now,
+                },
+            )
+            rows_written += 1
+
+    return {'rows_written': rows_written, 'as_of': str(today), 'scope': scope}
