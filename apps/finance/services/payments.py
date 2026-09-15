@@ -22,6 +22,7 @@ from apps.finance.services.ledger import (
     get_next_receipt_number,
     post_payment_settlement_journal,
 )
+from apps.finance.services.convenience_fee import calculate_convenience_fee
 from apps.finance.services.payment_providers import get_payment_provider
 from apps.identity.models import School, Student
 
@@ -100,9 +101,16 @@ def create_payment_intent(
 
     # Calculate total balance due
     total_due = sum(inv.balance_due for inv in invoices)
-    intent_amount = amount if amount is not None else total_due
-    if intent_amount <= Decimal('0.00'):
+    base_amount = amount if amount is not None else total_due
+    if base_amount <= Decimal('0.00'):
         raise InvalidPaymentError("Payment intent amount must be positive.")
+
+    # FIN-017: convenience fee applies only to gateway-mediated methods (VA, QRIS) —
+    # manual transfer and cash never go through a payment gateway, so there's no fee.
+    convenience_fee_amount = Decimal('0.00')
+    if method in (PaymentMethod.VA, PaymentMethod.QRIS):
+        convenience_fee_amount = calculate_convenience_fee(school, base_amount)
+    intent_amount = base_amount + convenience_fee_amount
 
     expires_at = timezone.now() + timedelta(hours=24)
     provider = get_payment_provider(provider_name)
@@ -136,6 +144,8 @@ def create_payment_intent(
         status=PaymentIntentStatus.PENDING,
         metadata={
             'invoice_ids': [inv.id for inv in invoices],
+            'base_amount': str(base_amount),
+            'convenience_fee_amount': str(convenience_fee_amount),
         },
     )
     return intent

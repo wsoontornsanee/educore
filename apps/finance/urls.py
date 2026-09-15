@@ -16,6 +16,7 @@ from apps.finance.views import (
     ReconciliationBatchListView,
     ReconciliationDiscrepancyResolveView,
     SchoolArrearsPolicyView,
+    SchoolConvenienceFeePolicyView,
     SchoolQrisConfigView,
     SiblingDiscountPolicyViewSet,
     StudentFeeAssignmentViewSet,
@@ -40,6 +41,7 @@ urlpatterns = [
     path('students/<int:pk>/statement/', StudentStatementView.as_view(), name='student-statement'),
     path('schools/<int:school_id>/qris-config/', SchoolQrisConfigView.as_view(), name='school-qris-config'),
     path('schools/<int:school_id>/arrears-policy/', SchoolArrearsPolicyView.as_view(), name='school-arrears-policy'),
+    path('schools/<int:school_id>/convenience-fee-policy/', SchoolConvenienceFeePolicyView.as_view(), name='school-convenience-fee-policy'),
     # FIN-024 Gateway Reconciliation
     path('reconciliation/batches/', ReconciliationBatchListView.as_view(), name='reconciliation-batch-list'),
     path('reconciliation/batches/<int:pk>/', ReconciliationBatchDetailView.as_view(), name='reconciliation-batch-detail'),

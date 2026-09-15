@@ -29,6 +29,7 @@ from apps.finance.models import (
     PaymentIntent,
     PaymentStatus,
     SchoolArrearsPolicy,
+    SchoolConvenienceFeePolicy,
     SchoolQrisConfig,
     SiblingDiscountPolicy,
     StudentCreditBalance,
@@ -57,6 +58,8 @@ from apps.finance.serializers import (
     PaymentSerializer,
     SchoolArrearsPolicySerializer,
     SchoolArrearsPolicyUpdateSerializer,
+    SchoolConvenienceFeePolicySerializer,
+    SchoolConvenienceFeePolicyUpdateSerializer,
     SchoolQrisConfigSerializer,
     SchoolQrisConfigUpdateSerializer,
     SiblingDiscountPolicySerializer,
@@ -74,12 +77,15 @@ from apps.finance.services import (
     cancel_invoice,
     create_discount_with_approval_check,
     create_installment_plan,
+    calculate_convenience_fee,
     generate_monthly_invoices,
     get_ar_aging_report,
+    get_effective_convenience_fee_policy,
     get_school_arrears_policy,
     get_school_qris_config,
     reject_invoice_write_off,
     request_invoice_write_off,
+    set_school_convenience_fee_policy,
     set_school_qris_config,
     store_payment_proof_file,
     write_off_invoice,
@@ -772,6 +778,48 @@ class SchoolQrisConfigView(APIView):
         except InvalidProofFileError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(SchoolQrisConfigSerializer(config).data, status=status.HTTP_200_OK)
+
+
+class SchoolConvenienceFeePolicyView(APIView):
+    """GET/PUT /schools/:school_id/convenience-fee-policy/ — a school's gateway
+    convenience fee allocation and schedule (FIN-017). GET returns the platform
+    default (PASSED_TO_PARENT, fee_value=0) when the school has no explicit
+    override, consistent with get_effective_convenience_fee_policy.
+    """
+    permission_classes = [HasRequiredPermission]
+
+    def get_required_permission(self):
+        return 'finance.invoice.write' if self.request.method == 'PUT' else 'finance.invoice.read'
+
+    def get(self, request, school_id):
+        foundation_id = get_current_foundation_id()
+        school = School.objects.filter(id=school_id, foundation_id=foundation_id).first()
+        if not school:
+            return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        config = SchoolConvenienceFeePolicy.objects.filter(school=school).first()
+        if config:
+            return Response(SchoolConvenienceFeePolicySerializer(config).data)
+        default_policy = get_effective_convenience_fee_policy(school)
+        return Response({**default_policy, 'fee_value': str(default_policy['fee_value'])})
+
+    def put(self, request, school_id):
+        foundation_id = get_current_foundation_id()
+        school = School.objects.filter(id=school_id, foundation_id=foundation_id).first()
+        if not school:
+            return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        payload = SchoolConvenienceFeePolicyUpdateSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+
+        config = set_school_convenience_fee_policy(
+            school,
+            allocation=payload.validated_data['allocation'],
+            fee_type=payload.validated_data['fee_type'],
+            fee_value=payload.validated_data['fee_value'],
+            is_active=payload.validated_data.get('is_active', True),
+        )
+        return Response(SchoolConvenienceFeePolicySerializer(config).data, status=status.HTTP_200_OK)
 
 
 class SchoolArrearsPolicyView(APIView):

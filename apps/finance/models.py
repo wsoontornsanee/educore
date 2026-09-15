@@ -562,6 +562,52 @@ class SchoolQrisConfig(TenantModel):
         return f"{self.school.name} static QRIS ({'active' if self.is_active else 'inactive'})"
 
 
+class ConvenienceFeeAllocation(models.TextChoices):
+    ABSORBED_BY_SCHOOL = 'ABSORBED_BY_SCHOOL', _('Ditanggung Sekolah (Absorbed by School)')
+    PASSED_TO_PARENT = 'PASSED_TO_PARENT', _('Dibebankan ke Orang Tua (Passed to Parent)')
+
+
+class ConvenienceFeeType(models.TextChoices):
+    FIXED = 'FIXED', _('Nominal Tetap (Fixed Amount)')
+    PERCENTAGE = 'PERCENTAGE', _('Persentase (Percentage)')
+
+
+class SchoolConvenienceFeePolicy(TenantModel):
+    """Per-school gateway convenience fee allocation and schedule (spec/06 FIN-017).
+
+    Resolves [Open Decision] Payment Gateway Convenience Fee Allocation Policy:
+    platform default is PASSED_TO_PARENT, but each school can override via this
+    config. When no row exists for a school, get_effective_convenience_fee_policy
+    falls back to PASSED_TO_PARENT with fee_value=0 — i.e. no fee is actually
+    charged until a school explicitly configures a non-zero fee_value, which is
+    the safe default (a school never gets silently charged a fee amount nobody set).
+    """
+    school = models.OneToOneField(School, on_delete=models.PROTECT, related_name='convenience_fee_policy')
+    allocation = models.CharField(
+        max_length=32,
+        choices=ConvenienceFeeAllocation.choices,
+        default=ConvenienceFeeAllocation.PASSED_TO_PARENT,
+    )
+    fee_type = models.CharField(
+        max_length=16,
+        choices=ConvenienceFeeType.choices,
+        default=ConvenienceFeeType.FIXED,
+    )
+    fee_value = models.DecimalField(
+        max_digits=18,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        help_text=_("Fixed amount (in the invoice's currency) or percentage (e.g. 1.50 for 1.5%), per fee_type"),
+    )
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'school_convenience_fee_policies'
+
+    def __str__(self):
+        return f"{self.school.name} convenience fee ({self.allocation}, {self.fee_type} {self.fee_value})"
+
+
 DEFAULT_ARREARS_LADDER_DAYS = [-3, 0, 3, 7, 14, 30]
 
 
