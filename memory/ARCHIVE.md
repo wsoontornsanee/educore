@@ -160,3 +160,15 @@
   - Implemented `GateEventViewSet` (`/api/v1/gate/events/`), `AttendanceDayViewSet` (`/api/v1/attendance/daily/`), and `AttendanceRuleViewSet` (`/api/v1/attendance/rules/`) with 3-layer tenancy and cross-school 404 isolation.
   - 10 new test methods (22 test assertions total in attendance) passing; all 86 project tests passing with 100% success rate.
   - PR #12 merged into `main`.
+
+## Step 3.3: Gate Console Live Polling, Manual Check-In & Edge Sync Stub (TASK-017)
+- **Date:** 2026-09-15
+- **Milestone:** Step 3.3 Completed & Merged (PR #13) - Milestone M3 (Credentials, Gate Attendance & Edge Stub) 100% Complete
+- **Details:**
+  - Implemented live gate console feed service `get_live_gate_feed` (`apps/attendance/services.py`) providing cursor-based polling (`ARC-015`, `ATT-013`) by monotonically increasing ID cursor or ISO timestamp, returning raw scans and daily attendance snapshots.
+  - Implemented manual check-in service `manual_gate_checkin` (`apps/attendance/services.py`) enabling quick check-in for forgotten/damaged cards (`ATT-013`, `spec/05 §8`) in ≤3 taps with `is_manual_checkin=True`, reason tracking, `AuditEvent` logging, and daily attendance updates.
+  - Implemented edge device synchronization payload service `get_device_sync_payload` (`apps/hardware/services.py`) per `spec/12 §3, §7`, providing edge gateways with active credentials (credential_number, person_id, role, pin_hash), attendance rules, and time sync (NTP/UTC) with timestamp-filtered incremental deltas.
+  - Implemented `GET /api/v1/gate/live` cursor polling endpoint, `POST /api/v1/attendance/manual/` manual check-in endpoint, and `GET /api/v1/device/sync` edge device sync endpoint.
+  - 6 new automated tests across `apps/attendance/tests/test_live_gate_and_sync.py` and `apps/hardware/tests/test_devices.py` asserting cursor polling filtering, manual check-in attendance derivation, and incremental edge sync deltas.
+  - Total test suite: 92 passing tests with 100% success rate.
+  - PR #13 merged into `main`.
