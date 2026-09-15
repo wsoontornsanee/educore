@@ -10,7 +10,12 @@ from django.utils import timezone
 
 from apps.core.locks import advisory_lock
 from apps.core.models import JobRun
-from apps.reporting.services import refresh_academic_performance, refresh_daily_attendance, refresh_wallet_activity
+from apps.reporting.services import (
+    refresh_academic_performance,
+    refresh_active_students,
+    refresh_daily_attendance,
+    refresh_wallet_activity,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +23,7 @@ REFRESHERS = [
     ('rpt_wallet_activity', refresh_wallet_activity),
     ('rpt_daily_attendance', refresh_daily_attendance),
     ('rpt_academic_performance', refresh_academic_performance),
+    ('rpt_active_students', refresh_active_students),
 ]
 
 

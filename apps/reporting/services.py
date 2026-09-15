@@ -5,7 +5,7 @@ from django.db.models import Count, Sum
 from django.utils import timezone
 
 from apps.identity.models import School
-from apps.reporting.models import RptAcademicPerformance, RptDailyAttendance, RptWalletActivity
+from apps.reporting.models import RptAcademicPerformance, RptActiveStudent, RptDailyAttendance, RptWalletActivity
 
 DASHBOARD_LOOKBACK_DAYS = 2
 
@@ -217,5 +217,72 @@ def refresh_academic_performance(scope: str, since=None) -> dict:
             },
         )
         rows_written += 1
+
+    return {'rows_written': rows_written, 'scope': scope}
+
+
+def _month_is_closed(month, today) -> bool:
+    next_month = (month.replace(day=28) + timedelta(days=4)).replace(day=1)
+    last_day_of_month = next_month - timedelta(days=1)
+    return last_day_of_month < today
+
+
+def refresh_active_students(scope: str, since=None) -> dict:
+    """spec/15 §2, RPT-007/RPT-008: rebuild rpt_active_students, one row per school
+    per month — the invoice basis for EduCore's own subscription billing.
+
+    "Active" (RPT-007) = current Student.status == ACTIVE AND has a current active
+    ClassEnrollment (this repo has no historical point-in-time status/enrollment
+    tracking, only "now" — same documented simplification as every other rollup in
+    this app; the count is accurate at the moment each month's cron actually runs,
+    which is exactly what makes the next requirement correct).
+
+    RPT-008 (immutability): once a month has fully closed, an EXISTING row for it is
+    NEVER recomputed — only the still-open current month is refreshed repeatedly.
+    scope='dashboard' only touches the current month; scope='full' also backfills the
+    most recently closed month if it has no row yet (bounded backfill, not unbounded
+    history — a nightly refresh only ever needs to freeze the month that JUST closed).
+    """
+    from apps.academic.models import ClassEnrollment
+    from apps.identity.models import Student
+
+    now = timezone.now()
+    today = now.date()
+    current_month = today.replace(day=1)
+
+    if since is not None:
+        target_months = [since]
+    elif scope == 'dashboard':
+        target_months = [current_month]
+    else:
+        previous_month = (current_month - timedelta(days=1)).replace(day=1)
+        target_months = [current_month, previous_month]
+
+    active_student_ids = set(
+        ClassEnrollment.all_tenants.filter(is_active=True, deleted_at__isnull=True).values_list('student_id', flat=True)
+    )
+
+    rows_written = 0
+    for school in School.all_tenants.filter(deleted_at__isnull=True):
+        for month in target_months:
+            existing = RptActiveStudent.all_tenants.filter(
+                foundation_id=school.foundation_id, school=school, month=month,
+            ).first()
+            if existing and _month_is_closed(month, today):
+                continue  # RPT-008: a closed month's row is frozen forever
+
+            active_count = Student.all_tenants.filter(
+                foundation_id=school.foundation_id, school=school,
+                status=Student.STATUS_ACTIVE, id__in=active_student_ids,
+                deleted_at__isnull=True,
+            ).count()
+
+            RptActiveStudent.all_tenants.update_or_create(
+                foundation_id=school.foundation_id,
+                school=school,
+                month=month,
+                defaults={'active_count': active_count, 'computed_at': now},
+            )
+            rows_written += 1
 
     return {'rows_written': rows_written, 'scope': scope}

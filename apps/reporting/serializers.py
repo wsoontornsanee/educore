@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from apps.reporting.models import RptAcademicPerformance, RptDailyAttendance, RptWalletActivity
+from apps.reporting.models import RptAcademicPerformance, RptActiveStudent, RptDailyAttendance, RptWalletActivity
 
 
 class RptWalletActivitySerializer(serializers.ModelSerializer):
@@ -30,4 +30,11 @@ class RptAcademicPerformanceSerializer(serializers.ModelSerializer):
             'id', 'school', 'term', 'class_group', 'subject',
             'avg_score', 'band_distribution', 'computed_at',
         ]
+        read_only_fields = fields
+
+
+class RptActiveStudentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RptActiveStudent
+        fields = ['id', 'school', 'month', 'active_count', 'computed_at']
         read_only_fields = fields
