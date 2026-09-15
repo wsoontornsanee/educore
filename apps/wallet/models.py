@@ -3,6 +3,7 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.fields import MoneyField
+from apps.core.fields import soft_delete_uniqueness_marker
 from apps.core.models import TenantModel
 from apps.identity.models import School, Student
 
@@ -134,6 +135,7 @@ class Product(TenantModel):
     nutrition = models.JSONField(default=dict, blank=True, help_text=_("e.g. {calories, sugar_g}"))
     allergens = models.JSONField(default=list, blank=True)
     is_active = models.BooleanField(default=True)
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'products'
@@ -142,8 +144,7 @@ class Product(TenantModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'merchant', 'sku'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'merchant', 'sku', 'active_uniq_marker'],
                 name='unique_product_sku_per_merchant',
             ),
         ]
@@ -229,6 +230,7 @@ class MerchantSettlement(TenantModel):
     status = models.CharField(max_length=16, choices=MerchantSettlementStatus.choices, default=MerchantSettlementStatus.PENDING)
     paid_at = models.DateTimeField(null=True, blank=True)
     statement_pdf_key = models.CharField(max_length=255, blank=True, default='')
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'merchant_settlements'
@@ -237,8 +239,7 @@ class MerchantSettlement(TenantModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'merchant', 'period_start', 'period_end'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'merchant', 'period_start', 'period_end', 'active_uniq_marker'],
                 name='unique_settlement_per_merchant_period',
             ),
         ]

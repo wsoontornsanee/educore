@@ -4,6 +4,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.fields import MoneyField
+from apps.core.fields import soft_delete_uniqueness_marker
 from apps.core.models import TenantModel
 from apps.identity.models import School, Student, User
 
@@ -193,13 +194,13 @@ class Invoice(TenantModel):
     currency = models.CharField(max_length=3, default='IDR', help_text=_("Invoice currency (CUR-002, CUR-008)"))
     status = models.CharField(max_length=32, choices=InvoiceStatus.choices, default=InvoiceStatus.ISSUED, db_index=True)
     metadata = models.JSONField(default=dict, blank=True)
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'invoices'
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'student', 'period'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'student', 'period', 'active_uniq_marker'],
                 name='unique_active_invoice_per_student_period',
             ),
         ]
@@ -269,13 +270,13 @@ class InvoiceInstallment(TenantModel):
     )
     paid_at = models.DateTimeField(null=True, blank=True)
     notes = models.CharField(max_length=255, blank=True)
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'invoice_installments'
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'invoice', 'installment_no'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'invoice', 'installment_no', 'active_uniq_marker'],
                 name='unique_invoice_installment_no',
             ),
         ]
@@ -437,9 +438,14 @@ class Payment(TenantModel):
     class Meta:
         db_table = 'payments'
         constraints = [
+            # No condition= needed: MySQL/Postgres/SQLite unique indexes all
+            # already treat NULL as never-equal-to-NULL, so a plain constraint
+            # on a nullable column is portable and matches the old
+            # external_id__isnull=False intent exactly (unlike the
+            # soft-delete-scoped constraints elsewhere in this file, which
+            # needed a GeneratedField marker — see apps.core.fields).
             models.UniqueConstraint(
                 fields=['foundation_id', 'external_id'],
-                condition=models.Q(external_id__isnull=False),
                 name='unique_foundation_payment_external_id',
             ),
         ]
@@ -632,13 +638,13 @@ class BankSftpConfig(TenantModel):
     remote_directory = models.CharField(max_length=512, default='/', help_text=_("Remote directory to list/pull statement files from"))
     file_format = models.CharField(max_length=16, choices=BankStatementFileFormat.choices, default=BankStatementFileFormat.MT940)
     is_active = models.BooleanField(default=True)
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'bank_sftp_configs'
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'school', 'bank_code'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'school', 'bank_code', 'active_uniq_marker'],
                 name='unique_foundation_school_bank_sftp_config',
             ),
         ]
@@ -802,13 +808,13 @@ class GatewaySettlementBatch(TenantModel):
         blank=True,
         help_text=_("Provider-specific aggregate totals from gateway response"),
     )
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'gateway_settlement_batches'
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'provider', 'settlement_date'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'provider', 'settlement_date', 'active_uniq_marker'],
                 name='unique_foundation_provider_settlement_date',
             ),
         ]
