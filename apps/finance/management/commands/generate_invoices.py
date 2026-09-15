@@ -9,10 +9,10 @@ Enforces:
 """
 import datetime
 import logging
-from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from apps.core.locks import advisory_lock
+from apps.core.management.base import CronHostCommand
 from apps.identity.models import Foundation, School
 from apps.finance.services import generate_monthly_invoices
 from educore.middleware.tenancy import tenant_context
@@ -20,10 +20,11 @@ from educore.middleware.tenancy import tenant_context
 logger = logging.getLogger(__name__)
 
 
-class Command(BaseCommand):
+class Command(CronHostCommand):
     help = "Generate monthly student tuition and SPP invoices (spec/06 §3, FIN-002)."
 
     def add_arguments(self, parser):
+        super().add_arguments(parser)
         parser.add_argument(
             '--period',
             type=str,

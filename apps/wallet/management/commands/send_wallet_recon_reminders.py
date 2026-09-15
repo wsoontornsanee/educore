@@ -4,17 +4,17 @@ Sends exactly one reminder per wallet, only for cases whose initial notice was
 actually delivered (REC-029) — the clock measures the guardian's time to act.
 """
 import logging
-from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from apps.core.locks import advisory_lock
+from apps.core.management.base import CronHostCommand
 from apps.core.models import JobRun
 from apps.wallet.services import get_wallets_due_for_reminder, queue_reconciliation_reminder
 
 logger = logging.getLogger(__name__)
 
 
-class Command(BaseCommand):
+class Command(CronHostCommand):
     help = "Sends the single 48h reminder for open wallet reconciliation cases (REC-012)."
 
     def handle(self, *args, **options):

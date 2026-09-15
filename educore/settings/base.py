@@ -163,3 +163,9 @@ REST_FRAMEWORK = {
 XENDIT_API_KEY = os.environ.get('XENDIT_API_KEY', '')
 XENDIT_CALLBACK_TOKEN = os.environ.get('XENDIT_CALLBACK_TOKEN', 'sandbox-token')
 XENDIT_BASE_URL = os.environ.get('XENDIT_BASE_URL', 'https://api.xendit.co')
+
+# Single cron host enforcement (spec/01 §7, ARC-013): production runs exactly one
+# dedicated cron host, identified by EDUCORE_CRON_HOST=1. Off by default — local and
+# staging are both single-VM per spec/01 §7's own environment table, where the
+# constraint is trivially satisfied. See apps.core.management.base.CronHostCommand.
+EDUCORE_CRON_HOST_ENFORCED = False
