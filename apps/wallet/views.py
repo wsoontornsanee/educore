@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.pagination import StandardCursorPagination
-from apps.identity.models import Student
+from apps.identity.models import School, Student
 from apps.identity.permissions import HasRequiredPermission
 from educore.middleware.tenancy import get_current_foundation_id
 
@@ -16,6 +16,8 @@ from apps.wallet.models import (
     POSTransaction,
     POSTransactionStatus,
     Product,
+    WalletReconciliation,
+    WalletReconciliationStatus,
     WalletTransaction,
 )
 from apps.wallet.serializers import (
@@ -30,6 +32,8 @@ from apps.wallet.serializers import (
     POSTransactionSerializer,
     POSTransactionVoidSerializer,
     ProductSerializer,
+    ReconciliationCashSettleSerializer,
+    ReconciliationWriteOffSerializer,
     SpendRuleSerializer,
     TopupSerializer,
     WalletSerializer,
@@ -45,14 +49,20 @@ from apps.wallet.services import (
     generate_settlement_statement_pdf,
     get_or_create_spend_rule,
     get_or_create_wallet,
+    get_reconciliation_queue,
+    get_school_reconciliation_exposure,
+    invoice_reconciliation_case,
     pos_session,
     pos_sync,
     process_offline_pos_batch,
     process_pos_transaction,
+    resend_reconciliation_notice,
     run_merchant_settlement,
     set_spend_rule,
+    settle_reconciliation_with_cash,
     topup_wallet,
     void_pos_transaction,
+    write_off_reconciliation_case,
 )
 
 
@@ -337,3 +347,103 @@ class POSSyncView(APIView):
         if not terminal:
             return Response({'error': _("Terminal tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
         return Response(pos_sync(terminal, since_cursor=payload.validated_data.get('cursor')))
+
+
+class WalletReconciliationQueueView(APIView):
+    """GET /wallet-reconciliations?school_id&status (REC-025, REC-028)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'finance.payment.read'
+
+    def get(self, request):
+        foundation_id = get_current_foundation_id()
+        school_id = request.query_params.get('school_id')
+        if not school_id:
+            return Response({'error': _("Parameter school_id wajib diisi.")}, status=status.HTTP_400_BAD_REQUEST)
+
+        school = School.objects.filter(id=school_id, foundation_id=foundation_id).first()
+        if not school:
+            return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        status_param = request.query_params.get('status', WalletReconciliationStatus.OPEN)
+
+        return Response({
+            'school_id': school.id,
+            'total_exposure': str(get_school_reconciliation_exposure(school)),
+            'currency': school.base_currency,
+            'cases': get_reconciliation_queue(school, status=status_param),
+        })
+
+
+class WalletReconciliationCaseView(APIView):
+    """Detail + admin actions on one reconciliation case (REC-026)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'finance.payment.write'
+
+    def _get_case(self, request, case_id):
+        foundation_id = get_current_foundation_id()
+        return WalletReconciliation.objects.filter(id=case_id, foundation_id=foundation_id).first()
+
+
+class WalletReconciliationSettleCashView(WalletReconciliationCaseView):
+    def post(self, request, case_id):
+        case = self._get_case(request, case_id)
+        if not case:
+            return Response({'error': _("Kasus tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        payload = ReconciliationCashSettleSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+
+        try:
+            settle_reconciliation_with_cash(
+                case, payload.validated_data['amount'], payload.validated_data.get('reference', ''), actor=request.user,
+            )
+        except (WalletNotActiveError, CurrencyMismatchError) as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        case.refresh_from_db()
+        return Response({'id': case.id, 'status': case.status})
+
+
+class WalletReconciliationInvoiceNowView(WalletReconciliationCaseView):
+    def post(self, request, case_id):
+        case = self._get_case(request, case_id)
+        if not case:
+            return Response({'error': _("Kasus tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        if case.status != WalletReconciliationStatus.OPEN:
+            return Response({'error': _("INVALID_STATE: kasus tidak lagi OPEN.")}, status=status.HTTP_400_BAD_REQUEST)
+
+        invoice_reconciliation_case(case, actor=request.user)
+        case.refresh_from_db()
+        return Response({'id': case.id, 'status': case.status, 'invoice_id': case.invoice_id})
+
+
+class WalletReconciliationWriteOffView(WalletReconciliationCaseView):
+    def post(self, request, case_id):
+        case = self._get_case(request, case_id)
+        if not case:
+            return Response({'error': _("Kasus tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        payload = ReconciliationWriteOffSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+
+        try:
+            write_off_reconciliation_case(case, request.user, payload.validated_data['reason'])
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        case.refresh_from_db()
+        return Response({'id': case.id, 'status': case.status})
+
+
+class WalletReconciliationResendNoticeView(WalletReconciliationCaseView):
+    def post(self, request, case_id):
+        case = self._get_case(request, case_id)
+        if not case:
+            return Response({'error': _("Kasus tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            resend_reconciliation_notice(case, actor=request.user)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({'id': case.id})

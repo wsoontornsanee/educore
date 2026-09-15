@@ -10,6 +10,11 @@ from apps.wallet.views import (
     ProductViewSet,
     SpendRuleView,
     WalletDetailView,
+    WalletReconciliationInvoiceNowView,
+    WalletReconciliationQueueView,
+    WalletReconciliationResendNoticeView,
+    WalletReconciliationSettleCashView,
+    WalletReconciliationWriteOffView,
     WalletTopupView,
     WalletTransactionsView,
 )
@@ -27,5 +32,10 @@ urlpatterns = [
     path('wallets/<int:student_id>/rules/', SpendRuleView.as_view(), name='wallet-rules'),
     path('pos/sessions/', POSSessionView.as_view(), name='pos-sessions'),
     path('pos/sync/', POSSyncView.as_view(), name='pos-sync'),
+    path('wallet-reconciliations/', WalletReconciliationQueueView.as_view(), name='wallet-reconciliation-queue'),
+    path('wallet-reconciliations/<int:case_id>/settle-cash/', WalletReconciliationSettleCashView.as_view(), name='wallet-reconciliation-settle-cash'),
+    path('wallet-reconciliations/<int:case_id>/invoice-now/', WalletReconciliationInvoiceNowView.as_view(), name='wallet-reconciliation-invoice-now'),
+    path('wallet-reconciliations/<int:case_id>/write-off/', WalletReconciliationWriteOffView.as_view(), name='wallet-reconciliation-write-off'),
+    path('wallet-reconciliations/<int:case_id>/resend-notice/', WalletReconciliationResendNoticeView.as_view(), name='wallet-reconciliation-resend-notice'),
     path('', include(router.urls)),
 ]
