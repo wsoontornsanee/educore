@@ -159,7 +159,7 @@
 
 From `spec/appendix.md §3`:
 
-1. **Virtual Account (VA) Provider:** Does the pilot foundation use a single bank, and does it support stable per-student VA numbers?
+1. ~~**Virtual Account (VA) Provider:**~~ Resolved 2026-09-15: Xendit Fixed VA for stable per-student VA (TASK-055) plus generic static QRIS with manual proof upload (TASK-056), confirmed final by user.
 2. ~~**Convenience Fee Allocation:**~~ Resolved 2026-09-15: default `PASSED_TO_PARENT` (see retrospective #56); `SchoolConvenienceFeePolicy` config + checkout integration built in TASK-061 (retrospective #57).
 3. ~~**Report Card Withholding Policy (`ACD-014`):**~~ Resolved 2026-09-15: keep OFF by default, matching ACD-014's own stated spec default (see retrospective #62). No behavior change.
 4. ~~**Canteen Float Legal Entity (`CMP-027`):**~~ Resolved 2026-09-15: school/foundation holds the float, EduCore never holds funds — matches CMP-027 exactly (see retrospective #62). Final legal sign-off with counsel remains outstanding per CMP-027's own text.
