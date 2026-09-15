@@ -1,16 +1,24 @@
+import logging
 import random
+from collections import Counter
 from datetime import timedelta
 from decimal import Decimal, ROUND_HALF_UP
+from pathlib import Path
 
+from django.conf import settings
 from django.utils import timezone
 
+logger = logging.getLogger(__name__)
+
 from apps.core.services import audit
+from apps.identity.models import Student
 from apps.academic.models import (
     ALLOWED_SUBMISSION_CONTENT_TYPES,
     AUTO_GRADABLE_QUESTION_TYPES,
     Assessment,
     AssessmentScore,
     ClassEnrollment,
+    ClassSubject,
     DEFAULT_DESCRIPTOR_BANDS,
     Exam,
     ExamAnswer,
@@ -23,6 +31,9 @@ from apps.academic.models import (
     HomeworkSubmissionStatus,
     MAX_SUBMISSION_FILES,
     MAX_SUBMISSION_FILE_SIZE,
+    ReportCard,
+    ReportCardPolicy,
+    ReportCardStatus,
     TimetableSlot,
     TimetableSubstitution,
     WEIGHTED_ASSESSMENT_TYPES,
@@ -50,6 +61,10 @@ class InvalidSubmissionFilesError(ValueError):
 
 
 class ReminderRateLimitedError(ValueError):
+    pass
+
+
+class ReportCardStateError(ValueError):
     pass
 
 
@@ -555,3 +570,227 @@ def assign_substitution(slot, date, substitute_teacher, reason='') -> TimetableS
         },
     )
     return substitution
+
+
+def generate_report_cards(class_group, term, triggered_by=None) -> dict:
+    """ACD-010: term-scoped batch generation per class. Idempotent while a card is still DRAFT."""
+    from apps.attendance.models import AttendanceDay
+
+    class_subjects = list(ClassSubject.objects.filter(class_group=class_group, term=term, deleted_at__isnull=True))
+    student_ids = ClassEnrollment.objects.filter(
+        class_group=class_group, is_active=True, deleted_at__isnull=True,
+    ).values_list('student_id', flat=True)
+
+    created, updated, skipped = 0, 0, 0
+
+    for student in Student.objects.filter(id__in=student_ids, foundation_id=class_group.foundation_id):
+        grades_snapshot = []
+        for cs in class_subjects:
+            try:
+                result = compute_term_grade(student, cs)
+            except WeightConfigError:
+                result = {'status': 'INCOMPLETE', 'grade': None, 'missing_assessments': [], 'formula': None}
+            grades_snapshot.append({'subject': cs.subject.name, 'subject_code': cs.subject.code, **result})
+
+        attendance_qs = AttendanceDay.objects.filter(
+            foundation_id=class_group.foundation_id,
+            student=student,
+            date__gte=term.start_date,
+            date__lte=term.end_date,
+            deleted_at__isnull=True,
+        )
+        attendance_summary = dict(Counter(attendance_qs.values_list('status', flat=True)))
+
+        existing = ReportCard.objects.filter(
+            student=student, term=term, is_current=True, deleted_at__isnull=True,
+        ).first()
+
+        if existing and existing.status != ReportCardStatus.DRAFT:
+            skipped += 1
+            continue
+
+        if existing:
+            existing.grades_snapshot = grades_snapshot
+            existing.attendance_summary = attendance_summary
+            existing.save(update_fields=['grades_snapshot', 'attendance_summary', 'updated_at'])
+            updated += 1
+        else:
+            ReportCard.objects.create(
+                foundation_id=class_group.foundation_id,
+                student=student,
+                term=term,
+                class_group=class_group,
+                status=ReportCardStatus.DRAFT,
+                grades_snapshot=grades_snapshot,
+                attendance_summary=attendance_summary,
+            )
+            created += 1
+
+    audit(
+        action='academic.report_card.generated',
+        entity_type='ClassGroup',
+        entity_id=class_group.id,
+        foundation_id=class_group.foundation_id,
+        diff={'term': term.name, 'created': created, 'updated': updated, 'skipped': skipped},
+    )
+    return {'created': created, 'updated': updated, 'skipped': skipped}
+
+
+def approve_report_card(report_card: ReportCard, actor=None) -> ReportCard:
+    """ACD-012: DRAFT/PENDING_REVIEW -> APPROVED. Restricted to school_admin/principal at the view layer."""
+    if report_card.status not in (ReportCardStatus.DRAFT, ReportCardStatus.PENDING_REVIEW):
+        raise ReportCardStateError(f"INVALID_TRANSITION: cannot approve a report card in status {report_card.status}.")
+
+    report_card.status = ReportCardStatus.APPROVED
+    report_card.approved_by = actor
+    report_card.approved_at = timezone.now()
+    report_card.save()
+    audit(
+        action='academic.report_card.approved',
+        entity_type='ReportCard',
+        entity_id=report_card.id,
+        foundation_id=report_card.foundation_id,
+    )
+    return report_card
+
+
+def render_report_card_html(report_card: ReportCard) -> str:
+    """Minimal functional layout — the branded template is a pending open design decision (memory/01_PROJECT.md §5.6)."""
+    student = report_card.student
+    rows = "".join(
+        f"<tr><td>{g['subject']}</td><td>{g.get('grade') if g.get('grade') is not None else '-'}</td>"
+        f"<td>{g.get('status')}</td></tr>"
+        for g in report_card.grades_snapshot
+    )
+    attendance_rows = "".join(
+        f"<tr><td>{k}</td><td>{v}</td></tr>" for k, v in report_card.attendance_summary.items()
+    )
+    return f"""<html><body>
+<h1>Rapor - {student.person.full_name}</h1>
+<p>NISN: {student.nisn or '-'} | Kelas: {report_card.class_group.name} | {report_card.term.name}</p>
+<h2>Nilai</h2>
+<table border="1"><tr><th>Mapel</th><th>Nilai</th><th>Status</th></tr>{rows}</table>
+<h2>Kehadiran</h2>
+<table border="1"><tr><th>Status</th><th>Jumlah</th></tr>{attendance_rows}</table>
+<h2>Catatan Wali Kelas</h2>
+<p>{report_card.narrative}</p>
+<p>Versi: {report_card.version}</p>
+</body></html>"""
+
+
+def render_report_card_pdf(report_card: ReportCard) -> str:
+    """Render and persist the report card document. Falls back to HTML if weasyprint's
+    native libraries are unavailable in this environment (see memory/01_PROJECT.md)."""
+    html_content = render_report_card_html(report_card)
+    output_dir = Path(settings.MEDIA_ROOT) / 'report_cards'
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        from weasyprint import HTML
+        key = f"report_cards/{report_card.id}_v{report_card.version}.pdf"
+        HTML(string=html_content).write_pdf(str(Path(settings.MEDIA_ROOT) / key))
+    except Exception:
+        logger.warning("weasyprint unavailable, falling back to HTML rapor output", exc_info=True)
+        key = f"report_cards/{report_card.id}_v{report_card.version}.html"
+        (Path(settings.MEDIA_ROOT) / key).write_text(html_content)
+
+    return key
+
+
+def publish_report_card(report_card: ReportCard, actor=None) -> ReportCard:
+    """ACD-012/ACD-016: APPROVED -> PUBLISHED, rendering an immutable document."""
+    if report_card.status != ReportCardStatus.APPROVED:
+        raise ReportCardStateError(f"INVALID_TRANSITION: cannot publish a report card in status {report_card.status}.")
+
+    report_card.pdf_key = render_report_card_pdf(report_card)
+    report_card.status = ReportCardStatus.PUBLISHED
+    report_card.published_at = timezone.now()
+    report_card.save()
+    audit(
+        action='academic.report_card.published',
+        entity_type='ReportCard',
+        entity_id=report_card.id,
+        foundation_id=report_card.foundation_id,
+        diff={'pdf_key': report_card.pdf_key},
+    )
+    return report_card
+
+
+def revise_report_card(report_card: ReportCard, actor=None) -> ReportCard:
+    """ACD-016: corrections to a PUBLISHED card create a new version; the old one stays immutable."""
+    if report_card.status != ReportCardStatus.PUBLISHED:
+        raise ReportCardStateError("INVALID_TRANSITION: only a published report card can be revised.")
+
+    report_card.is_current = False
+    report_card.save(update_fields=['is_current', 'updated_at'])
+
+    new_card = ReportCard.objects.create(
+        foundation_id=report_card.foundation_id,
+        student=report_card.student,
+        term=report_card.term,
+        class_group=report_card.class_group,
+        status=ReportCardStatus.DRAFT,
+        grades_snapshot=report_card.grades_snapshot,
+        attendance_summary=report_card.attendance_summary,
+        narrative=report_card.narrative,
+        version=report_card.version + 1,
+        is_current=True,
+    )
+    audit(
+        action='academic.report_card.revised',
+        entity_type='ReportCard',
+        entity_id=new_card.id,
+        foundation_id=report_card.foundation_id,
+        diff={'previous_version': report_card.version, 'new_version': new_card.version},
+    )
+    return new_card
+
+
+def get_or_create_report_card_policy(school) -> ReportCardPolicy:
+    policy, _created = ReportCardPolicy.objects.get_or_create(
+        foundation_id=school.foundation_id, school=school,
+    )
+    return policy
+
+
+def set_arrears_gate(school, enabled: bool, actor=None) -> ReportCardPolicy:
+    """ACD-014: toggling block_rapor_on_arrears MUST be recorded in audit."""
+    policy = get_or_create_report_card_policy(school)
+    previous = policy.block_rapor_on_arrears
+    policy.block_rapor_on_arrears = enabled
+    policy.save()
+    audit(
+        action='academic.report_card_policy.arrears_gate_toggled',
+        entity_type='ReportCardPolicy',
+        entity_id=policy.id,
+        foundation_id=school.foundation_id,
+        diff={'before': previous, 'after': enabled},
+    )
+    return policy
+
+
+def is_student_blocked_by_arrears(student, school) -> bool:
+    """ACD-014: check whether the student's overdue invoices should withhold their rapor."""
+    from apps.finance.models import Invoice, InvoiceStatus
+
+    policy = get_or_create_report_card_policy(school)
+    if not policy.block_rapor_on_arrears:
+        return False
+
+    overdue = Invoice.objects.filter(
+        foundation_id=student.foundation_id,
+        student=student,
+        status__in=[InvoiceStatus.ISSUED, InvoiceStatus.PARTIALLY_PAID],
+    )
+    return any(invoice.is_overdue for invoice in overdue)
+
+
+def get_visible_report_card(report_card: ReportCard) -> dict:
+    """ACD-013/ACD-014: parents only ever see a PUBLISHED card, gated by arrears policy."""
+    if report_card.status != ReportCardStatus.PUBLISHED:
+        return {'visible': False, 'reason': 'NOT_PUBLISHED'}
+
+    if is_student_blocked_by_arrears(report_card.student, report_card.class_group.school):
+        return {'visible': False, 'reason': 'ARREARS'}
+
+    return {'visible': True, 'reason': None}

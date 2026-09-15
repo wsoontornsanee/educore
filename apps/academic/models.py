@@ -524,3 +524,62 @@ class ExamAnswer(TenantModel):
 
     def __str__(self):
         return f"Attempt#{self.attempt_id} - Q{self.question.seq}"
+
+
+class ReportCardStatus(models.TextChoices):
+    """ACD-012: rapor status machine."""
+    DRAFT = 'DRAFT', _('Konsep')
+    PENDING_REVIEW = 'PENDING_REVIEW', _('Menunggu Tinjauan')
+    APPROVED = 'APPROVED', _('Disetujui')
+    PUBLISHED = 'PUBLISHED', _('Diterbitkan')
+
+
+class ReportCard(TenantModel):
+    """A student's term report card / rapor (spec/04 §4)."""
+    student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name='report_cards')
+    term = models.ForeignKey(Term, on_delete=models.PROTECT, related_name='report_cards')
+    class_group = models.ForeignKey(ClassGroup, on_delete=models.PROTECT, related_name='report_cards')
+    status = models.CharField(max_length=16, choices=ReportCardStatus.choices, default=ReportCardStatus.DRAFT)
+    grades_snapshot = models.JSONField(default=list, blank=True, help_text=_("Per-subject final grade/descriptor/status, frozen at generation"))
+    attendance_summary = models.JSONField(default=dict, blank=True, help_text=_("Counts by AttendanceStatus for the term"))
+    narrative = models.TextField(blank=True, default='')
+    version = models.PositiveSmallIntegerField(default=1)
+    is_current = models.BooleanField(default=True)
+    pdf_key = models.CharField(max_length=255, blank=True, default='')
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    published_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'report_cards'
+        indexes = [
+            models.Index(fields=['foundation_id', 'student_id', 'term_id', 'is_current']),
+            models.Index(fields=['foundation_id', 'class_group_id', 'term_id']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'student', 'term'],
+                condition=models.Q(deleted_at__isnull=True, is_current=True),
+                name='unique_current_report_card_per_student_term',
+            ),
+            models.UniqueConstraint(
+                fields=['foundation_id', 'student', 'term', 'version'],
+                condition=models.Q(deleted_at__isnull=True),
+                name='unique_report_card_version_per_student_term',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.student.nis} - {self.term.name} v{self.version} ({self.status})"
+
+
+class ReportCardPolicy(TenantModel):
+    """Per-school rapor publication policy (ACD-014)."""
+    school = models.OneToOneField(School, on_delete=models.PROTECT, related_name='report_card_policy')
+    block_rapor_on_arrears = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'report_card_policies'
+
+    def __str__(self):
+        return f"{self.school.name} (block_on_arrears={self.block_rapor_on_arrears})"
