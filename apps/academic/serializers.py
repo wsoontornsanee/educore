@@ -168,6 +168,11 @@ class HomeworkGradeSerializer(serializers.Serializer):
     feedback = serializers.CharField(required=False, allow_blank=True, default='')
 
 
+class HomeworkReturnSerializer(serializers.Serializer):
+    """ACD-028: feedback is required — it's the revision instruction the student sees."""
+    feedback = serializers.CharField(allow_blank=False)
+
+
 class ExamSerializer(serializers.ModelSerializer):
     class Meta:
         model = Exam
