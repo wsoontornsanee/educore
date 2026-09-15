@@ -29,7 +29,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'school_config.read', 'school_config.write',
         'student_records.read', 'student_records.write',
         'grades.read',
-        'attendance.read',
+        'attendance.read', 'attendance.write',
         'finance.invoice.read', 'finance.invoice.write',
         'finance.payment.read', 'finance.payment.write',
         'wallet.topup.read',

@@ -1,6 +1,18 @@
 from rest_framework import serializers
 
-from apps.attendance.models import Credential, CredentialStatus, CredentialType
+from apps.attendance.models import (
+    AttendanceDay,
+    AttendanceRule,
+    AttendanceSource,
+    AttendanceStatus,
+    Credential,
+    CredentialStatus,
+    CredentialType,
+    GateDirection,
+    GateEvent,
+    GateEventStatus,
+    GateMethod,
+)
 from apps.identity.models import Student, Staff
 
 
@@ -85,3 +97,127 @@ class CredentialRevokeSerializer(serializers.Serializer):
 class CredentialVerifySerializer(serializers.Serializer):
     uid = serializers.CharField(max_length=128, required=True)
     mark_used = serializers.BooleanField(default=False)
+
+
+class GateEventBatchItemSerializer(serializers.Serializer):
+    event_uuid = serializers.UUIDField(required=True)
+    device_id = serializers.IntegerField(required=True)
+    occurred_at = serializers.DateTimeField(required=True)
+    raw_uid = serializers.CharField(max_length=128, required=False, allow_blank=True, default='')
+    student_id = serializers.IntegerField(required=False, allow_null=True)
+    staff_id = serializers.IntegerField(required=False, allow_null=True)
+    direction = serializers.ChoiceField(choices=GateDirection.choices, required=False, allow_null=True)
+    method = serializers.ChoiceField(choices=GateMethod.choices, default=GateMethod.RFID)
+    confidence = serializers.DecimalField(max_digits=5, decimal_places=4, required=False, allow_null=True)
+    photo_key = serializers.CharField(max_length=255, required=False, allow_blank=True, default='')
+    replayed = serializers.BooleanField(default=False)
+
+
+class GateEventBatchIngestSerializer(serializers.Serializer):
+    school_id = serializers.IntegerField(required=False, allow_null=True)
+    events = GateEventBatchItemSerializer(many=True, required=True)
+
+    def validate_events(self, value):
+        if not value:
+            raise serializers.ValidationError("Daftar event tidak boleh kosong.")
+        return value
+
+
+class GateEventSerializer(serializers.ModelSerializer):
+    student_nis = serializers.CharField(source='student.nis', read_only=True)
+    student_name = serializers.CharField(source='student.person.full_name', read_only=True)
+    staff_nip = serializers.CharField(source='staff.nip', read_only=True)
+    staff_name = serializers.CharField(source='staff.person.full_name', read_only=True)
+    device_name = serializers.CharField(source='device.name', read_only=True)
+
+    class Meta:
+        model = GateEvent
+        fields = [
+            'id',
+            'event_uuid',
+            'school',
+            'device',
+            'device_name',
+            'student',
+            'student_nis',
+            'student_name',
+            'staff',
+            'staff_nip',
+            'staff_name',
+            'credential',
+            'raw_uid',
+            'direction',
+            'occurred_at',
+            'method',
+            'confidence',
+            'photo_key',
+            'status',
+            'reject_reason',
+            'is_duplicate_scan',
+            'replayed',
+            'created_at',
+        ]
+        read_only_fields = fields
+
+
+class AttendanceRuleSerializer(serializers.ModelSerializer):
+    school_name = serializers.CharField(source='school.name', read_only=True)
+
+    class Meta:
+        model = AttendanceRule
+        fields = [
+            'id',
+            'school',
+            'school_name',
+            'late_after_time',
+            'absent_cutoff_time',
+            'debounce_seconds',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class AttendanceDaySerializer(serializers.ModelSerializer):
+    student_nis = serializers.CharField(source='student.nis', read_only=True)
+    student_name = serializers.CharField(source='student.person.full_name', read_only=True)
+    school_name = serializers.CharField(source='school.name', read_only=True)
+
+    class Meta:
+        model = AttendanceDay
+        fields = [
+            'id',
+            'school',
+            'school_name',
+            'student',
+            'student_nis',
+            'student_name',
+            'date',
+            'status',
+            'first_in_at',
+            'last_out_at',
+            'source',
+            'note',
+            'is_override',
+            'original_status',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = [
+            'id',
+            'school',
+            'student',
+            'date',
+            'first_in_at',
+            'last_out_at',
+            'source',
+            'original_status',
+            'created_at',
+            'updated_at',
+        ]
+
+
+class AttendanceDayOverrideSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=AttendanceStatus.choices, required=True)
+    note = serializers.CharField(max_length=255, required=True, min_length=1)
+
