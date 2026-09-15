@@ -77,6 +77,7 @@ from apps.academic.services import (
     ReasonRequiredError,
     ReminderRateLimitedError,
     ReportCardStateError,
+    ScoreConflictError,
     ScoreOutOfRangeError,
     TimetableConflictError,
     WeightConfigError,
@@ -256,9 +257,21 @@ class AssessmentViewSet(TenantScopedModelViewSet):
                     feedback=row.get('feedback', ''),
                     reason=row.get('reason'),
                     actor=request.user,
+                    expected_version=row.get('expected_version'),
                 )
             except (ScoreOutOfRangeError, ReasonRequiredError) as e:
                 return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            except ScoreConflictError as e:
+                return Response({
+                    'error': str(e),
+                    'conflict': {
+                        'student_id': row['student_id'],
+                        'current_score': str(e.current_score) if e.current_score is not None else None,
+                        'current_version': e.current_version,
+                        'current_feedback': e.current_feedback,
+                        'current_descriptor': e.current_descriptor,
+                    },
+                }, status=status.HTTP_409_CONFLICT)
             results.append(AssessmentScoreSerializer(record).data)
 
         return Response({'scores': results}, status=status.HTTP_200_OK)

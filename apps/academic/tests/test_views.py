@@ -97,6 +97,41 @@ class AcademicViewsTests(TestCase):
         score_row = next(s for s in body['scores'] if s['student_id'] == self.fx['student'].id)
         self.assertEqual(score_row['score'], '88.00')
 
+    def test_stale_expected_version_returns_409_via_api(self):
+        """TCH-007: a concurrent write must not silently win."""
+        assessment = Assessment.objects.create(
+            foundation_id=self.foundation.id,
+            class_subject=self.fx['class_subject'],
+            type=AssessmentType.SUMMATIVE,
+            title="UH1",
+            max_score=Decimal('100.00'),
+            weight=Decimal('100.00'),
+        )
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+        # Both teachers read version 1 (the score doesn't exist yet, so first write creates it).
+        self.client.put(
+            f'/api/v1/academic/assessments/{assessment.id}/scores/',
+            {'scores': [{'student_id': self.fx['student'].id, 'score': '70'}]},
+            format='json',
+        )
+        # Teacher A saves with expected_version=1, bumping to version 2.
+        res_a = self.client.put(
+            f'/api/v1/academic/assessments/{assessment.id}/scores/',
+            {'scores': [{'student_id': self.fx['student'].id, 'score': '75', 'expected_version': 1}]},
+            format='json',
+        )
+        self.assertEqual(res_a.status_code, 200, res_a.content)
+
+        # Teacher B, still holding version 1, tries to save — rejected, not silently overwritten.
+        res_b = self.client.put(
+            f'/api/v1/academic/assessments/{assessment.id}/scores/',
+            {'scores': [{'student_id': self.fx['student'].id, 'score': '60', 'expected_version': 1}]},
+            format='json',
+        )
+        self.assertEqual(res_b.status_code, 409, res_b.content)
+        self.assertEqual(res_b.json()['conflict']['current_score'], '75.00')
+        self.assertEqual(res_b.json()['conflict']['current_version'], 2)
+
 
 class AcademicCrossTenantTests(TestCase):
     def setUp(self):

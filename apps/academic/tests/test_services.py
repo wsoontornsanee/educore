@@ -4,6 +4,7 @@ from django.test import TestCase
 from apps.academic.models import Assessment, AssessmentScore, AssessmentType
 from apps.academic.services import (
     ReasonRequiredError,
+    ScoreConflictError,
     ScoreOutOfRangeError,
     WeightConfigError,
     compute_term_grade,
@@ -67,6 +68,54 @@ class ScoreEntryTests(TestCase):
         self.assessment.save()
         record = set_assessment_score(self.assessment, self.fx['student'], score=Decimal('70'))
         self.assertEqual(record.score, Decimal('70.00'))
+
+
+class ScoreConcurrencyTests(TestCase):
+    def setUp(self):
+        self.fx = build_academic_fixture()
+        self.assessment = Assessment.objects.create(
+            foundation_id=self.fx['foundation'].id,
+            class_subject=self.fx['class_subject'],
+            type=AssessmentType.SUMMATIVE,
+            title="Ulangan Harian 1",
+            max_score=Decimal('100.00'),
+            weight=Decimal('40.00'),
+        )
+
+    def test_first_score_always_succeeds_regardless_of_expected_version(self):
+        record = set_assessment_score(self.assessment, self.fx['student'], score=Decimal('85'), expected_version=99)
+        self.assertEqual(record.version, 1)
+
+    def test_omitting_expected_version_overwrites_unconditionally(self):
+        set_assessment_score(self.assessment, self.fx['student'], score=Decimal('70'))
+        record = set_assessment_score(self.assessment, self.fx['student'], score=Decimal('80'))
+        self.assertEqual(record.score, Decimal('80.00'))
+        self.assertEqual(record.version, 2)
+
+    def test_stale_expected_version_rejected_with_current_values(self):
+        first = set_assessment_score(self.assessment, self.fx['student'], score=Decimal('70'))
+        self.assertEqual(first.version, 1)
+
+        # Teacher A saves, bumping to version 2.
+        second = set_assessment_score(self.assessment, self.fx['student'], score=Decimal('75'), expected_version=1)
+        self.assertEqual(second.version, 2)
+
+        # Teacher B, who read version 1 before A saved, now tries to write — must be rejected,
+        # not silently overwrite A's change (TCH-007).
+        with self.assertRaises(ScoreConflictError) as ctx:
+            set_assessment_score(self.assessment, self.fx['student'], score=Decimal('60'), expected_version=1)
+        self.assertEqual(ctx.exception.current_score, Decimal('75.00'))
+        self.assertEqual(ctx.exception.current_version, 2)
+
+        # And A's write is intact — not clobbered by B's rejected attempt.
+        current = AssessmentScore.objects.get(assessment=self.assessment, student=self.fx['student'])
+        self.assertEqual(current.score, Decimal('75.00'))
+
+    def test_matching_expected_version_succeeds(self):
+        first = set_assessment_score(self.assessment, self.fx['student'], score=Decimal('70'))
+        record = set_assessment_score(self.assessment, self.fx['student'], score=Decimal('90'), expected_version=first.version)
+        self.assertEqual(record.score, Decimal('90.00'))
+        self.assertEqual(record.version, 2)
 
 
 class PublishAssessmentTests(TestCase):
