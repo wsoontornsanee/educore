@@ -89,6 +89,7 @@ from apps.academic.services import (
     duplicate_lesson_plan,
     generate_report_cards,
     get_homework_completion,
+    get_expected_periods_for_school,
     get_or_create_broadcast_policy,
     get_or_create_report_card_policy,
     get_period_grid,
@@ -847,3 +848,29 @@ class PeriodGridView(APIView):
 
         grid = set_period_grid(school, day_of_week, payload.validated_data['periods'])
         return Response({'day_of_week': day_of_week, 'periods': PeriodGridSlotSerializer(grid, many=True).data})
+
+
+class ExpectedPeriodsView(APIView):
+    """GET /schools/:school_id/expected-periods/?date=&missing_only= (ACD-020 school-level rollup)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'attendance.read'
+
+    def get(self, request, school_id):
+        foundation_id = get_current_foundation_id()
+        school = School.objects.filter(id=school_id, foundation_id=foundation_id).first()
+        if not school:
+            return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        date_param = request.query_params.get('date')
+        if not date_param:
+            return Response({'error': _("Parameter date wajib diisi.")}, status=status.HTTP_400_BAD_REQUEST)
+
+        import datetime as _dt
+        try:
+            date = _dt.date.fromisoformat(date_param)
+        except ValueError:
+            return Response({'error': _("Format date tidak valid (YYYY-MM-DD).")}, status=status.HTTP_400_BAD_REQUEST)
+
+        missing_only = request.query_params.get('missing_only', '').lower() in ('1', 'true', 'yes')
+        periods = get_expected_periods_for_school(school, date, missing_only=missing_only)
+        return Response({'date': date_param, 'periods': periods})

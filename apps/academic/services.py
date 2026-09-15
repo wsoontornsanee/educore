@@ -662,6 +662,59 @@ def get_effective_teacher_for_slot(slot, date):
     return slot.class_subject.teacher
 
 
+def get_expected_periods_for_school(school, date, missing_only=False) -> list:
+    """ACD-020 (school-level rollup): every TimetableSlot for this school scheduled on
+    `date`'s weekday, across all class groups — not just one teacher's agenda — with
+    the effective (substitution-aware) teacher and whether attendance was submitted.
+
+    A live query rather than a cron/persisted model: a school has at most a few hundred
+    slots/day, so joining TimetableSlot x PeriodAttendance on request is cheap, and
+    nothing here needs to happen proactively at a fixed time (that would justify a cron).
+    """
+    from apps.attendance.models import PeriodAttendance
+
+    weekday = date.isoweekday()
+    slots = TimetableSlot.objects.filter(
+        foundation_id=school.foundation_id,
+        class_subject__class_group__school=school,
+        day_of_week=weekday,
+        deleted_at__isnull=True,
+    ).select_related('class_subject__class_group', 'class_subject__subject', 'class_subject__teacher')
+
+    slot_ids = [s.id for s in slots]
+    substitutions_by_slot_id = {
+        s.slot_id: s for s in TimetableSubstitution.objects.filter(
+            foundation_id=school.foundation_id, slot_id__in=slot_ids, date=date, deleted_at__isnull=True,
+        )
+    }
+    submitted_slot_ids = set(
+        PeriodAttendance.objects.filter(
+            foundation_id=school.foundation_id, slot_id__in=slot_ids, date=date,
+        ).values_list('slot_id', flat=True).distinct()
+    )
+
+    expected = []
+    for slot in slots:
+        attendance_submitted = slot.id in submitted_slot_ids
+        if missing_only and attendance_submitted:
+            continue
+        sub = substitutions_by_slot_id.get(slot.id)
+        teacher = sub.substitute_teacher if sub else slot.class_subject.teacher
+        expected.append({
+            'slot_id': slot.id,
+            'period_no': slot.period_no,
+            'class_group': slot.class_subject.class_group.name,
+            'subject': slot.class_subject.subject.name,
+            'teacher_id': teacher.id,
+            'teacher_name': teacher.person.full_name,
+            'is_substitution': sub is not None,
+            'attendance_submitted': attendance_submitted,
+        })
+
+    expected.sort(key=lambda e: (e['class_group'], e['period_no']))
+    return expected
+
+
 def generate_report_cards(class_group, term, triggered_by=None) -> dict:
     """ACD-010: term-scoped batch generation per class. Idempotent while a card is still DRAFT."""
     from apps.attendance.models import AttendanceDay
