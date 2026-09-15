@@ -53,6 +53,7 @@ from apps.academic.serializers import (
     GradeEssaySerializer,
     HomeworkFileUploadSerializer,
     HomeworkGradeSerializer,
+    HomeworkReturnSerializer,
     HomeworkSerializer,
     HomeworkSubmissionSerializer,
     HomeworkSubmitSerializer,
@@ -76,6 +77,7 @@ from apps.academic.services import (
     BroadcastNotAllowedError,
     BroadcastRateLimitedError,
     ExamWindowError,
+    HomeworkSubmissionStateError,
     InvalidSubmissionFilesError,
     PeriodGridMismatchError,
     ReasonRequiredError,
@@ -105,6 +107,7 @@ from apps.academic.services import (
     get_visible_report_card,
     grade_essay_answer,
     grade_homework_submission,
+    return_homework_submission,
     publish_assessment,
     publish_report_card,
     record_focus_loss,
@@ -425,7 +428,7 @@ class HomeworkViewSet(TenantScopedModelViewSet):
                 text=payload.validated_data.get('text', ''),
                 files=payload.validated_data.get('files', []),
             )
-        except InvalidSubmissionFilesError as e:
+        except (InvalidSubmissionFilesError, HomeworkSubmissionStateError) as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(HomeworkSubmissionSerializer(submission).data, status=status.HTTP_201_CREATED)
 
@@ -452,7 +455,7 @@ class HomeworkSubmissionViewSet(TenantScopedModelViewSet):
         'list': 'grades.read', 'retrieve': 'grades.read',
         'create': 'grades.write', 'update': 'grades.write',
         'partial_update': 'grades.write', 'destroy': 'grades.write',
-        'grade': 'grades.write',
+        'grade': 'grades.write', 'return_submission': 'grades.write',
     }
 
     @action(detail=True, methods=['post'], url_path='grade')
@@ -467,6 +470,20 @@ class HomeworkSubmissionViewSet(TenantScopedModelViewSet):
             actor=request.user,
         )
         return Response(self.get_serializer(graded).data)
+
+    @action(detail=True, methods=['post'], url_path='return')
+    def return_submission(self, request, pk=None):
+        """ACD-028: return a submission to the student for revision."""
+        submission = self.get_object()
+        payload = HomeworkReturnSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        try:
+            returned = return_homework_submission(
+                submission, feedback=payload.validated_data['feedback'], actor=request.user,
+            )
+        except (HomeworkSubmissionStateError, ReasonRequiredError) as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(self.get_serializer(returned).data)
 
 
 class ExamViewSet(TenantScopedModelViewSet):

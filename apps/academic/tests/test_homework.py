@@ -7,12 +7,15 @@ from rest_framework.test import APIClient
 from apps.identity.models import Guardian, GuardianLink, Person, RoleAssignment, User
 from apps.academic.models import ClassEnrollment, Homework, HomeworkSubmissionStatus
 from apps.academic.services import (
+    HomeworkSubmissionStateError,
     InvalidSubmissionFilesError,
+    ReasonRequiredError,
     ReminderRateLimitedError,
     assign_homework,
     get_homework_completion,
     grade_homework_submission,
     remind_unsubmitted,
+    return_homework_submission,
     store_homework_submission_file,
     submit_homework,
 )
@@ -95,6 +98,61 @@ class GradeHomeworkTests(TestCase):
         graded = grade_homework_submission(self.sub, score=Decimal('90'), feedback="Bagus")
         self.assertEqual(graded.status, HomeworkSubmissionStatus.GRADED)
         self.assertEqual(graded.score, Decimal('90.00'))
+
+
+class ReturnHomeworkSubmissionTests(TestCase):
+    def setUp(self):
+        self.fx = build_academic_fixture()
+        self.hw = make_homework(self.fx, due_delta_hours=24)
+        self.sub = submit_homework(self.hw, self.fx['student'], text="Selesai")
+
+    def test_returns_ungraded_submission(self):
+        returned = return_homework_submission(self.sub, feedback="Tolong perbaiki soal nomor 3.")
+        self.assertEqual(returned.status, HomeworkSubmissionStatus.RETURNED)
+        self.assertEqual(returned.feedback, "Tolong perbaiki soal nomor 3.")
+        self.assertIsNone(returned.score)
+
+    def test_returns_graded_submission_and_clears_score(self):
+        grade_homework_submission(self.sub, score=Decimal('60'), feedback="Kurang lengkap")
+        self.sub.refresh_from_db()
+        returned = return_homework_submission(self.sub, feedback="Kerjakan ulang bagian B.")
+        self.assertEqual(returned.status, HomeworkSubmissionStatus.RETURNED)
+        self.assertIsNone(returned.score)
+
+    def test_requires_feedback(self):
+        with self.assertRaises(ReasonRequiredError):
+            return_homework_submission(self.sub, feedback="")
+
+    def test_cannot_return_already_returned(self):
+        return_homework_submission(self.sub, feedback="Perbaiki.")
+        self.sub.refresh_from_db()
+        with self.assertRaises(HomeworkSubmissionStateError):
+            return_homework_submission(self.sub, feedback="Lagi.")
+
+
+class ResubmitAfterReturnTests(TestCase):
+    def setUp(self):
+        self.fx = build_academic_fixture()
+        self.hw = make_homework(self.fx, due_delta_hours=24)
+        self.sub = submit_homework(self.hw, self.fx['student'], text="Versi 1")
+
+    def test_resubmit_allowed_after_returned(self):
+        return_homework_submission(self.sub, feedback="Perbaiki.")
+        self.sub.refresh_from_db()
+        resubmitted = submit_homework(self.hw, self.fx['student'], text="Versi 2")
+        self.assertEqual(resubmitted.status, HomeworkSubmissionStatus.SUBMITTED)
+        self.assertEqual(resubmitted.text, "Versi 2")
+
+    def test_resubmit_blocked_after_graded(self):
+        grade_homework_submission(self.sub, score=Decimal('80'))
+        self.sub.refresh_from_db()
+        with self.assertRaises(HomeworkSubmissionStateError):
+            submit_homework(self.hw, self.fx['student'], text="Versi 2")
+
+    def test_resubmit_allowed_while_still_submitted(self):
+        resubmitted = submit_homework(self.hw, self.fx['student'], text="Versi 1 edited")
+        self.assertEqual(resubmitted.id, self.sub.id)
+        self.assertEqual(resubmitted.text, "Versi 1 edited")
 
 
 class CompletionAndReminderTests(TestCase):
@@ -184,6 +242,36 @@ class HomeworkViewsTests(TestCase):
         }, format='json')
         self.assertEqual(res.status_code, 200, res.content)
         self.assertEqual(res.json()['status'], HomeworkSubmissionStatus.GRADED)
+
+    def test_return_submission_via_api(self):
+        hw = make_homework(self.fx, due_delta_hours=24)
+        sub = submit_homework(hw, self.fx['student'], text="Selesai")
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+        res = self.client.post(f'/api/v1/academic/homework-submissions/{sub.id}/return/', {
+            'feedback': 'Tolong perbaiki bagian analisis.',
+        }, format='json')
+        self.assertEqual(res.status_code, 200, res.content)
+        self.assertEqual(res.json()['status'], HomeworkSubmissionStatus.RETURNED)
+
+    def test_return_without_feedback_returns_400(self):
+        hw = make_homework(self.fx, due_delta_hours=24)
+        sub = submit_homework(hw, self.fx['student'], text="Selesai")
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+        res = self.client.post(f'/api/v1/academic/homework-submissions/{sub.id}/return/', {
+            'feedback': '',
+        }, format='json')
+        self.assertEqual(res.status_code, 400)
+
+    def test_resubmit_after_grade_returns_400_via_api(self):
+        hw = make_homework(self.fx, due_delta_hours=24)
+        sub = submit_homework(hw, self.fx['student'], text="Selesai")
+        grade_homework_submission(sub, score=Decimal('75'))
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+        res = self.client.post(f'/api/v1/academic/homework/{hw.id}/submissions/', {
+            'student_id': self.fx['student'].id,
+            'text': 'Versi baru',
+        }, format='json')
+        self.assertEqual(res.status_code, 400)
 
 
 class HomeworkNotificationTests(TestCase):

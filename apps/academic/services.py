@@ -96,6 +96,11 @@ class InvalidSubmissionFilesError(ValueError):
     pass
 
 
+class HomeworkSubmissionStateError(ValueError):
+    """ACD-028: raised when a submission can't transition from its current status."""
+    pass
+
+
 class ReminderRateLimitedError(ValueError):
     pass
 
@@ -608,9 +613,23 @@ def assign_homework(class_subject, title, instructions, assigned_at, due_at) -> 
 
 
 def submit_homework(homework: Homework, student, text='', files=None) -> HomeworkSubmission:
-    """ACD-027/ACD-028: create or update a student's homework submission."""
+    """ACD-027/ACD-028: create or update a student's homework submission.
+
+    A resubmission is only allowed while the existing submission is
+    SUBMITTED/LATE/RETURNED (i.e. not yet graded) — once GRADED, resubmitting
+    would otherwise silently overwrite the teacher's score with no error
+    (the previous behavior). A teacher must explicitly return_homework_submission
+    it first, which is the actual ACD-028 revise-and-resubmit path.
+    """
     files = files or []
     validate_submission_files(files)
+
+    existing = HomeworkSubmission.objects.filter(homework=homework, student=student).first()
+    if existing and existing.status == HomeworkSubmissionStatus.GRADED:
+        raise HomeworkSubmissionStateError(
+            "SUBMISSION_ALREADY_GRADED: cannot resubmit a graded submission — "
+            "ask the teacher to return it for revision first."
+        )
 
     now = timezone.now()
     status = HomeworkSubmissionStatus.LATE if now > homework.due_at else HomeworkSubmissionStatus.SUBMITTED
@@ -649,6 +668,38 @@ def grade_homework_submission(submission: HomeworkSubmission, score, feedback=''
         entity_id=submission.id,
         foundation_id=submission.foundation_id,
         diff={'score': str(score) if score is not None else None},
+    )
+    return submission
+
+
+def return_homework_submission(submission: HomeworkSubmission, feedback: str, actor=None) -> HomeworkSubmission:
+    """ACD-028: return a submission to the student for revision.
+
+    Allowed from SUBMITTED/LATE/GRADED — a teacher can return a submission
+    they haven't graded yet (asking for a redo before even scoring it), or
+    one they already graded (asking for a revision after scoring). Clears
+    any existing score, since a returned submission has no valid grade until
+    it's resubmitted and graded again. feedback is required — it's the
+    revision instruction the student sees, not optional commentary.
+    """
+    if submission.status == HomeworkSubmissionStatus.RETURNED:
+        raise HomeworkSubmissionStateError("ALREADY_RETURNED: this submission is already RETURNED.")
+    if not feedback:
+        raise ReasonRequiredError("FEEDBACK_REQUIRED: returning a submission requires feedback explaining why.")
+
+    previous_status = submission.status
+    submission.status = HomeworkSubmissionStatus.RETURNED
+    submission.feedback = feedback
+    submission.score = None
+    submission.graded_by = actor
+    submission.graded_at = timezone.now()
+    submission.save()
+    audit(
+        action='academic.homework_submission.returned',
+        entity_type='HomeworkSubmission',
+        entity_id=submission.id,
+        foundation_id=submission.foundation_id,
+        diff={'previous_status': previous_status},
     )
     return submission
 
