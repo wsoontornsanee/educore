@@ -245,6 +245,7 @@ class AssessmentScore(TenantModel):
     feedback = models.TextField(blank=True, default='')
     graded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     graded_at = models.DateTimeField(null=True, blank=True)
+    version = models.PositiveIntegerField(default=1, help_text=_("Bumped on every update; TCH-007 optimistic concurrency token"))
 
     class Meta:
         db_table = 'assessment_scores'

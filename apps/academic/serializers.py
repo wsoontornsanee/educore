@@ -96,9 +96,9 @@ class AssessmentScoreSerializer(serializers.ModelSerializer):
         model = AssessmentScore
         fields = [
             'id', 'foundation_id', 'assessment', 'student', 'score', 'descriptor',
-            'feedback', 'graded_by', 'graded_at', 'created_at', 'updated_at',
+            'feedback', 'graded_by', 'graded_at', 'version', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'foundation_id', 'descriptor', 'graded_by', 'graded_at', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'foundation_id', 'descriptor', 'graded_by', 'graded_at', 'version', 'created_at', 'updated_at']
 
 
 class ScoreEntrySerializer(serializers.Serializer):
@@ -107,6 +107,7 @@ class ScoreEntrySerializer(serializers.Serializer):
     score = serializers.DecimalField(max_digits=6, decimal_places=2, allow_null=True, required=False)
     feedback = serializers.CharField(required=False, allow_blank=True, default='')
     reason = serializers.CharField(required=False, allow_blank=True, default=None, allow_null=True)
+    expected_version = serializers.IntegerField(required=False, allow_null=True, default=None)
 
 
 class BulkScoreEntrySerializer(serializers.Serializer):

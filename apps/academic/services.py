@@ -48,6 +48,20 @@ class ScoreOutOfRangeError(ValueError):
     pass
 
 
+class ScoreConflictError(ValueError):
+    """TCH-007: raised instead of silently overwriting a score another write already changed.
+
+    Carries the CURRENT record's state so a caller can render a merge prompt without a
+    second round trip.
+    """
+    def __init__(self, message, current_score=None, current_version=None, current_feedback='', current_descriptor=''):
+        super().__init__(message)
+        self.current_score = current_score
+        self.current_version = current_version
+        self.current_feedback = current_feedback
+        self.current_descriptor = current_descriptor
+
+
 class ReasonRequiredError(ValueError):
     pass
 
@@ -115,8 +129,16 @@ def set_assessment_score(
     descriptor=None,
     reason=None,
     actor=None,
+    expected_version=None,
 ) -> AssessmentScore:
-    """Create or update a student's score on an assessment (ACD-004, ACD-005)."""
+    """Create or update a student's score on an assessment (ACD-004, ACD-005).
+
+    TCH-007: pass `expected_version` (the version the caller last read) to detect a
+    concurrent write instead of silently overwriting it — raises ScoreConflictError if
+    the record has since moved on. Omitting it (default) keeps today's last-write-wins
+    behavior. A brand-new score (no existing row) has nothing to conflict with, so
+    expected_version is a no-op on create.
+    """
     if score is not None:
         score = Decimal(str(score))
         if score < 0 or score > assessment.max_score:
@@ -125,6 +147,15 @@ def set_assessment_score(
             )
 
     existing = AssessmentScore.objects.filter(assessment=assessment, student=student).first()
+
+    if existing is not None and expected_version is not None and existing.version != expected_version:
+        raise ScoreConflictError(
+            f"SCORE_CONFLICT: expected version {expected_version}, but the score is now at version {existing.version}.",
+            current_score=existing.score,
+            current_version=existing.version,
+            current_feedback=existing.feedback,
+            current_descriptor=existing.descriptor,
+        )
 
     old_value = str(existing.score) if existing else None
     new_value = str(score) if score is not None else None
@@ -140,6 +171,7 @@ def set_assessment_score(
         record.score = score
         record.descriptor = resolved_descriptor
         record.feedback = feedback
+        record.version += 1
         if score is not None:
             record.graded_by = actor
             record.graded_at = timezone.now()
