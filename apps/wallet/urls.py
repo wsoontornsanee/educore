@@ -15,6 +15,9 @@ from apps.wallet.views import (
     WalletReconciliationResendNoticeView,
     WalletReconciliationSettleCashView,
     WalletReconciliationWriteOffView,
+    WalletRefundMarkDonatedView,
+    WalletRefundMarkPaidView,
+    WalletRefundQueueView,
     WalletTopupView,
     WalletTransactionsView,
 )
@@ -37,5 +40,8 @@ urlpatterns = [
     path('wallet-reconciliations/<int:case_id>/invoice-now/', WalletReconciliationInvoiceNowView.as_view(), name='wallet-reconciliation-invoice-now'),
     path('wallet-reconciliations/<int:case_id>/write-off/', WalletReconciliationWriteOffView.as_view(), name='wallet-reconciliation-write-off'),
     path('wallet-reconciliations/<int:case_id>/resend-notice/', WalletReconciliationResendNoticeView.as_view(), name='wallet-reconciliation-resend-notice'),
+    path('wallet-refunds/', WalletRefundQueueView.as_view(), name='wallet-refund-queue'),
+    path('wallet-refunds/<int:refund_id>/mark-paid/', WalletRefundMarkPaidView.as_view(), name='wallet-refund-mark-paid'),
+    path('wallet-refunds/<int:refund_id>/mark-donated/', WalletRefundMarkDonatedView.as_view(), name='wallet-refund-mark-donated'),
     path('', include(router.urls)),
 ]

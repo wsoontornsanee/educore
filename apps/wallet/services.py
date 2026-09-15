@@ -22,6 +22,8 @@ from apps.wallet.models import (
     WalletReconciliation,
     WalletReconciliationStatus,
     WalletReconciliationTrigger,
+    WalletRefundRequest,
+    WalletRefundStatus,
     WalletStatus,
     WalletTransaction,
     WalletTransactionStatus,
@@ -1144,3 +1146,159 @@ def sync_wallet_freeze_on_student_status_change(student, new_status: str) -> Non
             foundation_id=wallet.foundation_id,
             diff={'reason': 'student status returned to ACTIVE'},
         )
+
+
+EXIT_STATUSES = {'GRADUATED', 'TRANSFERRED_OUT'}  # matches apps.identity.Student's terminal statuses
+
+
+def queue_wallet_refund_on_exit(student, new_status: str) -> WalletRefundRequest:
+    """WAL-026: a residual positive balance on exit MUST enter a refund queue.
+    Idempotent — a wallet with an already-PENDING request is not duplicated."""
+    if new_status not in EXIT_STATUSES:
+        return None
+
+    wallet = Wallet.objects.filter(foundation_id=student.foundation_id, student=student).first()
+    if not wallet or wallet.balance <= Decimal('0.00'):
+        return None
+
+    existing = WalletRefundRequest.objects.filter(
+        foundation_id=student.foundation_id, wallet=wallet, status=WalletRefundStatus.PENDING,
+    ).first()
+    if existing:
+        return existing
+
+    request = WalletRefundRequest.objects.create(
+        foundation_id=student.foundation_id,
+        wallet=wallet,
+        student=student,
+        amount=wallet.balance,
+        currency=wallet.currency,
+        requested_at=timezone.now(),
+    )
+    audit(
+        action='wallet.refund_request.queued',
+        entity_type='WalletRefundRequest',
+        entity_id=request.id,
+        foundation_id=student.foundation_id,
+        diff={'amount': str(request.amount), 'trigger': new_status},
+    )
+    return request
+
+
+def get_refund_queue(school, status=WalletRefundStatus.PENDING) -> list:
+    """REC-style admin queue listing for the bendahara (WAL-026)."""
+    requests = WalletRefundRequest.objects.filter(
+        foundation_id=school.foundation_id, student__school=school, status=status, deleted_at__isnull=True,
+    ).select_related('student__person').order_by('-requested_at')
+    return [
+        {
+            'id': r.id,
+            'student_id': r.student_id,
+            'student_name': r.student.person.full_name if r.student.person else '',
+            'amount': str(r.amount),
+            'currency': r.currency,
+            'status': r.status,
+            'requested_at': r.requested_at.isoformat(),
+        }
+        for r in requests
+    ]
+
+
+def _close_wallet_with_transaction(wallet: Wallet, tx_type: str, amount: Decimal, idempotency_key: str, reference: str) -> WalletTransaction:
+    """Zeroes the wallet balance and marks it CLOSED. Deliberately bypasses
+    record_wallet_transaction's ACTIVE-only check: this is the final closure of a
+    wallet already auto-frozen by the very same exit that queued this refund."""
+    existing = WalletTransaction.objects.filter(
+        foundation_id=wallet.foundation_id, wallet=wallet, idempotency_key=idempotency_key,
+    ).first()
+    if existing:
+        return existing
+
+    with transaction.atomic():
+        locked_wallet = _get_locked_wallet(wallet.id, wallet.foundation_id)
+        new_balance = locked_wallet.balance - amount
+        locked_wallet.balance = new_balance
+        locked_wallet.status = WalletStatus.CLOSED
+        locked_wallet.requires_reconciliation = False
+        locked_wallet.save(update_fields=['balance', 'status', 'requires_reconciliation', 'updated_at'])
+
+        record = WalletTransaction.objects.create(
+            foundation_id=wallet.foundation_id,
+            wallet=locked_wallet,
+            type=tx_type,
+            amount=-amount,
+            balance_after=new_balance,
+            reference=reference,
+            occurred_at=timezone.now(),
+            status=WalletTransactionStatus.COMPLETED,
+            idempotency_key=idempotency_key,
+        )
+    audit(
+        action='wallet.closed',
+        entity_type='Wallet',
+        entity_id=wallet.id,
+        foundation_id=wallet.foundation_id,
+        diff={'type': tx_type, 'amount': str(amount)},
+    )
+    return record
+
+
+def mark_refund_paid(refund_request: WalletRefundRequest, bank_name: str, account_number: str,
+                      account_holder_name: str, reference: str, actor=None) -> WalletRefundRequest:
+    """WAL-026: bendahara pays the residual balance out to the guardian's bank account."""
+    if refund_request.status != WalletRefundStatus.PENDING:
+        raise ValueError(f"INVALID_STATE: refund request is {refund_request.status}, not PENDING.")
+
+    _close_wallet_with_transaction(
+        refund_request.wallet, WalletTransactionType.TRANSFER_OUT, refund_request.amount,
+        f"wallet_refund_paid:{refund_request.id}", reference or f"Refund - kasus #{refund_request.id}",
+    )
+
+    refund_request.status = WalletRefundStatus.PAID
+    refund_request.resolved_at = timezone.now()
+    refund_request.resolved_by = actor
+    refund_request.guardian_bank_name = bank_name
+    refund_request.guardian_bank_account_number = account_number
+    refund_request.guardian_account_holder_name = account_holder_name
+    refund_request.save(update_fields=[
+        'status', 'resolved_at', 'resolved_by', 'guardian_bank_name',
+        'guardian_bank_account_number', 'guardian_account_holder_name', 'updated_at',
+    ])
+
+    audit(
+        action='wallet.refund_request.paid',
+        entity_type='WalletRefundRequest',
+        entity_id=refund_request.id,
+        foundation_id=refund_request.foundation_id,
+        diff={'amount': str(refund_request.amount)},
+    )
+    return refund_request
+
+
+def mark_refund_donated(refund_request: WalletRefundRequest, actor, donation_consent: bool) -> WalletRefundRequest:
+    """WAL-026: balances below the donation threshold MAY be donated to the school, but
+    only with explicit guardian consent — never assumed."""
+    if refund_request.status != WalletRefundStatus.PENDING:
+        raise ValueError(f"INVALID_STATE: refund request is {refund_request.status}, not PENDING.")
+    if not donation_consent:
+        raise ValueError("CONSENT_REQUIRED: explicit guardian consent is required to donate a residual balance.")
+
+    _close_wallet_with_transaction(
+        refund_request.wallet, WalletTransactionType.ADJUSTMENT, refund_request.amount,
+        f"wallet_refund_donated:{refund_request.id}", f"Donasi saldo - kasus #{refund_request.id}",
+    )
+
+    refund_request.status = WalletRefundStatus.DONATED
+    refund_request.resolved_at = timezone.now()
+    refund_request.resolved_by = actor
+    refund_request.donation_consent = True
+    refund_request.save(update_fields=['status', 'resolved_at', 'resolved_by', 'donation_consent', 'updated_at'])
+
+    audit(
+        action='wallet.refund_request.donated',
+        entity_type='WalletRefundRequest',
+        entity_id=refund_request.id,
+        foundation_id=refund_request.foundation_id,
+        diff={'amount': str(refund_request.amount)},
+    )
+    return refund_request

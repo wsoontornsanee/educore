@@ -430,6 +430,15 @@ class Student(TenantModel):
         except Exception as exc:
             logger.warning(f"Error syncing wallet freeze state for student #{self.id}: {exc}")
 
+        # WAL-026: queue a residual-balance refund on exit. Kept as a second,
+        # independently try/except-wrapped call so a failure here can never block
+        # the freeze sync above (or vice versa).
+        try:
+            from apps.wallet.services import queue_wallet_refund_on_exit
+            queue_wallet_refund_on_exit(self, new_status)
+        except Exception as exc:
+            logger.warning(f"Error queuing wallet refund on exit for student #{self.id}: {exc}")
+
 
 class Guardian(TenantModel):
     """Parent / legal guardian profile (spec/02 §2, IAM-009, IAM-014).
