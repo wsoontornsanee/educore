@@ -1122,3 +1122,43 @@ def submit_period_attendance(teacher: Staff, slot, date, exceptions: dict, actor
     return results
 
 
+def sync_offline_period_attendance_batch(teacher: Staff, entries: list) -> list:
+    """TCH-004: sync a batch of period-attendance submissions queued while a teacher's
+    device was offline, in one round trip. Each entry is
+    {slot_id, date (ISO string), exceptions: {student_id: status}}.
+
+    submit_period_attendance is already fully idempotent (update_or_create keyed by
+    student+slot+date) and already validates weekday-scheduling and substitution-aware
+    authorization (ACD-020) — this is a thin per-entry wrapper, not a new idempotency
+    mechanism. One bad entry in an offline backlog must not discard the rest of the
+    batch, matching process_offline_pos_batch's per-item result-list pattern.
+    """
+    import datetime as _dt
+    from apps.academic.models import TimetableSlot
+    from apps.academic.services import SlotNotScheduledError
+
+    results = []
+    for entry in entries:
+        slot_id = entry['slot_id']
+        slot = TimetableSlot.objects.filter(id=slot_id, foundation_id=teacher.foundation_id).first()
+        if not slot:
+            results.append({'slot_id': slot_id, 'status': 'SLOT_NOT_FOUND'})
+            continue
+
+        date = _dt.date.fromisoformat(entry['date']) if isinstance(entry['date'], str) else entry['date']
+        exceptions = entry.get('exceptions', {})
+
+        try:
+            submit_period_attendance(teacher, slot, date, exceptions)
+        except SlotNotScheduledError:
+            results.append({'slot_id': slot_id, 'date': str(date), 'status': 'SLOT_NOT_SCHEDULED'})
+            continue
+        except NotAuthorizedForSlotError:
+            results.append({'slot_id': slot_id, 'date': str(date), 'status': 'NOT_AUTHORIZED'})
+            continue
+
+        results.append({'slot_id': slot_id, 'date': str(date), 'status': 'SYNCED'})
+
+    return results
+
+

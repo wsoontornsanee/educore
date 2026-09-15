@@ -8,6 +8,7 @@ from apps.attendance.views import (
     GateEventViewSet,
     LiveGateConsoleView,
     ManualCheckInView,
+    PeriodAttendanceSyncView,
     PeriodAttendanceView,
     TeacherAgendaView,
 )
@@ -27,5 +28,6 @@ urlpatterns = [
     path('teacher/agenda', TeacherAgendaView.as_view(), name='teacher-agenda'),
     path('teacher/agenda/', TeacherAgendaView.as_view(), name='teacher-agenda-slash'),
     path('timetable/slots/<int:slot_id>/period-attendance/', PeriodAttendanceView.as_view(), name='period-attendance'),
+    path('period-attendance/sync/', PeriodAttendanceSyncView.as_view(), name='period-attendance-sync'),
 ] + router.urls
 
