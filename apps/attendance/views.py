@@ -1,4 +1,4 @@
-from rest_framework import status, viewsets
+from rest_framework import status, views, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
@@ -20,10 +20,13 @@ from apps.attendance.serializers import (
     CredentialVerifySerializer,
     GateEventBatchIngestSerializer,
     GateEventSerializer,
+    ManualCheckInSerializer,
 )
 from apps.attendance.services import (
+    get_live_gate_feed,
     ingest_gate_events,
     issue_credential,
+    manual_gate_checkin,
     override_attendance_day,
     revoke_credential,
     verify_credential,
@@ -440,6 +443,41 @@ class GateEventViewSet(viewsets.ModelViewSet):
             'events': serialized_events,
         }, status=status.HTTP_201_CREATED)
 
+    @action(detail=False, methods=['get'], url_path='live')
+    def live(self, request):
+        """
+        Live gate console cursor polling feed (spec/05 §4 ATT-013, §8, spec/17 §7.2).
+        Returns chronologically sorted events, alerts for rejected scans, and device status.
+        """
+        foundation_id = getattr(request, 'foundation_id', None)
+        school_id = request.query_params.get('school_id')
+        if not school_id:
+            raise ValidationError("school_id wajib diisi pada parameter query.")
+
+        user = request.user
+        has_fnd_admin = RoleAssignment.all_tenants.filter(
+            user=user,
+            foundation_id=foundation_id,
+            scope_type=RoleAssignment.SCOPE_FOUNDATION,
+            deleted_at__isnull=True,
+        ).exists()
+        if not has_fnd_admin:
+            user_school_ids = RoleAssignment.all_tenants.filter(
+                user=user,
+                foundation_id=foundation_id,
+                scope_type=RoleAssignment.SCOPE_SCHOOL,
+                deleted_at__isnull=True,
+            ).values_list('scope_id', flat=True)
+            if int(school_id) not in user_school_ids:
+                raise NotFound("Sekolah tidak ditemukan.")
+
+        feed_data = get_live_gate_feed(
+            foundation_id=foundation_id,
+            school_id=school_id,
+            since=request.query_params.get('since'),
+        )
+        return Response(feed_data, status=status.HTTP_200_OK)
+
 
 class AttendanceDayViewSet(viewsets.ModelViewSet):
     """
@@ -563,6 +601,55 @@ class AttendanceDayViewSet(viewsets.ModelViewSet):
         """
         return self.override(request, pk=kwargs.get('pk'))
 
+    @action(detail=False, methods=['post'], url_path='manual')
+    def manual(self, request):
+        """
+        Manual check-in/out for forgotten cards (spec/05 §4 ATT-013, §8).
+        """
+        serializer = ManualCheckInSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        foundation_id = getattr(request, 'foundation_id', None)
+        student_id = data['student_id']
+
+        try:
+            student = Student.objects.get(id=student_id, foundation_id=foundation_id)
+        except Student.DoesNotExist:
+            raise NotFound("Siswa tidak ditemukan.")
+
+        user = request.user
+        has_fnd_admin = RoleAssignment.all_tenants.filter(
+            user=user,
+            foundation_id=foundation_id,
+            scope_type=RoleAssignment.SCOPE_FOUNDATION,
+            deleted_at__isnull=True,
+        ).exists()
+        if not has_fnd_admin:
+            user_school_ids = RoleAssignment.all_tenants.filter(
+                user=user,
+                foundation_id=foundation_id,
+                scope_type=RoleAssignment.SCOPE_SCHOOL,
+                deleted_at__isnull=True,
+            ).values_list('scope_id', flat=True)
+            if student.school_id not in user_school_ids:
+                raise NotFound("Siswa tidak ditemukan.")
+
+        result = manual_gate_checkin(
+            foundation_id=foundation_id,
+            school_id=student.school_id,
+            student_id=student.id,
+            direction=data.get('direction', 'IN'),
+            occurred_at=data.get('occurred_at'),
+            reason=data['reason'],
+            user=user,
+        )
+
+        return Response({
+            'gate_event': GateEventSerializer(result['gate_event']).data,
+            'attendance_day': AttendanceDaySerializer(result['attendance_day']).data,
+        }, status=status.HTTP_201_CREATED)
+
 
 class AttendanceRuleViewSet(viewsets.ModelViewSet):
     """
@@ -637,4 +724,98 @@ class AttendanceRuleViewSet(viewsets.ModelViewSet):
 
         self.check_object_permissions(self.request, rule)
         return rule
+
+
+class ManualCheckInView(views.APIView):
+    """
+    Direct API endpoint for POST /api/v1/attendance/manual/ per spec/05 §8.
+    Enables quick manual check-in for students without cards in <=3 taps (ATT-013).
+    """
+    required_permission = 'attendance.write'
+    permission_classes = [HasRequiredPermission]
+
+    def post(self, request):
+        serializer = ManualCheckInSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        foundation_id = getattr(request, 'foundation_id', None)
+        student_id = data['student_id']
+
+        try:
+            student = Student.objects.get(id=student_id, foundation_id=foundation_id)
+        except Student.DoesNotExist:
+            raise NotFound("Siswa tidak ditemukan.")
+
+        user = request.user
+        has_fnd_admin = RoleAssignment.all_tenants.filter(
+            user=user,
+            foundation_id=foundation_id,
+            scope_type=RoleAssignment.SCOPE_FOUNDATION,
+            deleted_at__isnull=True,
+        ).exists()
+        if not has_fnd_admin:
+            user_school_ids = RoleAssignment.all_tenants.filter(
+                user=user,
+                foundation_id=foundation_id,
+                scope_type=RoleAssignment.SCOPE_SCHOOL,
+                deleted_at__isnull=True,
+            ).values_list('scope_id', flat=True)
+            if student.school_id not in user_school_ids:
+                raise NotFound("Siswa tidak ditemukan.")
+
+        result = manual_gate_checkin(
+            foundation_id=foundation_id,
+            school_id=student.school_id,
+            student_id=student.id,
+            direction=data.get('direction', 'IN'),
+            occurred_at=data.get('occurred_at'),
+            reason=data['reason'],
+            user=user,
+        )
+
+        return Response({
+            'gate_event': GateEventSerializer(result['gate_event']).data,
+            'attendance_day': AttendanceDaySerializer(result['attendance_day']).data,
+        }, status=status.HTTP_201_CREATED)
+
+
+class LiveGateConsoleView(views.APIView):
+    """
+    Direct API endpoint for GET /api/v1/gate/live per spec/05 §8.
+    Provides 3-second cursor polling for live arrivals and offline diagnostics.
+    """
+    required_permission = 'attendance.read'
+    permission_classes = [HasRequiredPermission]
+
+    def get(self, request):
+        foundation_id = getattr(request, 'foundation_id', None)
+        school_id = request.query_params.get('school_id')
+        if not school_id:
+            raise ValidationError("school_id wajib diisi pada parameter query.")
+
+        user = request.user
+        has_fnd_admin = RoleAssignment.all_tenants.filter(
+            user=user,
+            foundation_id=foundation_id,
+            scope_type=RoleAssignment.SCOPE_FOUNDATION,
+            deleted_at__isnull=True,
+        ).exists()
+        if not has_fnd_admin:
+            user_school_ids = RoleAssignment.all_tenants.filter(
+                user=user,
+                foundation_id=foundation_id,
+                scope_type=RoleAssignment.SCOPE_SCHOOL,
+                deleted_at__isnull=True,
+            ).values_list('scope_id', flat=True)
+            if int(school_id) not in user_school_ids:
+                raise NotFound("Sekolah tidak ditemukan.")
+
+        feed_data = get_live_gate_feed(
+            foundation_id=foundation_id,
+            school_id=school_id,
+            since=request.query_params.get('since'),
+        )
+        return Response(feed_data, status=status.HTTP_200_OK)
+
 

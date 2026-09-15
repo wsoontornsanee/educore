@@ -604,3 +604,366 @@ def override_attendance_day(
 
     return attendance_day
 
+
+def get_live_gate_feed(
+    foundation_id: str,
+    school_id: str,
+    since: Optional[str] = None,
+    limit: int = 50,
+) -> Dict[str, Any]:
+    """
+    Retrieves live chronological gate scan events and device status for wall monitors (spec/05 §4 ATT-013, spec/17 §7.2).
+    Uses 3-second cursor polling (ARC-015) without persistent socket dependencies.
+    """
+    import dateutil.parser
+    from apps.attendance.models import AttendanceDay, GateEvent, GateEventStatus
+    from apps.hardware.models import Device
+
+    since_dt = None
+    if since:
+        try:
+            since_dt = dateutil.parser.isoparse(str(since).strip())
+            if timezone.is_naive(since_dt):
+                since_dt = timezone.make_aware(since_dt, timezone.get_current_timezone())
+        except (ValueError, TypeError):
+            since_dt = None
+
+    qs = GateEvent.objects.filter(
+        foundation_id=foundation_id,
+        school_id=school_id,
+        deleted_at__isnull=True,
+    ).select_related(
+        'student', 'student__person', 'staff', 'staff__person', 'device', 'credential'
+    )
+
+    if since_dt:
+        qs = qs.filter(created_at__gt=since_dt).order_by('created_at')
+    else:
+        today = timezone.now().date()
+        qs = qs.filter(occurred_at__date=today).order_by('-created_at')
+
+    raw_events = list(qs[:limit])
+    if not since_dt:
+        # For initial load, restore chronological order for the wall monitor feed
+        raw_events.reverse()
+
+    # Determine next cursor
+    now_dt = timezone.now()
+    if raw_events:
+        max_created = max(e.created_at for e in raw_events)
+        next_cursor = max_created.isoformat()
+    elif since_dt:
+        next_cursor = since_dt.isoformat()
+    else:
+        next_cursor = now_dt.isoformat()
+
+    # Map today's daily attendance for students to enrich status badge
+    today = timezone.now().date()
+    student_ids = [e.student_id for e in raw_events if e.student_id]
+    att_map = {}
+    if student_ids:
+        for ad in AttendanceDay.objects.filter(
+            foundation_id=foundation_id,
+            school_id=school_id,
+            student_id__in=student_ids,
+            date=today,
+            deleted_at__isnull=True
+        ):
+            att_map[ad.student_id] = ad.status
+
+    feed_events = []
+    for e in raw_events:
+        feed_events.append({
+            'id': e.id,
+            'event_uuid': str(e.event_uuid),
+            'occurred_at': e.occurred_at.isoformat(),
+            'created_at': e.created_at.isoformat(),
+            'direction': e.direction,
+            'method': e.method,
+            'confidence': str(e.confidence) if e.confidence is not None else None,
+            'status': e.status,
+            'reject_reason': e.reject_reason,
+            'is_duplicate_scan': e.is_duplicate_scan,
+            'replayed': e.replayed,
+            'device': {
+                'id': e.device_id,
+                'name': e.device.name if e.device else '',
+                'code': e.device.device_code if e.device else '',
+            } if e.device else None,
+            'student': {
+                'id': e.student_id,
+                'nis': e.student.nis if e.student else '',
+                'nisn': e.student.nisn if e.student else '',
+                'full_name': e.student.person.full_name if e.student and e.student.person else '',
+                'photo_key': e.student.photo_key if e.student else '',
+                'derived_status': att_map.get(e.student_id),
+            } if e.student else None,
+            'staff': {
+                'id': e.staff_id,
+                'nip': e.staff.nip if e.staff else '',
+                'full_name': e.staff.person.full_name if e.staff and e.staff.person else '',
+            } if e.staff else None,
+        })
+
+    # Alerts: Rejected scans (ATT-009)
+    alerts = [evt for evt in feed_events if evt['status'] == GateEventStatus.REJECTED]
+
+    # Hardware devices summary (spec/17 §7.2: gate connectivity indicators)
+    devices = list(Device.objects.filter(
+        foundation_id=foundation_id,
+        school_id=school_id,
+        deleted_at__isnull=True,
+    ).values('id', 'name', 'device_code', 'status', 'direction', 'last_heartbeat_at'))
+
+    return {
+        'events': feed_events,
+        'alerts': alerts,
+        'devices_summary': devices,
+        'next_cursor': next_cursor,
+        'server_time': now_dt.isoformat(),
+    }
+
+
+@transaction.atomic
+def manual_gate_checkin(
+    foundation_id: str,
+    school_id: str,
+    student_id: int,
+    direction: str = 'IN',
+    occurred_at: Optional[Any] = None,
+    reason: str = '',
+    user: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """
+    Executes a manual student check-in/out for forgotten cards in <=3 taps (spec/05 §4 ATT-013, §8).
+    Creates a GateEvent with method=MANUAL and derives/updates AttendanceDay with source=MANUAL and audit log.
+    """
+    import datetime
+    import uuid
+    from apps.attendance.models import (
+        AttendanceDay, AttendanceRule, AttendanceSource, AttendanceStatus,
+        GateDirection, GateEvent, GateEventStatus, GateMethod
+    )
+    from apps.hardware.models import Device, DeviceClass, DeviceDirection
+    from apps.identity.models import Student
+
+    if not reason or not str(reason).strip():
+        raise ValidationError(_("Alasan check-in manual wajib diisi (misal: kartu tertinggal)."))
+
+    try:
+        student = Student.objects.get(
+            id=student_id,
+            foundation_id=foundation_id,
+            school_id=school_id,
+            deleted_at__isnull=True
+        )
+    except Student.DoesNotExist:
+        raise ValidationError(_("Siswa tidak ditemukan pada sekolah ini."))
+
+    if not occurred_at:
+        occurred_at = timezone.now()
+    elif isinstance(occurred_at, str):
+        import dateutil.parser
+        occurred_at = dateutil.parser.isoparse(occurred_at)
+    if timezone.is_naive(occurred_at):
+        occurred_at = timezone.make_aware(occurred_at, timezone.get_current_timezone())
+
+    # Resolve or create designated manual check-in device record for the school
+    device = Device.objects.filter(
+        foundation_id=foundation_id,
+        school_id=school_id,
+        device_class=DeviceClass.KIOSK,
+        deleted_at__isnull=True
+    ).first()
+    if not device:
+        device = Device.objects.filter(
+            foundation_id=foundation_id,
+            school_id=school_id,
+            deleted_at__isnull=True
+        ).first()
+    if not device:
+        device = Device.objects.create(
+            foundation_id=foundation_id,
+            school_id=school_id,
+            device_code=f"MANUAL-DESK-{school_id}",
+            name="Meja Piket / Manual Check-in",
+            device_class=DeviceClass.KIOSK,
+            direction=DeviceDirection.BIDIRECTIONAL,
+            location="Lobi / Pos Keamanan",
+        )
+
+    actor_id = str(user.id) if user and getattr(user, 'id', None) else ''
+    event_uuid = uuid.uuid4()
+
+    gate_event = GateEvent.objects.create(
+        foundation_id=foundation_id,
+        event_uuid=event_uuid,
+        school=student.school,
+        device=device,
+        student=student,
+        raw_uid=f"MANUAL:{student.nis}",
+        direction=direction,
+        occurred_at=occurred_at,
+        method=GateMethod.MANUAL,
+        status=GateEventStatus.ACCEPTED,
+        reject_reason='',
+        is_duplicate_scan=False,
+        replayed=False,
+        created_by=actor_id,
+        updated_by=actor_id,
+    )
+
+    # AttendanceDay derivation
+    rule = AttendanceRule.objects.filter(
+        foundation_id=foundation_id,
+        school_id=school_id,
+        deleted_at__isnull=True
+    ).first()
+    late_after_time = rule.late_after_time if rule else datetime.time(7, 15, 0)
+
+    attendance_day = update_daily_attendance_from_gate(
+        foundation_id=foundation_id,
+        school_id=school_id,
+        student=student,
+        occurred_at=occurred_at,
+        direction=direction,
+        late_after_time=late_after_time,
+    )
+    attendance_day.source = AttendanceSource.MANUAL
+    attendance_day.note = str(reason).strip()
+    attendance_day.updated_by = actor_id
+    attendance_day.save(update_fields=['source', 'note', 'updated_by', 'updated_at'])
+
+    # Audit log
+    audit(
+        action='attendance.manual.checkin',
+        entity_type='GateEvent',
+        entity_id=gate_event.id,
+        actor_id=actor_id,
+        foundation_id=foundation_id,
+        school_id=school_id,
+        diff={
+            'student_id': str(student.id),
+            'student_nis': student.nis,
+            'direction': direction,
+            'occurred_at': occurred_at.isoformat(),
+            'reason': reason,
+            'derived_status': attendance_day.status,
+        }
+    )
+
+    # Domain event
+    record_domain_event(
+        name='attendance.gate.scanned',
+        foundation_id=foundation_id,
+        payload={
+            'gate_event_id': str(gate_event.id),
+            'event_uuid': str(gate_event.event_uuid),
+            'school_id': str(school_id),
+            'device_id': str(device.id),
+            'student_id': str(student.id),
+            'staff_id': None,
+            'direction': direction,
+            'occurred_at': occurred_at.isoformat(),
+            'method': GateMethod.MANUAL,
+            'reason': reason,
+        }
+    )
+
+    return {
+        'gate_event': gate_event,
+        'attendance_day': attendance_day,
+    }
+
+
+def get_device_sync_payload(
+    foundation_id: str,
+    school_id: str,
+    since_cursor: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Produces incremental delta export payload for on-premise campus edge gateways (spec/12 §3, §7).
+    Allows edge turnstiles to cache roster and credentials locally for offline verification.
+    """
+    import dateutil.parser
+    from django.db.models import Q
+    from apps.attendance.models import AttendanceRule, Credential
+    from apps.identity.models import Student
+
+    since_dt = None
+    if since_cursor:
+        try:
+            since_dt = dateutil.parser.isoparse(str(since_cursor).strip())
+            if timezone.is_naive(since_dt):
+                since_dt = timezone.make_aware(since_dt, timezone.get_current_timezone())
+        except (ValueError, TypeError):
+            since_dt = None
+
+    # 1. Roster delta
+    student_qs = Student.objects.filter(
+        foundation_id=foundation_id,
+        school_id=school_id,
+        deleted_at__isnull=True
+    ).select_related('person')
+
+    if since_dt:
+        student_qs = student_qs.filter(updated_at__gt=since_dt)
+
+    roster_delta = [{
+        'id': s.id,
+        'nis': s.nis,
+        'nisn': s.nisn,
+        'full_name': s.person.full_name if s.person else '',
+        'photo_key': s.photo_key,
+        'status': s.status,
+        'updated_at': s.updated_at.isoformat(),
+    } for s in student_qs]
+
+    # 2. Credentials delta
+    cred_qs = Credential.objects.filter(
+        foundation_id=foundation_id,
+        deleted_at__isnull=True,
+    ).filter(
+        Q(student__school_id=school_id) |
+        Q(staff__school_id=school_id)
+    ).select_related('student', 'staff')
+
+    if since_dt:
+        cred_qs = cred_qs.filter(updated_at__gt=since_dt)
+
+    credentials_delta = [{
+        'id': c.id,
+        'uid': c.uid,
+        'type': c.type,
+        'status': c.status,
+        'card_number': c.card_number,
+        'holder_type': c.holder_type,
+        'student_id': c.student_id,
+        'staff_id': c.staff_id,
+        'expires_at': c.expires_at.isoformat() if c.expires_at else None,
+        'is_used': c.is_used,
+        'updated_at': c.updated_at.isoformat(),
+    } for c in cred_qs]
+
+    # 3. Rules delta
+    rule = AttendanceRule.objects.filter(
+        foundation_id=foundation_id,
+        school_id=school_id,
+        deleted_at__isnull=True
+    ).first()
+
+    rules_delta = {
+        'late_after_time': rule.late_after_time.strftime('%H:%M:%S') if rule else '07:15:00',
+        'absent_cutoff_time': rule.absent_cutoff_time.strftime('%H:%M:%S') if rule else '09:00:00',
+        'debounce_seconds': rule.debounce_seconds if rule else 120,
+    }
+
+    return {
+        'school_id': int(school_id),
+        'roster_delta': roster_delta,
+        'credentials_delta': credentials_delta,
+        'rules_delta': rules_delta,
+        'next_cursor': timezone.now().isoformat(),
+    }
+
+

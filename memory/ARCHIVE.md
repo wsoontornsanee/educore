@@ -146,3 +146,17 @@
   - Implemented `CredentialViewSet` (`/api/v1/credentials/`, `/api/v1/credentials/{id}/revoke/`, `/api/v1/credentials/verify/`) with 3-layer tenancy and cross-school 404 isolation.
   - 17 new automated tests passing across devices and credentials (total 76 tests passing).
   - PR #11 merged into `main`.
+
+## Step 3.2: Gate Events Batch Ingestion, Debouncing & Attendance Derivation (TASK-016)
+- **Date:** 2026-09-15
+- **Milestone:** Step 3.2 Completed & Merged (PR #12)
+- **Details:**
+  - Implemented `AttendanceRule` model for school attendance timing configuration (`late_after_time`, `absent_cutoff_time`, `debounce_seconds`).
+  - Implemented `AttendanceDay` model tracking daily attendance status (`HADIR`, `TERLAMBAT`, `SAKIT`, `IZIN`, `ALPA`, `DISPEN`), first in / last out times, and staff override state.
+  - Implemented `GateEvent` model storing raw scan events with client-generated `event_uuid` (`HW-005`), scan method, confidence, duplicate scan flags (`ATT-007`), and offline replay tracking (`ATT-012`).
+  - Implemented `ingest_gate_events` service for atomic, idempotent batch ingestion, credential verification, sliding window debouncing, alternating bidirectional direction inference (`ATT-008`), and rejected card handling (`ATT-009`).
+  - Implemented `update_daily_attendance_from_gate` service to automatically derive `HADIR` vs `TERLAMBAT` per `ATT-001`.
+  - Implemented `override_attendance_day` service with mandatory reason note, immutable `AuditEvent` logging, and domain event dispatch (`ATT-003`).
+  - Implemented `GateEventViewSet` (`/api/v1/gate/events/`), `AttendanceDayViewSet` (`/api/v1/attendance/daily/`), and `AttendanceRuleViewSet` (`/api/v1/attendance/rules/`) with 3-layer tenancy and cross-school 404 isolation.
+  - 10 new test methods (22 test assertions total in attendance) passing; all 86 project tests passing with 100% success rate.
+  - PR #12 merged into `main`.

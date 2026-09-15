@@ -1,7 +1,7 @@
 from django.utils import timezone
-from rest_framework import status, viewsets
+from rest_framework import status, views, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import NotFound, PermissionDenied
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from apps.core.pagination import StandardCursorPagination
@@ -173,3 +173,83 @@ class DeviceViewSet(viewsets.ModelViewSet):
             'status': 'RETIRED',
             'device_id': str(device.id),
         })
+
+    @action(detail=False, methods=['get'], url_path='sync')
+    def sync(self, request):
+        """
+        Delta sync endpoint for on-premise campus edge gateways (spec/12 §3, §7).
+        Returns roster_delta, credentials_delta, rules_delta, and next_cursor.
+        """
+        foundation_id = getattr(request, 'foundation_id', None)
+        school_id = request.query_params.get('school_id')
+        cursor = request.query_params.get('cursor')
+
+        if not school_id:
+            raise ValidationError("school_id wajib diisi pada parameter query.")
+
+        user = request.user
+        has_fnd_admin = RoleAssignment.all_tenants.filter(
+            user=user,
+            foundation_id=foundation_id,
+            scope_type=RoleAssignment.SCOPE_FOUNDATION,
+            deleted_at__isnull=True,
+        ).exists()
+        if not has_fnd_admin:
+            user_school_ids = RoleAssignment.all_tenants.filter(
+                user=user,
+                foundation_id=foundation_id,
+                scope_type=RoleAssignment.SCOPE_SCHOOL,
+                deleted_at__isnull=True,
+            ).values_list('scope_id', flat=True)
+            if int(school_id) not in user_school_ids:
+                raise NotFound("Sekolah tidak ditemukan.")
+
+        from apps.attendance.services import get_device_sync_payload
+        data = get_device_sync_payload(
+            foundation_id=foundation_id,
+            school_id=school_id,
+            since_cursor=cursor,
+        )
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class DeviceSyncView(views.APIView):
+    """
+    Direct API endpoint for GET /api/v1/device/sync per spec/12 §7.
+    """
+    required_permission = 'school_config.read'
+    permission_classes = [HasRequiredPermission]
+
+    def get(self, request):
+        foundation_id = getattr(request, 'foundation_id', None)
+        school_id = request.query_params.get('school_id')
+        cursor = request.query_params.get('cursor')
+
+        if not school_id:
+            raise ValidationError("school_id wajib diisi pada parameter query.")
+
+        user = request.user
+        has_fnd_admin = RoleAssignment.all_tenants.filter(
+            user=user,
+            foundation_id=foundation_id,
+            scope_type=RoleAssignment.SCOPE_FOUNDATION,
+            deleted_at__isnull=True,
+        ).exists()
+        if not has_fnd_admin:
+            user_school_ids = RoleAssignment.all_tenants.filter(
+                user=user,
+                foundation_id=foundation_id,
+                scope_type=RoleAssignment.SCOPE_SCHOOL,
+                deleted_at__isnull=True,
+            ).values_list('scope_id', flat=True)
+            if int(school_id) not in user_school_ids:
+                raise NotFound("Sekolah tidak ditemukan.")
+
+        from apps.attendance.services import get_device_sync_payload
+        data = get_device_sync_payload(
+            foundation_id=foundation_id,
+            school_id=school_id,
+            since_cursor=cursor,
+        )
+        return Response(data, status=status.HTTP_200_OK)
+

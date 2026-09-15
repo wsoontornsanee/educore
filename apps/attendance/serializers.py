@@ -221,3 +221,11 @@ class AttendanceDayOverrideSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=AttendanceStatus.choices, required=True)
     note = serializers.CharField(max_length=255, required=True, min_length=1)
 
+
+class ManualCheckInSerializer(serializers.Serializer):
+    student_id = serializers.IntegerField(required=True)
+    direction = serializers.ChoiceField(choices=GateDirection.choices, default=GateDirection.IN)
+    occurred_at = serializers.DateTimeField(required=False, allow_null=True)
+    reason = serializers.CharField(max_length=255, required=True, min_length=1)
+
+
