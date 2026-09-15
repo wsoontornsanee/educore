@@ -11,6 +11,10 @@
 ## 2. Working Agreements & Mandatory SOP
 1. **Destructive Operations Guardrail:** Do not perform any `DELETE`, `TRUNCATE`, `DROP`, or destructive command without an explicit `WHERE` clause and explicit user confirmation.
 2. **Development Lifecycle:** Always follow: **Plan -> Dev -> Test -> PR -> Wait for PR merged and deploy instruction**.
-3. **Architecture Integrity:** Respect the architecture specifications in `spec/` unconditionally (monolith, MySQL 8 only, cron background execution, 3-layer tenancy, strict `DECIMAL(18,2)` money).
-4. **Test-Driven Rigor:** Provide automated tests for new models, services, management commands, and viewsets (≥80% coverage).
-5. **Documentation & Living State:** Keep `memory/01_PROJECT.md` and `memory/ARCHIVE.md` synchronized after completing discrete tasks and milestones.
+3. **Notion Task Protocol:**
+   - At **Plan** stage, create a Notion task in database "Astra Educore" (`3dc347a6-6594-8077-98be-d83d694d6f10`) including the implementation plan in the body, with status `In progress`.
+   - For **all open items, deferred tasks, and slice non-goals** (blocked on decisions, out-of-repo client scopes, optional/MAY features), log them as Notion tasks with status `Todo` and actionable context so they are never dropped.
+   - At **Task Completion / Merge**, update the Notion task status to `Done` with PR link and test summary.
+4. **Architecture Integrity:** Respect the architecture specifications in `spec/` unconditionally (monolith, MySQL 8 only, cron background execution, 3-layer tenancy, strict `DECIMAL(18,2)` money).
+5. **Test-Driven Rigor:** Provide automated tests for new models, services, management commands, and viewsets (≥80% coverage).
+6. **Documentation & Living State:** Keep `memory/01_PROJECT.md` and `memory/ARCHIVE.md` synchronized after completing discrete tasks and milestones.
