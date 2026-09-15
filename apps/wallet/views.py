@@ -22,6 +22,9 @@ from apps.wallet.serializers import (
     MerchantSerializer,
     MerchantSettlementRunSerializer,
     MerchantSettlementSerializer,
+    POSBatchCreateSerializer,
+    POSSessionSerializer,
+    POSSyncQuerySerializer,
     POSTerminalSerializer,
     POSTransactionCreateSerializer,
     POSTransactionSerializer,
@@ -42,6 +45,9 @@ from apps.wallet.services import (
     generate_settlement_statement_pdf,
     get_or_create_spend_rule,
     get_or_create_wallet,
+    pos_session,
+    pos_sync,
+    process_offline_pos_batch,
     process_pos_transaction,
     run_merchant_settlement,
     set_spend_rule,
@@ -252,8 +258,21 @@ class POSTransactionViewSet(TenantScopedCatalogViewSet):
     filter_params = {'merchant_id': 'merchant_id', 'student_id': 'student_id', 'terminal_id': 'terminal_id'}
     action_permissions = {
         'list': 'wallet.topup.read', 'retrieve': 'wallet.topup.read',
-        'create': 'wallet.topup.write', 'void': 'wallet.topup.write',
+        'create': 'wallet.topup.write', 'void': 'wallet.topup.write', 'batch': 'wallet.topup.write',
     }
+
+    @action(detail=False, methods=['post'], url_path='batch')
+    def batch(self, request):
+        foundation_id = get_current_foundation_id()
+        payload = POSBatchCreateSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+
+        terminal = POSTerminal.objects.filter(id=payload.validated_data['terminal_id'], foundation_id=foundation_id).first()
+        if not terminal:
+            return Response({'error': _("Terminal tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        report = process_offline_pos_batch(terminal, payload.validated_data['transactions'])
+        return Response(report, status=status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
         foundation_id = get_current_foundation_id()
@@ -288,3 +307,33 @@ class POSTransactionViewSet(TenantScopedCatalogViewSet):
         except VoidWindowExpiredError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(self.get_serializer(voided).data)
+
+
+class POSSessionView(APIView):
+    """POST /pos/sessions: full offline-cache snapshot for a terminal (WAL-014)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'wallet.topup.read'
+
+    def post(self, request):
+        foundation_id = get_current_foundation_id()
+        payload = POSSessionSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        terminal = POSTerminal.objects.filter(id=payload.validated_data['terminal_id'], foundation_id=foundation_id).first()
+        if not terminal:
+            return Response({'error': _("Terminal tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        return Response(pos_session(terminal))
+
+
+class POSSyncView(APIView):
+    """GET /pos/sync?terminal_id&cursor: incremental deltas since a cursor (WAL-012)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'wallet.topup.read'
+
+    def get(self, request):
+        foundation_id = get_current_foundation_id()
+        payload = POSSyncQuerySerializer(data=request.query_params)
+        payload.is_valid(raise_exception=True)
+        terminal = POSTerminal.objects.filter(id=payload.validated_data['terminal_id'], foundation_id=foundation_id).first()
+        if not terminal:
+            return Response({'error': _("Terminal tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        return Response(pos_sync(terminal, since_cursor=payload.validated_data.get('cursor')))

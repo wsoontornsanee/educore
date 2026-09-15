@@ -118,3 +118,24 @@ class MerchantSettlementSerializer(serializers.ModelSerializer):
 class MerchantSettlementRunSerializer(serializers.Serializer):
     period_start = serializers.DateField()
     period_end = serializers.DateField()
+
+
+class POSSyncQuerySerializer(serializers.Serializer):
+    terminal_id = serializers.IntegerField()
+    cursor = serializers.DateTimeField(required=False, allow_null=True)
+
+
+class POSSessionSerializer(serializers.Serializer):
+    terminal_id = serializers.IntegerField()
+
+
+class OfflinePOSTransactionSerializer(serializers.Serializer):
+    client_transaction_id = serializers.CharField(max_length=128)
+    student_id = serializers.IntegerField()
+    items = serializers.ListField(child=serializers.DictField())
+    occurred_at = serializers.DateTimeField(required=False)
+
+
+class POSBatchCreateSerializer(serializers.Serializer):
+    terminal_id = serializers.IntegerField()
+    transactions = OfflinePOSTransactionSerializer(many=True)

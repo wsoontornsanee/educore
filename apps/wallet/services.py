@@ -16,6 +16,7 @@ from apps.wallet.models import (
     MerchantSettlementStatus,
     POSTransaction,
     POSTransactionStatus,
+    Product,
     SpendRule,
     Wallet,
     WalletStatus,
@@ -71,8 +72,13 @@ def record_wallet_transaction(
     reference='',
     currency=None,
     occurred_at=None,
+    allow_negative=False,
 ) -> WalletTransaction:
-    """WAL-001/003/004: atomic balance update + idempotent ledger insert."""
+    """WAL-001/003/004: atomic balance update + idempotent ledger insert.
+
+    allow_negative (WAL-017): for offline-synced purchases only. An overspend is still
+    ACCEPTED (never silently voided) and the wallet is flagged requires_reconciliation.
+    """
     existing = WalletTransaction.objects.filter(
         foundation_id=wallet.foundation_id, wallet=wallet, idempotency_key=idempotency_key,
     ).first()
@@ -88,11 +94,15 @@ def record_wallet_transaction(
         raise WalletNotActiveError(f"WALLET_NOT_ACTIVE: wallet is {locked_wallet.status}.")
 
     new_balance = locked_wallet.balance + amount
+    tx_status = WalletTransactionStatus.COMPLETED
     if new_balance < Decimal('0.00'):
-        raise InsufficientBalanceError("INSUFFICIENT_BALANCE: transaction would take the wallet negative.")
+        if not allow_negative:
+            raise InsufficientBalanceError("INSUFFICIENT_BALANCE: transaction would take the wallet negative.")
+        tx_status = WalletTransactionStatus.RECONCILE_REQUIRED
+        locked_wallet.requires_reconciliation = True
 
     locked_wallet.balance = new_balance
-    locked_wallet.save(update_fields=['balance', 'updated_at'])
+    locked_wallet.save(update_fields=['balance', 'requires_reconciliation', 'updated_at'])
 
     record = WalletTransaction.objects.create(
         foundation_id=wallet.foundation_id,
@@ -102,7 +112,7 @@ def record_wallet_transaction(
         balance_after=new_balance,
         reference=reference,
         occurred_at=occurred_at or timezone.now(),
-        status=WalletTransactionStatus.COMPLETED,
+        status=tx_status,
         idempotency_key=idempotency_key,
     )
     audit(
@@ -110,7 +120,7 @@ def record_wallet_transaction(
         entity_type='WalletTransaction',
         entity_id=record.id,
         foundation_id=wallet.foundation_id,
-        diff={'type': tx_type, 'amount': str(amount), 'balance_after': str(new_balance)},
+        diff={'type': tx_type, 'amount': str(amount), 'balance_after': str(new_balance), 'status': tx_status},
     )
     return record
 
@@ -191,7 +201,7 @@ def check_spend_allowed(wallet: Wallet, amount: Decimal, category=None, product_
             foundation_id=wallet.foundation_id,
             wallet=wallet,
             type=WalletTransactionType.PURCHASE,
-            status=WalletTransactionStatus.COMPLETED,
+            status__in=[WalletTransactionStatus.COMPLETED, WalletTransactionStatus.RECONCILE_REQUIRED],
             occurred_at__date=today,
         ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
         # amount is expected positive here (the prospective purchase size); stored PURCHASE amounts are negative deltas.
@@ -211,7 +221,9 @@ def reconcile_wallet_balances(foundation_id=None) -> dict:
     mismatches = []
     for wallet in wallets:
         computed = WalletTransaction.objects.filter(
-            wallet=wallet, status=WalletTransactionStatus.COMPLETED, deleted_at__isnull=True,
+            wallet=wallet,
+            status__in=[WalletTransactionStatus.COMPLETED, WalletTransactionStatus.RECONCILE_REQUIRED],
+            deleted_at__isnull=True,
         ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
         checked += 1
         if computed != wallet.balance:
@@ -410,3 +422,175 @@ def mark_settlement_paid(settlement: MerchantSettlement) -> MerchantSettlement:
         foundation_id=settlement.foundation_id,
     )
     return settlement
+
+
+DEFAULT_OFFLINE_FLOOR_LIMIT = Decimal('50000.00')
+
+
+def pos_session(terminal) -> dict:
+    """POST /pos/sessions: full snapshot for offline caching (WAL-014)."""
+    from apps.identity.models import Student
+
+    students = Student.objects.filter(
+        foundation_id=terminal.foundation_id, school=terminal.merchant.school,
+        status=Student.STATUS_ACTIVE, wallet__isnull=False, deleted_at__isnull=True,
+    ).select_related('wallet', 'person')
+
+    return {
+        'roster': _roster_payload(students),
+        'catalog': _catalog_payload(terminal.merchant),
+        'rules': _rules_payload(terminal.foundation_id, students),
+        'cursor': timezone.now().isoformat(),
+    }
+
+
+def pos_sync(terminal, since_cursor=None) -> dict:
+    """GET /pos/sync?cursor: incremental roster/catalog/rule deltas since a cursor (WAL-012, WAL-014)."""
+    from apps.identity.models import Student
+
+    students = Student.objects.filter(
+        foundation_id=terminal.foundation_id, school=terminal.merchant.school,
+        status=Student.STATUS_ACTIVE, wallet__isnull=False, deleted_at__isnull=True,
+    ).select_related('wallet', 'person')
+
+    if since_cursor:
+        students = students.filter(wallet__updated_at__gt=since_cursor)
+
+    products = Product.objects.filter(
+        foundation_id=terminal.foundation_id, merchant=terminal.merchant, is_active=True, deleted_at__isnull=True,
+    )
+    if since_cursor:
+        products = products.filter(updated_at__gt=since_cursor)
+
+    return {
+        'roster_delta': _roster_payload(students),
+        'catalog_delta': [_product_dict(p) for p in products],
+        'rules_delta': _rules_payload(terminal.foundation_id, students, since_cursor=since_cursor),
+        'next_cursor': timezone.now().isoformat(),
+    }
+
+
+def _roster_payload(students) -> list:
+    return [
+        {
+            'student_id': s.id,
+            'name': s.person.full_name if s.person else '',
+            'photo_key': s.photo_key,
+            'wallet_balance': str(s.wallet.balance),
+            'daily_limit': str(s.wallet.daily_limit) if s.wallet.daily_limit is not None else None,
+            'wallet_status': s.wallet.status,
+        }
+        for s in students
+    ]
+
+
+def _product_dict(product) -> dict:
+    return {
+        'sku': product.sku, 'name': product.name, 'price': str(product.price),
+        'category': product.category, 'is_active': product.is_active,
+    }
+
+
+def _catalog_payload(merchant) -> list:
+    products = Product.objects.filter(foundation_id=merchant.foundation_id, merchant=merchant, is_active=True, deleted_at__isnull=True)
+    return [_product_dict(p) for p in products]
+
+
+def _rules_payload(foundation_id, students, since_cursor=None) -> list:
+    student_ids = [s.id for s in students]
+    qs = SpendRule.objects.filter(foundation_id=foundation_id, student_id__in=student_ids)
+    if since_cursor:
+        qs = qs.filter(updated_at__gt=since_cursor)
+    return [
+        {
+            'student_id': r.student_id,
+            'daily_limit': str(r.daily_limit) if r.daily_limit is not None else None,
+            'blocked_categories': r.blocked_categories,
+            'blocked_products': r.blocked_products,
+            'allowed_window_start': r.allowed_window_start.isoformat() if r.allowed_window_start else None,
+            'allowed_window_end': r.allowed_window_end.isoformat() if r.allowed_window_end else None,
+        }
+        for r in qs
+    ]
+
+
+def check_offline_floor(wallet: Wallet, amount: Decimal, floor_limit=DEFAULT_OFFLINE_FLOOR_LIMIT) -> bool:
+    """WAL-016: cumulative offline-flagged spend per student per day must not exceed the floor."""
+    today = timezone.localdate()
+    spent_offline_today = POSTransaction.objects.filter(
+        foundation_id=wallet.foundation_id, student=wallet.student, offline_created=True,
+        status__in=[POSTransactionStatus.COMPLETED], occurred_at__date=today,
+    ).aggregate(total=Sum('total'))['total'] or Decimal('0.00')
+    return (spent_offline_today + amount) <= floor_limit
+
+
+def process_offline_pos_batch(terminal, transactions: list) -> dict:
+    """POST /pos/transactions/batch: idempotent offline sync (WAL-015, WAL-016, WAL-017)."""
+    from apps.identity.models import Student
+
+    results = []
+    for tx_data in transactions:
+        client_transaction_id = tx_data['client_transaction_id']
+        existing = POSTransaction.objects.filter(
+            foundation_id=terminal.foundation_id, terminal=terminal, client_transaction_id=client_transaction_id,
+        ).first()
+        if existing:
+            results.append({'client_transaction_id': client_transaction_id, 'status': existing.status})
+            continue
+
+        student = Student.objects.filter(id=tx_data['student_id'], foundation_id=terminal.foundation_id).first()
+        if not student:
+            results.append({'client_transaction_id': client_transaction_id, 'status': 'STUDENT_NOT_FOUND'})
+            continue
+
+        items = tx_data['items']
+        occurred_at = tx_data.get('occurred_at') or timezone.now()
+        merchant = terminal.merchant
+        subtotal = sum((Decimal(str(i['unit_price'])) * i.get('qty', 1) for i in items), Decimal('0.00'))
+        commission = (subtotal * merchant.commission_bps / Decimal('10000')).quantize(Decimal('0.01'))
+        wallet = get_or_create_wallet(student)
+
+        if not check_offline_floor(wallet, subtotal):
+            POSTransaction.objects.create(
+                foundation_id=terminal.foundation_id, merchant=merchant, terminal=terminal, student=student,
+                items=items, subtotal=subtotal, commission=commission, total=subtotal, occurred_at=occurred_at,
+                status=POSTransactionStatus.REJECTED, offline_created=True, client_transaction_id=client_transaction_id,
+            )
+            results.append({'client_transaction_id': client_transaction_id, 'status': 'OFFLINE_FLOOR_EXCEEDED'})
+            continue
+
+        blocked = False
+        for item in items:
+            check = check_spend_allowed(wallet, subtotal, category=item.get('category'), product_sku=item.get('sku'))
+            if not check['allowed']:
+                blocked = True
+                POSTransaction.objects.create(
+                    foundation_id=terminal.foundation_id, merchant=merchant, terminal=terminal, student=student,
+                    items=items, subtotal=subtotal, commission=commission, total=subtotal, occurred_at=occurred_at,
+                    status=POSTransactionStatus.REJECTED, offline_created=True, client_transaction_id=client_transaction_id,
+                )
+                results.append({'client_transaction_id': client_transaction_id, 'status': check['reason']})
+                break
+        if blocked:
+            continue
+
+        wallet_tx = record_wallet_transaction(
+            wallet, WalletTransactionType.PURCHASE, -subtotal, client_transaction_id,
+            reference=f"POS-OFFLINE:{merchant.name}", occurred_at=occurred_at, allow_negative=True,
+        )
+        pos_tx = POSTransaction.objects.create(
+            foundation_id=terminal.foundation_id, merchant=merchant, terminal=terminal, student=student,
+            items=items, subtotal=subtotal, commission=commission, total=subtotal, occurred_at=occurred_at,
+            status=POSTransactionStatus.COMPLETED, offline_created=True,
+            client_transaction_id=client_transaction_id, wallet_transaction=wallet_tx,
+        )
+        results.append({'client_transaction_id': client_transaction_id, 'status': wallet_tx.status})
+
+    audit(
+        action='wallet.pos_offline_batch.processed',
+        entity_type='POSTerminal',
+        entity_id=terminal.id,
+        foundation_id=terminal.foundation_id,
+        diff={'count': len(transactions)},
+    )
+    return {'results': results}
