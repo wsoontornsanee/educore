@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 from apps.core.services import audit
 from apps.wallet.models import (
     MerchantSettlement,
+    WalletAutoTopupConfig,
     MerchantSettlementStatus,
     POSTransaction,
     POSTransactionStatus,
@@ -207,6 +208,120 @@ def create_wallet_topup_intent(
         diff={'method': method, 'amount': str(amount)},
     )
     return intent
+
+
+class WalletAutoTopupError(ValueError):
+    pass
+
+
+def set_wallet_auto_topup_config(
+    wallet: Wallet,
+    is_active: bool,
+    threshold_amount: Decimal,
+    topup_amount: Decimal,
+    method: str = WalletTopupMethod.VA,
+    bank: str = None,
+    actor=None,
+) -> WalletAutoTopupConfig:
+    """WAL-006: opt in/out of auto-top-up (explicit opt-in required), or update its
+    threshold/amount. Setting is_active=False is the cancel path — one call, no
+    separate delete endpoint needed, satisfying "cancellable in one screen"."""
+    if is_active:
+        if threshold_amount < Decimal('0.00') or topup_amount <= Decimal('0.00'):
+            raise WalletAutoTopupError(
+                "INVALID_AMOUNT: threshold_amount must be >= 0 and topup_amount must be positive."
+            )
+        if method not in (WalletTopupMethod.VA, WalletTopupMethod.QRIS):
+            raise WalletAutoTopupError(f"UNSUPPORTED_METHOD: '{method}' is not a gateway top-up method.")
+
+    config, _created = WalletAutoTopupConfig.objects.update_or_create(
+        foundation_id=wallet.foundation_id,
+        wallet=wallet,
+        defaults={
+            'is_active': is_active,
+            'threshold_amount': threshold_amount,
+            'topup_amount': topup_amount,
+            'method': method,
+            'bank': (bank or '').upper(),
+        },
+    )
+    audit(
+        action='wallet.auto_topup_config.set',
+        entity_type='WalletAutoTopupConfig',
+        entity_id=config.id,
+        foundation_id=wallet.foundation_id,
+        diff={'is_active': is_active, 'threshold_amount': str(threshold_amount), 'topup_amount': str(topup_amount)},
+    )
+    return config
+
+
+def process_wallet_auto_topups(foundation_id: int = None) -> dict:
+    """WAL-005/WAL-006: for every active auto-top-up config whose wallet balance has
+    dropped below threshold, generate a new VA/QRIS WalletTopupIntent — reusing
+    create_wallet_topup_intent verbatim, so this is the exact same VA/QRIS flow a
+    guardian would trigger manually, just system-initiated. This is semi-automatic:
+    the guardian still completes the transfer themselves via their own banking app
+    (VA/QRIS have no silent-debit rail) — notified to do so below.
+
+    Skips a wallet that already has a PENDING intent, so a slow-paying guardian
+    doesn't accumulate stacked duplicate charge requests on every run.
+    """
+    from apps.notifications.models import NotificationCategory
+    from apps.notifications.services import dispatch_intent
+
+    configs = WalletAutoTopupConfig.all_tenants.filter(
+        is_active=True, deleted_at__isnull=True,
+    ).select_related('wallet')
+    if foundation_id:
+        configs = configs.filter(foundation_id=foundation_id)
+
+    triggered = 0
+    skipped_pending = 0
+    for config in configs:
+        wallet = config.wallet
+        if wallet.balance >= config.threshold_amount:
+            continue
+
+        already_pending = WalletTopupIntent.all_tenants.filter(
+            wallet=wallet, status=WalletTopupIntentStatus.PENDING, deleted_at__isnull=True,
+        ).exists()
+        if already_pending:
+            skipped_pending += 1
+            continue
+
+        student = wallet.student
+        school = student.school
+        intent = create_wallet_topup_intent(
+            wallet=wallet, student=student, school=school,
+            method=config.method, amount=config.topup_amount, bank=config.bank or None,
+        )
+        triggered += 1
+
+        for link in _resolve_financial_guardians(student):
+            guardian = link.guardian
+            if not guardian.user:
+                continue
+            try:
+                dispatch_intent(
+                    foundation_id=config.foundation_id,
+                    category=NotificationCategory.PAYMENT_DUE,
+                    template_key='wallet.auto_topup.triggered',
+                    payload={
+                        'student_name': student.person.full_name if student.person else '',
+                        'topup_amount': str(config.topup_amount),
+                        'method': config.method,
+                        'va_number': intent.va_number,
+                    },
+                    school_id=school.id,
+                    recipient_user=guardian.user,
+                    recipient_phone=getattr(guardian.user, 'phone_e164', ''),
+                    recipient_name=guardian.person.full_name if guardian.person else '',
+                    dedupe_key=f"wallet_auto_topup:{intent.id}:{guardian.id}",
+                )
+            except Exception as exc:
+                logger.warning(f"Error notifying guardian of auto-top-up for wallet #{wallet.id}: {exc}")
+
+    return {'triggered': triggered, 'skipped_pending': skipped_pending}
 
 
 def process_wallet_topup_webhook(provider_name: str, payload: dict, headers: dict = None) -> dict:

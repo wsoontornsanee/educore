@@ -3,6 +3,7 @@ from rest_framework import serializers
 from apps.wallet.models import (
     Merchant,
     MerchantSettlement,
+    WalletAutoTopupConfig,
     POSTerminal,
     POSTransaction,
     Product,
@@ -58,6 +59,24 @@ class TopupIntentSerializer(serializers.Serializer):
     external_id = serializers.CharField()
     status = serializers.CharField()
     expires_at = serializers.DateTimeField()
+
+
+class WalletAutoTopupConfigUpdateSerializer(serializers.Serializer):
+    is_active = serializers.BooleanField()
+    threshold_amount = serializers.DecimalField(max_digits=18, decimal_places=2)
+    topup_amount = serializers.DecimalField(max_digits=18, decimal_places=2)
+    method = serializers.ChoiceField(choices=['VA', 'QRIS'], required=False, default='VA')
+    bank = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class WalletAutoTopupConfigSerializer(serializers.ModelSerializer):
+    threshold_amount = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    topup_amount = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+
+    class Meta:
+        model = WalletAutoTopupConfig
+        fields = ['id', 'wallet', 'is_active', 'threshold_amount', 'topup_amount', 'method', 'bank', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'wallet', 'created_at', 'updated_at']
 
 
 class SpendRuleSerializer(serializers.ModelSerializer):

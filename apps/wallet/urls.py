@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from apps.wallet.views import (
     MerchantViewSet,
+    WalletAutoTopupConfigView,
     POSSessionView,
     POSSyncView,
     POSTerminalViewSet,
@@ -35,6 +36,7 @@ urlpatterns = [
     path('wallets/<int:student_id>/transactions/', WalletTransactionsView.as_view(), name='wallet-transactions'),
     path('wallets/<int:student_id>/topup/', WalletTopupView.as_view(), name='wallet-topup'),
     path('wallets/<int:student_id>/topup-intents/', WalletTopupIntentView.as_view(), name='wallet-topup-intent'),
+    path('wallets/<int:student_id>/auto-topup-config/', WalletAutoTopupConfigView.as_view(), name='wallet-auto-topup-config'),
     path('webhooks/wallet-topup/<str:provider>/', WalletTopupWebhookView.as_view(), name='wallet-topup-webhook'),
     path('wallets/<int:student_id>/rules/', SpendRuleView.as_view(), name='wallet-rules'),
     path('pos/sessions/', POSSessionView.as_view(), name='pos-sessions'),
