@@ -6,9 +6,10 @@ from rest_framework.views import APIView
 
 from apps.identity.models import School
 from apps.identity.permissions import HasRequiredPermission
-from apps.reporting.models import RptAcademicPerformance, RptDailyAttendance, RptWalletActivity
+from apps.reporting.models import RptAcademicPerformance, RptActiveStudent, RptDailyAttendance, RptWalletActivity
 from apps.reporting.serializers import (
     RptAcademicPerformanceSerializer,
+    RptActiveStudentSerializer,
     RptDailyAttendanceSerializer,
     RptWalletActivitySerializer,
 )
@@ -20,21 +21,21 @@ class _DateRangeParseError(Exception):
         self.response = response
 
 
-def _apply_date_range(request, rows):
-    """Shared date_from/date_to filtering for every rpt_* list view."""
-    date_from = request.query_params.get('date_from')
-    if date_from:
+def _apply_date_range(request, rows, field='date', from_param='date_from', to_param='date_to'):
+    """Shared date-range filtering for every rpt_* list view."""
+    from_value = request.query_params.get(from_param)
+    if from_value:
         try:
-            rows = rows.filter(date__gte=_dt.date.fromisoformat(date_from))
+            rows = rows.filter(**{f'{field}__gte': _dt.date.fromisoformat(from_value)})
         except ValueError:
-            raise _DateRangeParseError(Response({'error': _("Format date_from tidak valid (YYYY-MM-DD).")}, status=status.HTTP_400_BAD_REQUEST))
+            raise _DateRangeParseError(Response({'error': _("Format %(param)s tidak valid (YYYY-MM-DD).") % {'param': from_param}}, status=status.HTTP_400_BAD_REQUEST))
 
-    date_to = request.query_params.get('date_to')
-    if date_to:
+    to_value = request.query_params.get(to_param)
+    if to_value:
         try:
-            rows = rows.filter(date__lte=_dt.date.fromisoformat(date_to))
+            rows = rows.filter(**{f'{field}__lte': _dt.date.fromisoformat(to_value)})
         except ValueError:
-            raise _DateRangeParseError(Response({'error': _("Format date_to tidak valid (YYYY-MM-DD).")}, status=status.HTTP_400_BAD_REQUEST))
+            raise _DateRangeParseError(Response({'error': _("Format %(param)s tidak valid (YYYY-MM-DD).") % {'param': to_param}}, status=status.HTTP_400_BAD_REQUEST))
 
     return rows
 
@@ -120,3 +121,28 @@ class AcademicPerformanceReportView(APIView):
 
         rows = rows.order_by('term_id', 'class_group_id', 'subject_id')
         return Response({'rows': RptAcademicPerformanceSerializer(rows, many=True).data})
+
+
+class ActiveStudentsReportView(APIView):
+    """GET /reporting/active-students/?school_id=&month_from=&month_to= (spec/15 §2, §4, RPT-007/008)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'reporting.read'
+
+    def get(self, request):
+        foundation_id = get_current_foundation_id()
+
+        school_id = request.query_params.get('school_id')
+        if not school_id:
+            return Response({'error': _("Parameter school_id wajib diisi.")}, status=status.HTTP_400_BAD_REQUEST)
+        school = School.objects.filter(id=school_id, foundation_id=foundation_id).first()
+        if not school:
+            return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        rows = RptActiveStudent.objects.filter(foundation_id=foundation_id, school=school)
+        try:
+            rows = _apply_date_range(request, rows, field='month', from_param='month_from', to_param='month_to')
+        except _DateRangeParseError as e:
+            return e.response
+
+        rows = rows.order_by('month')
+        return Response({'rows': RptActiveStudentSerializer(rows, many=True).data})

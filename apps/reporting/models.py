@@ -102,3 +102,30 @@ class RptAcademicPerformance(TenantModel):
 
     def __str__(self):
         return f"{self.school.name} - {self.class_group.name} - {self.subject.name} ({self.term.name}): avg {self.avg_score}"
+
+
+class RptActiveStudent(TenantModel):
+    """Monthly active-student count per school (spec/15 §2, §4) — the invoice basis
+    for EduCore's own subscription billing (RPT-007). RPT-008: once a month has
+    fully ended, its row is immutable — `refresh_reporting` never recomputes it again.
+    """
+    school = models.ForeignKey(School, on_delete=models.PROTECT, related_name='active_student_reports')
+    month = models.DateField(help_text=_("Normalized to the 1st of the month"))
+    active_count = models.PositiveIntegerField(default=0)
+    computed_at = models.DateTimeField(help_text=_("RPT-005: data freshness timestamp"))
+
+    class Meta:
+        db_table = 'rpt_active_students'
+        indexes = [
+            models.Index(fields=['foundation_id', 'school_id', 'month']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'school', 'month'],
+                condition=models.Q(deleted_at__isnull=True),
+                name='unique_rpt_active_students_per_school_month',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.school.name} - {self.month:%Y-%m}: {self.active_count} active"
