@@ -1009,7 +1009,7 @@ class ReconciliationBatchListView(APIView):
     - provider: filter by provider name
     """
     permission_classes = [permissions.IsAuthenticated, HasRequiredPermission]
-    required_permission = 'finance.view_gatewaysettlementbatch'
+    required_permission = 'finance.payment.read'
 
     def get(self, request):
         foundation_id = request.user.foundation_id
@@ -1030,7 +1030,7 @@ class ReconciliationBatchListView(APIView):
 class ReconciliationBatchDetailView(APIView):
     """GET /finance/reconciliation/batches/<id>/  — single batch with discrepancies."""
     permission_classes = [permissions.IsAuthenticated, HasRequiredPermission]
-    required_permission = 'finance.view_gatewaysettlementbatch'
+    required_permission = 'finance.payment.read'
 
     def get(self, request, pk):
         foundation_id = request.user.foundation_id
@@ -1055,7 +1055,7 @@ class ReconciliationDiscrepancyResolveView(APIView):
     Body: { "resolution": "MANUAL_SETTLED|WAIVED|ESCALATED", "notes": "..." }
     """
     permission_classes = [permissions.IsAuthenticated, HasRequiredPermission]
-    required_permission = 'finance.change_paymentdiscrepancy'
+    required_permission = 'finance.payment.write'
 
     def post(self, request, pk):
         foundation_id = request.user.foundation_id

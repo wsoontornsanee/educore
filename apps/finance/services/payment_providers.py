@@ -2,6 +2,7 @@ import datetime
 import hashlib
 from abc import ABC, abstractmethod
 from decimal import Decimal
+import dateutil.parser
 import requests
 from django.conf import settings
 from django.utils import timezone
@@ -319,11 +320,10 @@ class XenditPaymentProvider(PaymentProvider):
                 bank = item.get('bank_code') or item.get('bank')
                 settled_str = item.get('settled_at') or item.get('settlement_date') or date_str
                 try:
-                    import dateutil.parser
                     settled_at = dateutil.parser.parse(settled_str)
                     if settled_at.tzinfo is None:
                         settled_at = timezone.make_aware(settled_at)
-                except Exception:
+                except (ValueError, OverflowError, TypeError):
                     settled_at = timezone.datetime.combine(date, timezone.datetime.min.time(),
                                                            tzinfo=timezone.get_current_timezone())
                 results.append({
