@@ -7,12 +7,15 @@ Defines:
 - Person: PII vault isolated for UU PDP compliance
 - OTPChallenge: 6-digit WhatsApp/SMS OTP challenges
 """
+import logging
 from datetime import timedelta
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
 from django.utils import timezone
 from apps.core.models import TenantModel
 from .managers import UserManager, AllUsersManager
+
+logger = logging.getLogger(__name__)
 
 class Foundation(models.Model):
     """The governing foundation (Yayasan) managing one or more schools (spec/02 §2, spec/03)."""
@@ -417,6 +420,15 @@ class Student(TenantModel):
                 'reason': reason,
             }
         )
+
+        # WAL-007: freeze/unfreeze the student's wallet if one exists. Mirrors the
+        # existing apps.attendance -> apps.notifications direct-call pattern; a
+        # wallet-side failure must never break the status transition itself.
+        try:
+            from apps.wallet.services import sync_wallet_freeze_on_student_status_change
+            sync_wallet_freeze_on_student_status_change(self, new_status)
+        except Exception as exc:
+            logger.warning(f"Error syncing wallet freeze state for student #{self.id}: {exc}")
 
 
 class Guardian(TenantModel):

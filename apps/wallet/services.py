@@ -1113,3 +1113,34 @@ def resend_reconciliation_notice(case: WalletReconciliation, actor=None) -> list
     )
 
     return intents
+
+
+def sync_wallet_freeze_on_student_status_change(student, new_status: str) -> None:
+    """WAL-007: freeze the wallet when the student leaves ACTIVE, unfreeze on return to
+    ACTIVE. A no-op if the student has no wallet yet. Called from
+    apps.identity.Student.transition_status — never raises on a missing/inactive wallet."""
+    wallet = Wallet.objects.filter(foundation_id=student.foundation_id, student=student).first()
+    if not wallet:
+        return
+
+    active = 'ACTIVE'  # matches apps.identity.Student.STATUS_ACTIVE; not imported to avoid a module-level identity dependency here
+    if new_status != active and wallet.status == WalletStatus.ACTIVE:
+        wallet.status = WalletStatus.FROZEN
+        wallet.save(update_fields=['status', 'updated_at'])
+        audit(
+            action='wallet.auto_frozen',
+            entity_type='Wallet',
+            entity_id=wallet.id,
+            foundation_id=wallet.foundation_id,
+            diff={'reason': f'student status changed to {new_status}'},
+        )
+    elif new_status == active and wallet.status == WalletStatus.FROZEN:
+        wallet.status = WalletStatus.ACTIVE
+        wallet.save(update_fields=['status', 'updated_at'])
+        audit(
+            action='wallet.auto_unfrozen',
+            entity_type='Wallet',
+            entity_id=wallet.id,
+            foundation_id=wallet.foundation_id,
+            diff={'reason': 'student status returned to ACTIVE'},
+        )
