@@ -25,6 +25,8 @@ from apps.finance.models import (
     PaymentAllocation,
     PaymentIntent,
     PaymentStatus,
+    SchoolArrearsPolicy,
+    SchoolQrisConfig,
     SiblingDiscountPolicy,
     StudentCreditBalance,
     StudentFeeAssignment,
@@ -45,6 +47,8 @@ from apps.finance.serializers import (
     PaymentIntentSerializer,
     PaymentProofUploadSerializer,
     PaymentSerializer,
+    SchoolArrearsPolicySerializer,
+    SchoolArrearsPolicyUpdateSerializer,
     SchoolQrisConfigSerializer,
     SchoolQrisConfigUpdateSerializer,
     SiblingDiscountPolicySerializer,
@@ -58,6 +62,7 @@ from apps.finance.services import (
     cancel_invoice,
     create_discount_with_approval_check,
     generate_monthly_invoices,
+    get_school_arrears_policy,
     get_school_qris_config,
     set_school_qris_config,
     store_payment_proof_file,
@@ -697,6 +702,43 @@ class SchoolQrisConfigView(APIView):
         except InvalidProofFileError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(SchoolQrisConfigSerializer(config).data, status=status.HTTP_200_OK)
+
+
+class SchoolArrearsPolicyView(APIView):
+    """GET/PUT /schools/:school_id/arrears-policy/ — a school's arrears reminder policy (spec/06 §6, FIN-026)."""
+    permission_classes = [HasRequiredPermission]
+
+    def get_required_permission(self):
+        return 'finance.invoice.write' if self.request.method in ['PUT', 'PATCH'] else 'finance.invoice.read'
+
+    def get(self, request, school_id):
+        foundation_id = get_current_foundation_id()
+        school = School.objects.filter(id=school_id, foundation_id=foundation_id).first()
+        if not school:
+            return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        policy = get_school_arrears_policy(school)
+        return Response(SchoolArrearsPolicySerializer(policy).data, status=status.HTTP_200_OK)
+
+    def put(self, request, school_id):
+        foundation_id = get_current_foundation_id()
+        school = School.objects.filter(id=school_id, foundation_id=foundation_id).first()
+        if not school:
+            return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        payload = SchoolArrearsPolicyUpdateSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+
+        policy = get_school_arrears_policy(school)
+        if 'ladder_days' in payload.validated_data:
+            policy.ladder_days = payload.validated_data['ladder_days']
+        if 'is_active' in payload.validated_data:
+            policy.is_active = payload.validated_data['is_active']
+        if 'payment_deep_link_base' in payload.validated_data:
+            policy.payment_deep_link_base = payload.validated_data['payment_deep_link_base']
+        policy.save()
+
+        return Response(SchoolArrearsPolicySerializer(policy).data, status=status.HTTP_200_OK)
 
 
 

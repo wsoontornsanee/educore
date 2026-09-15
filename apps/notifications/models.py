@@ -83,10 +83,13 @@ CATEGORY_CONFIG = {
         'opt_out_allowed': False,  # NTF-013: EMERGENCY cannot be opted out
     },
     NotificationCategory.PAYMENT_DUE: {
-        'default_channels': [ChannelType.WHATSAPP, ChannelType.PUSH],
+        'default_channels': [ChannelType.WHATSAPP, ChannelType.PUSH, ChannelType.SMS],
         'priority': NotificationPriority.NORMAL,
         'quiet_hours_respected': True,
         'opt_out_allowed': False,  # NTF-013: Statutory financial notices not opt-outable
+        # NTF-004: re-evaluated at send time via process_intent's generic dotted-path lookup (FIN-027)
+        'send_time_validator': 'apps.finance.services.is_invoice_reminder_still_needed',
+        'send_time_cancelled_reason': _("Tagihan telah lunas sebelum pengingat terkirim (FIN-027)"),
     },
     NotificationCategory.PAYMENT_RECEIVED: {
         'default_channels': [ChannelType.WHATSAPP, ChannelType.PUSH],

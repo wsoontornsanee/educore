@@ -507,3 +507,41 @@ class SchoolQrisConfig(TenantModel):
     def __str__(self):
         return f"{self.school.name} static QRIS ({'active' if self.is_active else 'inactive'})"
 
+
+DEFAULT_ARREARS_LADDER_DAYS = [-3, 0, 3, 7, 14, 30]
+
+
+class SchoolArrearsPolicy(TenantModel):
+    """School policy for automated arrears reminder ladder (spec/06 §6, FIN-026).
+    Configures reminder offsets in days relative to invoice due_date.
+    Offsets: negative = before due (e.g. -3 is T-3 days), 0 = on due date (T-0),
+    positive = overdue (e.g. +3, +7, +14, +30).
+    """
+    school = models.OneToOneField(School, on_delete=models.PROTECT, related_name='arrears_policy')
+    ladder_days = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=_("Offsets in days relative to due date, e.g. [-3, 0, 3, 7, 14, 30]"),
+    )
+    is_active = models.BooleanField(default=True)
+    payment_deep_link_base = models.CharField(
+        max_length=255,
+        default="/pay/{invoice_id}",
+        help_text=_("Base URL or template for payment link in reminders (FIN-028)"),
+    )
+
+    class Meta:
+        db_table = 'school_arrears_policies'
+
+    def __str__(self):
+        return f"{self.school.name} Arrears Policy ({'active' if self.is_active else 'inactive'})"
+
+    def get_effective_ladder_days(self) -> list[int]:
+        """Returns configured ladder days or canonical defaults per FIN-026."""
+        if self.ladder_days and isinstance(self.ladder_days, list):
+            try:
+                return sorted([int(x) for x in self.ladder_days])
+            except (ValueError, TypeError):
+                pass
+        return DEFAULT_ARREARS_LADDER_DAYS
+
