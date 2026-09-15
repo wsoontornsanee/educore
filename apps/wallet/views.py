@@ -12,6 +12,7 @@ from educore.middleware.tenancy import get_current_foundation_id
 from apps.wallet.models import (
     Merchant,
     MerchantSettlement,
+    WalletAutoTopupConfig,
     POSTerminal,
     POSTransaction,
     POSTransactionStatus,
@@ -39,6 +40,8 @@ from apps.wallet.serializers import (
     RefundMarkDonatedSerializer,
     RefundMarkPaidSerializer,
     SpendRuleSerializer,
+    WalletAutoTopupConfigSerializer,
+    WalletAutoTopupConfigUpdateSerializer,
     TopupIntentCreateSerializer,
     TopupIntentSerializer,
     TopupSerializer,
@@ -52,8 +55,10 @@ from apps.wallet.services import (
     SettlementStateError,
     SpendNotAllowedError,
     VoidWindowExpiredError,
+    WalletAutoTopupError,
     WalletNotActiveError,
     create_wallet_topup_intent,
+    set_wallet_auto_topup_config,
     generate_settlement_statement_pdf,
     get_or_create_spend_rule,
     get_or_create_wallet,
@@ -175,6 +180,58 @@ class WalletTopupIntentView(APIView):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(TopupIntentSerializer(intent).data, status=status.HTTP_201_CREATED)
+
+
+class WalletAutoTopupConfigView(APIView):
+    """GET/PUT /wallets/:student_id/auto-topup-config (WAL-006).
+
+    GET returns the platform default (is_active=False, no threshold set) when the
+    wallet has no config yet. PUT with is_active=False is the cancel path.
+    """
+    permission_classes = [HasRequiredPermission]
+
+    def get_required_permission(self):
+        return 'wallet.topup.write' if self.request.method == 'PUT' else 'wallet.topup.read'
+
+    def get(self, request, student_id):
+        foundation_id = get_current_foundation_id()
+        student = _get_student_or_404(student_id, foundation_id)
+        if not student:
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        wallet = get_or_create_wallet(student)
+
+        config = WalletAutoTopupConfig.objects.filter(wallet=wallet).first()
+        if config:
+            return Response(WalletAutoTopupConfigSerializer(config).data)
+        return Response({
+            'wallet': wallet.id, 'is_active': False,
+            'threshold_amount': None, 'topup_amount': None, 'method': 'VA', 'bank': '',
+        })
+
+    def put(self, request, student_id):
+        foundation_id = get_current_foundation_id()
+        student = _get_student_or_404(student_id, foundation_id)
+        if not student:
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        wallet = get_or_create_wallet(student)
+
+        payload = WalletAutoTopupConfigUpdateSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+
+        try:
+            config = set_wallet_auto_topup_config(
+                wallet,
+                is_active=payload.validated_data['is_active'],
+                threshold_amount=payload.validated_data['threshold_amount'],
+                topup_amount=payload.validated_data['topup_amount'],
+                method=payload.validated_data.get('method', 'VA'),
+                bank=payload.validated_data.get('bank') or None,
+                actor=request.user,
+            )
+        except WalletAutoTopupError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(WalletAutoTopupConfigSerializer(config).data)
 
 
 class WalletTopupWebhookView(APIView):

@@ -377,3 +377,26 @@ class WalletTopupIntent(TenantModel):
 
     def __str__(self):
         return f"{self.student.nis} - {self.method} {self.currency} {self.amount} ({self.status})"
+
+
+class WalletAutoTopupConfig(TenantModel):
+    """Guardian-configured auto-top-up (WAL-005, WAL-006): when the wallet balance
+    drops below threshold_amount, the system automatically generates a new VA/QRIS
+    WalletTopupIntent for topup_amount. This is semi-automatic, not a silent
+    auto-debit — VA/QRIS have no rail for that; the guardian still completes the
+    transfer through their own banking app, same as any other top-up. Only VA/QRIS
+    are supported methods here (the gateway top-up methods create_wallet_topup_intent
+    already handles), not CASH/MANUAL.
+    """
+    wallet = models.OneToOneField(Wallet, on_delete=models.PROTECT, related_name='auto_topup_config')
+    is_active = models.BooleanField(default=False, help_text=_("Explicit opt-in required (WAL-006)"))
+    threshold_amount = MoneyField(help_text=_("Auto-top-up triggers when balance drops below this"))
+    topup_amount = MoneyField(help_text=_("Amount requested each time auto-top-up triggers"))
+    method = models.CharField(max_length=8, choices=WalletTopupMethod.choices, default=WalletTopupMethod.VA)
+    bank = models.CharField(max_length=16, blank=True, default='')
+
+    class Meta:
+        db_table = 'wallet_auto_topup_configs'
+
+    def __str__(self):
+        return f"{self.wallet.student.nis} auto-topup ({'active' if self.is_active else 'inactive'})"
