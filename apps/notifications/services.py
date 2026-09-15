@@ -330,14 +330,26 @@ def process_intent(intent_id: int) -> bool:
                 intent.save(update_fields=['scheduled_for', 'updated_at'])
                 return False
 
-        # NTF-004/REC-008: re-evaluate at send time. If the wallet this notice concerns
-        # has already settled (a top-up landed before this tick), cancel silently —
-        # telling a guardian they owe money they already paid is worse than saying nothing.
-        if intent.category == NotificationCategory.WALLET_RECONCILIATION:
-            from apps.wallet.services import is_reconciliation_notice_still_needed
-            if not is_reconciliation_notice_still_needed(intent):
+        # NTF-004: any category MAY declare a 'send_time_validator' (dotted path) in its
+        # CATEGORY_CONFIG to re-evaluate its own condition right before send — e.g. REC-008's
+        # "don't tell a guardian they owe money they already paid" wallet-reconciliation case.
+        # Fails OPEN on a broken/missing validator: a validator bug must never silently
+        # swallow a real notification.
+        validator_path = cat_config.get('send_time_validator')
+        if validator_path:
+            try:
+                from django.utils.module_loading import import_string
+                validator = import_string(validator_path)
+                still_needed = validator(intent)
+            except Exception as exc:
+                logger.warning(f"NTF-004 send_time_validator '{validator_path}' failed for intent #{intent.id}: {exc}")
+                still_needed = True
+
+            if not still_needed:
                 intent.status = IntentStatus.CANCELLED
-                intent.cancellation_reason = _("Saldo telah diselesaikan sebelum notifikasi terkirim (REC-008)")
+                intent.cancellation_reason = cat_config.get(
+                    'send_time_cancelled_reason', _("Kondisi notifikasi tidak lagi berlaku saat pengiriman (NTF-004)")
+                )
                 intent.save(update_fields=['status', 'cancellation_reason', 'updated_at'])
                 return False
 
