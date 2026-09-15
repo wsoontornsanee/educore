@@ -171,3 +171,99 @@ class StaffOffboardSerializer(serializers.Serializer):
     reason = serializers.CharField(required=False, allow_blank=True, default='')
     reassign_to_staff_id = serializers.IntegerField(required=False, allow_null=True)
 
+
+class StudentPersonSerializer(serializers.Serializer):
+    """Person PII vault representation for Student profiles."""
+    id = serializers.IntegerField(read_only=True)
+    full_name = serializers.CharField(read_only=True)
+    nik = serializers.CharField(read_only=True)
+    dob = serializers.DateField(read_only=True)
+    gender = serializers.CharField(read_only=True)
+    address = serializers.CharField(read_only=True)
+
+
+class StudentSerializer(serializers.ModelSerializer):
+    """Serializer for Student records (spec/02 §2, §7)."""
+    person = StudentPersonSerializer(read_only=True)
+    school_name = serializers.CharField(source='school.name', read_only=True)
+
+    class Meta:
+        from .models import Student
+        model = Student
+        fields = [
+            'id',
+            'foundation_id',
+            'school',
+            'school_name',
+            'person',
+            'nis',
+            'nisn',
+            'photo_key',
+            'status',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = [
+            'id',
+            'foundation_id',
+            'status',
+            'created_at',
+            'updated_at',
+        ]
+
+
+class StudentCreateSerializer(serializers.Serializer):
+    """Serializer for creating a new student with Person PII."""
+    school_id = serializers.IntegerField()
+    nis = serializers.CharField(max_length=32)
+    nisn = serializers.CharField(max_length=10, required=False, allow_blank=True, allow_null=True)
+    photo_key = serializers.CharField(max_length=255, required=False, allow_blank=True, default='')
+
+    # Person PII
+    full_name = serializers.CharField(max_length=128)
+    nik = serializers.CharField(max_length=16, required=False, allow_blank=True, allow_null=True)
+    dob = serializers.DateField(required=False, allow_null=True)
+    gender = serializers.ChoiceField(choices=[('L', 'Laki-laki'), ('P', 'Perempuan')], required=False, allow_blank=True)
+    address = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class StudentStatusTransitionSerializer(serializers.Serializer):
+    """Serializer for student status transitions (IAM-019)."""
+    status = serializers.ChoiceField(choices=['PROSPECT', 'ACTIVE', 'INACTIVE', 'GRADUATED', 'TRANSFERRED_OUT'])
+    reason = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class GuardianLinkDetailSerializer(serializers.Serializer):
+    """Serializer for guardian and relationship link details."""
+    id = serializers.IntegerField(read_only=True)
+    guardian_id = serializers.IntegerField(source='guardian.id', read_only=True)
+    full_name = serializers.CharField(source='guardian.person.full_name', read_only=True)
+    phone_e164 = serializers.CharField(source='guardian.user.phone_e164', read_only=True)
+    occupation = serializers.CharField(source='guardian.occupation', read_only=True)
+    relation = serializers.CharField(read_only=True)
+    is_primary = serializers.BooleanField(read_only=True)
+    can_pickup = serializers.BooleanField(read_only=True)
+    financial_responsible = serializers.BooleanField(read_only=True)
+
+
+class GuardianLinkCreateSerializer(serializers.Serializer):
+    """Serializer for linking a new or existing guardian to a student (IAM-014, IAM-015)."""
+    guardian_id = serializers.IntegerField(required=False, allow_null=True)
+    full_name = serializers.CharField(max_length=128, required=False)
+    phone_e164 = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    nik = serializers.CharField(max_length=16, required=False, allow_blank=True)
+    occupation = serializers.CharField(max_length=128, required=False, allow_blank=True)
+
+    relation = serializers.ChoiceField(choices=['FATHER', 'MOTHER', 'GUARDIAN'], default='GUARDIAN')
+    is_primary = serializers.BooleanField(default=False)
+    can_pickup = serializers.BooleanField(default=True)
+    financial_responsible = serializers.BooleanField(default=False)
+
+
+class StudentImportSerializer(serializers.Serializer):
+    """Serializer for multipart bulk student XLSX/CSV file upload (IAM-017)."""
+    school_id = serializers.IntegerField()
+    file = serializers.FileField()
+    dry_run = serializers.BooleanField(default=True)
+
+

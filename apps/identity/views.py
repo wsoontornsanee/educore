@@ -194,3 +194,299 @@ class StaffViewSet(viewsets.ModelViewSet):
         return Response(StaffSerializer(offboarded_staff).data, status=status.HTTP_200_OK)
 
 
+class StudentViewSet(viewsets.ModelViewSet):
+    """Student directory, guardian linking, and bulk import API (spec/02 §2, §5, §7).
+    
+    Enforces:
+    - 3-Layer tenancy scoping (TenantManager).
+    - School scoping isolation (IAM-012, spec/02 §8.1): school_admin receives 404 for student of another school.
+    - RBAC permissions: student_records.read for viewing, student_records.write for mutations.
+    - Status machine transitions (IAM-019).
+    - Atomic bulk XLSX/CSV import with dry-run diff preview (IAM-017, IAM-018, spec/02 §8.3).
+    """
+    from .models import Student
+    from .permissions import HasRequiredPermission
+    from .serializers import (
+        StudentSerializer, StudentCreateSerializer, StudentStatusTransitionSerializer,
+        GuardianLinkDetailSerializer, GuardianLinkCreateSerializer, StudentImportSerializer
+    )
+
+    permission_classes = [HasRequiredPermission]
+    action_permissions = {
+        'list': 'student_records.read',
+        'retrieve': 'student_records.read',
+        'guardians': 'student_records.read',
+        'create': 'student_records.write',
+        'update': 'student_records.write',
+        'partial_update': 'student_records.write',
+        'destroy': 'student_records.write',
+        'status_transition': 'student_records.write',
+        'add_guardian': 'student_records.write',
+        'bulk_import': 'student_records.write',
+    }
+
+    def get_queryset(self):
+        from django.db.models import Q
+        from .models import Student, RoleAssignment
+
+        user = self.request.user
+        foundation_id = get_current_foundation_id() or getattr(user, 'foundation_id', None)
+
+        qs = Student.objects.select_related('person', 'school').all()
+
+        # If user is a school-scoped admin or teacher, scope strictly to their assigned schools
+        if not user.is_superuser:
+            has_fnd_admin = RoleAssignment.all_tenants.filter(
+                foundation_id=foundation_id,
+                user=user,
+                role__in=[RoleAssignment.ROLE_FOUNDATION_ADMIN],
+                scope_type=RoleAssignment.SCOPE_FOUNDATION,
+                deleted_at__isnull=True,
+            ).exists()
+
+            if not has_fnd_admin:
+                # User has school-scoped roles or parent role
+                assigned_school_ids = set(RoleAssignment.all_tenants.filter(
+                    foundation_id=foundation_id,
+                    user=user,
+                    scope_type=RoleAssignment.SCOPE_SCHOOL,
+                    deleted_at__isnull=True,
+                ).values_list('scope_id', flat=True))
+
+                # If parent, can view their linked students across schools (IAM-009, IAM-014)
+                has_parent_role = RoleAssignment.all_tenants.filter(
+                    foundation_id=foundation_id,
+                    user=user,
+                    role=RoleAssignment.ROLE_PARENT,
+                    deleted_at__isnull=True,
+                ).exists()
+
+                if has_parent_role:
+                    parent_student_ids = Student.all_tenants.filter(
+                        foundation_id=foundation_id,
+                        guardian_links__guardian__user=user,
+                        guardian_links__deleted_at__isnull=True,
+                        deleted_at__isnull=True,
+                    ).values_list('id', flat=True)
+                    qs = qs.filter(Q(school_id__in=assigned_school_ids) | Q(id__in=parent_student_ids))
+                else:
+                    qs = qs.filter(school_id__in=assigned_school_ids)
+
+        # Filters
+        school_id = self.request.query_params.get('school_id')
+        if school_id and school_id.isdigit():
+            qs = qs.filter(school_id=int(school_id))
+
+        status_filter = self.request.query_params.get('status')
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+
+        q = self.request.query_params.get('q')
+        if q:
+            q = q.strip()
+            qs = qs.filter(
+                Q(person__full_name__icontains=q) |
+                Q(nis__icontains=q) |
+                Q(nisn__icontains=q)
+            )
+
+        return qs.order_by('-created_at')
+
+    def get_serializer_class(self):
+        from .serializers import (
+            StudentSerializer, StudentCreateSerializer, StudentStatusTransitionSerializer,
+            GuardianLinkDetailSerializer, GuardianLinkCreateSerializer, StudentImportSerializer
+        )
+        if self.action == 'create':
+            return StudentCreateSerializer
+        elif self.action == 'status_transition':
+            return StudentStatusTransitionSerializer
+        elif self.action == 'guardians' and self.request.method == 'POST':
+            return GuardianLinkCreateSerializer
+        elif self.action == 'guardians':
+            return GuardianLinkDetailSerializer
+        elif self.action == 'bulk_import':
+            return StudentImportSerializer
+        return StudentSerializer
+
+    def create(self, request, *args, **kwargs):
+        from .serializers import StudentCreateSerializer, StudentSerializer
+        from .models import Student, Person, School
+
+        serializer = StudentCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        school = School.objects.get(id=data['school_id'])
+
+        person = Person.objects.create(
+            foundation_id=foundation_id,
+            full_name=data['full_name'],
+            nik=data.get('nik'),
+            dob=data.get('dob'),
+            gender=data.get('gender', ''),
+            address=data.get('address', ''),
+            created_by=str(request.user.id),
+        )
+
+        student = Student.objects.create(
+            foundation_id=foundation_id,
+            school=school,
+            person=person,
+            nis=data['nis'],
+            nisn=data.get('nisn'),
+            photo_key=data.get('photo_key', ''),
+            status=Student.STATUS_PROSPECT,
+            created_by=str(request.user.id),
+        )
+
+        audit(
+            action="identity.student.created",
+            entity_type="Student",
+            entity_id=str(student.id),
+            actor_id=str(request.user.id),
+            role=getattr(request.user, 'role', 'school_admin'),
+            foundation_id=foundation_id,
+            school_id=school.id,
+            ip_address=request.META.get('REMOTE_ADDR'),
+            diff={"nis": {"after": student.nis}, "full_name": {"after": person.full_name}},
+        )
+
+        return Response(StudentSerializer(student).data, status=status.HTTP_201_CREATED)
+
+    from rest_framework.decorators import action
+    @action(detail=True, methods=['post'], url_path='status')
+    def status_transition(self, request, pk=None):
+        """Execute validated student lifecycle status transition (IAM-019)."""
+        from .serializers import StudentStatusTransitionSerializer, StudentSerializer
+        from rest_framework.exceptions import ValidationError as DRFValidationError
+
+        student = self.get_object()
+        serializer = StudentStatusTransitionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        try:
+            student.transition_status(
+                new_status=data['status'],
+                actor_id=str(request.user.id),
+                reason=data.get('reason', '')
+            )
+        except ValueError as exc:
+            raise DRFValidationError(detail=str(exc))
+
+        return Response(StudentSerializer(student).data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get', 'post'], url_path='guardians')
+    def guardians(self, request, pk=None):
+        """List or add linked guardians for student (IAM-014, IAM-015)."""
+        from .models import Guardian, GuardianLink, Person, User
+        from .serializers import GuardianLinkDetailSerializer, GuardianLinkCreateSerializer
+        from rest_framework.exceptions import ValidationError as DRFValidationError
+
+        student = self.get_object()
+        foundation_id = student.foundation_id
+
+        if request.method == 'GET':
+            links = GuardianLink.objects.filter(student=student).select_related('guardian__person', 'guardian__user')
+            serializer = GuardianLinkDetailSerializer(links, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        # POST: Link guardian
+        serializer = GuardianLinkCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        guardian = None
+        if data.get('guardian_id'):
+            guardian = Guardian.objects.get(id=data['guardian_id'])
+        else:
+            # Create new Guardian profile
+            if not data.get('full_name'):
+                raise DRFValidationError({'full_name': 'Nama wali wajib diisi.'})
+
+            person = Person.objects.create(
+                foundation_id=foundation_id,
+                full_name=data['full_name'],
+                nik=data.get('nik'),
+                created_by=str(request.user.id),
+            )
+
+            guardian_user = None
+            if data.get('phone_e164'):
+                guardian_user = User.all_tenants.filter(
+                    foundation_id=foundation_id,
+                    phone_e164=data['phone_e164']
+                ).first()
+                if not guardian_user:
+                    guardian_user = User.objects.create_user(
+                        phone_e164=data['phone_e164'],
+                        full_name=person.full_name,
+                        foundation_id=foundation_id,
+                    )
+
+            guardian = Guardian.objects.create(
+                foundation_id=foundation_id,
+                person=person,
+                user=guardian_user,
+                occupation=data.get('occupation', ''),
+                created_by=str(request.user.id),
+            )
+
+        link = GuardianLink.objects.create(
+            foundation_id=foundation_id,
+            guardian=guardian,
+            student=student,
+            relation=data.get('relation', GuardianLink.RELATION_GUARDIAN),
+            is_primary=data.get('is_primary', False),
+            can_pickup=data.get('can_pickup', True),
+            financial_responsible=data.get('financial_responsible', False),
+            created_by=str(request.user.id),
+        )
+
+        return Response(GuardianLinkDetailSerializer(link).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'], url_path='import')
+    def bulk_import(self, request):
+        """Atomic multipart bulk student XLSX/CSV import with dry-run diff preview (IAM-017, IAM-018)."""
+        from .serializers import StudentImportSerializer
+        from .importers import StudentBulkImporter
+        from rest_framework.exceptions import ValidationError as DRFValidationError
+
+        serializer = StudentImportSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        uploaded_file = data['file']
+        school_id = data['school_id']
+        dry_run = data.get('dry_run', True)
+
+        # Query param override (?dry_run=true|false)
+        if 'dry_run' in request.query_params:
+            dry_run = request.query_params['dry_run'].lower() in ('1', 'true', 'yes')
+
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+
+        importer = StudentBulkImporter(
+            foundation_id=foundation_id,
+            school_id=school_id,
+            actor_id=str(request.user.id)
+        )
+
+        try:
+            result = importer.execute(
+                file_obj=uploaded_file,
+                filename=uploaded_file.name,
+                dry_run=dry_run
+            )
+        except Exception as exc:
+            raise DRFValidationError(detail=str(exc))
+
+        if not result['success']:
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(result, status=status.HTTP_200_OK if dry_run else status.HTTP_201_CREATED)
+
+
+

@@ -9,13 +9,14 @@
 ---
 
 ## 2. Current Build Status
-- **Current Step:** Milestone M1 (Step 1) Complete — Ready for Milestone M2 (Step 2: Student & Staff Records).
+- **Current Step:** Milestone M2 (Step 2: Student & Staff Records + Bulk Import) Complete — Ready for Milestone M3 (Step 3: Credentials, Gate Attendance Events & Edge Agent Stub).
 - **Target Milestone:** Pilot Core (P0: Milestones M0–M4).
   - *M0 (Step 0) [DONE]:* Django project skeleton, `core` app (`TenantModel`, `MoneyField`, `AuditEvent`, `DomainEvent`, `TaskQueue`, `JobRun`, `drain_tasks`, advisory locks, crontab).
   - *M1 (Step 1) [DONE]:* Tenancy, auth, RBAC, feature entitlements, foundation portal, seed data (`identity`, `foundation`). Demo: Foundation admin logs in, sees two schools.
-  - *M2 (Step 2) [NEXT UP]:* Student/staff records + bulk XLSX import (`identity`).
-  - *M3 (Step 3):* Credentials, gate attendance events, edge agent stub (`attendance`, `hardware`).
+  - *M2 (Step 2) [DONE]:* Student/staff records + bulk XLSX import (`identity`).
+  - *M3 (Step 3) [NEXT UP]:* Credentials, gate attendance events, edge agent stub (`attendance`, `hardware`).
   - *M4 (Step 4):* Notifications service + WhatsApp arrival messaging (`notifications`).
+
 
 ---
 
@@ -46,7 +47,9 @@
 | `TASK-011` | Entitlements | Implement `foundation_entitlements` gating (`spec/02 §6`) and `GET /me` | Completed |
 | `TASK-012` | Student Records | Implement `Student`, `Guardian`, and `GuardianLink` models (`spec/02 §2`) | Completed |
 | `TASK-013` | Staff Records | Implement `Staff` model and offboarding lifecycle (`spec/02 §2, §5`) | Completed |
-| `TASK-014` | Bulk Import | Implement atomic student XLSX import with dry-run diff preview (`spec/02 §5`) | Next Up |
+| `TASK-014` | Bulk Import | Implement atomic student XLSX import with dry-run diff preview (`spec/02 §5`) | Completed |
+| `TASK-015` | Credentials | Implement RFID card, QR credential management, and revocation (`spec/05 §2`) | Next Up |
+
 
 
 ---

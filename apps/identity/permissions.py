@@ -7,7 +7,7 @@ Enforces:
 from rest_framework import permissions
 from rest_framework.exceptions import PermissionDenied
 from educore.middleware.tenancy import get_current_foundation_id
-from .rbac import has_permission, ROLE_FOUNDATION_ADMIN, SCOPE_FOUNDATION
+from .rbac import has_permission, ROLE_FOUNDATION_ADMIN, SCOPE_FOUNDATION, SCOPE_SCHOOL
 from .models import RoleAssignment
 
 class HasRequiredPermission(permissions.BasePermission):
@@ -63,7 +63,28 @@ class HasRequiredPermission(permissions.BasePermission):
             except (ValueError, TypeError):
                 pass
 
+        # If still no school_id, check if user has school-scoped assignments that grant this permission
+        # or if checking a specific object that belongs to a school
+        if school_id is None:
+            # 1. First check if user has permission at foundation scope
+            if has_permission(request.user, required_permission, foundation_id, school_id=None):
+                return True
+
+            # 2. For list actions or collection endpoints: allow if user has permission in ANY of their assigned schools
+            assigned_schools = RoleAssignment.all_tenants.filter(
+                foundation_id=foundation_id,
+                user=request.user,
+                scope_type=SCOPE_SCHOOL,
+                deleted_at__isnull=True,
+            ).values_list('scope_id', flat=True)
+
+            for sid in assigned_schools:
+                if has_permission(request.user, required_permission, foundation_id, school_id=sid):
+                    return True
+            return False
+
         return has_permission(request.user, required_permission, foundation_id, school_id)
+
 
 class IsFoundationAdmin(permissions.BasePermission):
     """Allows access only to superusers or users with foundation_admin role at foundation scope."""
