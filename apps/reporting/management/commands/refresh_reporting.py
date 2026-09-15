@@ -10,9 +10,15 @@ from django.utils import timezone
 
 from apps.core.locks import advisory_lock
 from apps.core.models import JobRun
-from apps.reporting.services import refresh_daily_attendance, refresh_wallet_activity
+from apps.reporting.services import refresh_academic_performance, refresh_daily_attendance, refresh_wallet_activity
 
 logger = logging.getLogger(__name__)
+
+REFRESHERS = [
+    ('rpt_wallet_activity', refresh_wallet_activity),
+    ('rpt_daily_attendance', refresh_daily_attendance),
+    ('rpt_academic_performance', refresh_academic_performance),
+]
 
 
 class Command(BaseCommand):
@@ -35,14 +41,18 @@ class Command(BaseCommand):
             job_run = JobRun.objects.create(job_name=f'refresh_reporting_{scope}', status=JobRun.STATUS_RUNNING)
 
             try:
-                wallet_result = refresh_wallet_activity(scope=scope)
-                attendance_result = refresh_daily_attendance(scope=scope)
+                total_rows = 0
+                summary = []
+                for table_name, refresher in REFRESHERS:
+                    result = refresher(scope=scope)
+                    total_rows += result['rows_written']
+                    summary.append(f"{result['rows_written']} {table_name}")
+
                 job_run.finished_at = timezone.now()
                 job_run.status = JobRun.STATUS_SUCCESS
-                job_run.items_processed = wallet_result['rows_written'] + attendance_result['rows_written']
+                job_run.items_processed = total_rows
                 self.stdout.write(self.style.SUCCESS(
-                    f"refresh_reporting --scope={scope}: {wallet_result['rows_written']} rpt_wallet_activity, "
-                    f"{attendance_result['rows_written']} rpt_daily_attendance row(s) refreshed."
+                    f"refresh_reporting --scope={scope}: {', '.join(summary)} row(s) refreshed."
                 ))
             except Exception as exc:
                 job_run.finished_at = timezone.now()
