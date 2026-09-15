@@ -38,6 +38,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'payroll.read', 'payroll.write',
         'hardware.read', 'hardware.write',
         'audit_log.read',
+        'reporting.read',
     },
     ROLE_SCHOOL_ADMIN: {
         'school_config.read', 'school_config.write',
@@ -52,6 +53,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'payroll.read',
         'hardware.read', 'hardware.write',
         'audit_log.read',
+        'reporting.read',
     },
     ROLE_FINANCE_OFFICER: {
         'student_records.read',
@@ -61,6 +63,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'behaviour.read',
         'payroll.read', 'payroll.write',
         'audit_log.read',
+        'reporting.read',
     },
     ROLE_TEACHER: {
         'student_records.read',
