@@ -605,7 +605,13 @@ class ReportCard(TenantModel):
 
 
 class ReportCardPolicy(TenantModel):
-    """Per-school rapor publication policy (ACD-014)."""
+    """Per-school rapor publication policy (ACD-014).
+
+    block_rapor_on_arrears defaults to False, confirmed by stakeholder decision
+    2026-09-15 (Notion [Open Decision] Arrears Policy: Report Card Withholding),
+    matching ACD-014's own stated spec default. A school can opt in via
+    set_arrears_gate(school, enabled=True).
+    """
     school = models.OneToOneField(School, on_delete=models.PROTECT, related_name='report_card_policy')
     block_rapor_on_arrears = models.BooleanField(default=False)
 
