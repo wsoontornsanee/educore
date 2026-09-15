@@ -114,6 +114,13 @@ class BulkScoreEntrySerializer(serializers.Serializer):
     scores = ScoreEntrySerializer(many=True)
 
 
+class ScoreCsvImportSerializer(serializers.Serializer):
+    """ACD-007: multipart payload for POST /assessments/:id/import-scores-csv/."""
+    file = serializers.FileField()
+    dry_run = serializers.BooleanField(required=False, default=True)
+    reason = serializers.CharField(required=False, allow_blank=True, default=None, allow_null=True)
+
+
 class TimetableSlotSerializer(serializers.ModelSerializer):
     class Meta:
         model = TimetableSlot
