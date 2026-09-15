@@ -12,6 +12,7 @@ from apps.finance.views import (
     PaymentIntentViewSet,
     PaymentViewSet,
     PaymentWebhookView,
+    ReconciliationBankStatementUploadView,
     ReconciliationBatchDetailView,
     ReconciliationBatchListView,
     ReconciliationDiscrepancyResolveView,
@@ -46,6 +47,7 @@ urlpatterns = [
     path('reconciliation/batches/', ReconciliationBatchListView.as_view(), name='reconciliation-batch-list'),
     path('reconciliation/batches/<int:pk>/', ReconciliationBatchDetailView.as_view(), name='reconciliation-batch-detail'),
     path('reconciliation/discrepancies/<int:pk>/resolve/', ReconciliationDiscrepancyResolveView.as_view(), name='reconciliation-discrepancy-resolve'),
+    path('reconciliation/bank-statements/upload/', ReconciliationBankStatementUploadView.as_view(), name='reconciliation-bank-statement-upload'),
     path('', include(router.urls)),
 ]
 

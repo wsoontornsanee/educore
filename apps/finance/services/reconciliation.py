@@ -28,6 +28,10 @@ from apps.finance.models import (
     PaymentStatus,
     SettlementBatchStatus,
 )
+from apps.finance.services.bank_statement_parser import (
+    BankStatementParseError,
+    parse_bank_statement,
+)
 from apps.finance.services.payment_providers import (
     PaymentGatewayError,
     get_payment_provider,
@@ -39,73 +43,43 @@ logger = logging.getLogger(__name__)
 AMOUNT_TOLERANCE = Decimal('1.00')
 
 
-def reconcile_gateway_settlement(
-    provider_name: str,
-    settlement_date: datetime.date,
-    foundation_id: int,
-    dry_run: bool = False,
-) -> dict:
-    """Fetch and reconcile gateway settlements for one provider on one date.
-
-    This is the primary entry-point called by the management command.
-    It is wrapped in a tenant context by the caller.
-
-    Returns a summary dict:
-    {
-        'batch_id': int,
-        'provider': str,
-        'settlement_date': date,
-        'total': int,
-        'matched': int,
-        'missing': int,
-        'mismatch': int,
-        'dry_run': bool,
-    }
-    """
-    provider = get_payment_provider(provider_name)
-
-    # Get-or-create the batch record (idempotent re-runs overwrite).
-    # Use all_tenants to bypass thread-local tenant scoping.
-    batch, created = GatewaySettlementBatch.all_tenants.get_or_create(
+def _get_or_create_batch(provider_name: str, settlement_date: datetime.date, foundation_id: int):
+    """Get-or-create the batch record (idempotent re-runs overwrite).
+    Use all_tenants to bypass thread-local tenant scoping."""
+    return GatewaySettlementBatch.all_tenants.get_or_create(
         foundation_id=foundation_id,
         provider=provider_name.upper(),
         settlement_date=settlement_date,
         defaults={'status': SettlementBatchStatus.PENDING},
     )
 
-    if not created and batch.status == SettlementBatchStatus.COMPLETED and not dry_run:
-        logger.info(
-            "Batch %s/%s already COMPLETED - skipping re-run.",
-            provider_name,
-            settlement_date,
-        )
-        return _batch_summary(batch, dry_run=dry_run)
 
-    batch.status = SettlementBatchStatus.PROCESSING
-    batch.error_message = ''
+def _fail_batch(batch, error: str, provider_name: str, settlement_date, dry_run: bool) -> dict:
     if not dry_run:
+        batch.status = SettlementBatchStatus.FAILED
+        batch.error_message = error
         batch.save(update_fields=['status', 'error_message'])
+    return {
+        'batch_id': batch.id,
+        'provider': provider_name,
+        'settlement_date': settlement_date,
+        'total': 0,
+        'matched': 0,
+        'missing': 0,
+        'mismatch': 0,
+        'error': error,
+        'dry_run': dry_run,
+    }
 
-    try:
-        records = provider.fetch_settlement(settlement_date)
-    except PaymentGatewayError as exc:
-        logger.error("Gateway fetch failed for %s/%s: %s", provider_name, settlement_date, exc)
-        if not dry_run:
-            batch.status = SettlementBatchStatus.FAILED
-            batch.error_message = str(exc)
-            batch.save(update_fields=['status', 'error_message'])
-        return {
-            'batch_id': batch.id,
-            'provider': provider_name,
-            'settlement_date': settlement_date,
-            'total': 0,
-            'matched': 0,
-            'missing': 0,
-            'mismatch': 0,
-            'error': str(exc),
-            'dry_run': dry_run,
-        }
 
+def _finalize_batch_with_records(
+    batch,
+    records: list,
+    provider_name: str,
+    settlement_date: datetime.date,
+    foundation_id: int,
+    dry_run: bool,
+) -> dict:
     matched = 0
     missing = 0
     mismatch = 0
@@ -152,6 +126,97 @@ def reconcile_gateway_settlement(
         'mismatch': mismatch,
         'dry_run': dry_run,
     }
+
+
+def reconcile_gateway_settlement(
+    provider_name: str,
+    settlement_date: datetime.date,
+    foundation_id: int,
+    dry_run: bool = False,
+) -> dict:
+    """Fetch and reconcile gateway settlements for one provider on one date.
+
+    This is the primary entry-point called by the management command.
+    It is wrapped in a tenant context by the caller.
+
+    Returns a summary dict:
+    {
+        'batch_id': int,
+        'provider': str,
+        'settlement_date': date,
+        'total': int,
+        'matched': int,
+        'missing': int,
+        'mismatch': int,
+        'dry_run': bool,
+    }
+    """
+    provider = get_payment_provider(provider_name)
+
+    batch, created = _get_or_create_batch(provider_name, settlement_date, foundation_id)
+
+    if not created and batch.status == SettlementBatchStatus.COMPLETED and not dry_run:
+        logger.info(
+            "Batch %s/%s already COMPLETED - skipping re-run.",
+            provider_name,
+            settlement_date,
+        )
+        return _batch_summary(batch, dry_run=dry_run)
+
+    batch.status = SettlementBatchStatus.PROCESSING
+    batch.error_message = ''
+    if not dry_run:
+        batch.save(update_fields=['status', 'error_message'])
+
+    try:
+        records = provider.fetch_settlement(settlement_date)
+    except PaymentGatewayError as exc:
+        logger.error("Gateway fetch failed for %s/%s: %s", provider_name, settlement_date, exc)
+        return _fail_batch(batch, str(exc), provider_name, settlement_date, dry_run)
+
+    return _finalize_batch_with_records(batch, records, provider_name, settlement_date, foundation_id, dry_run)
+
+
+def reconcile_bank_statement_file(
+    file_content,
+    file_format: str,
+    bank_code: str,
+    settlement_date: datetime.date,
+    foundation_id: int,
+    dry_run: bool = False,
+) -> dict:
+    """Parse and reconcile a bank-provided MT940/CAMT.053 statement file
+    (spec/14 CMP-026) — the file-based counterpart to reconcile_gateway_settlement,
+    used for direct bank VA settlement that doesn't come through a gateway's API.
+
+    The batch's 'provider' is recorded as 'BANK_<bank_code>' (e.g. 'BANK_BCA') so
+    it appears in the same GatewaySettlementBatch/PaymentDiscrepancy listing as
+    gateway-sourced batches, distinguishable by that prefix.
+    """
+    provider_name = f'BANK_{bank_code.upper()}'
+
+    batch, created = _get_or_create_batch(provider_name, settlement_date, foundation_id)
+
+    if not created and batch.status == SettlementBatchStatus.COMPLETED and not dry_run:
+        logger.info(
+            "Batch %s/%s already COMPLETED - skipping re-run.",
+            provider_name,
+            settlement_date,
+        )
+        return _batch_summary(batch, dry_run=dry_run)
+
+    batch.status = SettlementBatchStatus.PROCESSING
+    batch.error_message = ''
+    if not dry_run:
+        batch.save(update_fields=['status', 'error_message'])
+
+    try:
+        records = parse_bank_statement(file_content, file_format, bank_code=bank_code)
+    except BankStatementParseError as exc:
+        logger.error("Bank statement parse failed for %s/%s: %s", provider_name, settlement_date, exc)
+        return _fail_batch(batch, str(exc), provider_name, settlement_date, dry_run)
+
+    return _finalize_batch_with_records(batch, records, provider_name, settlement_date, foundation_id, dry_run)
 
 
 @transaction.atomic
