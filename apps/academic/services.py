@@ -361,6 +361,71 @@ def validate_submission_files(files) -> None:
             raise InvalidSubmissionFilesError(f"UNSUPPORTED_FILE_TYPE: '{content_type}' is not accepted.")
 
 
+def assign_homework(class_subject, title, instructions, assigned_at, due_at) -> Homework:
+    """ACD-029: create a homework assignment and notify enrolled students' guardians.
+
+    Students have no login of their own anywhere in this codebase (no `user` FK on
+    `Student`) — every student-facing notice here is actually addressed to the
+    student's guardians, same resolution as `send_broadcast`.
+    """
+    homework = Homework.objects.create(
+        foundation_id=class_subject.foundation_id,
+        class_subject=class_subject,
+        title=title,
+        instructions=instructions,
+        assigned_at=assigned_at,
+        due_at=due_at,
+    )
+    audit(
+        action='academic.homework.assigned',
+        entity_type='Homework',
+        entity_id=homework.id,
+        foundation_id=homework.foundation_id,
+        diff={'title': title, 'class_subject': str(class_subject), 'due_at': str(due_at)},
+    )
+
+    try:
+        from apps.identity.models import GuardianLink
+        from apps.notifications.models import NotificationCategory
+        from apps.notifications.services import dispatch_intent
+
+        student_ids = ClassEnrollment.objects.filter(
+            class_group=class_subject.class_group, is_active=True, deleted_at__isnull=True,
+        ).values_list('student_id', flat=True)
+        guardian_links = GuardianLink.objects.filter(
+            foundation_id=homework.foundation_id, student_id__in=student_ids, deleted_at__isnull=True,
+        ).select_related('guardian__person', 'guardian__user', 'student__person')
+
+        seen_guardian_ids = set()
+        for link in guardian_links:
+            guardian = link.guardian
+            if guardian.id in seen_guardian_ids or not guardian.user:
+                continue
+            seen_guardian_ids.add(guardian.id)
+
+            dispatch_intent(
+                foundation_id=homework.foundation_id,
+                category=NotificationCategory.HOMEWORK,
+                template_key='academic.homework.assigned',
+                payload={
+                    'title': homework.title,
+                    'subject': class_subject.subject.name,
+                    'class_group': class_subject.class_group.name,
+                    'due_at': str(due_at),
+                },
+                school_id=class_subject.class_group.school_id,
+                recipient_user=guardian.user,
+                recipient_phone=getattr(guardian.user, 'phone_e164', ''),
+                recipient_email=getattr(guardian.user, 'email', ''),
+                recipient_name=guardian.person.full_name if guardian.person else '',
+                dedupe_key=f"homework_assigned:{homework.id}:{guardian.id}",
+            )
+    except Exception as exc:
+        logger.warning(f"Error notifying guardians of homework assignment #{homework.id}: {exc}")
+
+    return homework
+
+
 def submit_homework(homework: Homework, student, text='', files=None) -> HomeworkSubmission:
     """ACD-027/ACD-028: create or update a student's homework submission."""
     files = files or []
@@ -425,7 +490,7 @@ def get_homework_completion(homework: Homework) -> dict:
 
 
 def remind_unsubmitted(homework: Homework) -> dict:
-    """ACD-030: rate-limited (once per 12h) reminder to unsubmitted students. Delivery is stubbed."""
+    """ACD-030: rate-limited (once per 12h) reminder to unsubmitted students' guardians."""
     now = timezone.now()
     if homework.last_reminded_at and (now - homework.last_reminded_at) < timedelta(hours=12):
         raise ReminderRateLimitedError("REMINDER_RATE_LIMITED: reminders can only be sent once every 12 hours.")
@@ -450,6 +515,44 @@ def remind_unsubmitted(homework: Homework) -> dict:
         foundation_id=homework.foundation_id,
         diff={'unsubmitted_count': len(unsubmitted_ids)},
     )
+
+    try:
+        from apps.identity.models import GuardianLink
+        from apps.notifications.models import NotificationCategory
+        from apps.notifications.services import dispatch_intent
+
+        guardian_links = GuardianLink.objects.filter(
+            foundation_id=homework.foundation_id, student_id__in=unsubmitted_ids, deleted_at__isnull=True,
+        ).select_related('guardian__person', 'guardian__user')
+
+        seen_guardian_ids = set()
+        for link in guardian_links:
+            guardian = link.guardian
+            if guardian.id in seen_guardian_ids or not guardian.user:
+                continue
+            seen_guardian_ids.add(guardian.id)
+
+            dispatch_intent(
+                foundation_id=homework.foundation_id,
+                category=NotificationCategory.HOMEWORK,
+                template_key='academic.homework.reminder',
+                payload={
+                    'title': homework.title,
+                    'subject': homework.class_subject.subject.name,
+                    'due_at': str(homework.due_at),
+                },
+                school_id=homework.class_subject.class_group.school_id,
+                recipient_user=guardian.user,
+                recipient_phone=getattr(guardian.user, 'phone_e164', ''),
+                recipient_email=getattr(guardian.user, 'email', ''),
+                recipient_name=guardian.person.full_name if guardian.person else '',
+                # Keyed by reminder date, not a fixed key: the NEXT legitimate reminder
+                # (12h+ later per the rate limit above) must not be deduped by this one.
+                dedupe_key=f"homework_reminder:{homework.id}:{guardian.id}:{now.date()}",
+            )
+    except Exception as exc:
+        logger.warning(f"Error notifying guardians of homework reminder #{homework.id}: {exc}")
+
     return {'reminded_student_ids': unsubmitted_ids, 'count': len(unsubmitted_ids)}
 
 

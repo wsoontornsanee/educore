@@ -139,6 +139,23 @@ CANONICAL_TEMPLATES = [
         'body': 'Anda menggantikan {original_teacher}: {subject} di {class_group}, {date} periode ke-{period_no}.',
         'variables': ['original_teacher', 'subject', 'class_group', 'date', 'period_no'],
     },
+    # ACD-029/030 — closes the "homework never actually sends anything" gap.
+    {
+        'key': 'academic.homework.assigned',
+        'channel': ChannelType.PUSH,
+        'locale': 'id-ID',
+        'subject': 'Tugas Baru',
+        'body': 'Tugas baru "{title}" ({subject}, {class_group}) untuk {due_at}.',
+        'variables': ['title', 'subject', 'class_group', 'due_at'],
+    },
+    {
+        'key': 'academic.homework.reminder',
+        'channel': ChannelType.PUSH,
+        'locale': 'id-ID',
+        'subject': 'Pengingat Tugas',
+        'body': 'Pengingat: tugas "{title}" ({subject}) belum dikumpulkan, batas waktu {due_at}.',
+        'variables': ['title', 'subject', 'due_at'],
+    },
 ]
 
 

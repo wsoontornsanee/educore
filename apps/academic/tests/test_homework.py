@@ -4,17 +4,33 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.identity.models import RoleAssignment
+from apps.identity.models import Guardian, GuardianLink, Person, RoleAssignment, User
 from apps.academic.models import ClassEnrollment, Homework, HomeworkSubmissionStatus
 from apps.academic.services import (
     InvalidSubmissionFilesError,
     ReminderRateLimitedError,
+    assign_homework,
     get_homework_completion,
     grade_homework_submission,
     remind_unsubmitted,
     submit_homework,
 )
 from apps.academic.tests.base import build_academic_fixture
+
+
+def attach_guardian(fx, with_user=True, nik='3471010101015555', full_name='Bu Guardian'):
+    person = Person.all_tenants.create(foundation_id=fx['foundation'].id, nik=nik, full_name=full_name)
+    user = None
+    if with_user:
+        user = User.objects.create(
+            foundation_id=fx['foundation'].id, phone_e164=f"+62819{nik[-7:]}", email=f"{nik}@parent.id", full_name=full_name,
+        )
+    guardian = Guardian.all_tenants.create(foundation_id=fx['foundation'].id, person=person, user=user)
+    GuardianLink.all_tenants.create(
+        foundation_id=fx['foundation'].id, guardian=guardian, student=fx['student'],
+        relation=GuardianLink.RELATION_MOTHER, financial_responsible=True,
+    )
+    return guardian
 
 
 def make_homework(fx, due_delta_hours):
@@ -167,3 +183,118 @@ class HomeworkViewsTests(TestCase):
         }, format='json')
         self.assertEqual(res.status_code, 200, res.content)
         self.assertEqual(res.json()['status'], HomeworkSubmissionStatus.GRADED)
+
+
+class HomeworkNotificationTests(TestCase):
+    def setUp(self):
+        self.fx = build_academic_fixture()
+        ClassEnrollment.objects.create(
+            foundation_id=self.fx['foundation'].id, student=self.fx['student'],
+            class_group=self.fx['class_group'], enrolled_at=datetime.date(2026, 7, 1),
+        )
+        self.guardian = attach_guardian(self.fx)
+
+    def test_assign_homework_notifies_guardian(self):
+        from apps.notifications.models import NotificationCategory, NotificationIntent
+
+        homework = assign_homework(
+            class_subject=self.fx['class_subject'], title="Latihan Aljabar", instructions="Soal 1-10",
+            assigned_at=timezone.now(), due_at=timezone.now() + datetime.timedelta(hours=48),
+        )
+
+        intent = NotificationIntent.all_tenants.filter(
+            foundation_id=self.fx['foundation'].id, category=NotificationCategory.HOMEWORK,
+            template_key='academic.homework.assigned',
+        ).first()
+        self.assertIsNotNone(intent)
+        self.assertEqual(intent.recipient_user_id, self.guardian.user_id)
+        self.assertEqual(intent.payload['title'], homework.title)
+
+    def test_guardian_without_user_not_notified(self):
+        from apps.notifications.models import NotificationCategory, NotificationIntent
+
+        no_user_guardian = attach_guardian(self.fx, with_user=False, nik='3471010101016666', full_name='Pak Tanpa Akun')
+
+        assign_homework(
+            class_subject=self.fx['class_subject'], title="Latihan Aljabar", instructions="",
+            assigned_at=timezone.now(), due_at=timezone.now() + datetime.timedelta(hours=48),
+        )
+
+        intents = NotificationIntent.all_tenants.filter(
+            foundation_id=self.fx['foundation'].id, category=NotificationCategory.HOMEWORK,
+            template_key='academic.homework.assigned',
+        )
+        # Only the guardian WITH a user account gets notified; the accountless one is
+        # silently skipped, and no duplicate/extra intent is created for them.
+        self.assertEqual(intents.count(), 1)
+
+    def test_reminder_only_notifies_unsubmitted_students_guardians(self):
+        from apps.notifications.models import NotificationCategory, NotificationIntent
+
+        homework = make_homework(self.fx, due_delta_hours=24)
+        submit_homework(homework, self.fx['student'], text="Selesai")
+
+        remind_unsubmitted(homework)
+
+        intents = NotificationIntent.all_tenants.filter(
+            foundation_id=self.fx['foundation'].id, category=NotificationCategory.HOMEWORK,
+            template_key='academic.homework.reminder',
+        )
+        self.assertEqual(intents.count(), 0)
+
+    def test_reminder_notifies_guardian_of_unsubmitted_student(self):
+        from apps.notifications.models import NotificationCategory, NotificationIntent
+
+        homework = make_homework(self.fx, due_delta_hours=24)
+        remind_unsubmitted(homework)
+
+        intent = NotificationIntent.all_tenants.filter(
+            foundation_id=self.fx['foundation'].id, category=NotificationCategory.HOMEWORK,
+            template_key='academic.homework.reminder',
+        ).first()
+        self.assertIsNotNone(intent)
+        self.assertEqual(intent.recipient_user_id, self.guardian.user_id)
+
+    def test_notification_failure_does_not_block_homework_creation(self):
+        from unittest.mock import patch
+
+        with patch('apps.notifications.services.dispatch_intent', side_effect=RuntimeError("boom")):
+            homework = assign_homework(
+                class_subject=self.fx['class_subject'], title="Latihan Aljabar", instructions="",
+                assigned_at=timezone.now(), due_at=timezone.now() + datetime.timedelta(hours=48),
+            )
+        self.assertIsNotNone(homework.id)
+
+
+class HomeworkCreateViewTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.fx = build_academic_fixture()
+        RoleAssignment.all_tenants.create(
+            foundation_id=self.fx['foundation'].id, user=self.fx['teacher_user'], role='teacher',
+            scope_type=RoleAssignment.SCOPE_SCHOOL, scope_id=self.fx['school'].id,
+        )
+        ClassEnrollment.objects.create(
+            foundation_id=self.fx['foundation'].id, student=self.fx['student'],
+            class_group=self.fx['class_group'], enrolled_at=datetime.date(2026, 7, 1),
+        )
+        self.guardian = attach_guardian(self.fx)
+
+    def test_create_homework_via_api_notifies_guardian(self):
+        from apps.notifications.models import NotificationCategory, NotificationIntent
+
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+        res = self.client.post('/api/v1/academic/homework/', {
+            'class_subject': self.fx['class_subject'].id,
+            'title': 'Latihan Aljabar',
+            'instructions': 'Soal 1-10',
+            'assigned_at': timezone.now().isoformat(),
+            'due_at': (timezone.now() + datetime.timedelta(hours=48)).isoformat(),
+        }, format='json')
+        self.assertEqual(res.status_code, 201, res.content)
+
+        intent = NotificationIntent.all_tenants.filter(
+            foundation_id=self.fx['foundation'].id, category=NotificationCategory.HOMEWORK,
+            template_key='academic.homework.assigned',
+        ).first()
+        self.assertIsNotNone(intent)
