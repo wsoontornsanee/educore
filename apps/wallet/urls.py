@@ -3,6 +3,8 @@ from rest_framework.routers import DefaultRouter
 
 from apps.wallet.views import (
     MerchantViewSet,
+    POSSessionView,
+    POSSyncView,
     POSTerminalViewSet,
     POSTransactionViewSet,
     ProductViewSet,
@@ -23,5 +25,7 @@ urlpatterns = [
     path('wallets/<int:student_id>/transactions/', WalletTransactionsView.as_view(), name='wallet-transactions'),
     path('wallets/<int:student_id>/topup/', WalletTopupView.as_view(), name='wallet-topup'),
     path('wallets/<int:student_id>/rules/', SpendRuleView.as_view(), name='wallet-rules'),
+    path('pos/sessions/', POSSessionView.as_view(), name='pos-sessions'),
+    path('pos/sync/', POSSyncView.as_view(), name='pos-sync'),
     path('', include(router.urls)),
 ]

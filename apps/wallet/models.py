@@ -20,6 +20,9 @@ class Wallet(TenantModel):
     currency = models.CharField(max_length=3, default='IDR')
     status = models.CharField(max_length=16, choices=WalletStatus.choices, default=WalletStatus.ACTIVE)
     daily_limit = MoneyField(null=True, blank=True, help_text=_("Guardian-configured daily spend limit (WAL-009)"))
+    requires_reconciliation = models.BooleanField(
+        default=False, help_text=_("Set when an offline overspend was accepted and took the wallet negative (WAL-017)")
+    )
 
     class Meta:
         db_table = 'wallets'
@@ -42,6 +45,7 @@ class WalletTransactionType(models.TextChoices):
 class WalletTransactionStatus(models.TextChoices):
     COMPLETED = 'COMPLETED', _('Selesai')
     REJECTED = 'REJECTED', _('Ditolak')
+    RECONCILE_REQUIRED = 'RECONCILE_REQUIRED', _('Perlu Rekonsiliasi')
 
 
 class WalletTopupMethod(models.TextChoices):
@@ -57,7 +61,7 @@ class WalletTransaction(TenantModel):
     balance_after = MoneyField()
     reference = models.CharField(max_length=128, blank=True, default='')
     occurred_at = models.DateTimeField()
-    status = models.CharField(max_length=16, choices=WalletTransactionStatus.choices, default=WalletTransactionStatus.COMPLETED)
+    status = models.CharField(max_length=24, choices=WalletTransactionStatus.choices, default=WalletTransactionStatus.COMPLETED)
     idempotency_key = models.CharField(max_length=128, db_index=True)
 
     class Meta:
