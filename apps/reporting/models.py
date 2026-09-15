@@ -166,3 +166,35 @@ class RptDailyFinance(TenantModel):
 
     def __str__(self):
         return f"{self.school.name} - {self.date} ({self.currency})"
+
+
+class RptArAging(TenantModel):
+    """AR Aging rollup per student per bucket (spec/15 §2, FIN-029).
+    Feeds the "AR aging" and "Arrears by student" reports (spec/15 §3).
+    Rebuilt by `refresh_reporting`.
+    """
+    school = models.ForeignKey(School, on_delete=models.PROTECT, related_name='ar_aging_reports')
+    student = models.ForeignKey('identity.Student', on_delete=models.PROTECT, related_name='ar_aging_reports')
+    as_of = models.DateField()
+    bucket = models.CharField(max_length=16, help_text=_("CURRENT, 0_30, 31_60, 61_90, 90_PLUS"))
+    currency = models.CharField(max_length=3, default='IDR')
+    amount = MoneyField(default=Decimal('0.00'))
+    invoices_count = models.PositiveIntegerField(default=1)
+    computed_at = models.DateTimeField(help_text=_("RPT-005: data freshness timestamp"))
+
+    class Meta:
+        db_table = 'rpt_ar_aging'
+        indexes = [
+            models.Index(fields=['foundation_id', 'school_id', 'as_of']),
+            models.Index(fields=['foundation_id', 'student_id', 'as_of']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'school', 'student', 'as_of', 'bucket', 'currency'],
+                condition=models.Q(deleted_at__isnull=True),
+                name='unique_rpt_ar_aging_per_student_as_of_bucket',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.student} - {self.bucket} ({self.amount} {self.currency})"

@@ -1,7 +1,9 @@
 from decimal import Decimal
+from typing import Optional
 from django.db import transaction
 from django.utils import timezone
 
+from apps.identity.models import User
 from apps.finance.models import (
     AccountCode,
     Invoice,
@@ -290,6 +292,44 @@ def post_revenue_recognition_journal(
         ref_type='REVENUE_RECOGNITION',
         ref_id=invoice.id,
         description=f"Pengakuan Pendapatan SPP Periode {invoice.period} Tagihan {invoice.number}",
+        entries=entries,
+        currency=invoice.currency,
+        occurred_at=timezone.now(),
+    )
+
+
+def post_write_off_journal(
+    invoice: Invoice,
+    amount: Decimal,
+    user: Optional[User] = None,
+    reason: str = "",
+) -> LedgerJournal:
+    """
+    FIN-031: Bad debt write-off journal → Dr Bad Debt / Cr AR.
+    """
+    entries = [
+        {
+            'account_code': AccountCode.BAD_DEBT_EXPENSE,
+            'account_name': 'Beban Piutang Tak Tertagih',
+            'debit': amount,
+            'credit': Decimal('0.00'),
+        },
+        {
+            'account_code': AccountCode.ACCOUNTS_RECEIVABLE,
+            'account_name': 'Piutang SPP & Biaya',
+            'debit': Decimal('0.00'),
+            'credit': amount,
+        },
+    ]
+    description = f"Penghapusbukuan Piutang Tak Tertagih Tagihan {invoice.number}"
+    if reason:
+        description += f": {reason}"
+
+    return post_ledger_journal(
+        school=invoice.school,
+        ref_type='WRITE_OFF',
+        ref_id=invoice.id,
+        description=description,
         entries=entries,
         currency=invoice.currency,
         occurred_at=timezone.now(),

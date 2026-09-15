@@ -1,7 +1,7 @@
 import datetime
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Dict, List, Optional
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import models, transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -22,6 +22,8 @@ from apps.finance.models import (
     InvoiceLine,
     InvoiceNumberSequence,
     InvoiceStatus,
+    InvoiceWriteOffRequest,
+    InvoiceWriteOffStatus,
     SiblingDiscountPolicy,
     StudentFeeAssignment,
 )
@@ -672,27 +674,161 @@ def cancel_invoice(invoice: Invoice, user: User, reason: str = "") -> Invoice:
     return invoice
 
 
-def write_off_invoice(invoice: Invoice, user: User, reason: str = "") -> Invoice:
-    """Writes off an overdue invoice as bad debt (spec/06 §3, FIN-009)."""
+def request_invoice_write_off(
+    invoice: Invoice,
+    user: User,
+    reason: str,
+    amount: Optional[Decimal] = None,
+) -> InvoiceWriteOffRequest:
+    """Submits an invoice write-off request for foundation approval (spec/06 §6, FIN-031)."""
     if invoice.status in [InvoiceStatus.PAID, InvoiceStatus.CANCELLED, InvoiceStatus.WRITTEN_OFF]:
-        raise ValidationError(_("Faktur dengan status ini tidak dapat dihapusbukukan."))
+        raise ValidationError(_("Faktur dengan status ini tidak dapat diajukan untuk penghapusbukuan."))
 
-    old_status = invoice.status
-    invoice.status = InvoiceStatus.WRITTEN_OFF
-    invoice.updated_by = str(user.id)
-    invoice.save(update_fields=['status', 'updated_by', 'updated_at'])
+    if invoice.balance_due <= Decimal('0.00'):
+        raise ValidationError(_("Faktur tidak memiliki saldo piutang tertunggak."))
+
+    write_off_amount = amount if amount is not None else invoice.balance_due
+    if write_off_amount <= Decimal('0.00') or write_off_amount > invoice.balance_due:
+        raise ValidationError(_("Nominal penghapusbukuan tidak valid atau melebihi sisa tagihan."))
+
+    if InvoiceWriteOffRequest.objects.filter(
+        invoice=invoice,
+        status=InvoiceWriteOffStatus.PENDING,
+        deleted_at__isnull=True,
+    ).exists():
+        raise ValidationError(_("Permohonan penghapusbukuan untuk faktur ini sedang menunggu persetujuan."))
+
+    request_obj = InvoiceWriteOffRequest.objects.create(
+        foundation_id=invoice.foundation_id,
+        invoice=invoice,
+        school=invoice.school,
+        amount=write_off_amount,
+        currency=invoice.currency,
+        reason=reason,
+        status=InvoiceWriteOffStatus.PENDING,
+        requested_by=user,
+    )
 
     audit(
-        action='finance.invoice.written_off',
-        entity_type='Invoice',
-        entity_id=invoice.id,
+        action='finance.invoice.write_off_requested',
+        entity_type='InvoiceWriteOffRequest',
+        entity_id=request_obj.id,
         actor_id=str(user.id),
         role='finance_officer',
         foundation_id=invoice.foundation_id,
         school_id=invoice.school_id,
-        diff={'before': old_status, 'after': invoice.status, 'reason': reason},
+        diff={'invoice_id': invoice.id, 'amount': str(write_off_amount), 'reason': reason},
     )
 
+    return request_obj
+
+
+def approve_invoice_write_off(
+    request_obj: InvoiceWriteOffRequest,
+    user: User,
+    notes: str = "",
+) -> InvoiceWriteOffRequest:
+    """Approves a bad debt write-off, transitions invoice to WRITTEN_OFF, and posts ledger journal (FIN-031)."""
+    if request_obj.status != InvoiceWriteOffStatus.PENDING:
+        raise ValidationError(_("Permohonan penghapusbukuan sudah diproses sebelumnya."))
+
+    from apps.identity.models import RoleAssignment
+    is_foundation_auth = user.is_superuser or RoleAssignment.objects.filter(
+        user=user,
+        foundation_id=request_obj.foundation_id,
+        scope_type=RoleAssignment.SCOPE_FOUNDATION,
+        deleted_at__isnull=True,
+    ).exists()
+
+    if not is_foundation_auth:
+        raise PermissionDenied(_("Persetujuan penghapusbukuan piutang memerlukan wewenang Yayasan (FIN-031)."))
+
+    invoice = request_obj.invoice
+    with transaction.atomic():
+        old_status = invoice.status
+        invoice.status = InvoiceStatus.WRITTEN_OFF
+        invoice.updated_by = str(user.id)
+        invoice.save(update_fields=['status', 'updated_by', 'updated_at'])
+
+        # Post Dr Bad Debt / Cr AR (FIN-031)
+        from apps.finance.services.ledger import post_write_off_journal
+        journal = post_write_off_journal(
+            invoice=invoice,
+            amount=request_obj.amount,
+            user=user,
+            reason=request_obj.reason,
+        )
+
+        request_obj.status = InvoiceWriteOffStatus.APPROVED
+        request_obj.approved_by = user
+        request_obj.resolved_at = timezone.now()
+        request_obj.journal = journal
+        request_obj.updated_by = str(user.id)
+        request_obj.save(update_fields=['status', 'approved_by', 'resolved_at', 'journal', 'updated_by', 'updated_at'])
+
+        audit(
+            action='finance.invoice.written_off',
+            entity_type='Invoice',
+            entity_id=invoice.id,
+            actor_id=str(user.id),
+            role='foundation_admin',
+            foundation_id=invoice.foundation_id,
+            school_id=invoice.school_id,
+            diff={'before': old_status, 'after': invoice.status, 'amount': str(request_obj.amount), 'reason': request_obj.reason},
+        )
+
+    return request_obj
+
+
+def reject_invoice_write_off(
+    request_obj: InvoiceWriteOffRequest,
+    user: User,
+    reason: str = "",
+    notes: str = "",
+) -> InvoiceWriteOffRequest:
+    """Rejects an invoice write-off request."""
+    if request_obj.status != InvoiceWriteOffStatus.PENDING:
+        raise ValidationError(_("Permohonan penghapusbukuan sudah diproses sebelumnya."))
+
+    from apps.identity.models import RoleAssignment
+    is_foundation_auth = user.is_superuser or RoleAssignment.objects.filter(
+        user=user,
+        foundation_id=request_obj.foundation_id,
+        scope_type=RoleAssignment.SCOPE_FOUNDATION,
+        deleted_at__isnull=True,
+    ).exists()
+
+    if not is_foundation_auth:
+        raise PermissionDenied(_("Penolakan penghapusbukuan piutang memerlukan wewenang Yayasan (FIN-031)."))
+
+    rejection_note = notes or reason
+    request_obj.status = InvoiceWriteOffStatus.REJECTED
+    request_obj.rejection_reason = rejection_note
+    request_obj.resolved_at = timezone.now()
+    request_obj.updated_by = str(user.id)
+    request_obj.save(update_fields=['status', 'rejection_reason', 'resolved_at', 'updated_by', 'updated_at'])
+
+    audit(
+        action='finance.invoice.write_off_rejected',
+        entity_type='InvoiceWriteOffRequest',
+        entity_id=request_obj.id,
+        actor_id=str(user.id),
+        role='foundation_admin',
+        foundation_id=request_obj.foundation_id,
+        school_id=request_obj.school_id,
+        diff={'reason': rejection_note},
+    )
+
+    return request_obj
+
+
+def write_off_invoice(invoice: Invoice, user: User, reason: str = "") -> Invoice:
+    """Writes off an overdue invoice as bad debt (spec/06 §3, FIN-009, FIN-031).
+    Creates and approves the write-off request and posts the Dr Bad Debt / Cr AR ledger journal.
+    """
+    req = request_invoice_write_off(invoice, user, reason)
+    approve_invoice_write_off(req, user)
+    invoice.refresh_from_db()
     return invoice
 
 

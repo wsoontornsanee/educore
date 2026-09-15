@@ -1,3 +1,4 @@
+from decimal import Decimal
 from rest_framework import serializers
 from apps.finance.models import (
     Discount,
@@ -5,6 +6,7 @@ from apps.finance.models import (
     FeeType,
     Invoice,
     InvoiceLine,
+    InvoiceWriteOffRequest,
     LedgerEntry,
     LedgerJournal,
     Payment,
@@ -408,4 +410,61 @@ class SchoolArrearsPolicyUpdateSerializer(serializers.Serializer):
         if value is not None:
             return sorted(value)
         return value
+
+
+class InvoiceWriteOffRequestSerializer(serializers.ModelSerializer):
+    amount = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    invoice_number = serializers.CharField(source='invoice.number', read_only=True)
+    school_name = serializers.CharField(source='school.name', read_only=True)
+    requested_by_name = serializers.CharField(source='requested_by.full_name', read_only=True, default='')
+    approved_by_name = serializers.CharField(source='approved_by.full_name', read_only=True, default='')
+
+    class Meta:
+        model = InvoiceWriteOffRequest
+        fields = [
+            'id',
+            'foundation_id',
+            'school',
+            'school_name',
+            'invoice',
+            'invoice_number',
+            'amount',
+            'reason',
+            'status',
+            'requested_by',
+            'requested_by_name',
+            'approved_by',
+            'approved_by_name',
+            'resolved_at',
+            'rejection_reason',
+            'journal',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = [
+            'id',
+            'foundation_id',
+            'school_name',
+            'invoice_number',
+            'status',
+            'requested_by',
+            'requested_by_name',
+            'approved_by',
+            'approved_by_name',
+            'resolved_at',
+            'rejection_reason',
+            'journal',
+            'created_at',
+            'updated_at',
+        ]
+
+
+class InvoiceWriteOffRequestCreateSerializer(serializers.Serializer):
+    invoice_id = serializers.IntegerField()
+    reason = serializers.CharField(max_length=500)
+    amount = serializers.DecimalField(max_digits=18, decimal_places=2, required=False, min_value=Decimal('0.01'))
+
+
+class InvoiceWriteOffResolveSerializer(serializers.Serializer):
+    notes = serializers.CharField(required=False, allow_blank=True, default='')
 

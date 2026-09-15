@@ -19,6 +19,8 @@ from apps.finance.models import (
     Invoice,
     InvoiceLine,
     InvoiceStatus,
+    InvoiceWriteOffRequest,
+    InvoiceWriteOffStatus,
     LedgerEntry,
     LedgerJournal,
     Payment,
@@ -38,6 +40,9 @@ from apps.finance.serializers import (
     FeePlanSerializer,
     FeeTypeSerializer,
     InvoiceSerializer,
+    InvoiceWriteOffRequestCreateSerializer,
+    InvoiceWriteOffRequestSerializer,
+    InvoiceWriteOffResolveSerializer,
     LedgerEntrySerializer,
     LedgerJournalSerializer,
     ManualPaymentCreateSerializer,
@@ -59,11 +64,15 @@ from apps.finance.serializers import (
 from apps.finance.services import (
     InvalidProofFileError,
     approve_discount,
+    approve_invoice_write_off,
     cancel_invoice,
     create_discount_with_approval_check,
     generate_monthly_invoices,
+    get_ar_aging_report,
     get_school_arrears_policy,
     get_school_qris_config,
+    reject_invoice_write_off,
+    request_invoice_write_off,
     set_school_qris_config,
     store_payment_proof_file,
     write_off_invoice,
@@ -739,6 +748,140 @@ class SchoolArrearsPolicyView(APIView):
         policy.save()
 
         return Response(SchoolArrearsPolicySerializer(policy).data, status=status.HTTP_200_OK)
+
+
+class InvoiceWriteOffRequestViewSet(viewsets.ModelViewSet):
+    """Approval workflow for bad debt write-offs (FIN-031)."""
+    serializer_class = InvoiceWriteOffRequestSerializer
+    pagination_class = StandardCursorPagination
+    permission_classes = [HasRequiredPermission]
+    action_permissions = {
+        'list': 'finance.invoice.read',
+        'retrieve': 'finance.invoice.read',
+        'create': 'finance.invoice.write',
+        'approve': 'finance.invoice.write',
+        'reject': 'finance.invoice.write',
+    }
+
+    def get_queryset(self):
+        foundation_id = get_current_foundation_id()
+        if not foundation_id:
+            return InvoiceWriteOffRequest.objects.none()
+        qs = InvoiceWriteOffRequest.objects.filter(
+            foundation_id=foundation_id,
+            deleted_at__isnull=True
+        ).select_related('invoice', 'school', 'requested_by', 'approved_by', 'journal').order_by('-created_at')
+
+        school_id = self.request.query_params.get('school_id')
+        if school_id:
+            qs = qs.filter(school_id=school_id)
+
+        status_param = self.request.query_params.get('status')
+        if status_param:
+            qs = qs.filter(status=status_param)
+
+        invoice_id = self.request.query_params.get('invoice_id')
+        if invoice_id:
+            qs = qs.filter(invoice_id=invoice_id)
+
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        foundation_id = get_current_foundation_id()
+        serializer = InvoiceWriteOffRequestCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        invoice = Invoice.objects.filter(
+            id=serializer.validated_data['invoice_id'],
+            foundation_id=foundation_id,
+            deleted_at__isnull=True
+        ).first()
+        if not invoice:
+            return Response({'error': _("Tagihan tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            req_obj = request_invoice_write_off(
+                invoice=invoice,
+                user=request.user,
+                reason=serializer.validated_data['reason'],
+                amount=serializer.validated_data.get('amount'),
+            )
+            return Response(InvoiceWriteOffRequestSerializer(req_obj).data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='approve')
+    def approve(self, request, pk=None):
+        """Approve a bad debt write-off request (Foundation Admin required, FIN-031)."""
+        instance = self.get_object()
+        serializer = InvoiceWriteOffResolveSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            approved = approve_invoice_write_off(
+                request_obj=instance,
+                user=request.user,
+                notes=serializer.validated_data.get('notes', ''),
+            )
+            return Response(InvoiceWriteOffRequestSerializer(approved).data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='reject')
+    def reject(self, request, pk=None):
+        """Reject a bad debt write-off request (Foundation Admin required, FIN-031)."""
+        instance = self.get_object()
+        serializer = InvoiceWriteOffResolveSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            rejected = reject_invoice_write_off(
+                request_obj=instance,
+                user=request.user,
+                notes=serializer.validated_data.get('notes', ''),
+            )
+            return Response(InvoiceWriteOffRequestSerializer(rejected).data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ArAgingView(APIView):
+    """GET /api/v1/finance/ar-aging/ — AR Aging report across 0-30, 31-60, 61-90, 90+ buckets (FIN-029)."""
+    permission_classes = [HasRequiredPermission]
+
+    def get_required_permission(self):
+        return 'finance.invoice.read'
+
+    def get(self, request):
+        foundation_id = get_current_foundation_id()
+        if not foundation_id:
+            return Response({'error': _("Konteks yayasan diperlukan.")}, status=status.HTTP_400_BAD_REQUEST)
+
+        as_of_str = request.query_params.get('as_of')
+        as_of = None
+        if as_of_str:
+            from datetime import date
+            try:
+                as_of = date.fromisoformat(as_of_str)
+            except ValueError:
+                return Response({'error': _("Format as_of tidak valid. Gunakan YYYY-MM-DD.")}, status=status.HTTP_400_BAD_REQUEST)
+
+        school_id = request.query_params.get('school_id')
+        school = None
+        if school_id:
+            school = School.objects.filter(id=school_id, foundation_id=foundation_id).first()
+            if not school:
+                return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        class_group_id = request.query_params.get('class_group_id')
+        student_id = request.query_params.get('student_id')
+
+        report_data = get_ar_aging_report(
+            foundation_id=foundation_id,
+            as_of=as_of,
+            school=school,
+            class_group_id=class_group_id,
+            student_id=student_id,
+        )
+        return Response(report_data, status=status.HTTP_200_OK)
 
 
 

@@ -279,6 +279,7 @@ class AccountCode(models.TextChoices):
     PAYMENT_FEES = '5100', _('Beban Transaksi & Gateway')
     DISCOUNT_EXPENSE = '5200', _('Beban Potongan & Keringanan')
     ROUNDING = '5300', _('Beban / Pendapatan Pembulatan')
+    BAD_DEBT_EXPENSE = '5400', _('Beban Piutang Tak Tertagih (Bad Debt)')
 
 
 class StudentVirtualAccount(TenantModel):
@@ -544,4 +545,56 @@ class SchoolArrearsPolicy(TenantModel):
             except (ValueError, TypeError):
                 pass
         return DEFAULT_ARREARS_LADDER_DAYS
+
+
+class InvoiceWriteOffStatus(models.TextChoices):
+    PENDING = 'PENDING', _('Menunggu Persetujuan (Pending Approval)')
+    APPROVED = 'APPROVED', _('Disetujui (Approved)')
+    REJECTED = 'REJECTED', _('Ditolak (Rejected)')
+
+
+class InvoiceWriteOffRequest(TenantModel):
+    """Foundation approval workflow for bad debt write-offs (spec/06 §6, FIN-031)."""
+    invoice = models.ForeignKey(Invoice, on_delete=models.PROTECT, related_name='write_off_requests')
+    school = models.ForeignKey(School, on_delete=models.PROTECT, related_name='write_off_requests')
+    amount = MoneyField(help_text=_("Nominal piutang yang dihapusbukukan"))
+    currency = models.CharField(max_length=3, default='IDR')
+    reason = models.TextField(help_text=_("Alasan penghapusbukuan piutang tak tertagih"))
+    status = models.CharField(
+        max_length=16,
+        choices=InvoiceWriteOffStatus.choices,
+        default=InvoiceWriteOffStatus.PENDING,
+        db_index=True,
+    )
+    requested_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name='submitted_write_off_requests',
+    )
+    approved_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='approved_write_off_requests',
+    )
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True, default='')
+    journal = models.ForeignKey(
+        'LedgerJournal',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='write_off_requests',
+    )
+
+    class Meta:
+        db_table = 'invoice_write_off_requests'
+        indexes = [
+            models.Index(fields=['foundation_id', 'school_id', 'status']),
+            models.Index(fields=['foundation_id', 'invoice_id']),
+        ]
+
+    def __str__(self):
+        return f"Write-off #{self.id} for Invoice {self.invoice.number} ({self.status})"
 
