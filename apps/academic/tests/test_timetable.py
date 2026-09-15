@@ -162,6 +162,26 @@ class SubstitutionTests(TestCase):
         self.assertEqual(sub.substitute_teacher, self.substitute)
         self.assertEqual(sub.original_teacher, self.fx['teacher'])
 
+    def test_assign_substitution_notifies_substitute(self):
+        from apps.notifications.models import NotificationCategory, NotificationIntent
+
+        assign_substitution(self.slot, datetime.date(2026, 8, 3), self.substitute, reason="Sakit")
+
+        intent = NotificationIntent.all_tenants.filter(
+            foundation_id=self.fx['foundation'].id, category=NotificationCategory.SUBSTITUTE_ASSIGNED,
+        ).first()
+        self.assertIsNotNone(intent)
+        self.assertEqual(intent.recipient_user_id, self.substitute.user_id)
+        self.assertEqual(intent.payload['class_group'], self.fx['class_group'].name)
+        self.assertEqual(intent.payload['original_teacher'], self.fx['teacher'].person.full_name)
+
+    def test_notification_failure_does_not_block_substitution_assignment(self):
+        from unittest.mock import patch
+
+        with patch('apps.notifications.services.dispatch_intent', side_effect=RuntimeError("boom")):
+            sub = assign_substitution(self.slot, datetime.date(2026, 8, 3), self.substitute, reason="Sakit")
+        self.assertEqual(sub.substitute_teacher, self.substitute)
+
 
 class TimetableViewsTests(TestCase):
     def setUp(self):

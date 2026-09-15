@@ -647,6 +647,34 @@ def assign_substitution(slot, date, substitute_teacher, reason='') -> TimetableS
             'substitute_teacher': str(substitute_teacher),
         },
     )
+
+    # ACD-019: notify the substitute. A notification failure must never block the
+    # substitution assignment itself — same guard as every other cross-app side effect.
+    try:
+        from apps.notifications.models import NotificationCategory
+        from apps.notifications.services import dispatch_intent
+
+        dispatch_intent(
+            foundation_id=slot.foundation_id,
+            category=NotificationCategory.SUBSTITUTE_ASSIGNED,
+            template_key='academic.substitution.assigned',
+            payload={
+                'class_group': slot.class_group.name,
+                'subject': slot.class_subject.subject.name,
+                'date': str(date),
+                'period_no': str(slot.period_no),
+                'original_teacher': original_teacher.person.full_name,
+            },
+            school_id=slot.class_group.school_id,
+            recipient_user=substitute_teacher.user,
+            recipient_phone=getattr(substitute_teacher.user, 'phone_e164', ''),
+            recipient_email=getattr(substitute_teacher.user, 'email', ''),
+            recipient_name=substitute_teacher.person.full_name,
+            dedupe_key=f"substitution_assigned:{substitution.id}",
+        )
+    except Exception as exc:
+        logger.warning(f"Error notifying substitute teacher for TimetableSubstitution #{substitution.id}: {exc}")
+
     return substitution
 
 
