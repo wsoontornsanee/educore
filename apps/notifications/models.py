@@ -142,6 +142,10 @@ CATEGORY_CONFIG = {
         'priority': NotificationPriority.NORMAL,
         'quiet_hours_respected': True,
         'opt_out_allowed': False,
+        # NTF-004: re-evaluated at send time via process_intent's generic dotted-path
+        # lookup, not a hardcoded category check (spec/17 REC-008).
+        'send_time_validator': 'apps.wallet.services.is_reconciliation_notice_still_needed',
+        'send_time_cancelled_reason': _("Saldo telah diselesaikan sebelum notifikasi terkirim (REC-008)"),
     },
 }
 
