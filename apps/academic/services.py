@@ -34,6 +34,7 @@ from apps.academic.models import (
     LessonPlan,
     MAX_SUBMISSION_FILES,
     MAX_SUBMISSION_FILE_SIZE,
+    PeriodGridSlot,
     ReportCard,
     ReportCardPolicy,
     ReportCardStatus,
@@ -60,6 +61,10 @@ class TimetableConflictError(ValueError):
 
 
 class SlotNotScheduledError(ValueError):
+    pass
+
+
+class PeriodGridMismatchError(ValueError):
     pass
 
 
@@ -264,8 +269,66 @@ def check_timetable_conflicts(class_subject, day_of_week, period_no, room='', ex
         raise TimetableConflictError("ROOM_DOUBLE_BOOKED: this room already has a slot in this period.")
 
 
+def get_period_grid(school, day_of_week) -> list:
+    """ACD-018: a school's configured periods for a weekday, ordered. Empty if unconfigured."""
+    return list(
+        PeriodGridSlot.objects.filter(
+            foundation_id=school.foundation_id, school=school, day_of_week=day_of_week,
+        ).order_by('period_no')
+    )
+
+
+def set_period_grid(school, day_of_week, periods: list) -> list:
+    """ACD-018: atomically replace the full period grid for a school+weekday.
+
+    Replaced as one unit rather than period-by-period: renumbering (e.g. moving a
+    break from period 3 to period 4) would otherwise transiently collide with the
+    unique_together constraint mid-edit.
+    """
+    PeriodGridSlot.objects.filter(
+        foundation_id=school.foundation_id, school=school, day_of_week=day_of_week,
+    ).delete()
+
+    created = []
+    for p in periods:
+        created.append(PeriodGridSlot.objects.create(
+            foundation_id=school.foundation_id,
+            school=school,
+            day_of_week=day_of_week,
+            period_no=p['period_no'],
+            start_time=p['start_time'],
+            end_time=p['end_time'],
+            is_break=p.get('is_break', False),
+            label=p.get('label', ''),
+        ))
+
+    audit(
+        action='academic.period_grid.set',
+        entity_type='School',
+        entity_id=school.id,
+        foundation_id=school.foundation_id,
+        school_id=school.id,
+        diff={'day_of_week': day_of_week, 'period_count': len(created)},
+    )
+    return created
+
+
 def create_timetable_slot(class_subject, day_of_week, period_no, start_time, end_time, room='') -> TimetableSlot:
     check_timetable_conflicts(class_subject, day_of_week, period_no, room)
+
+    school = class_subject.class_group.school
+    grid = get_period_grid(school, day_of_week)
+    if grid:
+        grid_period = next((p for p in grid if p.period_no == period_no), None)
+        if grid_period is None:
+            raise PeriodGridMismatchError(f"PERIOD_NOT_IN_GRID: period {period_no} is not configured for {school.name} on this weekday.")
+        if grid_period.is_break:
+            raise PeriodGridMismatchError(f"PERIOD_IS_BREAK: period {period_no} is a break slot for {school.name} on this weekday.")
+        if grid_period.start_time != start_time or grid_period.end_time != end_time:
+            raise PeriodGridMismatchError(
+                f"PERIOD_TIME_MISMATCH: period {period_no} is configured as {grid_period.start_time}-{grid_period.end_time}, not {start_time}-{end_time}."
+            )
+
     slot = TimetableSlot.objects.create(
         foundation_id=class_subject.foundation_id,
         class_subject=class_subject,

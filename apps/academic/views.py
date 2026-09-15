@@ -56,6 +56,8 @@ from apps.academic.serializers import (
     LearningObjectiveSerializer,
     LessonPlanDuplicateSerializer,
     LessonPlanSerializer,
+    PeriodGridSetSerializer,
+    PeriodGridSlotSerializer,
     ReportCardGenerateSerializer,
     ReportCardPolicySerializer,
     ReportCardSerializer,
@@ -71,6 +73,7 @@ from apps.academic.services import (
     BroadcastRateLimitedError,
     ExamWindowError,
     InvalidSubmissionFilesError,
+    PeriodGridMismatchError,
     ReasonRequiredError,
     ReminderRateLimitedError,
     ReportCardStateError,
@@ -88,6 +91,7 @@ from apps.academic.services import (
     get_homework_completion,
     get_or_create_broadcast_policy,
     get_or_create_report_card_policy,
+    get_period_grid,
     get_visible_report_card,
     grade_essay_answer,
     grade_homework_submission,
@@ -101,6 +105,7 @@ from apps.academic.services import (
     set_arrears_gate,
     set_assessment_score,
     set_broadcast_policy,
+    set_period_grid,
     start_attempt,
     submit_attempt,
     submit_homework,
@@ -280,7 +285,7 @@ class TimetableSlotViewSet(TenantScopedModelViewSet):
                 end_time=serializer.validated_data['end_time'],
                 room=serializer.validated_data.get('room', ''),
             )
-        except TimetableConflictError as e:
+        except (TimetableConflictError, PeriodGridMismatchError) as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(self.get_serializer(slot).data, status=status.HTTP_201_CREATED)
 
@@ -798,3 +803,47 @@ class StudentAttainmentView(APIView):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(result)
+
+
+class PeriodGridView(APIView):
+    """GET/PUT /schools/:school_id/period-grid/?day_of_week= (ACD-018)."""
+    permission_classes = [HasRequiredPermission]
+
+    def get_required_permission(self):
+        return 'school_config.write' if self.request.method == 'PUT' else 'school_config.read'
+
+    def _get_day_of_week(self, request):
+        raw = request.query_params.get('day_of_week') or request.data.get('day_of_week')
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return None
+
+    def get(self, request, school_id):
+        foundation_id = get_current_foundation_id()
+        school = School.objects.filter(id=school_id, foundation_id=foundation_id).first()
+        if not school:
+            return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        day_of_week = self._get_day_of_week(request)
+        if day_of_week is None:
+            return Response({'error': _("Parameter day_of_week wajib diisi.")}, status=status.HTTP_400_BAD_REQUEST)
+
+        grid = get_period_grid(school, day_of_week)
+        return Response({'day_of_week': day_of_week, 'periods': PeriodGridSlotSerializer(grid, many=True).data})
+
+    def put(self, request, school_id):
+        foundation_id = get_current_foundation_id()
+        school = School.objects.filter(id=school_id, foundation_id=foundation_id).first()
+        if not school:
+            return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        day_of_week = self._get_day_of_week(request)
+        if day_of_week is None:
+            return Response({'error': _("Parameter day_of_week wajib diisi.")}, status=status.HTTP_400_BAD_REQUEST)
+
+        payload = PeriodGridSetSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+
+        grid = set_period_grid(school, day_of_week, payload.validated_data['periods'])
+        return Response({'day_of_week': day_of_week, 'periods': PeriodGridSlotSerializer(grid, many=True).data})
