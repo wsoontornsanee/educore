@@ -22,7 +22,9 @@ from apps.attendance.serializers import (
     GateEventSerializer,
     ManualCheckInSerializer,
 )
+from apps.academic.services import SlotNotScheduledError
 from apps.attendance.services import (
+    NotAuthorizedForSlotError,
     get_live_gate_feed,
     get_teacher_agenda,
     ingest_gate_events,
@@ -880,7 +882,11 @@ class PeriodAttendanceView(views.APIView):
             for row in request.data.get('exceptions', [])
         }
 
-        records = submit_period_attendance(teacher, slot, date, exceptions, actor=request.user)
+        try:
+            records = submit_period_attendance(teacher, slot, date, exceptions, actor=request.user)
+        except (SlotNotScheduledError, NotAuthorizedForSlotError) as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
         return Response({
             'slot_id': slot.id,
             'date': date_param,

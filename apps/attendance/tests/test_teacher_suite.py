@@ -12,7 +12,8 @@ from apps.academic.models import (
 from apps.academic.services import create_timetable_slot, assign_substitution
 from apps.academic.tests.base import build_academic_fixture
 from apps.attendance.models import AttendanceDay, AttendanceSource, AttendanceStatus, PeriodAttendance
-from apps.attendance.services import get_teacher_agenda, submit_period_attendance
+from apps.academic.services import SlotNotScheduledError
+from apps.attendance.services import NotAuthorizedForSlotError, get_teacher_agenda, submit_period_attendance
 from educore.middleware.tenancy import set_current_foundation_id
 
 
@@ -57,6 +58,25 @@ class TeacherAgendaTests(TestCase):
         tuesday = self.monday + datetime.timedelta(days=1)
         agenda = get_teacher_agenda(self.fx['teacher'], tuesday)
         self.assertEqual(agenda, [])
+
+    def test_agenda_excludes_slot_substituted_away(self):
+        """ACD-020: original teacher no longer sees a slot they were substituted out of."""
+        other = make_second_teacher(self.fx)
+        assign_substitution(self.slot, self.monday, other, reason="Sakit")
+        agenda = get_teacher_agenda(self.fx['teacher'], self.monday)
+        self.assertEqual(agenda, [])
+
+    def test_agenda_reports_attendance_submitted(self):
+        ClassEnrollment.objects.create(
+            foundation_id=self.fx['foundation'].id, student=self.fx['student'],
+            class_group=self.fx['class_group'], enrolled_at=datetime.date(2026, 7, 1),
+        )
+        agenda = get_teacher_agenda(self.fx['teacher'], self.monday)
+        self.assertFalse(agenda[0]['attendance_submitted'])
+
+        submit_period_attendance(self.fx['teacher'], self.slot, self.monday, {})
+        agenda = get_teacher_agenda(self.fx['teacher'], self.monday)
+        self.assertTrue(agenda[0]['attendance_submitted'])
 
 
 class PeriodAttendanceTests(TestCase):
@@ -117,6 +137,28 @@ class PeriodAttendanceTests(TestCase):
         record = PeriodAttendance.objects.get(slot=self.slot, date=self.date)
         self.assertEqual(record.status, AttendanceStatus.SAKIT)
 
+    def test_wrong_weekday_rejected(self):
+        """ACD-020: the slot is scheduled Monday; submitting it dated Tuesday is rejected."""
+        tuesday = self.date + datetime.timedelta(days=1)
+        with self.assertRaises(SlotNotScheduledError):
+            submit_period_attendance(self.fx['teacher'], self.slot, tuesday, {})
+
+    def test_unassigned_teacher_rejected(self):
+        """ACD-020: a teacher who isn't this slot's assigned teacher (nor its substitute) is rejected."""
+        other = make_second_teacher(self.fx)
+        with self.assertRaises(NotAuthorizedForSlotError):
+            submit_period_attendance(other, self.slot, self.date, {})
+
+    def test_substitute_teacher_can_submit_original_cannot(self):
+        other = make_second_teacher(self.fx)
+        assign_substitution(self.slot, self.date, other, reason="Sakit")
+
+        records = submit_period_attendance(other, self.slot, self.date, {})
+        self.assertEqual(len(records), 1)
+
+        with self.assertRaises(NotAuthorizedForSlotError):
+            submit_period_attendance(self.fx['teacher'], self.slot, self.date, {})
+
 
 class TeacherSuiteViewsTests(TestCase):
     def setUp(self):
@@ -163,6 +205,16 @@ class TeacherSuiteViewsTests(TestCase):
         self.client.force_authenticate(user=self.fx['teacher_user'])
         res = self.client.get('/api/v1/finance/invoices/')
         self.assertEqual(res.status_code, 403)
+
+    def test_wrong_weekday_returns_400_via_api(self):
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+        tuesday = self.date + datetime.timedelta(days=1)
+        res = self.client.post(
+            f'/api/v1/timetable/slots/{self.slot.id}/period-attendance/',
+            {'date': tuesday.isoformat(), 'exceptions': []},
+            format='json',
+        )
+        self.assertEqual(res.status_code, 400)
 
     def test_cross_tenant_period_attendance_returns_404(self):
         fx_b = build_academic_fixture(foundation_name="Yayasan B")
