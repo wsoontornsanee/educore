@@ -14,6 +14,7 @@ from apps.academic.models import (
     Homework,
     HomeworkSubmission,
     LearningObjective,
+    LessonPlan,
     ReportCard,
     ReportCardPolicy,
     Subject,
@@ -238,3 +239,17 @@ class ReportCardPolicySerializer(serializers.ModelSerializer):
         model = ReportCardPolicy
         fields = ['id', 'foundation_id', 'school', 'block_rapor_on_arrears', 'created_at', 'updated_at']
         read_only_fields = ['id', 'foundation_id', 'school', 'created_at', 'updated_at']
+
+
+class LessonPlanSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LessonPlan
+        fields = [
+            'id', 'foundation_id', 'class_subject', 'week_start_date', 'title', 'content',
+            'attachments', 'slots', 'created_by', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'foundation_id', 'created_by', 'created_at', 'updated_at']
+
+
+class LessonPlanDuplicateSerializer(serializers.Serializer):
+    target_week_start_date = serializers.DateField()

@@ -24,6 +24,7 @@ from apps.academic.models import (
     Homework,
     HomeworkSubmission,
     LearningObjective,
+    LessonPlan,
     ReportCard,
     Subject,
     Term,
@@ -49,6 +50,8 @@ from apps.academic.serializers import (
     HomeworkSubmissionSerializer,
     HomeworkSubmitSerializer,
     LearningObjectiveSerializer,
+    LessonPlanDuplicateSerializer,
+    LessonPlanSerializer,
     ReportCardGenerateSerializer,
     ReportCardPolicySerializer,
     ReportCardSerializer,
@@ -74,6 +77,7 @@ from apps.academic.services import (
     compute_remaining_seconds,
     compute_term_grade,
     create_timetable_slot,
+    duplicate_lesson_plan,
     generate_report_cards,
     get_homework_completion,
     get_or_create_report_card_policy,
@@ -621,6 +625,31 @@ class StudentReportCardView(APIView):
             return Response({'visible': False, 'reason': visibility['reason']}, status=status.HTTP_403_FORBIDDEN)
 
         return Response({'visible': True, 'report_card': ReportCardSerializer(report_card).data})
+
+
+class LessonPlanViewSet(TenantScopedModelViewSet):
+    model = LessonPlan
+    serializer_class = LessonPlanSerializer
+    filter_params = {'class_subject_id': 'class_subject_id', 'week_start_date': 'week_start_date'}
+    action_permissions = {
+        'list': 'grades.read', 'retrieve': 'grades.read',
+        'create': 'grades.write', 'update': 'grades.write',
+        'partial_update': 'grades.write', 'destroy': 'grades.write',
+        'duplicate': 'grades.write',
+    }
+
+    def perform_create(self, serializer):
+        serializer.save(foundation_id=get_current_foundation_id(), created_by=self.request.user)
+
+    @action(detail=True, methods=['post'], url_path='duplicate')
+    def duplicate(self, request, pk=None):
+        lesson_plan = self.get_object()
+        payload = LessonPlanDuplicateSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        duplicated = duplicate_lesson_plan(
+            lesson_plan, payload.validated_data['target_week_start_date'], actor=request.user,
+        )
+        return Response(self.get_serializer(duplicated).data, status=status.HTTP_201_CREATED)
 
 
 class GradebookView(APIView):

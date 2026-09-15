@@ -76,6 +76,7 @@
 | `TASK-026` | Online Exams | Exam attempts, server-side timing, auto-grading (`spec/04 §6`, `ACD-021` to `ACD-026`) | Completed |
 | `TASK-027` | Report Cards | Rapor generation, approval workflow, PDF, arrears gate (`spec/04 §4`, `ACD-010` to `ACD-016`) | Completed |
 | `TASK-028` | Teacher Suite Backend | Teacher agenda, period attendance with gate pre-fill (`spec/09 §3`, `TCH-001` to `TCH-004`, `TCH-012`) | Completed |
+| `TASK-029` | Lesson Plans | Per-class-subject weekly lesson plans, timetable slot linkage, duplication (`spec/09 §3`, `TCH-010`) | Completed |
 
 ---
 

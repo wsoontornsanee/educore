@@ -14,6 +14,7 @@ from apps.academic.views import (
     HomeworkSubmissionViewSet,
     HomeworkViewSet,
     LearningObjectiveViewSet,
+    LessonPlanViewSet,
     ReportCardPolicyView,
     ReportCardViewSet,
     StudentAttainmentView,
@@ -41,6 +42,7 @@ router.register(r'exams', ExamViewSet, basename='exams')
 router.register(r'exam-questions', ExamQuestionViewSet, basename='exam-questions')
 router.register(r'exam-attempts', ExamAttemptViewSet, basename='exam-attempts')
 router.register(r'report-cards', ReportCardViewSet, basename='report-cards')
+router.register(r'lesson-plans', LessonPlanViewSet, basename='lesson-plans')
 
 urlpatterns = [
     path('gradebook/', GradebookView.as_view(), name='gradebook'),

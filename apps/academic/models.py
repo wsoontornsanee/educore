@@ -583,3 +583,30 @@ class ReportCardPolicy(TenantModel):
 
     def __str__(self):
         return f"{self.school.name} (block_on_arrears={self.block_rapor_on_arrears})"
+
+
+class LessonPlan(TenantModel):
+    """A teacher's lesson plan (RPP/modul ajar) for a class subject in a given week (spec/09 TCH-010)."""
+    class_subject = models.ForeignKey(ClassSubject, on_delete=models.PROTECT, related_name='lesson_plans')
+    week_start_date = models.DateField(help_text=_("Monday of the ISO week this plan covers"))
+    title = models.CharField(max_length=128)
+    content = models.TextField(blank=True, default='')
+    attachments = models.JSONField(default=list, blank=True, help_text=_("List of {key, filename, size, content_type}"))
+    slots = models.ManyToManyField(TimetableSlot, blank=True, related_name='lesson_plans')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+
+    class Meta:
+        db_table = 'lesson_plans'
+        indexes = [
+            models.Index(fields=['foundation_id', 'class_subject_id', 'week_start_date']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'class_subject', 'week_start_date'],
+                condition=models.Q(deleted_at__isnull=True),
+                name='unique_lesson_plan_per_class_subject_week',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.class_subject} - week of {self.week_start_date}"
