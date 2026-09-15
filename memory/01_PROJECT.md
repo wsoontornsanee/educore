@@ -63,18 +63,27 @@
 | `TASK-020` | Fee Structures | Implement fee items, schedules (SPP, Uang Pangkal), discount policies, and rounding (`spec/06 §2`, `spec/16`) | Completed |
 | `TASK-021` | Invoice Generation | Monthly batch invoice generation, rounding line item (`PEMBULATAN`), and notifications (`spec/06 §3`) | Completed |
 | `TASK-022` | VA & Payments | Virtual Account allocation, payment webhook processing, double-entry ledger journals (`spec/06 §4, §5`, `spec/16`) | Completed |
-
-
-
+| `TASK-025` | Arrears Engine | Automated arrears reminder ladder (T-3 to T+30) across WA/Push/SMS (`spec/06 §6`) | Deferred |
+| `TASK-026` | AR & Write-Off | AR aging reports (0-30/31-60/61-90/90+) & bad debt write-off approval (`spec/06 §6`) | Deferred |
+| `TASK-027` | Installments | Tuition installment plan engine & parent schedule views (`spec/06 §6`) | Deferred |
+| `TASK-028` | Reconciliation | Daily gateway settlement file reconciliation cron job (`spec/06 §5`, `spec/14 §5`) | Deferred |
+| `TASK-029` | Period Close | Fiscal period close service and ledger backdating lock (`spec/06 §5`) | Deferred |
+| `TASK-030` | Refunds | Financial refund requests, approval threshold & reversal ledger journals (`spec/06 §7`)| Deferred |
+| `TASK-031` | Dashboard | Foundation executive dashboard & read-model rollups (`spec/03`, `spec/15`) | Deferred |
+| `TASK-032` | Parent Mobile | React Native (Expo) parent mobile application v1 (`spec/08`) | Deferred |
+| `TASK-033` | Canteen Wallet | Cashless student wallet & offline-first tablet POS kiosk (`spec/07`, `spec/12`) | Deferred |
+| `TASK-034` | HR & Payroll | Staff salary components, attendance deductions, PPh 21, BPJS (`spec/11`) | Deferred |
+| `TASK-035` | Statutory Export| DAPODIK & EMIS export validation and official data bundles (`spec/14 §3`) | Deferred |
+| `TASK-036` | SSO Auth | Google Workspace / Microsoft 365 staff SSO & calendar sync (`spec/14 §6`) | Deferred |
 
 ---
 
-## 5. Open Technical & Product Decisions
+## 5. Open Technical & Product Decisions (Tracked in Notion Database: Astra Educore)
 
-From `spec/appendix.md §3`:
+All open architectural decisions and inquiries are tracked as tasks in Notion under `backlog/open-decisions`:
 
-1. **Virtual Account (VA) Provider:** Does the pilot foundation use a single bank, and does it support stable per-student VA numbers?
-2. **Convenience Fee Allocation:** Is payment convenience fee absorbed by the school or passed to parents (per-school or foundation-wide)?
+1. **Virtual Account (VA) Provider:** Does the pilot foundation use a single bank, and does it support stable per-student VA numbers? (`FIN-011`)
+2. **Convenience Fee Allocation:** Is payment convenience fee absorbed by the school or passed to parents (per-school or foundation-wide)? (`FIN-017`)
 3. **Report Card Withholding Policy (`ACD-014`):** Is `block_rapor_on_arrears` culturally and contractually acceptable to the pilot foundation?
 4. **Canteen Float Legal Entity (`CMP-027`):** Who legally holds the canteen wallet float (foundation, cooperative, or vendor entity)?
 5. **Curriculum Scope:** Which curriculum variants are in scope at launch — Kurikulum Merdeka only, or also madrasah-specific subjects (Kemenag)?
