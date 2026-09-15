@@ -25,6 +25,10 @@ from apps.identity.models import Student, Staff
 logger = logging.getLogger(__name__)
 
 
+class NotAuthorizedForSlotError(ValueError):
+    pass
+
+
 @transaction.atomic
 def issue_credential(
     foundation_id: str,
@@ -989,7 +993,10 @@ def get_device_sync_payload(
 
 
 def get_teacher_agenda(teacher: Staff, date) -> list:
-    """TCH-001: today's timetable slots for a teacher, including slots they're substituting."""
+    """TCH-001/ACD-020: today's timetable slots for a teacher, including slots they're
+    substituting into — and excluding their own slots substituted away to someone else.
+    Each entry reports whether PeriodAttendance was already submitted for it.
+    """
     from apps.academic.models import TimetableSlot, TimetableSubstitution
 
     weekday = date.isoweekday()
@@ -1002,14 +1009,24 @@ def get_teacher_agenda(teacher: Staff, date) -> list:
 
     substitutions = TimetableSubstitution.objects.filter(
         foundation_id=teacher.foundation_id,
-        substitute_teacher=teacher,
         date=date,
         deleted_at__isnull=True,
     ).select_related('slot__class_subject__class_group', 'slot__class_subject__subject')
-    substituted_slot_ids = {s.slot_id for s in substitutions}
+    substitutions_by_slot_id = {s.slot_id: s for s in substitutions}
+    substituted_in = [s for s in substitutions if s.substitute_teacher_id == teacher.id]
+
+    relevant_slot_ids = [s.id for s in own_slots] + [s.slot_id for s in substituted_in]
+    submitted_slot_ids = set(
+        PeriodAttendance.objects.filter(
+            foundation_id=teacher.foundation_id, slot_id__in=relevant_slot_ids, date=date,
+        ).values_list('slot_id', flat=True).distinct()
+    )
 
     agenda = []
     for slot in own_slots:
+        # A slot substituted away to another teacher no longer belongs on this teacher's agenda.
+        if slot.id in substitutions_by_slot_id:
+            continue
         agenda.append({
             'slot_id': slot.id,
             'period_no': slot.period_no,
@@ -1019,8 +1036,9 @@ def get_teacher_agenda(teacher: Staff, date) -> list:
             'subject': slot.class_subject.subject.name,
             'room': slot.room,
             'is_substitution': False,
+            'attendance_submitted': slot.id in submitted_slot_ids,
         })
-    for sub in substitutions:
+    for sub in substituted_in:
         slot = sub.slot
         agenda.append({
             'slot_id': slot.id,
@@ -1031,6 +1049,7 @@ def get_teacher_agenda(teacher: Staff, date) -> list:
             'subject': slot.class_subject.subject.name,
             'room': slot.room,
             'is_substitution': True,
+            'attendance_submitted': slot.id in submitted_slot_ids,
         })
 
     agenda.sort(key=lambda a: a['period_no'])
@@ -1038,9 +1057,25 @@ def get_teacher_agenda(teacher: Staff, date) -> list:
 
 
 def submit_period_attendance(teacher: Staff, slot, date, exceptions: dict, actor=None) -> list:
-    """TCH-002/003: default HADIR, pre-fill ALPA from gate data, apply teacher overrides. Idempotent."""
+    """TCH-002/003/ACD-020: default HADIR, pre-fill ALPA from gate data, apply teacher overrides.
+    Idempotent. The timetable is the source of truth for who may submit: `date` must fall on
+    the slot's scheduled weekday, and `teacher` must be the slot's assigned teacher — or that
+    date's substitute, per TimetableSubstitution (spec/04 §5).
+    """
     from apps.academic.models import ClassEnrollment
+    from apps.academic.services import SlotNotScheduledError, get_effective_teacher_for_slot
     from educore.middleware.tenancy import tenant_context
+
+    if slot.day_of_week != date.isoweekday():
+        raise SlotNotScheduledError(
+            f"SLOT_NOT_SCHEDULED: slot #{slot.id} is scheduled on day_of_week={slot.day_of_week}, not {date} (isoweekday={date.isoweekday()})."
+        )
+
+    effective_teacher = get_effective_teacher_for_slot(slot, date)
+    if effective_teacher.id != teacher.id:
+        raise NotAuthorizedForSlotError(
+            f"NOT_AUTHORIZED_FOR_SLOT: only {effective_teacher} may submit attendance for slot #{slot.id} on {date}."
+        )
 
     class_group = slot.class_subject.class_group
     student_ids = list(

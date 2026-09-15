@@ -59,6 +59,10 @@ class TimetableConflictError(ValueError):
     pass
 
 
+class SlotNotScheduledError(ValueError):
+    pass
+
+
 class InvalidSubmissionFilesError(ValueError):
     pass
 
@@ -581,6 +585,18 @@ def assign_substitution(slot, date, substitute_teacher, reason='') -> TimetableS
         },
     )
     return substitution
+
+
+def get_effective_teacher_for_slot(slot, date):
+    """ACD-020: the teacher authorized to teach/submit attendance for this slot on this date —
+    the date's substitute if one is assigned, otherwise the slot's regular teacher.
+    """
+    substitution = TimetableSubstitution.objects.filter(
+        foundation_id=slot.foundation_id, slot=slot, date=date,
+    ).first()
+    if substitution:
+        return substitution.substitute_teacher
+    return slot.class_subject.teacher
 
 
 def generate_report_cards(class_group, term, triggered_by=None) -> dict:
