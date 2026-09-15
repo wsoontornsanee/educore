@@ -172,3 +172,20 @@
   - 6 new automated tests across `apps/attendance/tests/test_live_gate_and_sync.py` and `apps/hardware/tests/test_devices.py` asserting cursor polling filtering, manual check-in attendance derivation, and incremental edge sync deltas.
   - Total test suite: 92 passing tests with 100% success rate.
   - PR #13 merged into `main`.
+
+## Step 4: Notifications Service & WhatsApp Arrival Messaging (TASK-018, TASK-019)
+- **Date:** 2026-09-15
+- **Milestone:** Step 4 (Milestone M4) Completed & Merged (PR #14)
+- **Details:**
+  - Scaffolded `apps/notifications/` module with full 3-layer multi-tenancy and MySQL 8 storage.
+  - Implemented `NotificationTemplate` model with support for multi-channel messaging (`WHATSAPP`, `PUSH`, `SMS`, `EMAIL`, `IN_APP`), variable substitutions, versioning, approval tracking, and Bahasa Indonesia (`id-ID`) first (`NTF-005`, `NTF-008`).
+  - Implemented `NotificationPreference` model with channel selection, quiet hours windows (21:00–06:00 local, `NTF-002`), and mandatory non-opt-outable `EMERGENCY` alerts (`NTF-013`).
+  - Implemented `NotificationIntent` model with priorities, deduplication keys (`NTF-003`), daily recipient rate limiting (max 20 per day per `NTF-012`), and asynchronous task execution via `TaskQueue` and `drain_tasks`.
+  - Implemented `NotificationDelivery` model tracking provider delivery status, timestamps, and per-message provider costs using `MoneyField` (`DECIMAL(18,2)`) + currency (`NTF-010`, `NTF-011`).
+  - Implemented provider adapter system (`BaseNotificationProvider` with circuit breaker per `NTF-015`, `MockWhatsAppProvider`, `MockPushProvider`, `MockSmsProvider`, `MockEmailProvider`, `WhatsAppCloudApiProvider`) and fallback channel ladder (`WHATSAPP` -> `PUSH` -> `SMS` -> `EMAIL` within 60s per `NTF-006`).
+  - Connected gate scan event intake in `apps/attendance/services.py` to dispatch parent WhatsApp arrival notifications in < 5 seconds (`ATT-006`), automatically resolving student's guardians from `identity.GuardianLink` and skipping duplicate debounced scans (`ATT-007`).
+  - Implemented delivery receipt webhook `POST /api/v1/webhooks/whatsapp/status/` (`DELIVERED`, `READ`, `FAILED`), admin delivery monitor `GET /api/v1/notifications/deliveries/`, in-app notifications `GET /api/v1/me/notifications/`, read receipt `POST /api/v1/me/notifications/{id}/read/`, and preferences `GET/PUT /api/v1/me/notification-preferences/`.
+  - Implemented `send_due_notifications` management command with named MySQL advisory lock `educore:send_due_notifications` (`ARC-007`, `ARC-008`) and `seed_notification_templates`.
+  - 15 new automated tests; full repository test suite at 107 passed tests with 100% success rate.
+  - PR #14 merged into `main`.
+

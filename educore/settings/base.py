@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'apps.hardware.apps.HardwareConfig',
     'apps.attendance.apps.AttendanceConfig',
     'apps.notifications.apps.NotificationsConfig',
+    'apps.finance.apps.FinanceConfig',
 ]
 
 MIDDLEWARE = [
