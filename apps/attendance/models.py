@@ -3,6 +3,7 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from apps.core.fields import soft_delete_uniqueness_marker
 from apps.core.models import TenantModel
 
 
@@ -192,6 +193,7 @@ class AttendanceRule(TenantModel):
         default=120,
         help_text=_('Seconds within which duplicate scans are ignored for notification (ATT-007)')
     )
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta(TenantModel.Meta):
         db_table = 'attendance_rules'
@@ -199,10 +201,8 @@ class AttendanceRule(TenantModel):
         verbose_name_plural = _('Attendance Rules')
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'school'],
-                condition=models.Q(deleted_at__isnull=True),
-                name='unique_active_attendance_rule_per_school'
-            )
+                fields=['foundation_id', 'school', 'active_uniq_marker'],
+                name='unique_active_attendance_rule_per_school',)
         ]
 
     def __str__(self):
@@ -412,6 +412,7 @@ class PeriodAttendance(TenantModel):
     recorded_by = models.ForeignKey(
         'identity.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
     )
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta(TenantModel.Meta):
         db_table = 'period_attendances'
@@ -423,8 +424,7 @@ class PeriodAttendance(TenantModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'student', 'slot', 'date'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'student', 'slot', 'date', 'active_uniq_marker'],
                 name='unique_period_attendance_per_student_slot_date',
             ),
         ]

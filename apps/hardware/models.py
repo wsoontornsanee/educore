@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
+from apps.core.fields import soft_delete_uniqueness_marker
 from apps.core.models import TenantModel
 
 
@@ -100,6 +101,7 @@ class Device(TenantModel):
         default=dict,
         blank=True
     )
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta(TenantModel.Meta):
         db_table = 'devices'
@@ -107,10 +109,8 @@ class Device(TenantModel):
         verbose_name_plural = _('Devices')
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'school', 'device_code'],
-                condition=models.Q(deleted_at__isnull=True),
-                name='unique_active_device_per_school'
-            )
+                fields=['foundation_id', 'school', 'device_code', 'active_uniq_marker'],
+                name='unique_active_device_per_school',)
         ]
         indexes = [
             models.Index(fields=['foundation_id', 'school', 'status'], name='idx_dev_fnd_sch_st'),

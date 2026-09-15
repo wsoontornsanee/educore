@@ -2,6 +2,7 @@ from decimal import Decimal
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
+from apps.core.fields import soft_delete_uniqueness_marker
 from apps.core.models import TenantModel
 from apps.identity.models import School, Staff, Student, User
 
@@ -13,6 +14,7 @@ class AcademicYear(TenantModel):
     start_date = models.DateField()
     end_date = models.DateField()
     is_active = models.BooleanField(default=True)
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'academic_years'
@@ -21,8 +23,7 @@ class AcademicYear(TenantModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'school', 'name'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'school', 'name', 'active_uniq_marker'],
                 name='unique_academic_year_name_per_school',
             ),
         ]
@@ -39,6 +40,7 @@ class Term(TenantModel):
     start_date = models.DateField()
     end_date = models.DateField()
     is_active = models.BooleanField(default=True)
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'terms'
@@ -47,8 +49,7 @@ class Term(TenantModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'academic_year', 'term_no'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'academic_year', 'term_no', 'active_uniq_marker'],
                 name='unique_term_no_per_academic_year',
             ),
         ]
@@ -66,6 +67,7 @@ class Subject(TenantModel):
     is_religious = models.BooleanField(default=False)
     credit_hours = models.PositiveSmallIntegerField(default=0)
     is_active = models.BooleanField(default=True)
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'subjects'
@@ -74,8 +76,7 @@ class Subject(TenantModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'school', 'code'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'school', 'code', 'active_uniq_marker'],
                 name='unique_subject_code_per_school',
             ),
         ]
@@ -94,6 +95,7 @@ class ClassGroup(TenantModel):
         Staff, on_delete=models.SET_NULL, null=True, blank=True, related_name='homeroom_class_groups'
     )
     capacity = models.PositiveSmallIntegerField(default=36)
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'class_groups'
@@ -102,8 +104,7 @@ class ClassGroup(TenantModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'academic_year', 'name'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'academic_year', 'name', 'active_uniq_marker'],
                 name='unique_class_group_name_per_academic_year',
             ),
         ]
@@ -118,6 +119,7 @@ class ClassEnrollment(TenantModel):
     class_group = models.ForeignKey(ClassGroup, on_delete=models.PROTECT, related_name='enrollments')
     enrolled_at = models.DateField()
     is_active = models.BooleanField(default=True)
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'class_enrollments'
@@ -127,8 +129,7 @@ class ClassEnrollment(TenantModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'student', 'class_group'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'student', 'class_group', 'active_uniq_marker'],
                 name='unique_active_enrollment_per_student_class_group',
             ),
         ]
@@ -143,6 +144,7 @@ class ClassSubject(TenantModel):
     subject = models.ForeignKey(Subject, on_delete=models.PROTECT, related_name='class_subjects')
     teacher = models.ForeignKey(Staff, on_delete=models.PROTECT, related_name='teaching_assignments')
     term = models.ForeignKey(Term, on_delete=models.PROTECT, related_name='class_subjects')
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'class_subjects'
@@ -152,8 +154,7 @@ class ClassSubject(TenantModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'class_group', 'subject', 'term'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'class_group', 'subject', 'term', 'active_uniq_marker'],
                 name='unique_class_subject_per_term',
             ),
         ]
@@ -168,6 +169,7 @@ class LearningObjective(TenantModel):
     grade_level = models.PositiveSmallIntegerField()
     code = models.CharField(max_length=32)
     description = models.TextField()
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'learning_objectives'
@@ -176,8 +178,7 @@ class LearningObjective(TenantModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'subject', 'code'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'subject', 'code', 'active_uniq_marker'],
                 name='unique_objective_code_per_subject',
             ),
         ]
@@ -246,6 +247,7 @@ class AssessmentScore(TenantModel):
     graded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     graded_at = models.DateTimeField(null=True, blank=True)
     version = models.PositiveIntegerField(default=1, help_text=_("Bumped on every update; TCH-007 optimistic concurrency token"))
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'assessment_scores'
@@ -255,8 +257,7 @@ class AssessmentScore(TenantModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'assessment', 'student'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'assessment', 'student', 'active_uniq_marker'],
                 name='unique_score_per_assessment_student',
             ),
         ]
@@ -307,6 +308,7 @@ class TimetableSubstitution(TenantModel):
     original_teacher = models.ForeignKey(Staff, on_delete=models.PROTECT, related_name='+')
     substitute_teacher = models.ForeignKey(Staff, on_delete=models.PROTECT, related_name='substitute_assignments')
     reason = models.CharField(max_length=255, blank=True, default='')
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'timetable_substitutions'
@@ -316,8 +318,7 @@ class TimetableSubstitution(TenantModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'slot', 'date'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'slot', 'date', 'active_uniq_marker'],
                 name='unique_substitution_per_slot_date',
             ),
         ]
@@ -338,6 +339,7 @@ class PeriodGridSlot(TenantModel):
     end_time = models.TimeField()
     is_break = models.BooleanField(default=False)
     label = models.CharField(max_length=64, blank=True, default='')
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'period_grid_slots'
@@ -346,8 +348,7 @@ class PeriodGridSlot(TenantModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'school', 'day_of_week', 'period_no'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'school', 'day_of_week', 'period_no', 'active_uniq_marker'],
                 name='unique_period_grid_slot',
             ),
         ]
@@ -404,6 +405,7 @@ class HomeworkSubmission(TenantModel):
     feedback = models.TextField(blank=True, default='')
     graded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     graded_at = models.DateTimeField(null=True, blank=True)
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'homework_submissions'
@@ -413,8 +415,7 @@ class HomeworkSubmission(TenantModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'homework', 'student'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'homework', 'student', 'active_uniq_marker'],
                 name='unique_submission_per_homework_student',
             ),
         ]
@@ -476,6 +477,7 @@ class ExamQuestion(TenantModel):
     options = models.JSONField(default=list, blank=True, help_text=_("Choice list for MCQ/MULTI/MATCHING, e.g. [{key, text}]"))
     points = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal('1.00'))
     answer_key = models.JSONField(default=dict, blank=True, help_text=_("Grading key; shape depends on type"))
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'exam_questions'
@@ -484,8 +486,7 @@ class ExamQuestion(TenantModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'exam', 'seq'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'exam', 'seq', 'active_uniq_marker'],
                 name='unique_question_seq_per_exam',
             ),
         ]
@@ -512,6 +513,7 @@ class ExamAttempt(TenantModel):
     status = models.CharField(max_length=16, choices=ExamAttemptStatus.choices, default=ExamAttemptStatus.IN_PROGRESS)
     question_order = models.JSONField(default=list, blank=True, help_text=_("Per-attempt shuffled question id order (ACD-024)"))
     focus_loss_count = models.PositiveIntegerField(default=0)
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'exam_attempts'
@@ -521,8 +523,7 @@ class ExamAttempt(TenantModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'exam', 'student'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'exam', 'student', 'active_uniq_marker'],
                 name='unique_attempt_per_exam_student',
             ),
         ]
@@ -539,6 +540,7 @@ class ExamAnswer(TenantModel):
     points_awarded = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
     graded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     answered_at = models.DateTimeField(auto_now=True)
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'exam_answers'
@@ -547,8 +549,7 @@ class ExamAnswer(TenantModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'attempt', 'question'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'attempt', 'question', 'active_uniq_marker'],
                 name='unique_answer_per_attempt_question',
             ),
         ]
@@ -589,6 +590,8 @@ class ReportCard(TenantModel):
     approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     approved_at = models.DateTimeField(null=True, blank=True)
     published_at = models.DateTimeField(null=True, blank=True)
+    current_uniq_marker = soft_delete_uniqueness_marker(extra_condition=models.Q(is_current=True))
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'report_cards'
@@ -598,13 +601,11 @@ class ReportCard(TenantModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'student', 'term'],
-                condition=models.Q(deleted_at__isnull=True, is_current=True),
+                fields=['foundation_id', 'student', 'term', 'current_uniq_marker'],
                 name='unique_current_report_card_per_student_term',
             ),
             models.UniqueConstraint(
-                fields=['foundation_id', 'student', 'term', 'version'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'student', 'term', 'version', 'active_uniq_marker'],
                 name='unique_report_card_version_per_student_term',
             ),
         ]
@@ -640,6 +641,7 @@ class LessonPlan(TenantModel):
     attachments = models.JSONField(default=list, blank=True, help_text=_("List of {key, filename, size, content_type}"))
     slots = models.ManyToManyField(TimetableSlot, blank=True, related_name='lesson_plans')
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'lesson_plans'
@@ -648,8 +650,7 @@ class LessonPlan(TenantModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'class_subject', 'week_start_date'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'class_subject', 'week_start_date', 'active_uniq_marker'],
                 name='unique_lesson_plan_per_class_subject_week',
             ),
         ]
