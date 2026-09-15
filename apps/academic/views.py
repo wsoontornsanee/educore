@@ -16,6 +16,8 @@ from apps.academic.models import (
     ClassEnrollment,
     ClassGroup,
     ClassSubject,
+    Homework,
+    HomeworkSubmission,
     LearningObjective,
     Subject,
     Term,
@@ -30,6 +32,10 @@ from apps.academic.serializers import (
     ClassEnrollmentSerializer,
     ClassGroupSerializer,
     ClassSubjectSerializer,
+    HomeworkGradeSerializer,
+    HomeworkSerializer,
+    HomeworkSubmissionSerializer,
+    HomeworkSubmitSerializer,
     LearningObjectiveSerializer,
     SubjectSerializer,
     TermSerializer,
@@ -37,15 +43,21 @@ from apps.academic.serializers import (
     TimetableSubstitutionSerializer,
 )
 from apps.academic.services import (
+    InvalidSubmissionFilesError,
     ReasonRequiredError,
+    ReminderRateLimitedError,
     ScoreOutOfRangeError,
     TimetableConflictError,
     WeightConfigError,
     assign_substitution,
     compute_term_grade,
     create_timetable_slot,
+    get_homework_completion,
+    grade_homework_submission,
     publish_assessment,
+    remind_unsubmitted,
     set_assessment_score,
+    submit_homework,
 )
 
 
@@ -256,6 +268,85 @@ class TimetableSubstitutionViewSet(TenantScopedModelViewSet):
             reason=request.data.get('reason', ''),
         )
         return Response(self.get_serializer(substitution).data, status=status.HTTP_201_CREATED)
+
+
+class HomeworkViewSet(TenantScopedModelViewSet):
+    model = Homework
+    serializer_class = HomeworkSerializer
+    filter_params = {'class_subject_id': 'class_subject_id'}
+    action_permissions = {
+        'list': 'grades.read', 'retrieve': 'grades.read',
+        'create': 'grades.write', 'update': 'grades.write',
+        'partial_update': 'grades.write', 'destroy': 'grades.write',
+        'submissions': 'grades.read',
+        'remind': 'grades.write', 'completion': 'grades.read',
+    }
+
+    @action(detail=True, methods=['get', 'post'], url_path='submissions')
+    def submissions(self, request, pk=None):
+        homework = self.get_object()
+
+        if request.method == 'GET':
+            subs = HomeworkSubmission.objects.filter(homework=homework, deleted_at__isnull=True).order_by('-submitted_at')
+            return Response(HomeworkSubmissionSerializer(subs, many=True).data)
+
+        student_id = request.data.get('student_id')
+        foundation_id = get_current_foundation_id()
+        student = Student.objects.filter(id=student_id, foundation_id=foundation_id).first()
+        if not student:
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        payload = HomeworkSubmitSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        try:
+            submission = submit_homework(
+                homework=homework,
+                student=student,
+                text=payload.validated_data.get('text', ''),
+                files=payload.validated_data.get('files', []),
+            )
+        except InvalidSubmissionFilesError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(HomeworkSubmissionSerializer(submission).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='remind')
+    def remind(self, request, pk=None):
+        homework = self.get_object()
+        try:
+            result = remind_unsubmitted(homework)
+        except ReminderRateLimitedError as e:
+            return Response({'error': str(e)}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        return Response(result)
+
+    @action(detail=True, methods=['get'], url_path='completion')
+    def completion(self, request, pk=None):
+        homework = self.get_object()
+        return Response(get_homework_completion(homework))
+
+
+class HomeworkSubmissionViewSet(TenantScopedModelViewSet):
+    model = HomeworkSubmission
+    serializer_class = HomeworkSubmissionSerializer
+    filter_params = {'homework_id': 'homework_id', 'student_id': 'student_id', 'status': 'status'}
+    action_permissions = {
+        'list': 'grades.read', 'retrieve': 'grades.read',
+        'create': 'grades.write', 'update': 'grades.write',
+        'partial_update': 'grades.write', 'destroy': 'grades.write',
+        'grade': 'grades.write',
+    }
+
+    @action(detail=True, methods=['post'], url_path='grade')
+    def grade(self, request, pk=None):
+        submission = self.get_object()
+        payload = HomeworkGradeSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        graded = grade_homework_submission(
+            submission,
+            score=payload.validated_data.get('score'),
+            feedback=payload.validated_data.get('feedback', ''),
+            actor=request.user,
+        )
+        return Response(self.get_serializer(graded).data)
 
 
 class GradebookView(APIView):

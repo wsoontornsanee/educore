@@ -7,6 +7,8 @@ from apps.academic.models import (
     ClassEnrollment,
     ClassGroup,
     ClassSubject,
+    Homework,
+    HomeworkSubmission,
     LearningObjective,
     Subject,
     Term,
@@ -113,3 +115,32 @@ class TimetableSubstitutionSerializer(serializers.ModelSerializer):
         model = TimetableSubstitution
         fields = ['id', 'foundation_id', 'slot', 'date', 'original_teacher', 'substitute_teacher', 'reason', 'created_at', 'updated_at']
         read_only_fields = ['id', 'foundation_id', 'original_teacher', 'created_at', 'updated_at']
+
+
+class HomeworkSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Homework
+        fields = ['id', 'foundation_id', 'class_subject', 'title', 'instructions', 'assigned_at', 'due_at', 'last_reminded_at', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'foundation_id', 'last_reminded_at', 'created_at', 'updated_at']
+
+
+class HomeworkSubmissionSerializer(serializers.ModelSerializer):
+    score = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=True, allow_null=True, required=False)
+
+    class Meta:
+        model = HomeworkSubmission
+        fields = [
+            'id', 'foundation_id', 'homework', 'student', 'submitted_at', 'files', 'text',
+            'status', 'score', 'feedback', 'graded_by', 'graded_at', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'foundation_id', 'submitted_at', 'status', 'graded_by', 'graded_at', 'created_at', 'updated_at']
+
+
+class HomeworkSubmitSerializer(serializers.Serializer):
+    text = serializers.CharField(required=False, allow_blank=True, default='')
+    files = serializers.ListField(child=serializers.DictField(), required=False, default=list)
+
+
+class HomeworkGradeSerializer(serializers.Serializer):
+    score = serializers.DecimalField(max_digits=6, decimal_places=2, allow_null=True, required=False)
+    feedback = serializers.CharField(required=False, allow_blank=True, default='')

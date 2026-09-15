@@ -1,0 +1,169 @@
+import datetime
+from decimal import Decimal
+from django.test import TestCase
+from django.utils import timezone
+from rest_framework.test import APIClient
+
+from apps.identity.models import RoleAssignment
+from apps.academic.models import ClassEnrollment, Homework, HomeworkSubmissionStatus
+from apps.academic.services import (
+    InvalidSubmissionFilesError,
+    ReminderRateLimitedError,
+    get_homework_completion,
+    grade_homework_submission,
+    remind_unsubmitted,
+    submit_homework,
+)
+from apps.academic.tests.base import build_academic_fixture
+
+
+def make_homework(fx, due_delta_hours):
+    return Homework.objects.create(
+        foundation_id=fx['foundation'].id,
+        class_subject=fx['class_subject'],
+        title="Latihan Aljabar",
+        instructions="Kerjakan soal 1-10",
+        assigned_at=timezone.now(),
+        due_at=timezone.now() + datetime.timedelta(hours=due_delta_hours),
+    )
+
+
+class SubmitHomeworkTests(TestCase):
+    def setUp(self):
+        self.fx = build_academic_fixture()
+
+    def test_on_time_submission_status_submitted(self):
+        hw = make_homework(self.fx, due_delta_hours=24)
+        sub = submit_homework(hw, self.fx['student'], text="Selesai")
+        self.assertEqual(sub.status, HomeworkSubmissionStatus.SUBMITTED)
+
+    def test_late_submission_status_late(self):
+        hw = make_homework(self.fx, due_delta_hours=-1)
+        sub = submit_homework(hw, self.fx['student'], text="Terlambat")
+        self.assertEqual(sub.status, HomeworkSubmissionStatus.LATE)
+
+    def test_too_many_files_rejected(self):
+        hw = make_homework(self.fx, due_delta_hours=24)
+        files = [{'filename': f'f{i}.pdf', 'size': 100, 'content_type': 'application/pdf'} for i in range(6)]
+        with self.assertRaises(InvalidSubmissionFilesError):
+            submit_homework(hw, self.fx['student'], files=files)
+
+    def test_oversized_file_rejected(self):
+        hw = make_homework(self.fx, due_delta_hours=24)
+        files = [{'filename': 'big.pdf', 'size': 21 * 1024 * 1024, 'content_type': 'application/pdf'}]
+        with self.assertRaises(InvalidSubmissionFilesError):
+            submit_homework(hw, self.fx['student'], files=files)
+
+    def test_unsupported_content_type_rejected(self):
+        hw = make_homework(self.fx, due_delta_hours=24)
+        files = [{'filename': 'x.exe', 'size': 100, 'content_type': 'application/x-msdownload'}]
+        with self.assertRaises(InvalidSubmissionFilesError):
+            submit_homework(hw, self.fx['student'], files=files)
+
+    def test_resubmission_updates_same_row(self):
+        hw = make_homework(self.fx, due_delta_hours=24)
+        submit_homework(hw, self.fx['student'], text="v1")
+        sub2 = submit_homework(hw, self.fx['student'], text="v2")
+        self.assertEqual(sub2.text, "v2")
+        self.assertEqual(sub2.homework.submissions.count(), 1)
+
+
+class GradeHomeworkTests(TestCase):
+    def setUp(self):
+        self.fx = build_academic_fixture()
+        self.hw = make_homework(self.fx, due_delta_hours=24)
+        self.sub = submit_homework(self.hw, self.fx['student'], text="Selesai")
+
+    def test_grade_sets_status_graded(self):
+        graded = grade_homework_submission(self.sub, score=Decimal('90'), feedback="Bagus")
+        self.assertEqual(graded.status, HomeworkSubmissionStatus.GRADED)
+        self.assertEqual(graded.score, Decimal('90.00'))
+
+
+class CompletionAndReminderTests(TestCase):
+    def setUp(self):
+        self.fx = build_academic_fixture()
+        self.hw = make_homework(self.fx, due_delta_hours=24)
+        ClassEnrollment.objects.create(
+            foundation_id=self.fx['foundation'].id,
+            student=self.fx['student'],
+            class_group=self.fx['class_group'],
+            enrolled_at=datetime.date(2026, 7, 1),
+        )
+
+    def test_completion_counts(self):
+        result = get_homework_completion(self.hw)
+        self.assertEqual(result, {'total': 1, 'submitted': 0, 'not_started': 1})
+
+        submit_homework(self.hw, self.fx['student'])
+        result = get_homework_completion(self.hw)
+        self.assertEqual(result, {'total': 1, 'submitted': 1, 'not_started': 0})
+
+    def test_reminder_rate_limited(self):
+        result = remind_unsubmitted(self.hw)
+        self.assertEqual(result['count'], 1)
+
+        with self.assertRaises(ReminderRateLimitedError):
+            remind_unsubmitted(self.hw)
+
+
+class HomeworkViewsTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.fx = build_academic_fixture()
+        RoleAssignment.all_tenants.create(
+            foundation_id=self.fx['foundation'].id,
+            user=self.fx['teacher_user'],
+            role='teacher',
+            scope_type=RoleAssignment.SCOPE_SCHOOL,
+            scope_id=self.fx['school'].id,
+        )
+        ClassEnrollment.objects.create(
+            foundation_id=self.fx['foundation'].id,
+            student=self.fx['student'],
+            class_group=self.fx['class_group'],
+            enrolled_at=datetime.date(2026, 7, 1),
+        )
+
+    def test_create_and_submit_flow(self):
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+        res = self.client.post('/api/v1/academic/homework/', {
+            'class_subject': self.fx['class_subject'].id,
+            'title': 'PR Bab 3',
+            'instructions': 'Kerjakan halaman 40-42',
+            'assigned_at': timezone.now().isoformat(),
+            'due_at': (timezone.now() + datetime.timedelta(days=2)).isoformat(),
+        }, format='json')
+        self.assertEqual(res.status_code, 201, res.content)
+        hw_id = res.json()['id']
+
+        res_submit = self.client.post(f'/api/v1/academic/homework/{hw_id}/submissions/', {
+            'student_id': self.fx['student'].id,
+            'text': 'Sudah selesai',
+        }, format='json')
+        self.assertEqual(res_submit.status_code, 201, res_submit.content)
+
+        res_list = self.client.get(f'/api/v1/academic/homework/{hw_id}/submissions/')
+        self.assertEqual(res_list.status_code, 200)
+        self.assertEqual(len(res_list.json()), 1)
+
+        res_completion = self.client.get(f'/api/v1/academic/homework/{hw_id}/completion/')
+        self.assertEqual(res_completion.json(), {'total': 1, 'submitted': 1, 'not_started': 0})
+
+    def test_remind_rate_limited_returns_429(self):
+        hw = make_homework(self.fx, due_delta_hours=24)
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+        res1 = self.client.post(f'/api/v1/academic/homework/{hw.id}/remind/')
+        self.assertEqual(res1.status_code, 200)
+        res2 = self.client.post(f'/api/v1/academic/homework/{hw.id}/remind/')
+        self.assertEqual(res2.status_code, 429)
+
+    def test_grade_submission_via_api(self):
+        hw = make_homework(self.fx, due_delta_hours=24)
+        sub = submit_homework(hw, self.fx['student'], text="Selesai")
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+        res = self.client.post(f'/api/v1/academic/homework-submissions/{sub.id}/grade/', {
+            'score': '88', 'feedback': 'Baik',
+        }, format='json')
+        self.assertEqual(res.status_code, 200, res.content)
+        self.assertEqual(res.json()['status'], HomeworkSubmissionStatus.GRADED)

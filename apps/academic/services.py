@@ -1,12 +1,20 @@
+from datetime import timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
 from django.utils import timezone
 
 from apps.core.services import audit
 from apps.academic.models import (
+    ALLOWED_SUBMISSION_CONTENT_TYPES,
     Assessment,
     AssessmentScore,
+    ClassEnrollment,
     DEFAULT_DESCRIPTOR_BANDS,
+    Homework,
+    HomeworkSubmission,
+    HomeworkSubmissionStatus,
+    MAX_SUBMISSION_FILES,
+    MAX_SUBMISSION_FILE_SIZE,
     TimetableSlot,
     TimetableSubstitution,
     WEIGHTED_ASSESSMENT_TYPES,
@@ -26,6 +34,14 @@ class WeightConfigError(ValueError):
 
 
 class TimetableConflictError(ValueError):
+    pass
+
+
+class InvalidSubmissionFilesError(ValueError):
+    pass
+
+
+class ReminderRateLimitedError(ValueError):
     pass
 
 
@@ -221,6 +237,111 @@ def create_timetable_slot(class_subject, day_of_week, period_no, start_time, end
         diff={'class_subject': str(class_subject), 'day_of_week': day_of_week, 'period_no': period_no},
     )
     return slot
+
+
+def validate_submission_files(files) -> None:
+    """ACD-027: at most 5 files, each <=20MB, and an accepted content type."""
+    if len(files) > MAX_SUBMISSION_FILES:
+        raise InvalidSubmissionFilesError(f"TOO_MANY_FILES: at most {MAX_SUBMISSION_FILES} files are allowed.")
+    for f in files:
+        size = f.get('size', 0)
+        content_type = f.get('content_type', '')
+        if size > MAX_SUBMISSION_FILE_SIZE:
+            raise InvalidSubmissionFilesError(f"FILE_TOO_LARGE: '{f.get('filename', '?')}' exceeds 20MB.")
+        if content_type not in ALLOWED_SUBMISSION_CONTENT_TYPES:
+            raise InvalidSubmissionFilesError(f"UNSUPPORTED_FILE_TYPE: '{content_type}' is not accepted.")
+
+
+def submit_homework(homework: Homework, student, text='', files=None) -> HomeworkSubmission:
+    """ACD-027/ACD-028: create or update a student's homework submission."""
+    files = files or []
+    validate_submission_files(files)
+
+    now = timezone.now()
+    status = HomeworkSubmissionStatus.LATE if now > homework.due_at else HomeworkSubmissionStatus.SUBMITTED
+
+    submission, created = HomeworkSubmission.objects.update_or_create(
+        foundation_id=homework.foundation_id,
+        homework=homework,
+        student=student,
+        defaults={
+            'submitted_at': now,
+            'files': files,
+            'text': text,
+            'status': status,
+        },
+    )
+    audit(
+        action='academic.homework_submission.submitted',
+        entity_type='HomeworkSubmission',
+        entity_id=submission.id,
+        foundation_id=homework.foundation_id,
+        diff={'status': status, 'file_count': len(files)},
+    )
+    return submission
+
+
+def grade_homework_submission(submission: HomeworkSubmission, score, feedback='', actor=None) -> HomeworkSubmission:
+    submission.score = score
+    submission.feedback = feedback
+    submission.status = HomeworkSubmissionStatus.GRADED
+    submission.graded_by = actor
+    submission.graded_at = timezone.now()
+    submission.save()
+    audit(
+        action='academic.homework_submission.graded',
+        entity_type='HomeworkSubmission',
+        entity_id=submission.id,
+        foundation_id=submission.foundation_id,
+        diff={'score': str(score) if score is not None else None},
+    )
+    return submission
+
+
+def get_homework_completion(homework: Homework) -> dict:
+    """ACD-030: class completion counts for a homework assignment."""
+    total = ClassEnrollment.objects.filter(
+        class_group=homework.class_subject.class_group,
+        is_active=True,
+        deleted_at__isnull=True,
+    ).count()
+    submitted_student_ids = set(
+        HomeworkSubmission.objects.filter(homework=homework, deleted_at__isnull=True).values_list('student_id', flat=True)
+    )
+    return {
+        'total': total,
+        'submitted': len(submitted_student_ids),
+        'not_started': max(total - len(submitted_student_ids), 0),
+    }
+
+
+def remind_unsubmitted(homework: Homework) -> dict:
+    """ACD-030: rate-limited (once per 12h) reminder to unsubmitted students. Delivery is stubbed."""
+    now = timezone.now()
+    if homework.last_reminded_at and (now - homework.last_reminded_at) < timedelta(hours=12):
+        raise ReminderRateLimitedError("REMINDER_RATE_LIMITED: reminders can only be sent once every 12 hours.")
+
+    enrolled_ids = set(
+        ClassEnrollment.objects.filter(
+            class_group=homework.class_subject.class_group, is_active=True, deleted_at__isnull=True,
+        ).values_list('student_id', flat=True)
+    )
+    submitted_ids = set(
+        HomeworkSubmission.objects.filter(homework=homework, deleted_at__isnull=True).values_list('student_id', flat=True)
+    )
+    unsubmitted_ids = list(enrolled_ids - submitted_ids)
+
+    homework.last_reminded_at = now
+    homework.save(update_fields=['last_reminded_at', 'updated_at'])
+
+    audit(
+        action='academic.homework.reminder_sent',
+        entity_type='Homework',
+        entity_id=homework.id,
+        foundation_id=homework.foundation_id,
+        diff={'unsubmitted_count': len(unsubmitted_ids)},
+    )
+    return {'reminded_student_ids': unsubmitted_ids, 'count': len(unsubmitted_ids)}
 
 
 def assign_substitution(slot, date, substitute_teacher, reason='') -> TimetableSubstitution:

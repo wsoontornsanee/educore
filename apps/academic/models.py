@@ -323,3 +323,70 @@ class TimetableSubstitution(TenantModel):
 
     def __str__(self):
         return f"{self.slot} on {self.date}: {self.original_teacher} -> {self.substitute_teacher}"
+
+
+class HomeworkSubmissionStatus(models.TextChoices):
+    """ACD-028: homework submission lifecycle (NOT_STARTED is derived, never stored)."""
+    SUBMITTED = 'SUBMITTED', _('Terkumpul')
+    LATE = 'LATE', _('Terlambat')
+    GRADED = 'GRADED', _('Dinilai')
+    RETURNED = 'RETURNED', _('Dikembalikan')
+
+
+# ACD-027: accepted submission attachment types and limits.
+ALLOWED_SUBMISSION_CONTENT_TYPES = {
+    'application/pdf', 'image/jpeg', 'image/png',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+}
+MAX_SUBMISSION_FILE_SIZE = 20 * 1024 * 1024
+MAX_SUBMISSION_FILES = 5
+
+
+class Homework(TenantModel):
+    """A homework assignment for a class subject (spec/04 §7)."""
+    class_subject = models.ForeignKey(ClassSubject, on_delete=models.PROTECT, related_name='homework_assignments')
+    title = models.CharField(max_length=128)
+    instructions = models.TextField(blank=True, default='')
+    assigned_at = models.DateTimeField()
+    due_at = models.DateTimeField()
+    last_reminded_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'homework'
+        indexes = [
+            models.Index(fields=['foundation_id', 'class_subject_id', 'due_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.title} ({self.class_subject})"
+
+
+class HomeworkSubmission(TenantModel):
+    """A student's submission for a homework assignment (spec/04 §7)."""
+    homework = models.ForeignKey(Homework, on_delete=models.PROTECT, related_name='submissions')
+    student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name='homework_submissions')
+    submitted_at = models.DateTimeField()
+    files = models.JSONField(default=list, blank=True, help_text=_("List of {key, filename, size, content_type}"))
+    text = models.TextField(blank=True, default='')
+    status = models.CharField(max_length=16, choices=HomeworkSubmissionStatus.choices)
+    score = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    feedback = models.TextField(blank=True, default='')
+    graded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    graded_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'homework_submissions'
+        indexes = [
+            models.Index(fields=['foundation_id', 'homework_id', 'status']),
+            models.Index(fields=['foundation_id', 'student_id']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'homework', 'student'],
+                condition=models.Q(deleted_at__isnull=True),
+                name='unique_submission_per_homework_student',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.student.nis} - {self.homework.title} ({self.status})"
