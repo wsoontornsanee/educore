@@ -610,3 +610,34 @@ class LessonPlan(TenantModel):
 
     def __str__(self):
         return f"{self.class_subject} - week of {self.week_start_date}"
+
+
+class BroadcastPolicy(TenantModel):
+    """Per-school policy gating teacher-to-guardian broadcast announcements (ACD/TCH-011)."""
+    school = models.OneToOneField(School, on_delete=models.PROTECT, related_name='broadcast_policy')
+    teacher_can_broadcast = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'broadcast_policies'
+
+    def __str__(self):
+        return f"{self.school.name} (teacher_can_broadcast={self.teacher_can_broadcast})"
+
+
+class Broadcast(TenantModel):
+    """A teacher's group announcement to a class group's guardians (spec/09 TCH-011)."""
+    class_group = models.ForeignKey(ClassGroup, on_delete=models.PROTECT, related_name='broadcasts')
+    sender = models.ForeignKey(Staff, on_delete=models.PROTECT, related_name='broadcasts_sent')
+    title = models.CharField(max_length=128)
+    body = models.TextField()
+    sent_at = models.DateTimeField()
+    recipient_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = 'broadcasts'
+        indexes = [
+            models.Index(fields=['foundation_id', 'class_group_id', 'sent_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.title} -> {self.class_group.name} ({self.sent_at})"
