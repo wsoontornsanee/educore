@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'apps.notifications.apps.NotificationsConfig',
     'apps.finance.apps.FinanceConfig',
     'apps.academic.apps.AcademicConfig',
+    'apps.wallet.apps.WalletConfig',
 ]
 
 MIDDLEWARE = [
