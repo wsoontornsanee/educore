@@ -1,6 +1,6 @@
 """Tests for TenantModel and 3-layer tenancy isolation (ARC-001, ARC-002)."""
 from django.db import connection, models
-from django.test import TestCase
+from django.test import TransactionTestCase
 from apps.core.fields import MoneyField
 from apps.core.models import TenantModel
 from educore.middleware.tenancy import clear_current_foundation_id, tenant_context
@@ -13,29 +13,22 @@ class DummyTenantModel(TenantModel):
         app_label = 'core'
         db_table = 'test_tenant_items'
 
-class TenancyIsolationTests(TestCase):
+class TenancyIsolationTests(TransactionTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        with connection.cursor() as cursor:
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS test_tenant_items (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    foundation_id BIGINT NOT NULL,
-                    created_at DATETIME NOT NULL,
-                    created_by VARCHAR(64),
-                    updated_at DATETIME NOT NULL,
-                    updated_by VARCHAR(64),
-                    deleted_at DATETIME,
-                    name VARCHAR(50) NOT NULL,
-                    amount DECIMAL(18,2) NOT NULL DEFAULT '0.00'
-                )
-            """)
+        # Use the schema editor against the model's own field definitions
+        # rather than hand-written DDL — hand-written SQLite dialect SQL
+        # (AUTOINCREMENT, bare INTEGER PRIMARY KEY) breaks on MySQL, and this
+        # way the throwaway table can never drift from what DummyTenantModel
+        # (and the TenantModel fields it inherits) actually declares.
+        with connection.schema_editor(atomic=False) as schema_editor:
+            schema_editor.create_model(DummyTenantModel)
 
     @classmethod
     def tearDownClass(cls):
-        with connection.cursor() as cursor:
-            cursor.execute("DROP TABLE IF EXISTS test_tenant_items")
+        with connection.schema_editor(atomic=False) as schema_editor:
+            schema_editor.delete_model(DummyTenantModel)
         super().tearDownClass()
 
     def setUp(self):

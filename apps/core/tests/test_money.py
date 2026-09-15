@@ -2,7 +2,7 @@
 from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.db import connection, models
-from django.test import TestCase
+from django.test import TransactionTestCase
 from apps.core.fields import MoneyField
 
 class MoneyHolder(models.Model):
@@ -13,23 +13,22 @@ class MoneyHolder(models.Model):
         app_label = 'core'
         db_table = 'test_money_holder'
 
-class MoneyFieldTests(TestCase):
+class MoneyFieldTests(TransactionTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        with connection.cursor() as cursor:
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS test_money_holder (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    title VARCHAR(50) NOT NULL,
-                    amount DECIMAL(18,2) NOT NULL
-                )
-            """)
+        # Use the schema editor against the model's own field definitions
+        # rather than hand-written DDL — hand-written SQLite dialect SQL
+        # (AUTOINCREMENT, bare INTEGER PRIMARY KEY) breaks on MySQL, and this
+        # way the throwaway table can never drift from what MoneyHolder
+        # actually declares.
+        with connection.schema_editor(atomic=False) as schema_editor:
+            schema_editor.create_model(MoneyHolder)
 
     @classmethod
     def tearDownClass(cls):
-        with connection.cursor() as cursor:
-            cursor.execute("DROP TABLE IF EXISTS test_money_holder")
+        with connection.schema_editor(atomic=False) as schema_editor:
+            schema_editor.delete_model(MoneyHolder)
         super().tearDownClass()
 
     def test_money_field_parameters(self):
