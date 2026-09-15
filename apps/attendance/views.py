@@ -24,17 +24,20 @@ from apps.attendance.serializers import (
 )
 from apps.attendance.services import (
     get_live_gate_feed,
+    get_teacher_agenda,
     ingest_gate_events,
     issue_credential,
     manual_gate_checkin,
     override_attendance_day,
     revoke_credential,
+    submit_period_attendance,
     verify_credential,
 )
 from apps.core.pagination import StandardCursorPagination
 from apps.hardware.models import Device
 from apps.identity.models import RoleAssignment, Staff, Student
 from apps.identity.permissions import HasRequiredPermission
+from educore.middleware.tenancy import get_current_foundation_id
 
 
 class CredentialViewSet(viewsets.ReadOnlyModelViewSet):
@@ -819,3 +822,68 @@ class LiveGateConsoleView(views.APIView):
         return Response(feed_data, status=status.HTTP_200_OK)
 
 
+
+
+class TeacherAgendaView(views.APIView):
+    """GET /teacher/agenda?date -> today's timetable slots for the requesting teacher (TCH-001)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'attendance.read'
+
+    def get(self, request):
+        foundation_id = get_current_foundation_id()
+        teacher = Staff.objects.filter(user=request.user, foundation_id=foundation_id).first()
+        if not teacher:
+            return Response({'error': "Akun ini tidak terhubung ke profil staf."}, status=status.HTTP_404_NOT_FOUND)
+
+        date_param = request.query_params.get('date')
+        if not date_param:
+            return Response({'error': "Parameter date wajib diisi."}, status=status.HTTP_400_BAD_REQUEST)
+
+        import datetime as _dt
+        try:
+            date = _dt.date.fromisoformat(date_param)
+        except ValueError:
+            return Response({'error': "Format date tidak valid (YYYY-MM-DD)."}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({'date': date_param, 'agenda': get_teacher_agenda(teacher, date)})
+
+
+class PeriodAttendanceView(views.APIView):
+    """POST /timetable/slots/:slot_id/period-attendance -> submit period attendance (TCH-002/003)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'attendance.write'
+
+    def post(self, request, slot_id):
+        from apps.academic.models import TimetableSlot
+
+        foundation_id = get_current_foundation_id()
+        teacher = Staff.objects.filter(user=request.user, foundation_id=foundation_id).first()
+        if not teacher:
+            return Response({'error': "Akun ini tidak terhubung ke profil staf."}, status=status.HTTP_404_NOT_FOUND)
+
+        slot = TimetableSlot.objects.filter(id=slot_id, foundation_id=foundation_id).first()
+        if not slot:
+            return Response({'error': "Slot jadwal tidak ditemukan."}, status=status.HTTP_404_NOT_FOUND)
+
+        date_param = request.data.get('date')
+        if not date_param:
+            return Response({'error': "Parameter date wajib diisi."}, status=status.HTTP_400_BAD_REQUEST)
+
+        import datetime as _dt
+        try:
+            date = _dt.date.fromisoformat(date_param)
+        except ValueError:
+            return Response({'error': "Format date tidak valid (YYYY-MM-DD)."}, status=status.HTTP_400_BAD_REQUEST)
+
+        exceptions = {
+            row['student_id']: row['status']
+            for row in request.data.get('exceptions', [])
+        }
+
+        records = submit_period_attendance(teacher, slot, date, exceptions, actor=request.user)
+        return Response({
+            'slot_id': slot.id,
+            'date': date_param,
+            'student_count': len(records),
+            'statuses': {r.student_id: r.status for r in records},
+        })

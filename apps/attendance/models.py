@@ -387,3 +387,48 @@ class GateEvent(TenantModel):
         holder = self.student.person.full_name if self.student else (self.staff.person.full_name if self.staff else self.raw_uid)
         return f"{self.direction} - {holder} @ {self.occurred_at.strftime('%Y-%m-%d %H:%M:%S')} [{self.status}]"
 
+
+class PeriodAttendanceSource(models.TextChoices):
+    TEACHER = 'TEACHER', _('Guru (Teacher)')
+    GATE_PREFILL = 'GATE_PREFILL', _('Pra-isi dari Gerbang (Gate Pre-fill)')
+
+
+class PeriodAttendance(TenantModel):
+    """A student's attendance for one class period, submitted by the teacher (spec/09 TCH-002/003).
+
+    Distinct from AttendanceDay (whole-day, gate-derived): this is per-timetable-slot,
+    teacher-submitted, and may be pre-filled from that day's gate-derived status.
+    """
+    student = models.ForeignKey(
+        'identity.Student', on_delete=models.PROTECT, related_name='period_attendances'
+    )
+    slot = models.ForeignKey(
+        'academic.TimetableSlot', on_delete=models.PROTECT, related_name='period_attendances'
+    )
+    date = models.DateField(db_index=True)
+    status = models.CharField(max_length=16, choices=AttendanceStatus.choices, default=AttendanceStatus.HADIR)
+    source = models.CharField(max_length=16, choices=PeriodAttendanceSource.choices, default=PeriodAttendanceSource.TEACHER)
+    note = models.CharField(max_length=255, blank=True, default='')
+    recorded_by = models.ForeignKey(
+        'identity.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
+    )
+
+    class Meta(TenantModel.Meta):
+        db_table = 'period_attendances'
+        verbose_name = _('Absensi Per Jam Pelajaran')
+        verbose_name_plural = _('Absensi Per Jam Pelajaran')
+        indexes = [
+            models.Index(fields=['foundation_id', 'slot_id', 'date']),
+            models.Index(fields=['foundation_id', 'student_id', 'date']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'student', 'slot', 'date'],
+                condition=models.Q(deleted_at__isnull=True),
+                name='unique_period_attendance_per_student_slot_date',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.student.nis} - {self.slot} @ {self.date} [{self.status}]"
+
