@@ -205,3 +205,37 @@ class POSTransaction(TenantModel):
 
     def __str__(self):
         return f"{self.student.nis} @ {self.merchant.name}: {self.total} ({self.status})"
+
+
+class MerchantSettlementStatus(models.TextChoices):
+    PENDING = 'PENDING', _('Menunggu')
+    PAID = 'PAID', _('Dibayar')
+
+
+class MerchantSettlement(TenantModel):
+    """A settlement run for one merchant over one period (spec/07 §6, WAL-021 to WAL-022)."""
+    merchant = models.ForeignKey(Merchant, on_delete=models.PROTECT, related_name='settlements')
+    period_start = models.DateField()
+    period_end = models.DateField()
+    gross = MoneyField(default=Decimal('0.00'))
+    commission = MoneyField(default=Decimal('0.00'))
+    net = MoneyField(default=Decimal('0.00'))
+    status = models.CharField(max_length=16, choices=MerchantSettlementStatus.choices, default=MerchantSettlementStatus.PENDING)
+    paid_at = models.DateTimeField(null=True, blank=True)
+    statement_pdf_key = models.CharField(max_length=255, blank=True, default='')
+
+    class Meta:
+        db_table = 'merchant_settlements'
+        indexes = [
+            models.Index(fields=['foundation_id', 'merchant_id', 'period_start']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'merchant', 'period_start', 'period_end'],
+                condition=models.Q(deleted_at__isnull=True),
+                name='unique_settlement_per_merchant_period',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.merchant.name} {self.period_start}..{self.period_end}: net {self.net} ({self.status})"

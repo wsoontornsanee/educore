@@ -1,12 +1,19 @@
+import logging
 from datetime import timedelta
 from decimal import Decimal
+from pathlib import Path
 
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
 
+logger = logging.getLogger(__name__)
+
 from apps.core.services import audit
 from apps.wallet.models import (
+    MerchantSettlement,
+    MerchantSettlementStatus,
     POSTransaction,
     POSTransactionStatus,
     SpendRule,
@@ -35,6 +42,10 @@ class SpendNotAllowedError(ValueError):
 
 
 class VoidWindowExpiredError(ValueError):
+    pass
+
+
+class SettlementStateError(ValueError):
     pass
 
 
@@ -311,3 +322,91 @@ def void_pos_transaction(pos_transaction: POSTransaction, reason: str, actor=Non
         diff={'reason': reason, 'restored_amount': str(pos_transaction.subtotal)},
     )
     return pos_transaction
+
+
+def run_merchant_settlement(merchant, period_start, period_end) -> MerchantSettlement:
+    """WAL-022: gross/commission/net for a merchant over a period. Re-running while PENDING updates in place."""
+    existing = MerchantSettlement.objects.filter(
+        foundation_id=merchant.foundation_id, merchant=merchant,
+        period_start=period_start, period_end=period_end, deleted_at__isnull=True,
+    ).first()
+    if existing and existing.status == MerchantSettlementStatus.PAID:
+        raise SettlementStateError("SETTLEMENT_ALREADY_PAID: cannot re-run a paid settlement.")
+
+    totals = POSTransaction.objects.filter(
+        foundation_id=merchant.foundation_id, merchant=merchant,
+        status=POSTransactionStatus.COMPLETED,
+        occurred_at__date__gte=period_start, occurred_at__date__lte=period_end,
+    ).aggregate(gross=Sum('total'), commission=Sum('commission'))
+
+    gross = totals['gross'] or Decimal('0.00')
+    commission = totals['commission'] or Decimal('0.00')
+    net = gross - commission
+
+    if existing:
+        existing.gross, existing.commission, existing.net = gross, commission, net
+        existing.save(update_fields=['gross', 'commission', 'net', 'updated_at'])
+        settlement = existing
+    else:
+        settlement = MerchantSettlement.objects.create(
+            foundation_id=merchant.foundation_id, merchant=merchant,
+            period_start=period_start, period_end=period_end,
+            gross=gross, commission=commission, net=net,
+        )
+
+    audit(
+        action='wallet.merchant_settlement.run',
+        entity_type='MerchantSettlement',
+        entity_id=settlement.id,
+        foundation_id=merchant.foundation_id,
+        diff={'gross': str(gross), 'commission': str(commission), 'net': str(net)},
+    )
+    return settlement
+
+
+def render_settlement_statement_html(settlement: MerchantSettlement) -> str:
+    merchant = settlement.merchant
+    return f"""<html><body>
+<h1>Laporan Penyelesaian - {merchant.name}</h1>
+<p>Periode: {settlement.period_start} s/d {settlement.period_end}</p>
+<table border="1">
+<tr><th>Bruto</th><td>{settlement.gross}</td></tr>
+<tr><th>Komisi</th><td>{settlement.commission}</td></tr>
+<tr><th>Neto</th><td>{settlement.net}</td></tr>
+</table>
+</body></html>"""
+
+
+def generate_settlement_statement_pdf(settlement: MerchantSettlement) -> str:
+    """Falls back to HTML if weasyprint's native libraries are unavailable in this environment."""
+    html_content = render_settlement_statement_html(settlement)
+    output_dir = Path(settings.MEDIA_ROOT) / 'settlements'
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        from weasyprint import HTML
+        key = f"settlements/{settlement.id}.pdf"
+        HTML(string=html_content).write_pdf(str(Path(settings.MEDIA_ROOT) / key))
+    except Exception:
+        logger.warning("weasyprint unavailable, falling back to HTML settlement statement", exc_info=True)
+        key = f"settlements/{settlement.id}.html"
+        (Path(settings.MEDIA_ROOT) / key).write_text(html_content)
+
+    settlement.statement_pdf_key = key
+    settlement.save(update_fields=['statement_pdf_key', 'updated_at'])
+    return key
+
+
+def mark_settlement_paid(settlement: MerchantSettlement) -> MerchantSettlement:
+    if settlement.status == MerchantSettlementStatus.PAID:
+        return settlement
+    settlement.status = MerchantSettlementStatus.PAID
+    settlement.paid_at = timezone.now()
+    settlement.save(update_fields=['status', 'paid_at', 'updated_at'])
+    audit(
+        action='wallet.merchant_settlement.paid',
+        entity_type='MerchantSettlement',
+        entity_id=settlement.id,
+        foundation_id=settlement.foundation_id,
+    )
+    return settlement

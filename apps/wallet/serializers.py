@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from apps.wallet.models import (
     Merchant,
+    MerchantSettlement,
     POSTerminal,
     POSTransaction,
     Product,
@@ -98,3 +99,22 @@ class POSTransactionCreateSerializer(serializers.Serializer):
 
 class POSTransactionVoidSerializer(serializers.Serializer):
     reason = serializers.CharField(max_length=255, required=False, allow_blank=True, default='')
+
+
+class MerchantSettlementSerializer(serializers.ModelSerializer):
+    gross = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    commission = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    net = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+
+    class Meta:
+        model = MerchantSettlement
+        fields = [
+            'id', 'foundation_id', 'merchant', 'period_start', 'period_end', 'gross',
+            'commission', 'net', 'status', 'paid_at', 'statement_pdf_key', 'created_at', 'updated_at',
+        ]
+        read_only_fields = fields
+
+
+class MerchantSettlementRunSerializer(serializers.Serializer):
+    period_start = serializers.DateField()
+    period_end = serializers.DateField()

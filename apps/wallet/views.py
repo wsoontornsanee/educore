@@ -9,9 +9,19 @@ from apps.identity.models import Student
 from apps.identity.permissions import HasRequiredPermission
 from educore.middleware.tenancy import get_current_foundation_id
 
-from apps.wallet.models import Merchant, POSTerminal, POSTransaction, Product, WalletTransaction
+from apps.wallet.models import (
+    Merchant,
+    MerchantSettlement,
+    POSTerminal,
+    POSTransaction,
+    POSTransactionStatus,
+    Product,
+    WalletTransaction,
+)
 from apps.wallet.serializers import (
     MerchantSerializer,
+    MerchantSettlementRunSerializer,
+    MerchantSettlementSerializer,
     POSTerminalSerializer,
     POSTransactionCreateSerializer,
     POSTransactionSerializer,
@@ -25,12 +35,15 @@ from apps.wallet.serializers import (
 from apps.wallet.services import (
     CurrencyMismatchError,
     InsufficientBalanceError,
+    SettlementStateError,
     SpendNotAllowedError,
     VoidWindowExpiredError,
     WalletNotActiveError,
+    generate_settlement_statement_pdf,
     get_or_create_spend_rule,
     get_or_create_wallet,
     process_pos_transaction,
+    run_merchant_settlement,
     set_spend_rule,
     topup_wallet,
     void_pos_transaction,
@@ -171,7 +184,44 @@ class MerchantViewSet(TenantScopedCatalogViewSet):
         'list': 'school_config.read', 'retrieve': 'school_config.read',
         'create': 'school_config.write', 'update': 'school_config.write',
         'partial_update': 'school_config.write', 'destroy': 'school_config.write',
+        'sales': 'finance.payment.read', 'settlements': 'finance.payment.read', 'run_settlement': 'finance.payment.write',
     }
+
+    @action(detail=True, methods=['get'], url_path='sales')
+    def sales(self, request, pk=None):
+        merchant = self.get_object()
+        qs = POSTransaction.objects.filter(
+            foundation_id=merchant.foundation_id, merchant=merchant, status=POSTransactionStatus.COMPLETED,
+        ).order_by('-occurred_at')
+        date_from = request.query_params.get('from')
+        date_to = request.query_params.get('to')
+        if date_from:
+            qs = qs.filter(occurred_at__date__gte=date_from)
+        if date_to:
+            qs = qs.filter(occurred_at__date__lte=date_to)
+        return Response(POSTransactionSerializer(qs, many=True).data)
+
+    @action(detail=True, methods=['get'], url_path='settlements')
+    def settlements(self, request, pk=None):
+        merchant = self.get_object()
+        qs = MerchantSettlement.objects.filter(
+            foundation_id=merchant.foundation_id, merchant=merchant, deleted_at__isnull=True,
+        ).order_by('-period_start')
+        return Response(MerchantSettlementSerializer(qs, many=True).data)
+
+    @action(detail=True, methods=['post'], url_path='settlements/run')
+    def run_settlement(self, request, pk=None):
+        merchant = self.get_object()
+        payload = MerchantSettlementRunSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        try:
+            settlement = run_merchant_settlement(
+                merchant, payload.validated_data['period_start'], payload.validated_data['period_end'],
+            )
+        except SettlementStateError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        generate_settlement_statement_pdf(settlement)
+        return Response(MerchantSettlementSerializer(settlement).data, status=status.HTTP_201_CREATED)
 
 
 class ProductViewSet(TenantScopedCatalogViewSet):
