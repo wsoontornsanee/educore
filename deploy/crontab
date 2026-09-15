@@ -7,6 +7,7 @@
 */5 * * * *    python /app/manage.py sync_payment_status                # poll pending payment intents
 */10 * * * *   python /app/manage.py check_device_health                # offline device alerts
 */15 * * * *   python /app/manage.py send_due_notifications             # scheduled + quiet-hours release
+*/30 * * * *   python /app/manage.py send_wallet_recon_reminders        # 48h clock, delivered-notices only (spec/17 REC-012)
 0 * * * *      python /app/manage.py expire_sessions
 30 6 * * *     python /app/manage.py mark_absent_students               # after absent_cutoff per school
 0 17 * * *     python /app/manage.py send_digests
@@ -16,6 +17,7 @@
 0 21 * * *     python /app/manage.py run_arrears_ladder
 0 22 * * *     python /app/manage.py enforce_retention --dry-run=false
 0 23 * * *     python /app/manage.py backup_database
+0 1 * * *      python /app/manage.py invoice_stale_reconciliations      # 7d handover to arrears (spec/17 REC-013)
 25 2 25 * *    python /app/manage.py generate_invoices --next-period
 0 3 1 * *      python /app/manage.py close_metering_month
 0 4 * * 0      python /app/manage.py settle_merchants

@@ -786,3 +786,135 @@ def mark_reconciliation_notice_sent(intent):
         foundation_id=intent.foundation_id, wallet_id=wallet_id,
         status=WalletReconciliationStatus.OPEN, notice_sent_at__isnull=True, deleted_at__isnull=True,
     ).update(notice_sent_at=timezone.now())
+
+
+REMINDER_AFTER = timedelta(hours=48)
+INVOICE_HANDOVER_AFTER = timedelta(days=7)
+
+
+def get_wallets_due_for_reminder(foundation_id=None):
+    """REC-012/029: wallets with OPEN cases whose notice was delivered >=48h ago and
+    have not yet had a reminder sent. Cases never delivered are excluded entirely."""
+    cutoff = timezone.now() - REMINDER_AFTER
+    qs = WalletReconciliation.all_tenants.filter(
+        status=WalletReconciliationStatus.OPEN, notice_sent_at__isnull=False,
+        notice_sent_at__lte=cutoff, reminder_sent_at__isnull=True, deleted_at__isnull=True,
+    )
+    if foundation_id:
+        qs = qs.filter(foundation_id=foundation_id)
+    wallet_ids = qs.values_list('wallet_id', flat=True).distinct()
+    return Wallet.all_tenants.filter(id__in=wallet_ids)
+
+
+def queue_reconciliation_reminder(wallet: Wallet) -> list:
+    """REC-012: exactly one reminder per wallet, covering every case eligible for it."""
+    from apps.notifications.models import NotificationCategory
+    from apps.notifications.services import dispatch_intent
+
+    cases = list(
+        WalletReconciliation.objects.filter(
+            foundation_id=wallet.foundation_id, wallet=wallet,
+            status=WalletReconciliationStatus.OPEN, notice_sent_at__isnull=False,
+            notice_sent_at__lte=timezone.now() - REMINDER_AFTER, reminder_sent_at__isnull=True,
+            deleted_at__isnull=True,
+        )
+    )
+    if not cases:
+        return []
+
+    total_shortfall = sum((c.shortfall for c in cases), Decimal('0.00'))
+    detected_date = timezone.localtime(cases[0].detected_at).date()
+    deadline_date = detected_date + timedelta(days=7)
+    student = wallet.student
+
+    intents = []
+    for link in _resolve_financial_guardians(student):
+        guardian = link.guardian
+        if not guardian.user:
+            continue
+        intents.append(dispatch_intent(
+            foundation_id=wallet.foundation_id,
+            category=NotificationCategory.WALLET_RECONCILIATION,
+            template_key='wallet.recon.reminder',
+            payload={
+                'student_name': student.person.full_name if student.person else '',
+                'shortfall': str(total_shortfall),
+                'detected_date': detected_date.isoformat(),
+                'deadline_date': deadline_date.isoformat(),
+            },
+            school_id=student.school_id,
+            recipient_user=guardian.user,
+            recipient_phone=getattr(guardian.user, 'phone_e164', ''),
+            recipient_name=guardian.person.full_name if guardian.person else '',
+            dedupe_key=f"wallet_recon_reminder:{wallet.id}:{timezone.localdate().isoformat()}",
+        ))
+
+    now = timezone.now()
+    for case in cases:
+        case.reminder_sent_at = now
+        case.save(update_fields=['reminder_sent_at', 'updated_at'])
+
+    return intents
+
+
+def get_reconciliations_due_for_invoice_handover(foundation_id=None):
+    """REC-013: OPEN cases still unresolved 7 days after detection."""
+    cutoff = timezone.now() - INVOICE_HANDOVER_AFTER
+    qs = WalletReconciliation.all_tenants.filter(
+        status=WalletReconciliationStatus.OPEN, detected_at__lte=cutoff, deleted_at__isnull=True,
+    )
+    if foundation_id:
+        qs = qs.filter(foundation_id=foundation_id)
+    return qs.select_related('wallet', 'student', 'wallet__student__school')
+
+
+def invoice_reconciliation_case(case: WalletReconciliation, actor=None) -> WalletReconciliation:
+    """REC-013: hand an unresolved case over to billing as a PENYESUAIAN SALDO KANTIN line."""
+    from apps.finance.services import add_adhoc_invoice_line
+    from apps.notifications.models import NotificationCategory
+    from apps.notifications.services import dispatch_intent
+
+    student = case.student
+    school = student.school
+
+    invoice = add_adhoc_invoice_line(
+        student, school,
+        code='PENYESUAIAN_SALDO_KANTIN',
+        description=f"Penyesuaian Saldo Kantin - {case.detected_at.date().isoformat()}",
+        amount=case.shortfall,
+    )
+
+    case.status = WalletReconciliationStatus.INVOICED
+    case.invoiced_at = timezone.now()
+    case.invoice = invoice
+    case.save(update_fields=['status', 'invoiced_at', 'invoice', 'updated_at'])
+
+    audit(
+        action='wallet.reconciliation.invoiced',
+        entity_type='WalletReconciliation',
+        entity_id=case.id,
+        foundation_id=case.foundation_id,
+        diff={'invoice_id': invoice.id, 'amount': str(case.shortfall)},
+    )
+
+    for link in _resolve_financial_guardians(student):
+        guardian = link.guardian
+        if not guardian.user:
+            continue
+        dispatch_intent(
+            foundation_id=case.foundation_id,
+            category=NotificationCategory.PAYMENT_DUE,
+            template_key='wallet.recon.invoiced',
+            payload={
+                'student_name': student.person.full_name if student.person else '',
+                'shortfall': str(case.shortfall),
+                'detected_date': case.detected_at.date().isoformat(),
+            },
+            school_id=school.id,
+            recipient_user=guardian.user,
+            recipient_phone=getattr(guardian.user, 'phone_e164', ''),
+            recipient_name=guardian.person.full_name if guardian.person else '',
+            dedupe_key=f"wallet_recon_invoiced:{case.id}",
+        )
+
+    return case

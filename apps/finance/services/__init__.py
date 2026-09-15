@@ -1,4 +1,5 @@
 from apps.finance.services.invoicing import (
+    add_adhoc_invoice_line,
     approve_discount,
     calculate_idr_rounding,
     calculate_sibling_discount,
