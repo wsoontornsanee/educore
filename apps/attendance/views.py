@@ -33,6 +33,7 @@ from apps.attendance.services import (
     override_attendance_day,
     revoke_credential,
     submit_period_attendance,
+    sync_offline_period_attendance_batch,
     verify_credential,
 )
 from apps.core.pagination import StandardCursorPagination
@@ -893,3 +894,27 @@ class PeriodAttendanceView(views.APIView):
             'student_count': len(records),
             'statuses': {r.student_id: r.status for r in records},
         })
+
+
+class PeriodAttendanceSyncView(views.APIView):
+    """POST /period-attendance/sync -> sync a batch of offline-queued period attendance
+    submissions in one round trip (TCH-004)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'attendance.write'
+
+    def post(self, request):
+        foundation_id = get_current_foundation_id()
+        teacher = Staff.objects.filter(user=request.user, foundation_id=foundation_id).first()
+        if not teacher:
+            return Response({'error': "Akun ini tidak terhubung ke profil staf."}, status=status.HTTP_404_NOT_FOUND)
+
+        entries = []
+        for row in request.data.get('entries', []):
+            entries.append({
+                'slot_id': row.get('slot_id'),
+                'date': row.get('date'),
+                'exceptions': {r['student_id']: r['status'] for r in row.get('exceptions', [])},
+            })
+
+        results = sync_offline_period_attendance_batch(teacher, entries)
+        return Response({'results': results})

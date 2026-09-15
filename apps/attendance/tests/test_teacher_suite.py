@@ -13,7 +13,12 @@ from apps.academic.services import create_timetable_slot, assign_substitution
 from apps.academic.tests.base import build_academic_fixture
 from apps.attendance.models import AttendanceDay, AttendanceSource, AttendanceStatus, PeriodAttendance
 from apps.academic.services import SlotNotScheduledError
-from apps.attendance.services import NotAuthorizedForSlotError, get_teacher_agenda, submit_period_attendance
+from apps.attendance.services import (
+    NotAuthorizedForSlotError,
+    get_teacher_agenda,
+    submit_period_attendance,
+    sync_offline_period_attendance_batch,
+)
 from educore.middleware.tenancy import set_current_foundation_id
 
 
@@ -232,3 +237,97 @@ class TeacherSuiteViewsTests(TestCase):
             format='json',
         )
         self.assertEqual(res.status_code, 404)
+
+
+class OfflineAttendanceSyncTests(TestCase):
+    def setUp(self):
+        self.fx = build_academic_fixture()
+        self.monday = datetime.date(2026, 8, 3)
+        assert self.monday.isoweekday() == DayOfWeek.MONDAY
+        self.slot = create_timetable_slot(
+            class_subject=self.fx['class_subject'],
+            day_of_week=DayOfWeek.MONDAY, period_no=1,
+            start_time=datetime.time(7, 0), end_time=datetime.time(7, 40), room='R1',
+        )
+        ClassEnrollment.objects.create(
+            foundation_id=self.fx['foundation'].id, student=self.fx['student'],
+            class_group=self.fx['class_group'], enrolled_at=datetime.date(2026, 7, 1),
+        )
+
+    def test_batch_with_mixed_valid_and_invalid_entries(self):
+        from apps.academic.models import Subject
+
+        other = make_second_teacher(self.fx)
+        other_subject = Subject.objects.create(
+            foundation_id=self.fx['foundation'].id, school=self.fx['school'], code='FIS', name='Fisika',
+        )
+        other_slot = create_timetable_slot(
+            class_subject=ClassSubject.objects.create(
+                foundation_id=self.fx['foundation'].id, class_group=self.fx['class_group'],
+                subject=other_subject, teacher=other, term=self.fx['term'],
+            ),
+            day_of_week=DayOfWeek.MONDAY, period_no=2,
+            start_time=datetime.time(7, 40), end_time=datetime.time(8, 20), room='R2',
+        )
+        tuesday = self.monday + datetime.timedelta(days=1)
+
+        entries = [
+            {'slot_id': self.slot.id, 'date': self.monday.isoformat(), 'exceptions': {}},
+            {'slot_id': self.slot.id, 'date': tuesday.isoformat(), 'exceptions': {}},
+            {'slot_id': other_slot.id, 'date': self.monday.isoformat(), 'exceptions': {}},
+        ]
+        results = sync_offline_period_attendance_batch(self.fx['teacher'], entries)
+
+        self.assertEqual(results[0]['status'], 'SYNCED')
+        self.assertEqual(results[1]['status'], 'SLOT_NOT_SCHEDULED')
+        self.assertEqual(results[2]['status'], 'NOT_AUTHORIZED')
+        # The one bad entry never aborted the batch — the valid entry's attendance is real.
+        self.assertEqual(PeriodAttendance.objects.filter(slot=self.slot, date=self.monday).count(), 1)
+
+    def test_resyncing_same_batch_is_idempotent(self):
+        entries = [{'slot_id': self.slot.id, 'date': self.monday.isoformat(), 'exceptions': {}}]
+        sync_offline_period_attendance_batch(self.fx['teacher'], entries)
+        sync_offline_period_attendance_batch(self.fx['teacher'], entries)
+        self.assertEqual(PeriodAttendance.objects.filter(slot=self.slot, date=self.monday).count(), 1)
+
+    def test_unknown_slot_reports_not_found(self):
+        entries = [{'slot_id': 999999, 'date': self.monday.isoformat(), 'exceptions': {}}]
+        results = sync_offline_period_attendance_batch(self.fx['teacher'], entries)
+        self.assertEqual(results[0]['status'], 'SLOT_NOT_FOUND')
+
+    def test_exceptions_applied_per_entry(self):
+        entries = [{
+            'slot_id': self.slot.id, 'date': self.monday.isoformat(),
+            'exceptions': {self.fx['student'].id: AttendanceStatus.IZIN},
+        }]
+        sync_offline_period_attendance_batch(self.fx['teacher'], entries)
+        record = PeriodAttendance.objects.get(slot=self.slot, date=self.monday, student=self.fx['student'])
+        self.assertEqual(record.status, AttendanceStatus.IZIN)
+
+
+class OfflineAttendanceSyncViewTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.fx = build_academic_fixture()
+        RoleAssignment.all_tenants.create(
+            foundation_id=self.fx['foundation'].id, user=self.fx['teacher_user'], role='teacher',
+            scope_type=RoleAssignment.SCOPE_SCHOOL, scope_id=self.fx['school'].id,
+        )
+        self.monday = datetime.date(2026, 8, 3)
+        self.slot = create_timetable_slot(
+            class_subject=self.fx['class_subject'],
+            day_of_week=DayOfWeek.MONDAY, period_no=1,
+            start_time=datetime.time(7, 0), end_time=datetime.time(7, 40), room='R1',
+        )
+        ClassEnrollment.objects.create(
+            foundation_id=self.fx['foundation'].id, student=self.fx['student'],
+            class_group=self.fx['class_group'], enrolled_at=datetime.date(2026, 7, 1),
+        )
+
+    def test_sync_batch_via_api(self):
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+        res = self.client.post('/api/v1/period-attendance/sync/', {
+            'entries': [{'slot_id': self.slot.id, 'date': self.monday.isoformat(), 'exceptions': []}],
+        }, format='json')
+        self.assertEqual(res.status_code, 200, res.content)
+        self.assertEqual(res.json()['results'][0]['status'], 'SYNCED')
