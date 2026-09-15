@@ -11,6 +11,8 @@
 ## 2. Working Agreements & Mandatory SOP
 1. **Destructive Operations Guardrail:** Do not perform any `DELETE`, `TRUNCATE`, `DROP`, or destructive command without an explicit `WHERE` clause and explicit user confirmation.
 2. **Development Lifecycle:** Always follow: **Plan -> Dev -> Test -> PR -> Wait for PR merged and deploy instruction**.
+   - *Plan:* Create Notion task on database "Astra Educore" including the technical Implementation Plan in page body, set status to `In progress`, and obtain user confirmation on the plan.
+   - *Task Completion:* Update Notion task status to `Done` once PR is merged and/or deployment instruction completed.
 3. **Architecture Integrity:** Respect the architecture specifications in `spec/` unconditionally (monolith, MySQL 8 only, cron background execution, 3-layer tenancy, strict `DECIMAL(18,2)` money).
 4. **Test-Driven Rigor:** Provide automated tests for new models, services, management commands, and viewsets (≥80% coverage).
 5. **Documentation & Living State:** Keep `memory/01_PROJECT.md` and `memory/ARCHIVE.md` synchronized after completing discrete tasks and milestones.
