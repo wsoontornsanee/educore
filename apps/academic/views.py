@@ -13,6 +13,7 @@ from apps.academic.models import (
     AcademicYear,
     Assessment,
     AssessmentScore,
+    Broadcast,
     ClassEnrollment,
     ClassGroup,
     ClassSubject,
@@ -35,6 +36,9 @@ from apps.academic.serializers import (
     AcademicYearSerializer,
     AssessmentScoreSerializer,
     AssessmentSerializer,
+    BroadcastCreateSerializer,
+    BroadcastPolicySerializer,
+    BroadcastSerializer,
     BulkScoreEntrySerializer,
     ClassEnrollmentSerializer,
     ClassGroupSerializer,
@@ -63,6 +67,8 @@ from apps.academic.serializers import (
 )
 from apps.academic.services import (
     AttemptAlreadySubmittedError,
+    BroadcastNotAllowedError,
+    BroadcastRateLimitedError,
     ExamWindowError,
     InvalidSubmissionFilesError,
     ReasonRequiredError,
@@ -80,6 +86,7 @@ from apps.academic.services import (
     duplicate_lesson_plan,
     generate_report_cards,
     get_homework_completion,
+    get_or_create_broadcast_policy,
     get_or_create_report_card_policy,
     get_visible_report_card,
     grade_essay_answer,
@@ -90,8 +97,10 @@ from apps.academic.services import (
     remind_unsubmitted,
     revise_report_card,
     save_answer,
+    send_broadcast,
     set_arrears_gate,
     set_assessment_score,
+    set_broadcast_policy,
     start_attempt,
     submit_attempt,
     submit_homework,
@@ -650,6 +659,73 @@ class LessonPlanViewSet(TenantScopedModelViewSet):
             lesson_plan, payload.validated_data['target_week_start_date'], actor=request.user,
         )
         return Response(self.get_serializer(duplicated).data, status=status.HTTP_201_CREATED)
+
+
+class BroadcastViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
+    """POST creates+sends; content is immutable once sent (spec/09 TCH-011)."""
+    serializer_class = BroadcastSerializer
+    pagination_class = StandardCursorPagination
+    permission_classes = [HasRequiredPermission]
+    action_permissions = {'list': 'grades.read', 'create': 'grades.write'}
+
+    def get_queryset(self):
+        foundation_id = get_current_foundation_id()
+        if not foundation_id:
+            return Broadcast.objects.none()
+        qs = Broadcast.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True).order_by('-sent_at')
+        class_group_id = self.request.query_params.get('class_group_id')
+        if class_group_id:
+            qs = qs.filter(class_group_id=class_group_id)
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        foundation_id = get_current_foundation_id()
+        teacher = Staff.objects.filter(user=request.user, foundation_id=foundation_id).first()
+        if not teacher:
+            return Response({'error': _("Akun ini tidak terhubung ke profil staf.")}, status=status.HTTP_404_NOT_FOUND)
+
+        payload = BroadcastCreateSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+
+        class_group = ClassGroup.objects.filter(id=payload.validated_data['class_group_id'], foundation_id=foundation_id).first()
+        if not class_group:
+            return Response({'error': _("Kelas tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            broadcast = send_broadcast(
+                teacher, class_group,
+                payload.validated_data['title'], payload.validated_data['body'],
+                actor=request.user,
+            )
+        except (BroadcastNotAllowedError, BroadcastRateLimitedError) as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(BroadcastSerializer(broadcast).data, status=status.HTTP_201_CREATED)
+
+
+class BroadcastPolicyView(APIView):
+    """GET/PATCH a school's teacher-broadcast policy (TCH-011)."""
+    permission_classes = [HasRequiredPermission]
+
+    def get_required_permission(self):
+        return 'school_config.write' if self.request.method == 'PATCH' else 'school_config.read'
+
+    def get(self, request, school_id):
+        foundation_id = get_current_foundation_id()
+        school = School.objects.filter(id=school_id, foundation_id=foundation_id).first()
+        if not school:
+            return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        policy = get_or_create_broadcast_policy(school)
+        return Response(BroadcastPolicySerializer(policy).data)
+
+    def patch(self, request, school_id):
+        foundation_id = get_current_foundation_id()
+        school = School.objects.filter(id=school_id, foundation_id=foundation_id).first()
+        if not school:
+            return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        enabled = request.data.get('teacher_can_broadcast')
+        policy = set_broadcast_policy(school, bool(enabled), actor=request.user)
+        return Response(BroadcastPolicySerializer(policy).data)
 
 
 class GradebookView(APIView):

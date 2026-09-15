@@ -17,6 +17,8 @@ from apps.academic.models import (
     AUTO_GRADABLE_QUESTION_TYPES,
     Assessment,
     AssessmentScore,
+    Broadcast,
+    BroadcastPolicy,
     ClassEnrollment,
     ClassSubject,
     DEFAULT_DESCRIPTOR_BANDS,
@@ -66,6 +68,14 @@ class ReminderRateLimitedError(ValueError):
 
 
 class ReportCardStateError(ValueError):
+    pass
+
+
+class BroadcastNotAllowedError(ValueError):
+    pass
+
+
+class BroadcastRateLimitedError(ValueError):
     pass
 
 
@@ -818,3 +828,96 @@ def duplicate_lesson_plan(lesson_plan: LessonPlan, target_week_start_date, actor
         diff={'source_plan_id': lesson_plan.id, 'target_week': str(target_week_start_date)},
     )
     return new_plan
+
+
+DAILY_BROADCAST_LIMIT_PER_CLASS = 5
+
+
+def get_or_create_broadcast_policy(school) -> BroadcastPolicy:
+    policy, _created = BroadcastPolicy.objects.get_or_create(
+        foundation_id=school.foundation_id, school=school,
+    )
+    return policy
+
+
+def set_broadcast_policy(school, enabled: bool, actor=None) -> BroadcastPolicy:
+    policy = get_or_create_broadcast_policy(school)
+    previous = policy.teacher_can_broadcast
+    policy.teacher_can_broadcast = enabled
+    policy.save()
+    audit(
+        action='academic.broadcast_policy.toggled',
+        entity_type='BroadcastPolicy',
+        entity_id=policy.id,
+        foundation_id=school.foundation_id,
+        diff={'before': previous, 'after': enabled},
+    )
+    return policy
+
+
+def send_broadcast(teacher, class_group, title, body, actor=None) -> Broadcast:
+    """TCH-011: teacher -> class guardians group announcement, gated by policy and a daily rate limit."""
+    from apps.identity.models import GuardianLink
+    from apps.notifications.models import NotificationCategory
+    from apps.notifications.services import dispatch_intent
+
+    school = class_group.school
+    policy = get_or_create_broadcast_policy(school)
+    if not policy.teacher_can_broadcast:
+        raise BroadcastNotAllowedError("BROADCAST_NOT_ALLOWED: this school has disabled teacher broadcasts.")
+
+    today = timezone.localdate()
+    sent_today = Broadcast.objects.filter(
+        class_group=class_group, sent_at__date=today, deleted_at__isnull=True,
+    ).count()
+    if sent_today >= DAILY_BROADCAST_LIMIT_PER_CLASS:
+        raise BroadcastRateLimitedError(
+            f"BROADCAST_RATE_LIMITED: at most {DAILY_BROADCAST_LIMIT_PER_CLASS} broadcasts per class per day."
+        )
+
+    student_ids = ClassEnrollment.objects.filter(
+        class_group=class_group, is_active=True, deleted_at__isnull=True,
+    ).values_list('student_id', flat=True)
+
+    guardian_links = GuardianLink.objects.filter(
+        foundation_id=class_group.foundation_id, student_id__in=student_ids, deleted_at__isnull=True,
+    ).select_related('guardian__person', 'guardian__user')
+
+    sent_count = 0
+    seen_guardian_ids = set()
+    for link in guardian_links:
+        guardian = link.guardian
+        if guardian.id in seen_guardian_ids or not guardian.user:
+            continue
+        seen_guardian_ids.add(guardian.id)
+
+        dispatch_intent(
+            foundation_id=class_group.foundation_id,
+            category=NotificationCategory.ANNOUNCEMENT,
+            template_key='teacher.broadcast',
+            payload={'message': f"{title}: {body}"},
+            school_id=school.id,
+            recipient_user=guardian.user,
+            recipient_phone=getattr(guardian.user, 'phone_e164', ''),
+            recipient_email=getattr(guardian.user, 'email', ''),
+            recipient_name=guardian.person.full_name if guardian.person else '',
+        )
+        sent_count += 1
+
+    broadcast = Broadcast.objects.create(
+        foundation_id=class_group.foundation_id,
+        class_group=class_group,
+        sender=teacher,
+        title=title,
+        body=body,
+        sent_at=timezone.now(),
+        recipient_count=sent_count,
+    )
+    audit(
+        action='academic.broadcast.sent',
+        entity_type='Broadcast',
+        entity_id=broadcast.id,
+        foundation_id=class_group.foundation_id,
+        diff={'class_group': class_group.name, 'recipient_count': sent_count},
+    )
+    return broadcast

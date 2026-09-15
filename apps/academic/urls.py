@@ -4,6 +4,8 @@ from rest_framework.routers import DefaultRouter
 from apps.academic.views import (
     AcademicYearViewSet,
     AssessmentViewSet,
+    BroadcastPolicyView,
+    BroadcastViewSet,
     ClassEnrollmentViewSet,
     ClassGroupViewSet,
     ClassSubjectViewSet,
@@ -43,11 +45,13 @@ router.register(r'exam-questions', ExamQuestionViewSet, basename='exam-questions
 router.register(r'exam-attempts', ExamAttemptViewSet, basename='exam-attempts')
 router.register(r'report-cards', ReportCardViewSet, basename='report-cards')
 router.register(r'lesson-plans', LessonPlanViewSet, basename='lesson-plans')
+router.register(r'teacher/broadcasts', BroadcastViewSet, basename='teacher-broadcasts')
 
 urlpatterns = [
     path('gradebook/', GradebookView.as_view(), name='gradebook'),
     path('students/<int:student_id>/attainment/', StudentAttainmentView.as_view(), name='student-attainment'),
     path('students/<int:student_id>/report-cards/', StudentReportCardView.as_view(), name='student-report-cards'),
     path('schools/<int:school_id>/report-card-policy/', ReportCardPolicyView.as_view(), name='report-card-policy'),
+    path('schools/<int:school_id>/broadcast-policy/', BroadcastPolicyView.as_view(), name='broadcast-policy'),
     path('', include(router.urls)),
 ]

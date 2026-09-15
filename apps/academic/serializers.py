@@ -4,6 +4,8 @@ from apps.academic.models import (
     AcademicYear,
     Assessment,
     AssessmentScore,
+    Broadcast,
+    BroadcastPolicy,
     ClassEnrollment,
     ClassGroup,
     ClassSubject,
@@ -253,3 +255,23 @@ class LessonPlanSerializer(serializers.ModelSerializer):
 
 class LessonPlanDuplicateSerializer(serializers.Serializer):
     target_week_start_date = serializers.DateField()
+
+
+class BroadcastSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Broadcast
+        fields = ['id', 'foundation_id', 'class_group', 'sender', 'title', 'body', 'sent_at', 'recipient_count', 'created_at']
+        read_only_fields = fields
+
+
+class BroadcastCreateSerializer(serializers.Serializer):
+    class_group_id = serializers.IntegerField()
+    title = serializers.CharField(max_length=128)
+    body = serializers.CharField()
+
+
+class BroadcastPolicySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BroadcastPolicy
+        fields = ['id', 'foundation_id', 'school', 'teacher_can_broadcast', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'foundation_id', 'school', 'created_at', 'updated_at']
