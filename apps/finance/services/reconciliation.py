@@ -219,6 +219,23 @@ def reconcile_bank_statement_file(
     return _finalize_batch_with_records(batch, records, provider_name, settlement_date, foundation_id, dry_run)
 
 
+def record_bank_sftp_pull_failure(
+    bank_code: str,
+    settlement_date: datetime.date,
+    foundation_id: int,
+    error: str,
+) -> dict:
+    """Record a failed automated SFTP pull attempt (CMP-024, CMP-026) as a FAILED
+    GatewaySettlementBatch, so it's visible in the same batch listing gateway and
+    manually-uploaded bank statement reconciliations use — an operator sees "this
+    bank's daily pull didn't happen" without a separate tracking mechanism.
+    """
+    provider_name = f'BANK_SFTP_{bank_code.upper()}'
+    batch, _created = _get_or_create_batch(provider_name, settlement_date, foundation_id)
+    logger.error("Bank SFTP pull failed for %s/%s: %s", provider_name, settlement_date, error)
+    return _fail_batch(batch, error, provider_name, settlement_date, dry_run=False)
+
+
 @transaction.atomic
 def _process_settlement_record(
     record: dict,

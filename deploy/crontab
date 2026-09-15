@@ -12,6 +12,7 @@
 */15 * * * *   python /app/manage.py send_due_notifications             # scheduled + quiet-hours release
 */30 * * * *   python /app/manage.py send_wallet_recon_reminders        # 48h clock, delivered-notices only (spec/17 REC-012)
 0 * * * *      python /app/manage.py expire_sessions
+0 5 * * *      python /app/manage.py pull_bank_statements --date=yesterday  # SFTP stub (CMP-024/026), fails loud
 30 6 * * *     python /app/manage.py mark_absent_students               # after absent_cutoff per school
 0 17 * * *     python /app/manage.py send_digests
 0 18 * * *     python /app/manage.py reconcile_payments --date=today

@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from apps.finance.views import (
     ArAgingView,
+    BankSftpConfigListView,
     DiscountViewSet,
     FeePlanViewSet,
     FeeTypeViewSet,
@@ -43,6 +44,7 @@ urlpatterns = [
     path('schools/<int:school_id>/qris-config/', SchoolQrisConfigView.as_view(), name='school-qris-config'),
     path('schools/<int:school_id>/arrears-policy/', SchoolArrearsPolicyView.as_view(), name='school-arrears-policy'),
     path('schools/<int:school_id>/convenience-fee-policy/', SchoolConvenienceFeePolicyView.as_view(), name='school-convenience-fee-policy'),
+    path('schools/<int:school_id>/bank-sftp-configs/', BankSftpConfigListView.as_view(), name='school-bank-sftp-configs'),
     # FIN-024 Gateway Reconciliation
     path('reconciliation/batches/', ReconciliationBatchListView.as_view(), name='reconciliation-batch-list'),
     path('reconciliation/batches/<int:pk>/', ReconciliationBatchDetailView.as_view(), name='reconciliation-batch-detail'),

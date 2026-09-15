@@ -1,6 +1,8 @@
 from decimal import Decimal
 from rest_framework import serializers
 from apps.finance.models import (
+    BankSftpConfig,
+    BankStatementFileFormat,
     ConvenienceFeeAllocation,
     ConvenienceFeeType,
     Discount,
@@ -442,6 +444,23 @@ class SchoolConvenienceFeePolicyUpdateSerializer(serializers.Serializer):
     allocation = serializers.ChoiceField(choices=ConvenienceFeeAllocation.choices, default=ConvenienceFeeAllocation.PASSED_TO_PARENT)
     fee_type = serializers.ChoiceField(choices=ConvenienceFeeType.choices, default=ConvenienceFeeType.FIXED)
     fee_value = serializers.DecimalField(max_digits=18, decimal_places=2, default=Decimal('0.00'))
+    is_active = serializers.BooleanField(required=False, default=True)
+
+
+class BankSftpConfigSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BankSftpConfig
+        fields = ['id', 'school', 'bank_code', 'host', 'port', 'username', 'remote_directory', 'file_format', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'school', 'created_at', 'updated_at']
+
+
+class BankSftpConfigUpdateSerializer(serializers.Serializer):
+    bank_code = serializers.CharField(max_length=32)
+    host = serializers.CharField(max_length=255)
+    port = serializers.IntegerField(required=False, default=22)
+    username = serializers.CharField(max_length=128, required=False, allow_blank=True, default='')
+    remote_directory = serializers.CharField(max_length=512, required=False, default='/')
+    file_format = serializers.ChoiceField(choices=BankStatementFileFormat.choices, default=BankStatementFileFormat.MT940)
     is_active = serializers.BooleanField(required=False, default=True)
 
 
