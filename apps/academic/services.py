@@ -1,3 +1,4 @@
+import random
 from datetime import timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -6,10 +7,17 @@ from django.utils import timezone
 from apps.core.services import audit
 from apps.academic.models import (
     ALLOWED_SUBMISSION_CONTENT_TYPES,
+    AUTO_GRADABLE_QUESTION_TYPES,
     Assessment,
     AssessmentScore,
     ClassEnrollment,
     DEFAULT_DESCRIPTOR_BANDS,
+    Exam,
+    ExamAnswer,
+    ExamAttempt,
+    ExamAttemptStatus,
+    ExamQuestion,
+    ExamQuestionType,
     Homework,
     HomeworkSubmission,
     HomeworkSubmissionStatus,
@@ -42,6 +50,14 @@ class InvalidSubmissionFilesError(ValueError):
 
 
 class ReminderRateLimitedError(ValueError):
+    pass
+
+
+class ExamWindowError(ValueError):
+    pass
+
+
+class AttemptAlreadySubmittedError(ValueError):
     pass
 
 
@@ -342,6 +358,175 @@ def remind_unsubmitted(homework: Homework) -> dict:
         diff={'unsubmitted_count': len(unsubmitted_ids)},
     )
     return {'reminded_student_ids': unsubmitted_ids, 'count': len(unsubmitted_ids)}
+
+
+def start_attempt(exam: Exam, student) -> ExamAttempt:
+    """ACD-021: start (or resume) a student's attempt. One attempt per student per exam."""
+    now = timezone.now()
+    existing = ExamAttempt.objects.filter(exam=exam, student=student).first()
+    if existing:
+        return existing
+
+    if now < exam.window_start or now > exam.window_end:
+        raise ExamWindowError("EXAM_WINDOW_CLOSED: the exam is not currently open.")
+
+    question_ids = list(exam.questions.filter(deleted_at__isnull=True).order_by('seq').values_list('id', flat=True))
+    if exam.shuffle:
+        rng = random.Random(f"{exam.id}:{student.id}")
+        rng.shuffle(question_ids)
+
+    return ExamAttempt.objects.create(
+        foundation_id=exam.foundation_id,
+        exam=exam,
+        student=student,
+        started_at=now,
+        status=ExamAttemptStatus.IN_PROGRESS,
+        question_order=question_ids,
+    )
+
+
+def compute_remaining_seconds(attempt: ExamAttempt) -> int:
+    """ACD-022: remaining time computed server-side from started_at; client clock is advisory only."""
+    if attempt.status != ExamAttemptStatus.IN_PROGRESS:
+        return 0
+    deadline = attempt.started_at + timedelta(minutes=attempt.exam.duration_min)
+    deadline = min(deadline, attempt.exam.window_end)
+    remaining = (deadline - timezone.now()).total_seconds()
+    return max(int(remaining), 0)
+
+
+def _normalize_short_answer(text) -> str:
+    return str(text or '').strip().lower()
+
+
+def auto_grade_answer(question: ExamQuestion, answer: dict):
+    """ACD-023: auto-grade MCQ/MULTI/TRUE_FALSE/SHORT/MATCHING. Returns None for ESSAY (manual)."""
+    if question.type not in AUTO_GRADABLE_QUESTION_TYPES:
+        return None
+
+    key = question.answer_key or {}
+
+    if question.type == ExamQuestionType.MCQ:
+        return question.points if answer.get('selected') == key.get('correct') else Decimal('0.00')
+
+    if question.type == ExamQuestionType.TRUE_FALSE:
+        return question.points if answer.get('selected') == key.get('correct') else Decimal('0.00')
+
+    if question.type == ExamQuestionType.SHORT:
+        accepted = {_normalize_short_answer(a) for a in key.get('accepted', [])}
+        return question.points if _normalize_short_answer(answer.get('text')) in accepted else Decimal('0.00')
+
+    if question.type == ExamQuestionType.MATCHING:
+        correct_pairs = key.get('pairs', {})
+        given_pairs = answer.get('pairs', {})
+        return question.points if given_pairs == correct_pairs else Decimal('0.00')
+
+    if question.type == ExamQuestionType.MULTI:
+        correct = set(key.get('correct', []))
+        selected = set(answer.get('selected', []))
+        if not key.get('partial_credit'):
+            return question.points if selected == correct else Decimal('0.00')
+        if not correct:
+            return Decimal('0.00')
+        correct_hits = len(selected & correct)
+        wrong_hits = len(selected - correct)
+        fraction = max(correct_hits - wrong_hits, 0) / len(correct)
+        return (question.points * Decimal(str(fraction))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    return None
+
+
+def save_answer(attempt: ExamAttempt, question: ExamQuestion, answer: dict) -> ExamAnswer:
+    """ACD-021: persist an answer on every change. Auto-grades non-ESSAY types immediately."""
+    if attempt.status != ExamAttemptStatus.IN_PROGRESS:
+        raise AttemptAlreadySubmittedError("ATTEMPT_ALREADY_SUBMITTED: cannot change answers after submission.")
+
+    points_awarded = auto_grade_answer(question, answer)
+
+    record, _created = ExamAnswer.objects.update_or_create(
+        foundation_id=attempt.foundation_id,
+        attempt=attempt,
+        question=question,
+        defaults={'answer': answer, 'points_awarded': points_awarded},
+    )
+    return record
+
+
+def submit_attempt(attempt: ExamAttempt, auto=False) -> ExamAttempt:
+    """ACD-025: finalize an attempt. Late submissions AUTO_SUBMIT, retaining partial answers."""
+    if attempt.status != ExamAttemptStatus.IN_PROGRESS:
+        return attempt
+
+    graded_answers = attempt.answers.filter(points_awarded__isnull=False, deleted_at__isnull=True)
+    auto_score = sum((a.points_awarded for a in graded_answers), Decimal('0.00'))
+
+    essay_question_ids = set(
+        attempt.exam.questions.filter(type=ExamQuestionType.ESSAY, deleted_at__isnull=True).values_list('id', flat=True)
+    )
+    ungraded_essays = essay_question_ids - set(
+        attempt.answers.filter(question_id__in=essay_question_ids, points_awarded__isnull=False).values_list('question_id', flat=True)
+    )
+
+    attempt.auto_score = auto_score
+    attempt.submitted_at = timezone.now()
+    attempt.status = ExamAttemptStatus.AUTO_SUBMITTED if auto else ExamAttemptStatus.SUBMITTED
+    attempt.final_score = None if ungraded_essays else (auto_score + attempt.manual_score)
+    attempt.save()
+
+    audit(
+        action='academic.exam_attempt.submitted',
+        entity_type='ExamAttempt',
+        entity_id=attempt.id,
+        foundation_id=attempt.foundation_id,
+        diff={'auto_score': str(auto_score), 'auto': auto},
+    )
+    return attempt
+
+
+def auto_submit_if_expired(attempt: ExamAttempt) -> ExamAttempt:
+    """Checked on read/write paths: past the exam window while still IN_PROGRESS -> AUTO_SUBMIT."""
+    if attempt.status == ExamAttemptStatus.IN_PROGRESS and compute_remaining_seconds(attempt) <= 0:
+        return submit_attempt(attempt, auto=True)
+    return attempt
+
+
+def grade_essay_answer(exam_answer: ExamAnswer, points, actor=None) -> ExamAnswer:
+    """Manual grading for ESSAY answers; recomputes the attempt's final score once complete."""
+    exam_answer.points_awarded = points
+    exam_answer.graded_by = actor
+    exam_answer.save()
+
+    attempt = exam_answer.attempt
+    essay_question_ids = set(
+        attempt.exam.questions.filter(type=ExamQuestionType.ESSAY, deleted_at__isnull=True).values_list('id', flat=True)
+    )
+    ungraded_essays = essay_question_ids - set(
+        attempt.answers.filter(question_id__in=essay_question_ids, points_awarded__isnull=False).values_list('question_id', flat=True)
+    )
+    if not ungraded_essays and attempt.status != ExamAttemptStatus.IN_PROGRESS:
+        manual_score = sum(
+            (a.points_awarded for a in attempt.answers.filter(question_id__in=essay_question_ids, points_awarded__isnull=False)),
+            Decimal('0.00'),
+        )
+        attempt.manual_score = manual_score
+        attempt.final_score = attempt.auto_score + manual_score
+        attempt.save(update_fields=['manual_score', 'final_score', 'updated_at'])
+
+    audit(
+        action='academic.exam_answer.graded',
+        entity_type='ExamAnswer',
+        entity_id=exam_answer.id,
+        foundation_id=exam_answer.foundation_id,
+        diff={'points_awarded': str(points)},
+    )
+    return exam_answer
+
+
+def record_focus_loss(attempt: ExamAttempt) -> ExamAttempt:
+    """ACD-024: record a focus-loss event; never auto-punished."""
+    attempt.focus_loss_count += 1
+    attempt.save(update_fields=['focus_loss_count', 'updated_at'])
+    return attempt
 
 
 def assign_substitution(slot, date, substitute_teacher, reason='') -> TimetableSubstitution:

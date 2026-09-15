@@ -7,6 +7,10 @@ from apps.academic.models import (
     ClassEnrollment,
     ClassGroup,
     ClassSubject,
+    Exam,
+    ExamAnswer,
+    ExamAttempt,
+    ExamQuestion,
     Homework,
     HomeworkSubmission,
     LearningObjective,
@@ -144,3 +148,65 @@ class HomeworkSubmitSerializer(serializers.Serializer):
 class HomeworkGradeSerializer(serializers.Serializer):
     score = serializers.DecimalField(max_digits=6, decimal_places=2, allow_null=True, required=False)
     feedback = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class ExamSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Exam
+        fields = [
+            'id', 'foundation_id', 'class_subject', 'title', 'mode', 'window_start', 'window_end',
+            'duration_min', 'shuffle', 'settings', 'published', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'foundation_id', 'published', 'created_at', 'updated_at']
+
+
+class ExamQuestionSerializer(serializers.ModelSerializer):
+    """Full serializer, including answer_key — for teacher/admin use only."""
+    points = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=True)
+
+    class Meta:
+        model = ExamQuestion
+        fields = ['id', 'foundation_id', 'exam', 'seq', 'type', 'body', 'media', 'options', 'points', 'answer_key', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'foundation_id', 'created_at', 'updated_at']
+
+
+class ExamQuestionPublicSerializer(serializers.ModelSerializer):
+    """Student-facing serializer — never exposes answer_key."""
+    points = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=True)
+
+    class Meta:
+        model = ExamQuestion
+        fields = ['id', 'seq', 'type', 'body', 'media', 'options', 'points']
+
+
+class ExamAnswerSerializer(serializers.ModelSerializer):
+    points_awarded = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=True, allow_null=True)
+
+    class Meta:
+        model = ExamAnswer
+        fields = ['id', 'foundation_id', 'attempt', 'question', 'answer', 'points_awarded', 'graded_by', 'answered_at']
+        read_only_fields = ['id', 'foundation_id', 'points_awarded', 'graded_by', 'answered_at']
+
+
+class ExamAttemptSerializer(serializers.ModelSerializer):
+    auto_score = serializers.DecimalField(max_digits=7, decimal_places=2, coerce_to_string=True)
+    manual_score = serializers.DecimalField(max_digits=7, decimal_places=2, coerce_to_string=True)
+    final_score = serializers.DecimalField(max_digits=7, decimal_places=2, coerce_to_string=True, allow_null=True)
+
+    class Meta:
+        model = ExamAttempt
+        fields = [
+            'id', 'foundation_id', 'exam', 'student', 'started_at', 'submitted_at',
+            'auto_score', 'manual_score', 'final_score', 'status', 'question_order',
+            'focus_loss_count', 'created_at', 'updated_at',
+        ]
+        read_only_fields = fields
+
+
+class SaveAnswerSerializer(serializers.Serializer):
+    question_id = serializers.IntegerField()
+    answer = serializers.DictField()
+
+
+class GradeEssaySerializer(serializers.Serializer):
+    points = serializers.DecimalField(max_digits=6, decimal_places=2)
