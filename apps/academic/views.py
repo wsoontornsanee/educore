@@ -1,12 +1,12 @@
 from django.utils.translation import gettext_lazy as _
-from rest_framework import status, viewsets
+from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.pagination import StandardCursorPagination
 from apps.identity.permissions import HasRequiredPermission
-from apps.identity.models import Staff, Student
+from apps.identity.models import School, Staff, Student
 from educore.middleware.tenancy import get_current_foundation_id
 
 from apps.academic.models import (
@@ -24,6 +24,7 @@ from apps.academic.models import (
     Homework,
     HomeworkSubmission,
     LearningObjective,
+    ReportCard,
     Subject,
     Term,
     TimetableSlot,
@@ -48,6 +49,9 @@ from apps.academic.serializers import (
     HomeworkSubmissionSerializer,
     HomeworkSubmitSerializer,
     LearningObjectiveSerializer,
+    ReportCardGenerateSerializer,
+    ReportCardPolicySerializer,
+    ReportCardSerializer,
     SaveAnswerSerializer,
     SubjectSerializer,
     TermSerializer,
@@ -60,21 +64,29 @@ from apps.academic.services import (
     InvalidSubmissionFilesError,
     ReasonRequiredError,
     ReminderRateLimitedError,
+    ReportCardStateError,
     ScoreOutOfRangeError,
     TimetableConflictError,
     WeightConfigError,
+    approve_report_card,
     assign_substitution,
     auto_submit_if_expired,
     compute_remaining_seconds,
     compute_term_grade,
     create_timetable_slot,
+    generate_report_cards,
     get_homework_completion,
+    get_or_create_report_card_policy,
+    get_visible_report_card,
     grade_essay_answer,
     grade_homework_submission,
     publish_assessment,
+    publish_report_card,
     record_focus_loss,
     remind_unsubmitted,
+    revise_report_card,
     save_answer,
+    set_arrears_gate,
     set_assessment_score,
     start_attempt,
     submit_attempt,
@@ -491,6 +503,124 @@ class ExamAttemptViewSet(TenantScopedModelViewSet):
         grade_payload.is_valid(raise_exception=True)
         graded = grade_essay_answer(exam_answer, grade_payload.validated_data['points'], actor=request.user)
         return Response(ExamAnswerSerializer(graded).data)
+
+
+class ReportCardViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+    """Read + state-transition endpoints. Content is generated via `generate`, not raw create/update."""
+    serializer_class = ReportCardSerializer
+    pagination_class = StandardCursorPagination
+    permission_classes = [HasRequiredPermission]
+    action_permissions = {
+        'list': 'grades.read', 'retrieve': 'grades.read',
+        'generate': 'grades.write', 'approve': 'school_config.write',
+        'publish': 'school_config.write', 'revise': 'grades.write',
+    }
+
+    def get_queryset(self):
+        foundation_id = get_current_foundation_id()
+        if not foundation_id:
+            return ReportCard.objects.none()
+        qs = ReportCard.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True).order_by('-created_at')
+        for param, field in {
+            'student_id': 'student_id', 'term_id': 'term_id', 'class_group_id': 'class_group_id',
+        }.items():
+            value = self.request.query_params.get(param)
+            if value:
+                qs = qs.filter(**{field: value})
+        if self.request.query_params.get('include_superseded') != 'true':
+            qs = qs.filter(is_current=True)
+        return qs
+
+    @action(detail=False, methods=['post'], url_path='generate')
+    def generate(self, request):
+        foundation_id = get_current_foundation_id()
+        payload = ReportCardGenerateSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+
+        class_group = ClassGroup.objects.filter(id=payload.validated_data['class_group_id'], foundation_id=foundation_id).first()
+        term = Term.objects.filter(id=payload.validated_data['term_id'], foundation_id=foundation_id).first()
+        if not class_group or not term:
+            return Response({'error': _("Kelas atau semester tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        report = generate_report_cards(class_group, term, triggered_by=request.user)
+        return Response(report)
+
+    @action(detail=True, methods=['post'], url_path='approve')
+    def approve(self, request, pk=None):
+        report_card = self.get_object()
+        try:
+            approved = approve_report_card(report_card, actor=request.user)
+        except ReportCardStateError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(self.get_serializer(approved).data)
+
+    @action(detail=True, methods=['post'], url_path='publish')
+    def publish(self, request, pk=None):
+        report_card = self.get_object()
+        try:
+            published = publish_report_card(report_card, actor=request.user)
+        except ReportCardStateError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(self.get_serializer(published).data)
+
+    @action(detail=True, methods=['post'], url_path='revise')
+    def revise(self, request, pk=None):
+        report_card = self.get_object()
+        try:
+            revised = revise_report_card(report_card, actor=request.user)
+        except ReportCardStateError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(self.get_serializer(revised).data, status=status.HTTP_201_CREATED)
+
+
+class ReportCardPolicyView(APIView):
+    """GET/PATCH a school's rapor arrears-gate policy (ACD-014)."""
+    permission_classes = [HasRequiredPermission]
+
+    def get_required_permission(self):
+        return 'school_config.write' if self.request.method == 'PATCH' else 'school_config.read'
+
+    def get(self, request, school_id):
+        foundation_id = get_current_foundation_id()
+        school = School.objects.filter(id=school_id, foundation_id=foundation_id).first()
+        if not school:
+            return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        policy = get_or_create_report_card_policy(school)
+        return Response(ReportCardPolicySerializer(policy).data)
+
+    def patch(self, request, school_id):
+        foundation_id = get_current_foundation_id()
+        school = School.objects.filter(id=school_id, foundation_id=foundation_id).first()
+        if not school:
+            return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        enabled = request.data.get('block_rapor_on_arrears')
+        policy = set_arrears_gate(school, bool(enabled), actor=request.user)
+        return Response(ReportCardPolicySerializer(policy).data)
+
+
+class StudentReportCardView(APIView):
+    """GET /students/:id/report-cards?term_id -> the visible (PUBLISHED, non-arrears-blocked) card (ACD-013/014)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'grades.read'
+
+    def get(self, request, student_id):
+        foundation_id = get_current_foundation_id()
+        student = Student.objects.filter(id=student_id, foundation_id=foundation_id).first()
+        if not student:
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        term_id = request.query_params.get('term_id')
+        report_card = ReportCard.objects.filter(
+            student=student, term_id=term_id, is_current=True, foundation_id=foundation_id,
+        ).first()
+        if not report_card:
+            return Response({'error': _("Rapor tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        visibility = get_visible_report_card(report_card)
+        if not visibility['visible']:
+            return Response({'visible': False, 'reason': visibility['reason']}, status=status.HTTP_403_FORBIDDEN)
+
+        return Response({'visible': True, 'report_card': ReportCardSerializer(report_card).data})
 
 
 class GradebookView(APIView):

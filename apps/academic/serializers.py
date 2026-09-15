@@ -14,6 +14,8 @@ from apps.academic.models import (
     Homework,
     HomeworkSubmission,
     LearningObjective,
+    ReportCard,
+    ReportCardPolicy,
     Subject,
     Term,
     TimetableSlot,
@@ -210,3 +212,29 @@ class SaveAnswerSerializer(serializers.Serializer):
 
 class GradeEssaySerializer(serializers.Serializer):
     points = serializers.DecimalField(max_digits=6, decimal_places=2)
+
+
+class ReportCardSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReportCard
+        fields = [
+            'id', 'foundation_id', 'student', 'term', 'class_group', 'status',
+            'grades_snapshot', 'attendance_summary', 'narrative', 'version', 'is_current',
+            'pdf_key', 'approved_by', 'approved_at', 'published_at', 'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'foundation_id', 'status', 'grades_snapshot', 'attendance_summary', 'version',
+            'is_current', 'pdf_key', 'approved_by', 'approved_at', 'published_at', 'created_at', 'updated_at',
+        ]
+
+
+class ReportCardGenerateSerializer(serializers.Serializer):
+    class_group_id = serializers.IntegerField()
+    term_id = serializers.IntegerField()
+
+
+class ReportCardPolicySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReportCardPolicy
+        fields = ['id', 'foundation_id', 'school', 'block_rapor_on_arrears', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'foundation_id', 'school', 'created_at', 'updated_at']
