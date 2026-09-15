@@ -12,6 +12,8 @@ from apps.academic.views import (
     StudentAttainmentView,
     SubjectViewSet,
     TermViewSet,
+    TimetableSlotViewSet,
+    TimetableSubstitutionViewSet,
 )
 
 router = DefaultRouter()
@@ -23,6 +25,8 @@ router.register(r'class-enrollments', ClassEnrollmentViewSet, basename='class-en
 router.register(r'class-subjects', ClassSubjectViewSet, basename='class-subjects')
 router.register(r'learning-objectives', LearningObjectiveViewSet, basename='learning-objectives')
 router.register(r'assessments', AssessmentViewSet, basename='assessments')
+router.register(r'timetable/slots', TimetableSlotViewSet, basename='timetable-slots')
+router.register(r'timetable/substitutions', TimetableSubstitutionViewSet, basename='timetable-substitutions')
 
 urlpatterns = [
     path('gradebook/', GradebookView.as_view(), name='gradebook'),

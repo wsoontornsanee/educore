@@ -10,6 +10,8 @@ from apps.academic.models import (
     LearningObjective,
     Subject,
     Term,
+    TimetableSlot,
+    TimetableSubstitution,
 )
 
 
@@ -97,3 +99,17 @@ class ScoreEntrySerializer(serializers.Serializer):
 
 class BulkScoreEntrySerializer(serializers.Serializer):
     scores = ScoreEntrySerializer(many=True)
+
+
+class TimetableSlotSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TimetableSlot
+        fields = ['id', 'foundation_id', 'class_subject', 'day_of_week', 'period_no', 'start_time', 'end_time', 'room', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'foundation_id', 'created_at', 'updated_at']
+
+
+class TimetableSubstitutionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TimetableSubstitution
+        fields = ['id', 'foundation_id', 'slot', 'date', 'original_teacher', 'substitute_teacher', 'reason', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'foundation_id', 'original_teacher', 'created_at', 'updated_at']
