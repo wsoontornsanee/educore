@@ -943,6 +943,34 @@ def auto_submit_if_expired(attempt: ExamAttempt) -> ExamAttempt:
     return attempt
 
 
+def auto_submit_expired_attempts(foundation_id: int = None) -> dict:
+    """ACD-025/ACD-026: batch counterpart to auto_submit_if_expired.
+
+    auto_submit_if_expired only fires when a view happens to touch that exact
+    ExamAttempt again after its window closes — a student who never reopens
+    the exam URL once time runs out would otherwise sit IN_PROGRESS
+    indefinitely, with no mechanism to ever auto-score them. This is what
+    actually makes spec/04 §9's acceptance criterion ("a 40-question MCQ exam
+    for 300 students auto-scores within 60 seconds of window close")
+    achievable: run this every minute (see deploy/crontab) and every attempt
+    is force-submitted within one cron tick of its window closing, regardless
+    of whether any student ever revisits it.
+    """
+    attempts = ExamAttempt.all_tenants.filter(
+        status=ExamAttemptStatus.IN_PROGRESS,
+        exam__window_end__lt=timezone.now(),
+        deleted_at__isnull=True,
+    )
+    if foundation_id:
+        attempts = attempts.filter(foundation_id=foundation_id)
+
+    submitted = 0
+    for attempt in attempts:
+        submit_attempt(attempt, auto=True)
+        submitted += 1
+    return {'submitted': submitted}
+
+
 def grade_essay_answer(exam_answer: ExamAnswer, points, actor=None) -> ExamAnswer:
     """Manual grading for ESSAY answers; recomputes the attempt's final score once complete."""
     exam_answer.points_awarded = points
