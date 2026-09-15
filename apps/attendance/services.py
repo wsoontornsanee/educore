@@ -10,7 +10,16 @@ from django.utils.translation import gettext_lazy as _
 
 from apps.core.models import AuditEvent, DomainEvent
 from apps.core.services import audit, record_domain_event
-from apps.attendance.models import Credential, CredentialStatus, CredentialType
+from apps.attendance.models import (
+    AttendanceDay,
+    AttendanceSource,
+    AttendanceStatus,
+    Credential,
+    CredentialStatus,
+    CredentialType,
+    PeriodAttendance,
+    PeriodAttendanceSource,
+)
 from apps.identity.models import Student, Staff
 
 logger = logging.getLogger(__name__)
@@ -977,5 +986,104 @@ def get_device_sync_payload(
         'rules_delta': rules_delta,
         'next_cursor': timezone.now().isoformat(),
     }
+
+
+def get_teacher_agenda(teacher: Staff, date) -> list:
+    """TCH-001: today's timetable slots for a teacher, including slots they're substituting."""
+    from apps.academic.models import TimetableSlot, TimetableSubstitution
+
+    weekday = date.isoweekday()
+    own_slots = TimetableSlot.objects.filter(
+        foundation_id=teacher.foundation_id,
+        class_subject__teacher=teacher,
+        day_of_week=weekday,
+        deleted_at__isnull=True,
+    ).select_related('class_subject__class_group', 'class_subject__subject')
+
+    substitutions = TimetableSubstitution.objects.filter(
+        foundation_id=teacher.foundation_id,
+        substitute_teacher=teacher,
+        date=date,
+        deleted_at__isnull=True,
+    ).select_related('slot__class_subject__class_group', 'slot__class_subject__subject')
+    substituted_slot_ids = {s.slot_id for s in substitutions}
+
+    agenda = []
+    for slot in own_slots:
+        agenda.append({
+            'slot_id': slot.id,
+            'period_no': slot.period_no,
+            'start_time': slot.start_time,
+            'end_time': slot.end_time,
+            'class_group': slot.class_subject.class_group.name,
+            'subject': slot.class_subject.subject.name,
+            'room': slot.room,
+            'is_substitution': False,
+        })
+    for sub in substitutions:
+        slot = sub.slot
+        agenda.append({
+            'slot_id': slot.id,
+            'period_no': slot.period_no,
+            'start_time': slot.start_time,
+            'end_time': slot.end_time,
+            'class_group': slot.class_subject.class_group.name,
+            'subject': slot.class_subject.subject.name,
+            'room': slot.room,
+            'is_substitution': True,
+        })
+
+    agenda.sort(key=lambda a: a['period_no'])
+    return agenda
+
+
+def submit_period_attendance(teacher: Staff, slot, date, exceptions: dict, actor=None) -> list:
+    """TCH-002/003: default HADIR, pre-fill ALPA from gate data, apply teacher overrides. Idempotent."""
+    from apps.academic.models import ClassEnrollment
+    from educore.middleware.tenancy import tenant_context
+
+    class_group = slot.class_subject.class_group
+    student_ids = list(
+        ClassEnrollment.objects.filter(
+            class_group=class_group, is_active=True, deleted_at__isnull=True,
+        ).values_list('student_id', flat=True)
+    )
+
+    gate_status_by_student = dict(
+        AttendanceDay.objects.filter(
+            foundation_id=teacher.foundation_id, student_id__in=student_ids, date=date, deleted_at__isnull=True,
+        ).values_list('student_id', 'status')
+    )
+
+    results = []
+    with tenant_context(teacher.foundation_id):
+        for student_id in student_ids:
+            if student_id in exceptions:
+                status = exceptions[student_id]
+                source = PeriodAttendanceSource.TEACHER
+            elif gate_status_by_student.get(student_id) == AttendanceStatus.ALPA:
+                status = AttendanceStatus.ALPA
+                source = PeriodAttendanceSource.GATE_PREFILL
+            else:
+                status = AttendanceStatus.HADIR
+                source = PeriodAttendanceSource.TEACHER
+
+            record, _created = PeriodAttendance.objects.update_or_create(
+                foundation_id=teacher.foundation_id,
+                student_id=student_id,
+                slot=slot,
+                date=date,
+                defaults={'status': status, 'source': source, 'recorded_by': actor},
+            )
+            results.append(record)
+
+    audit(
+        action='attendance.period_attendance.submitted',
+        entity_type='TimetableSlot',
+        entity_id=slot.id,
+        foundation_id=teacher.foundation_id,
+        diff={'date': str(date), 'student_count': len(results), 'exceptions': len(exceptions)},
+    )
+    return results
 
 
