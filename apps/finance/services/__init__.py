@@ -61,3 +61,11 @@ from apps.finance.services.ar_aging import (
     get_aging_bucket,
     get_ar_aging_report,
 )
+from apps.finance.services.installments import (
+    InstallmentPlanAlreadyExistsError,
+    InvalidInstallmentError,
+    allocate_payment_to_installments,
+    calculate_installments_largest_remainder,
+    cancel_installment_plan,
+    create_installment_plan,
+)

@@ -200,6 +200,14 @@ def allocate_payment_to_invoices(
         )
         allocations.append(allocation)
 
+        # Allocate to active installments if any (FIN-030)
+        from apps.finance.services.installments import allocate_payment_to_installments
+        allocate_payment_to_installments(
+            invoice=invoice,
+            payment_amount=alloc_amount,
+            paid_at=payment.settled_at or timezone.now(),
+        )
+
         invoice.paid += alloc_amount
         if invoice.paid >= invoice.total:
             invoice.status = InvoiceStatus.PAID

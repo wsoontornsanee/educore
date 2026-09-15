@@ -5,6 +5,7 @@ from apps.finance.models import (
     FeePlan,
     FeeType,
     Invoice,
+    InvoiceInstallment,
     InvoiceLine,
     InvoiceWriteOffRequest,
     LedgerEntry,
@@ -147,6 +148,48 @@ class InvoiceLineSerializer(serializers.ModelSerializer):
         ]
 
 
+class InvoiceInstallmentSerializer(serializers.ModelSerializer):
+    amount = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    paid_amount = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    balance_due = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True, read_only=True)
+    is_overdue = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = InvoiceInstallment
+        fields = [
+            'id',
+            'installment_no',
+            'due_date',
+            'amount',
+            'paid_amount',
+            'balance_due',
+            'currency',
+            'status',
+            'paid_at',
+            'is_overdue',
+            'notes',
+        ]
+        read_only_fields = ['id', 'installment_no', 'paid_amount', 'balance_due', 'status', 'paid_at', 'is_overdue']
+
+
+class InstallmentScheduleItemSerializer(serializers.Serializer):
+    due_date = serializers.DateField()
+    amount = serializers.DecimalField(max_digits=18, decimal_places=2)
+
+
+class CreateInstallmentPlanSerializer(serializers.Serializer):
+    count = serializers.IntegerField(required=False, min_value=1)
+    first_due_date = serializers.DateField(required=False)
+    interval_days = serializers.IntegerField(required=False, default=30, min_value=1)
+    schedule = InstallmentScheduleItemSerializer(many=True, required=False)
+    notes = serializers.CharField(required=False, allow_blank=True, default='')
+
+    def validate(self, data):
+        if not data.get('count') and not data.get('schedule'):
+            raise serializers.ValidationError("Harap tentukan jumlah cicilan (count) atau jadwal (schedule).")
+        return data
+
+
 class InvoiceSerializer(serializers.ModelSerializer):
     subtotal = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
     discount = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
@@ -156,6 +199,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
     balance_due = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True, read_only=True)
     is_overdue = serializers.BooleanField(read_only=True)
     lines = InvoiceLineSerializer(many=True, read_only=True)
+    installments = InvoiceInstallmentSerializer(many=True, read_only=True)
 
     class Meta:
         model = Invoice
@@ -178,6 +222,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
             'status',
             'is_overdue',
             'lines',
+            'installments',
             'created_at',
             'updated_at',
         ]
@@ -189,6 +234,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
             'balance_due',
             'is_overdue',
             'lines',
+            'installments',
             'created_at',
             'updated_at',
         ]
