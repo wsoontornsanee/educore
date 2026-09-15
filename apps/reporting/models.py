@@ -70,3 +70,35 @@ class RptDailyAttendance(TenantModel):
 
     def __str__(self):
         return f"{self.school.name} - {self.class_group.name} - {self.date} ({self.rate_pct}%)"
+
+
+class RptAcademicPerformance(TenantModel):
+    """Term-scoped academic performance rollup per class/subject (spec/15 §2). Feeds
+    the "Grade distribution" report (spec/15 §3). Rebuilt by `refresh_reporting`.
+
+    No `date` dimension — unlike the day-bucketed rpt_* tables, grades are scoped to
+    a TERM, not a calendar day.
+    """
+    school = models.ForeignKey(School, on_delete=models.PROTECT, related_name='academic_performance_reports')
+    term = models.ForeignKey('academic.Term', on_delete=models.PROTECT, related_name='performance_reports')
+    class_group = models.ForeignKey('academic.ClassGroup', on_delete=models.PROTECT, related_name='performance_reports')
+    subject = models.ForeignKey('academic.Subject', on_delete=models.PROTECT, related_name='performance_reports')
+    avg_score = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal('0.00'))
+    band_distribution = models.JSONField(default=dict, help_text=_("{descriptor: count}"))
+    computed_at = models.DateTimeField(help_text=_("RPT-005: data freshness timestamp"))
+
+    class Meta:
+        db_table = 'rpt_academic_performance'
+        indexes = [
+            models.Index(fields=['foundation_id', 'school_id', 'term_id']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'school', 'term', 'class_group', 'subject'],
+                condition=models.Q(deleted_at__isnull=True),
+                name='unique_rpt_academic_performance_per_school_term_class_subject',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.school.name} - {self.class_group.name} - {self.subject.name} ({self.term.name}): avg {self.avg_score}"

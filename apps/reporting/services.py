@@ -5,7 +5,7 @@ from django.db.models import Count, Sum
 from django.utils import timezone
 
 from apps.identity.models import School
-from apps.reporting.models import RptDailyAttendance, RptWalletActivity
+from apps.reporting.models import RptAcademicPerformance, RptDailyAttendance, RptWalletActivity
 
 DASHBOARD_LOOKBACK_DAYS = 2
 
@@ -159,3 +159,63 @@ def refresh_daily_attendance(scope: str, since=None) -> dict:
         rows_written += 1
 
     return {'rows_written': rows_written, 'start_date': str(start_date), 'scope': scope}
+
+
+def refresh_academic_performance(scope: str, since=None) -> dict:
+    """spec/15 §2: rebuild rpt_academic_performance, one row per school/term/class/subject.
+
+    Only counts scores from PUBLISHED assessments — matches this codebase's existing
+    semantics elsewhere (an unpublished assessment's scores are draft, not final).
+    No day-based lookback to reuse here (grades are term-scoped, not day-bucketed):
+    scope='dashboard' recomputes only currently-active terms (Term.is_active=True);
+    scope='full' recomputes every term with any published score.
+    """
+    from apps.academic.models import Assessment, AssessmentScore, Term
+
+    now = timezone.now()
+
+    terms = Term.all_tenants.filter(deleted_at__isnull=True)
+    if since is None and scope == 'dashboard':
+        terms = terms.filter(is_active=True)
+    term_ids = list(terms.values_list('id', flat=True))
+
+    rows_written = 0
+    scores = AssessmentScore.all_tenants.filter(
+        assessment__published=True,
+        assessment__class_subject__term_id__in=term_ids,
+        score__isnull=False,
+        deleted_at__isnull=True,
+    ).values_list(
+        'foundation_id',
+        'assessment__class_subject__class_group__school_id',
+        'assessment__class_subject__term_id',
+        'assessment__class_subject__class_group_id',
+        'assessment__class_subject__subject_id',
+        'score', 'descriptor',
+    )
+
+    grouped = {}
+    for foundation_id, school_id, term_id, class_group_id, subject_id, score, descriptor in scores:
+        key = (foundation_id, school_id, term_id, class_group_id, subject_id)
+        bucket = grouped.setdefault(key, {'scores': [], 'bands': {}})
+        bucket['scores'].append(score)
+        bucket['bands'][descriptor] = bucket['bands'].get(descriptor, 0) + 1
+
+    for (foundation_id, school_id, term_id, class_group_id, subject_id), bucket in grouped.items():
+        avg_score = (sum(bucket['scores']) / len(bucket['scores'])).quantize(Decimal('0.01'))
+
+        RptAcademicPerformance.all_tenants.update_or_create(
+            foundation_id=foundation_id,
+            school_id=school_id,
+            term_id=term_id,
+            class_group_id=class_group_id,
+            subject_id=subject_id,
+            defaults={
+                'avg_score': avg_score,
+                'band_distribution': bucket['bands'],
+                'computed_at': now,
+            },
+        )
+        rows_written += 1
+
+    return {'rows_written': rows_written, 'scope': scope}

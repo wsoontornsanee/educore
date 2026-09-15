@@ -6,8 +6,12 @@ from rest_framework.views import APIView
 
 from apps.identity.models import School
 from apps.identity.permissions import HasRequiredPermission
-from apps.reporting.models import RptDailyAttendance, RptWalletActivity
-from apps.reporting.serializers import RptDailyAttendanceSerializer, RptWalletActivitySerializer
+from apps.reporting.models import RptAcademicPerformance, RptDailyAttendance, RptWalletActivity
+from apps.reporting.serializers import (
+    RptAcademicPerformanceSerializer,
+    RptDailyAttendanceSerializer,
+    RptWalletActivitySerializer,
+)
 from educore.middleware.tenancy import get_current_foundation_id
 
 
@@ -87,3 +91,32 @@ class DailyAttendanceReportView(APIView):
 
         rows = rows.order_by('date', 'class_group_id')
         return Response({'rows': RptDailyAttendanceSerializer(rows, many=True).data})
+
+
+class AcademicPerformanceReportView(APIView):
+    """GET /reporting/academic-performance/?school_id=&term_id=&class_group_id= (spec/15 §2, §3)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'reporting.read'
+
+    def get(self, request):
+        foundation_id = get_current_foundation_id()
+
+        school_id = request.query_params.get('school_id')
+        if not school_id:
+            return Response({'error': _("Parameter school_id wajib diisi.")}, status=status.HTTP_400_BAD_REQUEST)
+        school = School.objects.filter(id=school_id, foundation_id=foundation_id).first()
+        if not school:
+            return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        rows = RptAcademicPerformance.objects.filter(foundation_id=foundation_id, school=school)
+
+        term_id = request.query_params.get('term_id')
+        if term_id:
+            rows = rows.filter(term_id=term_id)
+
+        class_group_id = request.query_params.get('class_group_id')
+        if class_group_id:
+            rows = rows.filter(class_group_id=class_group_id)
+
+        rows = rows.order_by('term_id', 'class_group_id', 'subject_id')
+        return Response({'rows': RptAcademicPerformanceSerializer(rows, many=True).data})
