@@ -1,6 +1,14 @@
 from rest_framework import serializers
 
-from apps.wallet.models import SpendRule, Wallet, WalletTransaction
+from apps.wallet.models import (
+    Merchant,
+    POSTerminal,
+    POSTransaction,
+    Product,
+    SpendRule,
+    Wallet,
+    WalletTransaction,
+)
 
 
 class WalletSerializer(serializers.ModelSerializer):
@@ -40,3 +48,53 @@ class SpendRuleSerializer(serializers.ModelSerializer):
             'blocked_products', 'allowed_window_start', 'allowed_window_end', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'foundation_id', 'student', 'created_at', 'updated_at']
+
+
+class MerchantSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Merchant
+        fields = ['id', 'foundation_id', 'school', 'name', 'type', 'settlement_account', 'commission_bps', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'foundation_id', 'created_at', 'updated_at']
+
+
+class ProductSerializer(serializers.ModelSerializer):
+    price = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+
+    class Meta:
+        model = Product
+        fields = ['id', 'foundation_id', 'merchant', 'sku', 'name', 'price', 'category', 'nutrition', 'allergens', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'foundation_id', 'created_at', 'updated_at']
+
+
+class POSTerminalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = POSTerminal
+        fields = ['id', 'foundation_id', 'merchant', 'device_id', 'name', 'status', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'foundation_id', 'created_at', 'updated_at']
+
+
+class POSTransactionSerializer(serializers.ModelSerializer):
+    subtotal = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    commission = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    total = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+
+    class Meta:
+        model = POSTransaction
+        fields = [
+            'id', 'foundation_id', 'merchant', 'terminal', 'student', 'items', 'subtotal', 'commission',
+            'total', 'occurred_at', 'status', 'offline_created', 'client_transaction_id',
+            'voided_at', 'void_reason', 'created_at',
+        ]
+        read_only_fields = fields
+
+
+class POSTransactionCreateSerializer(serializers.Serializer):
+    terminal_id = serializers.IntegerField()
+    student_id = serializers.IntegerField()
+    items = serializers.ListField(child=serializers.DictField())
+    client_transaction_id = serializers.CharField(max_length=128)
+    occurred_at = serializers.DateTimeField(required=False)
+
+
+class POSTransactionVoidSerializer(serializers.Serializer):
+    reason = serializers.CharField(max_length=255, required=False, allow_blank=True, default='')
