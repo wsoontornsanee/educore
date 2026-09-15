@@ -6,6 +6,7 @@
 
 * * * * *      python /app/manage.py drain_tasks --limit 200            # generic async queue
 * * * * *      python /app/manage.py ingest_device_events               # edge agent event intake sweep
+* * * * *      python /app/manage.py auto_submit_expired_exam_attempts  # ACD-025/026: force-submit past window_end
 */5 * * * *    python /app/manage.py refresh_reporting --scope=dashboard
 */5 * * * *    python /app/manage.py sync_payment_status                # poll pending payment intents
 */10 * * * *   python /app/manage.py check_device_health                # offline device alerts
