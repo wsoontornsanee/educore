@@ -946,3 +946,139 @@ class ArAgingView(APIView):
 
 
 
+
+# ---------------------------------------------------------------------------
+# Step 8.1 — Gateway Reconciliation Views (FIN-024)
+# ---------------------------------------------------------------------------
+
+from apps.finance.models import (
+    GatewaySettlementBatch,
+    PaymentDiscrepancy,
+    DiscrepancyResolution,
+)
+from apps.finance.services.reconciliation import resolve_discrepancy as svc_resolve_discrepancy
+
+
+class GatewaySettlementBatchSerializer:
+    """Inline minimal serializer — avoids a separate serializers.py change for this slice."""
+    @staticmethod
+    def to_representation(batch):
+        return {
+            'id': batch.id,
+            'provider': batch.provider,
+            'settlement_date': str(batch.settlement_date),
+            'status': batch.status,
+            'fetched_at': batch.fetched_at.isoformat() if batch.fetched_at else None,
+            'total_records': batch.total_records,
+            'matched_count': batch.matched_count,
+            'missing_count': batch.missing_count,
+            'mismatch_count': batch.mismatch_count,
+            'error_message': batch.error_message,
+        }
+
+
+class PaymentDiscrepancySerializer:
+    """Inline minimal serializer for PaymentDiscrepancy."""
+    @staticmethod
+    def to_representation(d):
+        return {
+            'id': d.id,
+            'batch_id': d.batch_id,
+            'external_id': d.external_id,
+            'discrepancy_type': d.discrepancy_type,
+            'gateway_amount': str(d.gateway_amount),
+            'gateway_fee': str(d.gateway_fee),
+            'gateway_net': str(d.gateway_net),
+            'system_amount': str(d.system_amount) if d.system_amount is not None else None,
+            'currency': d.currency,
+            'channel': d.channel,
+            'bank': d.bank,
+            'gateway_settled_at': d.gateway_settled_at.isoformat() if d.gateway_settled_at else None,
+            'resolution': d.resolution,
+            'resolved_by': d.resolved_by_id,
+            'resolved_at': d.resolved_at.isoformat() if d.resolved_at else None,
+            'resolution_notes': d.resolution_notes,
+        }
+
+
+class ReconciliationBatchListView(APIView):
+    """GET /finance/reconciliation/batches/  — list settlement batches for the tenant.
+
+    Query params:
+    - settlement_date (YYYY-MM-DD): filter by date
+    - provider: filter by provider name
+    """
+    permission_classes = [permissions.IsAuthenticated, HasRequiredPermission]
+    required_permission = 'finance.view_gatewaysettlementbatch'
+
+    def get(self, request):
+        foundation_id = request.user.foundation_id
+        qs = GatewaySettlementBatch.objects.filter(
+            foundation_id=foundation_id,
+            deleted_at__isnull=True,
+        ).order_by('-settlement_date', 'provider')
+
+        if settlement_date := request.query_params.get('settlement_date'):
+            qs = qs.filter(settlement_date=settlement_date)
+        if provider := request.query_params.get('provider'):
+            qs = qs.filter(provider__iexact=provider)
+
+        data = [GatewaySettlementBatchSerializer.to_representation(b) for b in qs[:100]]
+        return Response(data)
+
+
+class ReconciliationBatchDetailView(APIView):
+    """GET /finance/reconciliation/batches/<id>/  — single batch with discrepancies."""
+    permission_classes = [permissions.IsAuthenticated, HasRequiredPermission]
+    required_permission = 'finance.view_gatewaysettlementbatch'
+
+    def get(self, request, pk):
+        foundation_id = request.user.foundation_id
+        try:
+            batch = GatewaySettlementBatch.objects.get(
+                id=pk,
+                foundation_id=foundation_id,
+                deleted_at__isnull=True,
+            )
+        except GatewaySettlementBatch.DoesNotExist:
+            return Response({'error': _("Batch tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        discrepancies = batch.discrepancies.filter(deleted_at__isnull=True)
+        data = GatewaySettlementBatchSerializer.to_representation(batch)
+        data['discrepancies'] = [PaymentDiscrepancySerializer.to_representation(d) for d in discrepancies]
+        return Response(data)
+
+
+class ReconciliationDiscrepancyResolveView(APIView):
+    """POST /finance/reconciliation/discrepancies/<id>/resolve/
+
+    Body: { "resolution": "MANUAL_SETTLED|WAIVED|ESCALATED", "notes": "..." }
+    """
+    permission_classes = [permissions.IsAuthenticated, HasRequiredPermission]
+    required_permission = 'finance.change_paymentdiscrepancy'
+
+    def post(self, request, pk):
+        foundation_id = request.user.foundation_id
+        resolution = request.data.get('resolution', '').upper()
+        notes = request.data.get('notes', '')
+
+        if not resolution:
+            return Response(
+                {'error': _("Field 'resolution' wajib diisi.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            discrepancy = svc_resolve_discrepancy(
+                discrepancy_id=pk,
+                resolution=resolution,
+                resolved_by=request.user,
+                foundation_id=foundation_id,
+                notes=notes,
+            )
+        except PaymentDiscrepancy.DoesNotExist:
+            return Response({'error': _("Discrepancy tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(PaymentDiscrepancySerializer.to_representation(discrepancy))

@@ -651,3 +651,197 @@ class InvoiceWriteOffRequest(TenantModel):
     def __str__(self):
         return f"Write-off #{self.id} for Invoice {self.invoice.number} ({self.status})"
 
+
+# ---------------------------------------------------------------------------
+# Step 8.1 — Gateway Reconciliation (FIN-024)
+# ---------------------------------------------------------------------------
+
+class SettlementBatchStatus(models.TextChoices):
+    PENDING = 'PENDING', _('Menunggu Proses (Pending)')
+    PROCESSING = 'PROCESSING', _('Sedang Diproses (Processing)')
+    COMPLETED = 'COMPLETED', _('Selesai (Completed)')
+    FAILED = 'FAILED', _('Gagal (Failed)')
+    PARTIAL = 'PARTIAL', _('Sebagian Berhasil (Partial)')
+
+
+class GatewaySettlementBatch(TenantModel):
+    """Daily settlement batch fetched from a payment gateway (spec/06 FIN-024).
+
+    One record per provider per settlement date.  Tracks counts of matched,
+    missing, and mismatched transactions so the finance team can audit
+    the daily reconciliation run without trawling individual discrepancies.
+    """
+    provider = models.CharField(
+        max_length=32,
+        db_index=True,
+        help_text=_("Payment provider: MIDTRANS, XENDIT, MOCK"),
+    )
+    settlement_date = models.DateField(
+        db_index=True,
+        help_text=_("The settlement calendar date this batch covers (YYYY-MM-DD)"),
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=SettlementBatchStatus.choices,
+        default=SettlementBatchStatus.PENDING,
+        db_index=True,
+    )
+    fetched_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=_("Timestamp when gateway data was successfully fetched"),
+    )
+    total_records = models.PositiveIntegerField(
+        default=0,
+        help_text=_("Total settlement records returned by the gateway"),
+    )
+    matched_count = models.PositiveIntegerField(
+        default=0,
+        help_text=_("Records matched to an existing Payment and auto-settled"),
+    )
+    missing_count = models.PositiveIntegerField(
+        default=0,
+        help_text=_("Gateway records with no matching Payment in EduCore"),
+    )
+    mismatch_count = models.PositiveIntegerField(
+        default=0,
+        help_text=_("Records where gateway amount differs from Payment amount"),
+    )
+    error_message = models.TextField(
+        blank=True,
+        default='',
+        help_text=_("Error traceback or message if the batch run failed"),
+    )
+    raw_summary = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_("Provider-specific aggregate totals from gateway response"),
+    )
+
+    class Meta:
+        db_table = 'gateway_settlement_batches'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'provider', 'settlement_date'],
+                condition=models.Q(deleted_at__isnull=True),
+                name='unique_foundation_provider_settlement_date',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['foundation_id', 'settlement_date']),
+            models.Index(fields=['foundation_id', 'provider', 'status']),
+        ]
+
+    def __str__(self):
+        return (
+            f"Batch {self.provider} {self.settlement_date} "
+            f"({self.status}) — {self.matched_count}/{self.total_records} matched"
+        )
+
+
+class DiscrepancyType(models.TextChoices):
+    MISSING_IN_SYSTEM = 'MISSING_IN_SYSTEM', _('Ada di Gateway, Tidak Ada di Sistem (Missing in System)')
+    AMOUNT_MISMATCH = 'AMOUNT_MISMATCH', _('Jumlah Tidak Sesuai (Amount Mismatch)')
+    DUPLICATE = 'DUPLICATE', _('Duplikat (Duplicate Entry)')
+    EXTRA_IN_SYSTEM = 'EXTRA_IN_SYSTEM', _('Ada di Sistem, Tidak Ada di Gateway (Extra in System)')
+
+
+class DiscrepancyResolution(models.TextChoices):
+    PENDING = 'PENDING', _('Menunggu Tindak Lanjut (Pending Review)')
+    AUTO_SETTLED = 'AUTO_SETTLED', _('Diselesaikan Otomatis (Auto-settled)')
+    MANUAL_SETTLED = 'MANUAL_SETTLED', _('Diselesaikan Manual (Manually Settled)')
+    WAIVED = 'WAIVED', _('Diabaikan (Waived)')
+    ESCALATED = 'ESCALATED', _('Diteruskan ke Tim Keuangan (Escalated)')
+
+
+class PaymentDiscrepancy(TenantModel):
+    """An individual reconciliation discrepancy between a gateway settlement
+    record and the corresponding Payment in EduCore (spec/06 FIN-024).
+
+    Created by the reconciliation service for every record that cannot be
+    auto-resolved.  A finance user reviews and resolves each discrepancy via
+    the admin UI or the API.
+    """
+    batch = models.ForeignKey(
+        GatewaySettlementBatch,
+        on_delete=models.CASCADE,
+        related_name='discrepancies',
+        help_text=_("Parent batch this discrepancy belongs to"),
+    )
+    payment = models.ForeignKey(
+        Payment,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='discrepancies',
+        help_text=_("Matched Payment record, if found (null for MISSING_IN_SYSTEM)"),
+    )
+    external_id = models.CharField(
+        max_length=128,
+        db_index=True,
+        help_text=_("Gateway transaction or reference ID"),
+    )
+    discrepancy_type = models.CharField(
+        max_length=32,
+        choices=DiscrepancyType.choices,
+        db_index=True,
+    )
+    gateway_amount = MoneyField(
+        default=0,
+        help_text=_("Gross amount reported by the gateway"),
+    )
+    gateway_fee = MoneyField(
+        default=0,
+        help_text=_("Fee reported by the gateway"),
+    )
+    gateway_net = MoneyField(
+        default=0,
+        help_text=_("Net amount reported by the gateway (amount - fee)"),
+    )
+    system_amount = MoneyField(
+        null=True,
+        blank=True,
+        help_text=_("Amount recorded in the EduCore Payment record (if matched)"),
+    )
+    currency = models.CharField(max_length=3, default='IDR')
+    channel = models.CharField(max_length=64, blank=True, default='')
+    bank = models.CharField(max_length=32, blank=True, default='')
+    gateway_settled_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=_("Timestamp of settlement according to the gateway"),
+    )
+    resolution = models.CharField(
+        max_length=32,
+        choices=DiscrepancyResolution.choices,
+        default=DiscrepancyResolution.PENDING,
+        db_index=True,
+    )
+    resolved_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='resolved_discrepancies',
+    )
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolution_notes = models.TextField(blank=True, default='')
+    raw_gateway_record = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_("Unmodified gateway settlement record for audit trail"),
+    )
+
+    class Meta:
+        db_table = 'payment_discrepancies'
+        indexes = [
+            models.Index(fields=['foundation_id', 'batch', 'discrepancy_type']),
+            models.Index(fields=['foundation_id', 'external_id']),
+            models.Index(fields=['foundation_id', 'resolution']),
+        ]
+
+    def __str__(self):
+        return (
+            f"Discrepancy [{self.discrepancy_type}] ext={self.external_id} "
+            f"gateway={self.currency} {self.gateway_amount} ({self.resolution})"
+        )
