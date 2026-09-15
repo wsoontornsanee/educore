@@ -9,14 +9,15 @@
 ---
 
 ## 2. Current Build Status
-- **Current Step:** Milestone M5 (Step 5: Finance & SPP Billing Engine + VA Invoicing) In Progress.
-- **Target Milestone:** Pilot Core (P0: Milestones M0–M5).
+- **Current Step:** Milestone M6 (Step 6: Academic Module — Gradebook Core, P1 Classroom) In Progress.
+- **Target Milestone:** P0 Pilot Core [DONE] (M0–M5) -> P1 Classroom (M6–M9): academic module, teacher suite, report cards, homework (`spec/00 §6`).
   - *M0 (Step 0) [DONE]:* Django project skeleton, `core` app (`TenantModel`, `MoneyField`, `AuditEvent`, `DomainEvent`, `TaskQueue`, `JobRun`, `drain_tasks`, advisory locks, crontab).
   - *M1 (Step 1) [DONE]:* Tenancy, auth, RBAC, feature entitlements, foundation portal, seed data (`identity`, `foundation`). Demo: Foundation admin logs in, sees two schools.
   - *M2 (Step 2) [DONE]:* Student/staff records + bulk XLSX import (`identity`).
   - *M3 (Step 3) [DONE]:* Credentials, gate attendance events, edge agent stub (`attendance`, `hardware`).
   - *M4 (Step 4) [DONE]:* Notifications service + WhatsApp arrival messaging (`notifications`).
-  - *M5 (Step 5) [IN PROGRESS]:* Finance, SPP billing schedules, invoice generation, virtual accounts & double-entry ledger (`finance`).
+  - *M5 (Step 5) [DONE]:* Finance, SPP billing schedules, invoice generation, virtual accounts & double-entry ledger (`finance`).
+  - *M6 (Step 6) [IN PROGRESS]:* Academic module — subjects, class groups/enrollment, gradebook, weighted grading (`academic`). Timetable/exams/homework/report cards deferred to later Step-6.x slices.
 
 
 ---
@@ -39,10 +40,11 @@
 14. **Multi-Channel Notification Ladder & WhatsApp Gate Alerts:** Inbound gate scans trigger parent arrival WhatsApp messages in < 5s (`ATT-006`). Deduplication prevents re-notifying on debounce (`NTF-003`, `ATT-007`), quiet hours defer non-critical messages (`NTF-002`), emergency alerts bypass restrictions (`NTF-013`), and provider outages automatically cascade across fallback channels (`WHATSAPP` -> `PUSH` -> `SMS` -> `EMAIL`, `NTF-006`).
 15. **Gapless Invoice Numbering & Idempotent Generation:** Invoices use sequential per-school per-year counters (`InvoiceNumberSequence`) allocated via `SELECT ... FOR UPDATE` (`FIN-004`). Monthly generation runs are strictly idempotent per `(student, period)`, exclude non-active students (`FIN-005`), calculate explicit IDR `PEMBULATAN` line items (`FIN-008c`), support dry-run previewing (`FIN-008`), and are locked by advisory locks (`ARC-007`).
 16. **Payment Webhook Tenancy & Balanced Double-Entry Ledger:** Public webhooks operate without session auth, requiring explicit tenant resolution via `.all_tenants` and `with tenant_context(foundation_id):` to prevent fail-closed query rejection. Payments strictly allocate oldest-first, record partial/full status, hold overpayment as reusable `StudentCreditBalance` (`FIN-015`), and post balanced double-entry `ledger_entries` (`sum(debit) == sum(credit)` per journal per currency to 0.00) using the standard Chart of Accounts (`FIN-021`, `FIN-022`, `CUR-020`).
+17. **Academic Core: Weighted Grading & RBAC Reuse:** `AcademicYear`/`Term`/`ClassEnrollment` were net-new (spec/04 referenced `academic_year_id`/`term_id` without defining owning entities); scoped under `apps.academic` rather than `identity` since they're academic-specific. Final term grade (`ACD-008`) is a weighted average of individual published assessments (not category-level) restricted to `SUMMATIVE`/`EXAM`/`PROJECT` types, whose weights must sum to exactly 100% at computation time or raise `WEIGHT_CONFIG_INCOMPLETE`; a counted assessment missing a student's score returns `INCOMPLETE` rather than treating it as zero (`ACD-009`). Reused existing `grades.read`/`grades.write` RBAC permission keys (already present in `ROLE_PERMISSIONS`) instead of minting new ones. Grade-change audit trail (`ACD-005`) relies on `AuditEvent.diff` for before/after retrieval rather than a separate revision table, consistent with finance's correction pattern.
 
 ---
 
-## 4. Active Tasks & Immediate Next Actions (Step 5 / Milestone M5)
+## 4. Active Tasks & Immediate Next Actions (Step 6 / Milestone M6)
 
 | Task ID | Component | Description | Status |
 |---|---|---|---|
@@ -63,9 +65,11 @@
 | `TASK-020` | Fee Structures | Implement fee items, schedules (SPP, Uang Pangkal), discount policies, and rounding (`spec/06 §2`, `spec/16`) | Completed |
 | `TASK-021` | Invoice Generation | Monthly batch invoice generation, rounding line item (`PEMBULATAN`), and notifications (`spec/06 §3`) | Completed |
 | `TASK-022` | VA & Payments | Virtual Account allocation, payment webhook processing, double-entry ledger journals (`spec/06 §4, §5`, `spec/16`) | Completed |
-
-
-
+| `TASK-023` | Academic Core | Subjects, class groups/enrollment, class-subjects, learning objectives, assessments, gradebook, weighted final grade (`spec/04 §2, §3, §8`, `ACD-001` to `ACD-009`) | Completed |
+| `TASK-024` | Timetable | Timetable builder with conflict detection, substitutions (`spec/04 §5`, `ACD-017` to `ACD-020`) | Planned |
+| `TASK-025` | Homework | Homework assignment/submission, completion tracking, reminders (`spec/04 §7`, `ACD-027` to `ACD-030`) | Planned |
+| `TASK-026` | Online Exams | Exam attempts, server-side timing, auto-grading (`spec/04 §6`, `ACD-021` to `ACD-026`) | Planned |
+| `TASK-027` | Report Cards | Rapor generation, approval workflow, PDF, arrears gate (`spec/04 §4`, `ACD-010` to `ACD-016`) | Planned |
 
 ---
 
