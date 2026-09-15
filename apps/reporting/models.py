@@ -3,6 +3,7 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.fields import MoneyField
+from apps.core.fields import soft_delete_uniqueness_marker
 from apps.core.models import TenantModel
 from apps.identity.models import School
 
@@ -22,6 +23,7 @@ class RptWalletActivity(TenantModel):
     commission = MoneyField(default=Decimal('0.00'))
     active_wallets = models.PositiveIntegerField(default=0)
     computed_at = models.DateTimeField(help_text=_("RPT-005: data freshness timestamp"))
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'rpt_wallet_activity'
@@ -30,8 +32,7 @@ class RptWalletActivity(TenantModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'school', 'date', 'currency'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'school', 'date', 'currency', 'active_uniq_marker'],
                 name='unique_rpt_wallet_activity_per_school_day',
             ),
         ]
@@ -54,6 +55,7 @@ class RptDailyAttendance(TenantModel):
     absent = models.PositiveIntegerField(default=0)
     rate_pct = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
     computed_at = models.DateTimeField(help_text=_("RPT-005: data freshness timestamp"))
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'rpt_daily_attendance'
@@ -62,8 +64,7 @@ class RptDailyAttendance(TenantModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'school', 'date', 'class_group'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'school', 'date', 'class_group', 'active_uniq_marker'],
                 name='unique_rpt_daily_attendance_per_school_class_day',
             ),
         ]
@@ -86,6 +87,7 @@ class RptAcademicPerformance(TenantModel):
     avg_score = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal('0.00'))
     band_distribution = models.JSONField(default=dict, help_text=_("{descriptor: count}"))
     computed_at = models.DateTimeField(help_text=_("RPT-005: data freshness timestamp"))
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'rpt_academic_performance'
@@ -94,8 +96,7 @@ class RptAcademicPerformance(TenantModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'school', 'term', 'class_group', 'subject'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'school', 'term', 'class_group', 'subject', 'active_uniq_marker'],
                 name='unique_rpt_academic_performance_per_school_term_class_subject',
             ),
         ]
@@ -113,6 +114,7 @@ class RptActiveStudent(TenantModel):
     month = models.DateField(help_text=_("Normalized to the 1st of the month"))
     active_count = models.PositiveIntegerField(default=0)
     computed_at = models.DateTimeField(help_text=_("RPT-005: data freshness timestamp"))
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'rpt_active_students'
@@ -121,8 +123,7 @@ class RptActiveStudent(TenantModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'school', 'month'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'school', 'month', 'active_uniq_marker'],
                 name='unique_rpt_active_students_per_school_month',
             ),
         ]
@@ -150,6 +151,7 @@ class RptDailyFinance(TenantModel):
     payments_count = models.PositiveIntegerField(default=0)
     fees = MoneyField(default=Decimal('0.00'))
     computed_at = models.DateTimeField(help_text=_("RPT-005: data freshness timestamp"))
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'rpt_daily_finance'
@@ -158,8 +160,7 @@ class RptDailyFinance(TenantModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'school', 'date', 'currency'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'school', 'date', 'currency', 'active_uniq_marker'],
                 name='unique_rpt_daily_finance_per_school_day',
             ),
         ]
@@ -181,6 +182,7 @@ class RptArAging(TenantModel):
     amount = MoneyField(default=Decimal('0.00'))
     invoices_count = models.PositiveIntegerField(default=1)
     computed_at = models.DateTimeField(help_text=_("RPT-005: data freshness timestamp"))
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'rpt_ar_aging'
@@ -190,8 +192,7 @@ class RptArAging(TenantModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'school', 'student', 'as_of', 'bucket', 'currency'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'school', 'student', 'as_of', 'bucket', 'currency', 'active_uniq_marker'],
                 name='unique_rpt_ar_aging_per_student_as_of_bucket',
             ),
         ]
