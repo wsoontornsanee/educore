@@ -41,6 +41,7 @@ from apps.academic.serializers import (
     BroadcastPolicySerializer,
     BroadcastSerializer,
     BulkScoreEntrySerializer,
+    ScoreCsvImportSerializer,
     ClassEnrollmentSerializer,
     ClassGroupSerializer,
     ClassSubjectSerializer,
@@ -81,9 +82,11 @@ from apps.academic.services import (
     ReminderRateLimitedError,
     ReportCardStateError,
     ScoreConflictError,
+    ScoreCsvError,
     ScoreOutOfRangeError,
     TimetableConflictError,
     WeightConfigError,
+    apply_bulk_score_import,
     approve_report_card,
     assign_homework,
     assign_substitution,
@@ -93,6 +96,7 @@ from apps.academic.services import (
     create_timetable_slot,
     duplicate_lesson_plan,
     generate_report_cards,
+    preview_bulk_score_import,
     get_homework_completion,
     get_expected_periods_for_school,
     get_or_create_broadcast_policy,
@@ -226,7 +230,7 @@ class AssessmentViewSet(TenantScopedModelViewSet):
         'list': 'grades.read', 'retrieve': 'grades.read',
         'create': 'grades.write', 'update': 'grades.write',
         'partial_update': 'grades.write', 'destroy': 'grades.write',
-        'publish': 'grades.write', 'scores': 'grades.write',
+        'publish': 'grades.write', 'scores': 'grades.write', 'import_scores_csv': 'grades.write',
     }
 
     @action(detail=True, methods=['post'], url_path='publish')
@@ -280,6 +284,29 @@ class AssessmentViewSet(TenantScopedModelViewSet):
             results.append(AssessmentScoreSerializer(record).data)
 
         return Response({'scores': results}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='import-scores-csv', parser_classes=[MultiPartParser])
+    def import_scores_csv(self, request, pk=None):
+        """ACD-007: CSV bulk score import. dry_run=true (default) returns a
+        per-row diff without writing; dry_run=false commits via
+        set_assessment_score, matching the JSON bulk endpoint's semantics."""
+        assessment = self.get_object()
+        payload = ScoreCsvImportSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+
+        csv_content = payload.validated_data['file'].read().decode('utf-8-sig')
+        try:
+            if payload.validated_data['dry_run']:
+                preview = preview_bulk_score_import(assessment, csv_content)
+                return Response({'dry_run': True, 'rows': preview})
+
+            result = apply_bulk_score_import(
+                assessment, csv_content, actor=request.user,
+                reason=payload.validated_data.get('reason'),
+            )
+            return Response({'dry_run': False, **result})
+        except ScoreCsvError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class TimetableSlotViewSet(TenantScopedModelViewSet):

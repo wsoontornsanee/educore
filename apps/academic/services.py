@@ -3,7 +3,9 @@ import logging
 import random
 from collections import Counter
 from datetime import timedelta
-from decimal import Decimal, ROUND_HALF_UP
+import csv
+import io
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
 from uuid import uuid4
 
@@ -65,6 +67,12 @@ class ScoreConflictError(ValueError):
 
 
 class ReasonRequiredError(ValueError):
+    pass
+
+
+class ScoreCsvError(ValueError):
+    """Raised on a malformed bulk-score CSV — fails loud on the whole file
+    rather than silently skipping bad rows."""
     pass
 
 
@@ -202,6 +210,112 @@ def set_assessment_score(
     )
 
     return record
+
+
+def parse_score_csv(csv_content: str) -> list[dict]:
+    """ACD-007: parse a bulk-score CSV. Required columns: 'nis', 'score'
+    (blank score clears it, same as passing score=None). Optional: 'feedback'.
+
+    Keyed by NIS rather than the internal student_id, since that's what a
+    teacher's own spreadsheet actually has. Raises ScoreCsvError on a missing
+    header, missing NIS, or a non-numeric score — fails loud on the whole file
+    rather than silently skipping malformed rows.
+    """
+    reader = csv.DictReader(io.StringIO(csv_content))
+    if not reader.fieldnames or 'nis' not in reader.fieldnames or 'score' not in reader.fieldnames:
+        raise ScoreCsvError("CSV_MISSING_COLUMNS: header row must include 'nis' and 'score' columns.")
+
+    rows = []
+    for row_number, row in enumerate(reader, start=2):  # header is row 1
+        nis = (row.get('nis') or '').strip()
+        if not nis:
+            raise ScoreCsvError(f"CSV_MISSING_NIS: row {row_number} has no NIS.")
+
+        raw_score = (row.get('score') or '').strip()
+        if raw_score == '':
+            score = None
+        else:
+            try:
+                score = Decimal(raw_score)
+            except InvalidOperation:
+                raise ScoreCsvError(f"CSV_INVALID_SCORE: row {row_number} has a non-numeric score '{raw_score}'.")
+
+        rows.append({
+            'row_number': row_number,
+            'nis': nis,
+            'score': score,
+            'feedback': (row.get('feedback') or '').strip(),
+        })
+    return rows
+
+
+def preview_bulk_score_import(assessment: Assessment, csv_content: str) -> list[dict]:
+    """ACD-007 dry-run: reports what WOULD change per CSV row without writing
+    anything. Each result carries 'action': CREATE/UPDATE/NO_CHANGE/ERROR.
+    """
+    results = []
+    for row in parse_score_csv(csv_content):
+        student = Student.objects.filter(foundation_id=assessment.foundation_id, nis=row['nis']).first()
+        if not student:
+            results.append({**row, 'action': 'ERROR', 'student_id': None,
+                             'current_score': None, 'new_score': None,
+                             'error': f"STUDENT_NOT_FOUND: no student with NIS '{row['nis']}'."})
+            continue
+
+        if row['score'] is not None and (row['score'] < 0 or row['score'] > assessment.max_score):
+            results.append({**row, 'action': 'ERROR', 'student_id': student.id,
+                             'current_score': None, 'new_score': None,
+                             'error': f"SCORE_OUT_OF_RANGE: must be between 0 and {assessment.max_score}."})
+            continue
+
+        existing = AssessmentScore.objects.filter(assessment=assessment, student=student).first()
+        current_score = existing.score if existing else None
+        if existing is None:
+            action = 'CREATE'
+        elif current_score == row['score']:
+            action = 'NO_CHANGE'
+        else:
+            action = 'UPDATE'
+
+        results.append({
+            **row, 'action': action, 'student_id': student.id,
+            'current_score': str(current_score) if current_score is not None else None,
+            'new_score': str(row['score']) if row['score'] is not None else None,
+            'error': None,
+        })
+    return results
+
+
+def apply_bulk_score_import(assessment: Assessment, csv_content: str, actor=None, reason: str = None) -> dict:
+    """ACD-007: commits a CSV bulk import via set_assessment_score per row, so
+    conflict/range/reason-required semantics stay identical to the existing
+    JSON bulk endpoint (PUT /assessments/:id/scores/). A row's failure doesn't
+    stop the rest of the file. Returns {'imported': int, 'errors': [...]}."""
+    imported = 0
+    errors = []
+    for row in parse_score_csv(csv_content):
+        student = Student.objects.filter(foundation_id=assessment.foundation_id, nis=row['nis']).first()
+        if not student:
+            errors.append({'row_number': row['row_number'], 'nis': row['nis'],
+                            'error': f"STUDENT_NOT_FOUND: no student with NIS '{row['nis']}'."})
+            continue
+        try:
+            set_assessment_score(
+                assessment=assessment, student=student, score=row['score'],
+                feedback=row['feedback'], reason=reason, actor=actor,
+            )
+            imported += 1
+        except (ScoreOutOfRangeError, ReasonRequiredError, ScoreConflictError) as exc:
+            errors.append({'row_number': row['row_number'], 'nis': row['nis'], 'error': str(exc)})
+
+    audit(
+        action='academic.assessment_score.csv_import',
+        entity_type='Assessment',
+        entity_id=assessment.id,
+        foundation_id=assessment.foundation_id,
+        diff={'imported': imported, 'error_count': len(errors)},
+    )
+    return {'imported': imported, 'errors': errors}
 
 
 def publish_assessment(assessment: Assessment) -> Assessment:
