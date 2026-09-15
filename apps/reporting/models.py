@@ -38,3 +38,35 @@ class RptWalletActivity(TenantModel):
 
     def __str__(self):
         return f"{self.school.name} - {self.date} ({self.currency})"
+
+
+class RptDailyAttendance(TenantModel):
+    """Daily attendance rollup per class (spec/15 §2). Feeds the "Daily attendance
+    summary" report (spec/15 §3). Rebuilt by `refresh_reporting`.
+    """
+    school = models.ForeignKey(School, on_delete=models.PROTECT, related_name='daily_attendance_reports')
+    date = models.DateField()
+    class_group = models.ForeignKey('academic.ClassGroup', on_delete=models.PROTECT, related_name='attendance_reports')
+    present = models.PositiveIntegerField(default=0)
+    late = models.PositiveIntegerField(default=0)
+    sick = models.PositiveIntegerField(default=0)
+    permitted = models.PositiveIntegerField(default=0)
+    absent = models.PositiveIntegerField(default=0)
+    rate_pct = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
+    computed_at = models.DateTimeField(help_text=_("RPT-005: data freshness timestamp"))
+
+    class Meta:
+        db_table = 'rpt_daily_attendance'
+        indexes = [
+            models.Index(fields=['foundation_id', 'school_id', 'date']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'school', 'date', 'class_group'],
+                condition=models.Q(deleted_at__isnull=True),
+                name='unique_rpt_daily_attendance_per_school_class_day',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.school.name} - {self.class_group.name} - {self.date} ({self.rate_pct}%)"
