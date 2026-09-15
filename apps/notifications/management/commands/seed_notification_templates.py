@@ -122,6 +122,23 @@ CANONICAL_TEMPLATES = [
         'body': 'Saldo dompet kantin {student_name} sebesar Rp {shortfall} yang belum diselesaikan sejak {detected_date} kini dimasukkan ke tagihan sebagai Penyesuaian Saldo Kantin.',
         'variables': ['student_name', 'shortfall', 'detected_date'],
     },
+    # ACD-019 — closes the "assign_substitution never notifies the substitute" gap.
+    {
+        'key': 'academic.substitution.assigned',
+        'channel': ChannelType.WHATSAPP,
+        'locale': 'id-ID',
+        'subject': 'Penugasan Guru Pengganti',
+        'body': 'Yth. Bapak/Ibu Guru, Anda ditugaskan menggantikan {original_teacher} mengajar {subject} di kelas {class_group} pada {date}, periode ke-{period_no}.',
+        'variables': ['original_teacher', 'subject', 'class_group', 'date', 'period_no'],
+    },
+    {
+        'key': 'academic.substitution.assigned',
+        'channel': ChannelType.PUSH,
+        'locale': 'id-ID',
+        'subject': 'Penugasan Guru Pengganti',
+        'body': 'Anda menggantikan {original_teacher}: {subject} di {class_group}, {date} periode ke-{period_no}.',
+        'variables': ['original_teacher', 'subject', 'class_group', 'date', 'period_no'],
+    },
 ]
 
 

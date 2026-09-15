@@ -31,6 +31,7 @@ class NotificationCategory(models.TextChoices):
     CANTEEN = 'CANTEEN', _('Transaksi Kantin (Canteen)')
     ANNOUNCEMENT = 'ANNOUNCEMENT', _('Pengumuman Sekolah (Announcement)')
     WALLET_RECONCILIATION = 'WALLET_RECONCILIATION', _('Rekonsiliasi Dompet (Wallet Reconciliation)')
+    SUBSTITUTE_ASSIGNED = 'SUBSTITUTE_ASSIGNED', _('Penugasan Guru Pengganti (Substitute Assigned)')
 
 
 class NotificationPriority(models.TextChoices):
@@ -146,6 +147,13 @@ CATEGORY_CONFIG = {
         # lookup, not a hardcoded category check (spec/17 REC-008).
         'send_time_validator': 'apps.wallet.services.is_reconciliation_notice_still_needed',
         'send_time_cancelled_reason': _("Saldo telah diselesaikan sebelum notifikasi terkirim (REC-008)"),
+    },
+    NotificationCategory.SUBSTITUTE_ASSIGNED: {
+        # ACD-019: an operational heads-up, not a statutory or emergency notice.
+        'default_channels': [ChannelType.WHATSAPP, ChannelType.PUSH],
+        'priority': NotificationPriority.NORMAL,
+        'quiet_hours_respected': True,
+        'opt_out_allowed': True,
     },
 }
 
