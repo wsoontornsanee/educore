@@ -4,17 +4,17 @@ Recomputes every wallet's balance from its transaction log and reports mismatche
 as incidents (never silently auto-corrected).
 """
 import logging
-from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from apps.core.locks import advisory_lock
+from apps.core.management.base import CronHostCommand
 from apps.core.models import JobRun
 from apps.wallet.services import reconcile_wallet_balances
 
 logger = logging.getLogger(__name__)
 
 
-class Command(BaseCommand):
+class Command(CronHostCommand):
     help = "Recompute every wallet balance from its transaction log and report drift (WAL-002)."
 
     def handle(self, *args, **options):

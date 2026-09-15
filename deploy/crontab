@@ -1,5 +1,8 @@
 # deploy/crontab — Canonical schedule for EduCore background jobs (ARC-013)
 # Note: Server cron runs in UTC; each management command internally honors school timezones (ARC-014).
+# Note: Production runs exactly one dedicated cron host (spec/01 §7). This file MUST only be
+# installed on the host with EDUCORE_CRON_HOST=1 set — every command here refuses to run
+# elsewhere (apps.core.management.base.CronHostCommand) unless passed --force.
 
 * * * * *      python /app/manage.py drain_tasks --limit 200            # generic async queue
 * * * * *      python /app/manage.py ingest_device_events               # edge agent event intake sweep

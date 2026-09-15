@@ -5,10 +5,10 @@ through their models during a refresh, matching every other cron command's
 advisory_lock + JobRun pattern.
 """
 import logging
-from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from apps.core.locks import advisory_lock
+from apps.core.management.base import CronHostCommand
 from apps.core.models import JobRun
 from apps.reporting.services import (
     refresh_academic_performance,
@@ -29,10 +29,11 @@ REFRESHERS = [
 ]
 
 
-class Command(BaseCommand):
+class Command(CronHostCommand):
     help = "Rebuild rpt_* reporting tables (spec/15 §2)."
 
     def add_arguments(self, parser):
+        super().add_arguments(parser)
         parser.add_argument('--scope', choices=['dashboard', 'full'], required=True)
 
     def handle(self, *args, **options):

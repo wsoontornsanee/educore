@@ -1,16 +1,17 @@
 ﻿import traceback
-from django.core.management.base import BaseCommand
 from django.utils import timezone
 from apps.core.locks import advisory_lock
+from apps.core.management.base import CronHostCommand
 from apps.core.models import JobRun
 from apps.notifications.models import IntentStatus, NotificationIntent
 from apps.notifications.services import process_intent
 
 
-class Command(BaseCommand):
+class Command(CronHostCommand):
     help = "Dispatches due and scheduled notifications released from quiet hours (spec/13 §2, ARC-007, ARC-008)."
 
     def add_arguments(self, parser):
+        super().add_arguments(parser)
         parser.add_argument(
             '--limit',
             type=int,

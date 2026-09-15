@@ -10,7 +10,7 @@ Implements:
 import socket
 import traceback
 from datetime import timedelta
-from django.core.management.base import BaseCommand
+from apps.core.management.base import CronHostCommand
 from django.db import connection, transaction
 from django.utils import timezone
 from apps.core.locks import advisory_lock
@@ -25,10 +25,11 @@ BACKOFF_INTERVALS = {
     4: timedelta(minutes=60),
 }
 
-class Command(BaseCommand):
+class Command(CronHostCommand):
     help = "Drains pending asynchronous tasks from TaskQueue (ARC-010, ARC-011, ARC-012)."
 
     def add_arguments(self, parser):
+        super().add_arguments(parser)
         parser.add_argument(
             '--limit',
             type=int,

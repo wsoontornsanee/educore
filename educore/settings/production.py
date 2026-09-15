@@ -17,3 +17,6 @@ SECURE_HSTS_PRELOAD = True
 # Enforce secret key from environment
 if SECRET_KEY == 'django-insecure-educore-dev-key-change-in-production':
     raise ValueError("DJANGO_SECRET_KEY environment variable must be set in production.")
+
+# spec/01 §7, ARC-013: production has exactly one dedicated cron host.
+EDUCORE_CRON_HOST_ENFORCED = True

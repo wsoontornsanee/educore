@@ -6,15 +6,16 @@ Implements:
 - ARC-008: JobRun logging
 """
 import traceback
-from django.core.management.base import BaseCommand
 from django.utils import timezone
 from apps.core.locks import advisory_lock
+from apps.core.management.base import CronHostCommand
 from apps.core.models import JobRun
 
-class Command(BaseCommand):
+class Command(CronHostCommand):
     help = "Demonstrates canonical cron job execution with advisory locking and JobRun logging."
 
     def add_arguments(self, parser):
+        super().add_arguments(parser)
         parser.add_argument(
             '--foundation',
             type=int,
