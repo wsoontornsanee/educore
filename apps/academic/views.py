@@ -118,6 +118,7 @@ from apps.academic.services import (
     set_arrears_gate,
     set_assessment_score,
     set_report_card_content,
+    suggest_objective_narrative,
     set_broadcast_policy,
     set_period_grid,
     start_attempt,
@@ -619,7 +620,7 @@ class ReportCardViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewse
         'list': 'grades.read', 'retrieve': 'grades.read',
         'generate': 'grades.write', 'approve': 'school_config.write',
         'publish': 'school_config.write', 'revise': 'grades.write',
-        'content': 'grades.write',
+        'content': 'grades.write', 'suggest_narratives': 'grades.read',
     }
 
     def get_queryset(self):
@@ -698,6 +699,23 @@ class ReportCardViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewse
         except ReportCardStateError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(self.get_serializer(updated).data)
+
+    @action(detail=True, methods=['get'], url_path='suggest-narratives')
+    def suggest_narratives(self, request, pk=None):
+        """ACD-015: draft per-subject objective narrative suggestions from each
+        subject's grade/descriptor. Read-only — nothing is saved here; the
+        teacher reviews and submits their edits via `content`."""
+        report_card = self.get_object()
+        suggestions = [
+            {
+                'subject_code': g.get('subject_code'),
+                'subject': g.get('subject'),
+                'grade': g.get('grade'),
+                'suggestion': suggest_objective_narrative(g.get('subject', ''), g.get('grade')),
+            }
+            for g in report_card.grades_snapshot
+        ]
+        return Response({'suggestions': suggestions})
 
 
 class ReportCardPolicyView(APIView):

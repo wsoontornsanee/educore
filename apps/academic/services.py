@@ -136,6 +136,31 @@ def compute_descriptor(score: Decimal, max_score: Decimal) -> str:
     return str(DEFAULT_DESCRIPTOR_BANDS[-1][1])
 
 
+# ACD-015: draft-suggestion phrase bank, keyed by descriptor label. Deterministic
+# template-based generation, not an LLM call — the spec itself frames this as an
+# optional convenience ("MAY offer a draft suggestion"), so a new AI dependency/
+# architecture isn't warranted for it. The teacher always edits/approves before
+# anything is saved (see set_report_card_content) — this function never writes.
+_NARRATIVE_TEMPLATES = {
+    'Sangat Baik': "Sangat baik dalam pencapaian kompetensi {subject}.",
+    'Baik': "Baik dalam pencapaian kompetensi {subject}, terus tingkatkan.",
+    'Cukup': "Cukup dalam pencapaian kompetensi {subject}; perlu penguatan lebih lanjut.",
+    'Perlu Bimbingan': "Memerlukan bimbingan intensif dalam pencapaian kompetensi {subject}.",
+}
+
+
+def suggest_objective_narrative(subject: str, grade, descriptor: str = None) -> str:
+    """ACD-015: draft a per-subject objective narrative suggestion from the
+    student's grade/descriptor. A draft, never a write — the caller must pass
+    it through set_report_card_content for the teacher to edit and approve."""
+    if grade is None:
+        return f"Belum ada nilai untuk {subject} pada periode ini."
+    if descriptor is None:
+        descriptor = compute_descriptor(Decimal(str(grade)), Decimal('100'))
+    template = _NARRATIVE_TEMPLATES.get(descriptor, _NARRATIVE_TEMPLATES['Cukup'])
+    return template.format(subject=subject)
+
+
 def set_assessment_score(
     assessment: Assessment,
     student,

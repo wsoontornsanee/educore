@@ -24,6 +24,7 @@ from apps.academic.services import (
     set_arrears_gate,
     set_assessment_score,
     set_report_card_content,
+    suggest_objective_narrative,
 )
 from apps.academic.tests.base import build_academic_fixture
 from apps.finance.models import FeeCategory, FeePlan, FeeRecurrence, FeeType, Invoice, InvoiceStatus
@@ -369,3 +370,69 @@ class ReportCardContentViewTests(TestCase):
             {'narrative': 'Too late.'}, format='json',
         )
         self.assertEqual(res.status_code, 400)
+
+
+class SuggestObjectiveNarrativeTests(TestCase):
+    def test_sangat_baik_template(self):
+        self.assertEqual(
+            suggest_objective_narrative('Matematika', 95),
+            'Sangat baik dalam pencapaian kompetensi Matematika.',
+        )
+
+    def test_baik_template(self):
+        self.assertEqual(
+            suggest_objective_narrative('Matematika', 85),
+            'Baik dalam pencapaian kompetensi Matematika, terus tingkatkan.',
+        )
+
+    def test_cukup_template(self):
+        self.assertEqual(
+            suggest_objective_narrative('Matematika', 75),
+            'Cukup dalam pencapaian kompetensi Matematika; perlu penguatan lebih lanjut.',
+        )
+
+    def test_perlu_bimbingan_template(self):
+        self.assertEqual(
+            suggest_objective_narrative('Matematika', 50),
+            'Memerlukan bimbingan intensif dalam pencapaian kompetensi Matematika.',
+        )
+
+    def test_no_grade_yet(self):
+        self.assertEqual(
+            suggest_objective_narrative('Matematika', None),
+            'Belum ada nilai untuk Matematika pada periode ini.',
+        )
+
+
+class SuggestNarrativesViewTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.fx = build_academic_fixture()
+        enroll_and_grade(self.fx)
+        generate_report_cards(self.fx['class_group'], self.fx['term'])
+        self.rc = ReportCard.objects.get(student=self.fx['student'], term=self.fx['term'])
+        RoleAssignment.all_tenants.create(
+            foundation_id=self.fx['foundation'].id, user=self.fx['teacher_user'],
+            role='teacher', scope_type=RoleAssignment.SCOPE_SCHOOL, scope_id=self.fx['school'].id,
+        )
+
+    def test_returns_suggestion_per_subject_without_saving(self):
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+        res = self.client.get(f'/api/v1/academic/report-cards/{self.rc.id}/suggest-narratives/')
+        self.assertEqual(res.status_code, 200, res.content)
+        suggestions = res.json()['suggestions']
+        self.assertEqual(len(suggestions), 1)
+        self.assertIn('pencapaian kompetensi', suggestions[0]['suggestion'])
+
+        self.rc.refresh_from_db()
+        self.assertNotIn('objective_narrative', self.rc.grades_snapshot[0])  # never auto-written
+
+    def test_cross_tenant_report_card_404(self):
+        other_fx = build_academic_fixture(foundation_name="Yayasan Cendekia Other Narrative")
+        enroll_and_grade(other_fx)
+        generate_report_cards(other_fx['class_group'], other_fx['term'])
+        other_rc = ReportCard.objects.get(student=other_fx['student'], term=other_fx['term'])
+
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+        res = self.client.get(f'/api/v1/academic/report-cards/{other_rc.id}/suggest-narratives/')
+        self.assertEqual(res.status_code, 404)
