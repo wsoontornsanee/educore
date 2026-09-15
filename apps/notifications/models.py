@@ -30,6 +30,7 @@ class NotificationCategory(models.TextChoices):
     BEHAVIOUR_MINOR = 'BEHAVIOUR_MINOR', _('Catatan Ringan (Minor Behaviour)')
     CANTEEN = 'CANTEEN', _('Transaksi Kantin (Canteen)')
     ANNOUNCEMENT = 'ANNOUNCEMENT', _('Pengumuman Sekolah (Announcement)')
+    WALLET_RECONCILIATION = 'WALLET_RECONCILIATION', _('Rekonsiliasi Dompet (Wallet Reconciliation)')
 
 
 class NotificationPriority(models.TextChoices):
@@ -133,6 +134,14 @@ CATEGORY_CONFIG = {
         'priority': NotificationPriority.NORMAL,
         'quiet_hours_respected': True,
         'opt_out_allowed': True,
+    },
+    NotificationCategory.WALLET_RECONCILIATION: {
+        # spec/17 §2: debt notice, not a CANTEEN digest. Never opt-outable, never
+        # digested, exempt from the NTF-012 20/day cap, no SMS fallback (REC-019).
+        'default_channels': [ChannelType.WHATSAPP, ChannelType.PUSH],
+        'priority': NotificationPriority.NORMAL,
+        'quiet_hours_respected': True,
+        'opt_out_allowed': False,
     },
 }
 

@@ -243,3 +243,56 @@ class MerchantSettlement(TenantModel):
 
     def __str__(self):
         return f"{self.merchant.name} {self.period_start}..{self.period_end}: net {self.net} ({self.status})"
+
+
+class WalletReconciliationTrigger(models.TextChoices):
+    OFFLINE_OVERSPEND = 'OFFLINE_OVERSPEND', _('Kelebihan Belanja Luring')
+    SYNC_DRIFT = 'SYNC_DRIFT', _('Selisih Sinkronisasi')
+    MANUAL_ADJUSTMENT = 'MANUAL_ADJUSTMENT', _('Penyesuaian Manual')
+
+
+class WalletReconciliationStatus(models.TextChoices):
+    OPEN = 'OPEN', _('Terbuka')
+    SETTLED = 'SETTLED', _('Diselesaikan')
+    WRITTEN_OFF = 'WRITTEN_OFF', _('Dihapusbukukan')
+    INVOICED = 'INVOICED', _('Ditagihkan')
+
+
+class WalletReconciliation(TenantModel):
+    """A single debt case opened when an offline overspend takes a wallet negative (spec/17, REC-001).
+
+    One row per accepted overspend transaction (REC-004); notices combine all OPEN
+    rows for a wallet, never one message per row.
+    """
+    wallet = models.ForeignKey(Wallet, on_delete=models.PROTECT, related_name='reconciliations')
+    student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name='wallet_reconciliations')
+    trigger = models.CharField(max_length=24, choices=WalletReconciliationTrigger.choices)
+    shortfall = MoneyField(help_text=_("Absolute value of the negative balance at detection (REC-002)"))
+    currency = models.CharField(max_length=3, default='IDR')
+    balance_at_detection = MoneyField()
+    pos_transaction = models.ForeignKey(
+        'wallet.POSTransaction', on_delete=models.SET_NULL, null=True, blank=True, related_name='reconciliations'
+    )
+    detected_at = models.DateTimeField()
+    detected_by_job = models.CharField(max_length=64, blank=True, default='')
+    status = models.CharField(max_length=16, choices=WalletReconciliationStatus.choices, default=WalletReconciliationStatus.OPEN)
+    settled_at = models.DateTimeField(null=True, blank=True)
+    settled_by_transaction = models.ForeignKey(
+        WalletTransaction, on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
+    )
+    notice_sent_at = models.DateTimeField(null=True, blank=True)
+    reminder_sent_at = models.DateTimeField(null=True, blank=True)
+    invoiced_at = models.DateTimeField(null=True, blank=True)
+    invoice = models.ForeignKey('finance.Invoice', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    written_off_by = models.ForeignKey('identity.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    write_off_reason = models.CharField(max_length=255, blank=True, default='')
+
+    class Meta:
+        db_table = 'wallet_reconciliations'
+        indexes = [
+            models.Index(fields=['foundation_id', 'wallet_id', 'status']),
+            models.Index(fields=['foundation_id', 'status', 'detected_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.student.nis} - {self.currency} {self.shortfall} ({self.status})"
