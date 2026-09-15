@@ -1,10 +1,11 @@
-﻿from django.urls import include, path
+from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from apps.finance.views import (
     DiscountViewSet,
     FeePlanViewSet,
     FeeTypeViewSet,
+    InvoiceViewSet,
     SiblingDiscountPolicyViewSet,
     StudentFeeAssignmentViewSet,
 )
@@ -15,6 +16,7 @@ router.register(r'fee-plans', FeePlanViewSet, basename='fee-plans')
 router.register(r'assignments', StudentFeeAssignmentViewSet, basename='fee-assignments')
 router.register(r'discounts', DiscountViewSet, basename='discounts')
 router.register(r'sibling-policies', SiblingDiscountPolicyViewSet, basename='sibling-policies')
+router.register(r'invoices', InvoiceViewSet, basename='invoices')
 
 urlpatterns = [
     path('', include(router.urls)),

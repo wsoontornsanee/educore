@@ -1,4 +1,4 @@
-﻿from decimal import Decimal
+from decimal import Decimal
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -148,3 +148,99 @@ class SiblingDiscountPolicy(TenantModel):
 
     def __str__(self):
         return f"{self.school.name} - Child #{self.child_order} -> {self.discount_percent}% off {self.fee_category}"
+
+
+class InvoiceStatus(models.TextChoices):
+    DRAFT = 'DRAFT', _('Konsep (Draft)')
+    ISSUED = 'ISSUED', _('Diterbitkan (Issued)')
+    PARTIALLY_PAID = 'PARTIALLY_PAID', _('Dibayar Sebagian (Partially Paid)')
+    PAID = 'PAID', _('Lunas (Paid)')
+    CANCELLED = 'CANCELLED', _('Dibatalkan (Cancelled)')
+    WRITTEN_OFF = 'WRITTEN_OFF', _('Dihapusbukukan (Written Off)')
+
+
+class InvoiceNumberSequence(TenantModel):
+    """Atomic gapless invoice sequence counter per school per year (spec/06 §3, FIN-004)."""
+    school = models.ForeignKey(School, on_delete=models.PROTECT, related_name='invoice_sequences')
+    year = models.PositiveIntegerField(help_text=_("Calendar year (e.g. 2026)"))
+    last_number = models.PositiveIntegerField(default=0, help_text=_("Latest allocated sequence number"))
+
+    class Meta:
+        db_table = 'invoice_number_sequences'
+        constraints = [
+            models.UniqueConstraint(fields=['foundation_id', 'school', 'year'], name='unique_school_year_invoice_sequence'),
+        ]
+
+    def __str__(self):
+        return f"{self.school.name} - {self.year} (last: {self.last_number})"
+
+
+class Invoice(TenantModel):
+    """Tuition and fee invoice for a student (spec/06 §2, §3, spec/16)."""
+    school = models.ForeignKey(School, on_delete=models.PROTECT, related_name='invoices')
+    student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name='invoices')
+    number = models.CharField(max_length=64, unique=True, db_index=True, help_text=_("Format: INV/{school_code}/{YYYY}/{NNNNNN}"))
+    period = models.CharField(max_length=7, db_index=True, help_text=_("Billing period format YYYY-MM (e.g. 2026-10)"))
+    issue_date = models.DateField(default=timezone.now)
+    due_date = models.DateField(help_text=_("Payment due date"))
+    
+    subtotal = MoneyField(default=Decimal('0.00'), help_text=_("Sum of lines before discounts"))
+    discount = MoneyField(default=Decimal('0.00'), help_text=_("Total discounts applied"))
+    rounding = MoneyField(default=Decimal('0.00'), help_text=_("PEMBULATAN line adjustment (FIN-008c, CUR-019)"))
+    total = MoneyField(default=Decimal('0.00'), help_text=_("Final amount payable (subtotal - discount + rounding)"))
+    paid = MoneyField(default=Decimal('0.00'), help_text=_("Cumulative settled payments"))
+    
+    currency = models.CharField(max_length=3, default='IDR', help_text=_("Invoice currency (CUR-002, CUR-008)"))
+    status = models.CharField(max_length=32, choices=InvoiceStatus.choices, default=InvoiceStatus.ISSUED, db_index=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = 'invoices'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'student', 'period'],
+                condition=models.Q(deleted_at__isnull=True),
+                name='unique_active_invoice_per_student_period',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['foundation_id', 'school', 'period']),
+            models.Index(fields=['foundation_id', 'student', 'status']),
+            models.Index(fields=['foundation_id', 'due_date', 'status']),
+        ]
+
+    def __str__(self):
+        return f"{self.number} - {self.student.person.full_name} ({self.period}): {self.currency} {self.total}"
+
+    @property
+    def balance_due(self) -> Decimal:
+        """Remaining balance unpaid."""
+        return max(Decimal('0.00'), self.total - self.paid)
+
+    @property
+    def is_overdue(self) -> bool:
+        """Derived overdue state per FIN-009 (not stored as terminal state)."""
+        if self.status in [InvoiceStatus.PAID, InvoiceStatus.CANCELLED, InvoiceStatus.WRITTEN_OFF]:
+            return False
+        return timezone.localdate() > self.due_date
+
+
+class InvoiceLine(TenantModel):
+    """Line item on an invoice (spec/06 §2)."""
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='lines')
+    fee_type = models.ForeignKey(FeeType, null=True, blank=True, on_delete=models.PROTECT, related_name='invoice_lines')
+    code = models.CharField(max_length=32, help_text=_("Line code, e.g. SPP_REGULER or PEMBULATAN"))
+    description = models.CharField(max_length=255, help_text=_("Display item description"))
+    amount = MoneyField(default=Decimal('0.00'), help_text=_("Base line item amount"))
+    discount = MoneyField(default=Decimal('0.00'), help_text=_("Discount deduction on this line"))
+    subtotal = MoneyField(default=Decimal('0.00'), help_text=_("Net line total (amount - discount)"))
+    currency = models.CharField(max_length=3, default='IDR')
+
+    class Meta:
+        db_table = 'invoice_lines'
+        indexes = [
+            models.Index(fields=['foundation_id', 'invoice']),
+        ]
+
+    def __str__(self):
+        return f"{self.invoice.number} - {self.code}: {self.currency} {self.subtotal}"

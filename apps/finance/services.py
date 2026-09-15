@@ -16,7 +16,12 @@ from apps.finance.models import (
     FeeAssignmentSource,
     FeeCategory,
     FeePlan,
+    FeeRecurrence,
     FeeType,
+    Invoice,
+    InvoiceLine,
+    InvoiceNumberSequence,
+    InvoiceStatus,
     SiblingDiscountPolicy,
     StudentFeeAssignment,
 )
@@ -291,12 +296,12 @@ def resolve_student_fee_schedule(
                             'source': FeeAssignmentSource.GRADE,
                         }
 
-    # 3. Tier 3: School default fee types for active periodic fees
+    # 3. Tier 3: School default fee types for active periodic fees (SPP and recurring monthly fees)
     if not resolved_items:
         default_fee_types = FeeType.objects.filter(
             foundation_id=foundation_id,
             school=school,
-            category=FeeCategory.SPP,
+            recurrence=FeeRecurrence.MONTHLY,
             is_active=True,
             deleted_at__isnull=True,
         )
@@ -358,3 +363,335 @@ def resolve_student_fee_schedule(
         })
 
     return results
+
+
+def generate_invoice_number(school: School, year: int) -> str:
+    """
+    Allocates an atomic, gapless sequential invoice number per school per year (FIN-004).
+    Format: INV/{school_code}/{YYYY}/{NNNNNN}
+    
+    Must be called within an active database transaction.
+    """
+    foundation_id = school.foundation_id
+    # Clean alphanumeric school code from npsn or sanitized name
+    school_code = school.npsn if school.npsn else f"SCH{school.id}"
+
+    seq, _ = InvoiceNumberSequence.all_tenants.select_for_update().get_or_create(
+        foundation_id=foundation_id,
+        school=school,
+        year=year,
+        defaults={'last_number': 0}
+    )
+    seq.last_number += 1
+    seq.save(update_fields=['last_number', 'updated_at'])
+
+    return f"INV/{school_code}/{year}/{seq.last_number:06d}"
+
+
+def generate_monthly_invoices(
+    school: School,
+    period: str,
+    issue_date: Optional[datetime.date] = None,
+    due_date: Optional[datetime.date] = None,
+    dry_run: bool = False,
+    triggered_by: Optional[User] = None,
+) -> Dict[str, Any]:
+    """
+    Monthly SPP and fee invoice generation engine (spec/06 §3, FIN-002, FIN-003, FIN-004, FIN-005, FIN-008, FIN-008c).
+    
+    - Idempotent: re-running for the same (student, period) skips existing invoices (FIN-003).
+    - Filters only ACTIVE students (FIN-005).
+    - Formats sequential numbers per school per year (FIN-004).
+    - Enforces IDR PEMBULATAN rounding to Rp 100 (FIN-008c, CUR-019).
+    - Dispatches notifications to guardians on commit.
+    - Dry-run mode produces full preview without persisting to DB (FIN-008).
+    """
+    foundation_id = school.foundation_id
+    if not issue_date:
+        issue_date = timezone.localdate()
+    if not due_date:
+        # Default due date: 10th of the billing period month
+        year_str, month_str = period.split('-')
+        due_date = datetime.date(int(year_str), int(month_str), 10)
+
+    # 1. Fetch active students in school
+    students = Student.objects.filter(
+        foundation_id=foundation_id,
+        school=school,
+        status=Student.STATUS_ACTIVE,
+        deleted_at__isnull=True,
+    ).select_related('person').order_by('id')
+
+    # Also track excluded students count for report
+    excluded_students = Student.objects.filter(
+        foundation_id=foundation_id,
+        school=school,
+        deleted_at__isnull=True,
+    ).exclude(status=Student.STATUS_ACTIVE)
+
+    exclusions: List[Dict[str, Any]] = [
+        {
+            'student_id': s.id,
+            'name': s.person.full_name,
+            'nis': s.nis,
+            'status': s.status,
+            'reason': _("Status bukan ACTIVE (FIN-005)"),
+        }
+        for s in excluded_students
+    ]
+
+    report = {
+        'school_id': school.id,
+        'school_name': school.name,
+        'period': period,
+        'dry_run': dry_run,
+        'total_active_students': students.count(),
+        'generated_count': 0,
+        'skipped_existing_count': 0,
+        'total_billed_amount': Decimal('0.00'),
+        'total_discount_amount': Decimal('0.00'),
+        'total_rounding_amount': Decimal('0.00'),
+        'total_net_amount': Decimal('0.00'),
+        'currency': school.base_currency or 'IDR',
+        'exclusions': exclusions,
+        'invoices': [],
+    }
+
+    year_int = int(period.split('-')[0])
+
+    for student in students:
+        # Idempotency check: already invoiced for this period? (FIN-003)
+        existing = Invoice.objects.filter(
+            foundation_id=foundation_id,
+            student=student,
+            period=period,
+            deleted_at__isnull=True,
+        ).first()
+
+        if existing:
+            report['skipped_existing_count'] += 1
+            continue
+
+        # Resolve student fee schedule (FIN-001)
+        schedule_items = resolve_student_fee_schedule(student, period)
+        if not schedule_items:
+            continue
+
+        # Aggregate line items
+        subtotal = sum((item['base_amount'] for item in schedule_items), Decimal('0.00'))
+        discount_total = sum((item['discount_amount'] for item in schedule_items), Decimal('0.00'))
+        net_before_rounding = subtotal - discount_total
+
+        # IDR PEMBULATAN rounding line item (FIN-008c, CUR-019)
+        rounding = Decimal('0.00')
+        if (school.base_currency or 'IDR') == 'IDR':
+            rounding = calculate_idr_rounding(net_before_rounding)
+
+        final_total = max(Decimal('0.00'), net_before_rounding + rounding)
+
+        preview_data = {
+            'student_id': student.id,
+            'student_name': student.person.full_name,
+            'nis': student.nis,
+            'subtotal': str(subtotal),
+            'discount': str(discount_total),
+            'rounding': str(rounding),
+            'total': str(final_total),
+            'currency': school.base_currency or 'IDR',
+            'lines_count': len(schedule_items) + (1 if rounding != Decimal('0.00') else 0),
+        }
+
+        if dry_run:
+            report['generated_count'] += 1
+            report['total_billed_amount'] += subtotal
+            report['total_discount_amount'] += discount_total
+            report['total_rounding_amount'] += rounding
+            report['total_net_amount'] += final_total
+            report['invoices'].append(preview_data)
+            continue
+
+        # Commit generation in transaction per invoice
+        with transaction.atomic():
+            invoice_num = generate_invoice_number(school, year_int)
+            invoice = Invoice.objects.create(
+                foundation_id=foundation_id,
+                school=school,
+                student=student,
+                number=invoice_num,
+                period=period,
+                issue_date=issue_date,
+                due_date=due_date,
+                subtotal=subtotal,
+                discount=discount_total,
+                rounding=rounding,
+                total=final_total,
+                paid=Decimal('0.00'),
+                currency=school.base_currency or 'IDR',
+                status=InvoiceStatus.ISSUED,
+                created_by=str(triggered_by.id) if triggered_by else 'system',
+            )
+
+            # Persist fee lines
+            for item in schedule_items:
+                InvoiceLine.objects.create(
+                    foundation_id=foundation_id,
+                    invoice=invoice,
+                    fee_type_id=item['fee_type_id'],
+                    code=item['fee_type_code'],
+                    description=item['fee_type_name'],
+                    amount=item['base_amount'],
+                    discount=item['discount_amount'],
+                    subtotal=item['final_amount'],
+                    currency=item['currency'],
+                )
+
+            # Persist PEMBULATAN line if applicable
+            if rounding != Decimal('0.00'):
+                InvoiceLine.objects.create(
+                    foundation_id=foundation_id,
+                    invoice=invoice,
+                    fee_type=None,
+                    code='PEMBULATAN',
+                    description=_("Pembulatan ke ratusan terdekat"),
+                    amount=rounding,
+                    discount=Decimal('0.00'),
+                    subtotal=rounding,
+                    currency=school.base_currency or 'IDR',
+                )
+
+            # Audit event & domain event
+            audit(
+                action='finance.invoice.generated',
+                entity_type='Invoice',
+                entity_id=invoice.id,
+                actor_id=str(triggered_by.id) if triggered_by else 'system',
+                role='system' if not triggered_by else 'finance_officer',
+                foundation_id=foundation_id,
+                school_id=school.id,
+                diff={'invoice_number': invoice.number, 'total': str(invoice.total), 'period': period},
+            )
+            record_domain_event(
+                name='finance.invoice.issued',
+                payload={
+                    'invoice_id': invoice.id,
+                    'number': invoice.number,
+                    'student_id': student.id,
+                    'total': str(invoice.total),
+                    'currency': invoice.currency,
+                    'period': period,
+                    'due_date': str(due_date),
+                    'school_id': school.id,
+                },
+                foundation_id=foundation_id,
+            )
+
+            # Enqueue notification intent for primary/financial guardian
+            _dispatch_invoice_notification(invoice, student)
+
+            preview_data['invoice_number'] = invoice.number
+            report['generated_count'] += 1
+            report['total_billed_amount'] += subtotal
+            report['total_discount_amount'] += discount_total
+            report['total_rounding_amount'] += rounding
+            report['total_net_amount'] += final_total
+            report['invoices'].append(preview_data)
+
+    # Convert totals to string for JSON serialization
+    report['total_billed_amount'] = str(report['total_billed_amount'])
+    report['total_discount_amount'] = str(report['total_discount_amount'])
+    report['total_rounding_amount'] = str(report['total_rounding_amount'])
+    report['total_net_amount'] = str(report['total_net_amount'])
+
+    return report
+
+
+def _dispatch_invoice_notification(invoice: Invoice, student: Student):
+    """Dispatches invoice issuance WhatsApp/push intent to primary/financial guardian."""
+    try:
+        from apps.notifications.services import create_notification_intent
+        from apps.notifications.models import NotificationCategory, NotificationPriority
+
+        guardian_link = GuardianLink.objects.filter(
+            foundation_id=invoice.foundation_id,
+            student=student,
+            deleted_at__isnull=True,
+        ).filter(models.Q(is_primary=True) | models.Q(financial_responsible=True)).select_related('guardian__user', 'guardian__person').first()
+
+        if guardian_link and guardian_link.guardian:
+            guardian = guardian_link.guardian
+            recipient_phone = guardian.user.phone_e164 if guardian.user else ""
+            recipient_name = guardian.person.full_name if guardian.person else ""
+
+            create_notification_intent(
+                foundation_id=invoice.foundation_id,
+                school_id=invoice.school_id,
+                recipient_user=guardian.user,
+                recipient_phone=recipient_phone,
+                recipient_name=recipient_name,
+                category=NotificationCategory.FINANCE_BILLING,
+                template_key='invoice.issued',
+                payload={
+                    'student_name': student.person.full_name,
+                    'invoice_number': invoice.number,
+                    'period': invoice.period,
+                    'total': str(invoice.total),
+                    'currency': invoice.currency,
+                    'due_date': str(invoice.due_date),
+                },
+                priority=NotificationPriority.NORMAL,
+                dedupe_key=f"inv_notif_{invoice.id}",
+            )
+    except Exception as e:
+        # Non-blocking notification dispatch failure
+        pass
+
+
+def cancel_invoice(invoice: Invoice, user: User, reason: str = "") -> Invoice:
+    """Cancels an unpaid or draft invoice (spec/06 §3, FIN-009)."""
+    if invoice.status in [InvoiceStatus.PAID, InvoiceStatus.CANCELLED, InvoiceStatus.WRITTEN_OFF]:
+        raise ValidationError(_("Faktur yang sudah dibayar, dibatalkan, atau dihapusbuku tidak dapat dibatalkan."))
+    if invoice.paid > Decimal('0.00'):
+        raise ValidationError(_("Faktur yang sudah memiliki pembayaran parsial tidak dapat dibatalkan langsung."))
+
+    old_status = invoice.status
+    invoice.status = InvoiceStatus.CANCELLED
+    invoice.updated_by = str(user.id)
+    invoice.save(update_fields=['status', 'updated_by', 'updated_at'])
+
+    audit(
+        action='finance.invoice.cancelled',
+        entity_type='Invoice',
+        entity_id=invoice.id,
+        actor_id=str(user.id),
+        role='finance_officer',
+        foundation_id=invoice.foundation_id,
+        school_id=invoice.school_id,
+        diff={'before': old_status, 'after': invoice.status, 'reason': reason},
+    )
+
+    return invoice
+
+
+def write_off_invoice(invoice: Invoice, user: User, reason: str = "") -> Invoice:
+    """Writes off an overdue invoice as bad debt (spec/06 §3, FIN-009)."""
+    if invoice.status in [InvoiceStatus.PAID, InvoiceStatus.CANCELLED, InvoiceStatus.WRITTEN_OFF]:
+        raise ValidationError(_("Faktur dengan status ini tidak dapat dihapusbukukan."))
+
+    old_status = invoice.status
+    invoice.status = InvoiceStatus.WRITTEN_OFF
+    invoice.updated_by = str(user.id)
+    invoice.save(update_fields=['status', 'updated_by', 'updated_at'])
+
+    audit(
+        action='finance.invoice.written_off',
+        entity_type='Invoice',
+        entity_id=invoice.id,
+        actor_id=str(user.id),
+        role='finance_officer',
+        foundation_id=invoice.foundation_id,
+        school_id=invoice.school_id,
+        diff={'before': old_status, 'after': invoice.status, 'reason': reason},
+    )
+
+    return invoice
+

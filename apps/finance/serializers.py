@@ -1,8 +1,10 @@
-﻿from rest_framework import serializers
+from rest_framework import serializers
 from apps.finance.models import (
     Discount,
     FeePlan,
     FeeType,
+    Invoice,
+    InvoiceLine,
     SiblingDiscountPolicy,
     StudentFeeAssignment,
 )
@@ -112,3 +114,69 @@ class SiblingDiscountPolicySerializer(serializers.ModelSerializer):
             'updated_at',
         ]
         read_only_fields = ['id', 'foundation_id', 'created_at', 'updated_at']
+
+
+class InvoiceLineSerializer(serializers.ModelSerializer):
+    amount = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    discount = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    subtotal = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+
+    class Meta:
+        model = InvoiceLine
+        fields = [
+            'id',
+            'fee_type',
+            'code',
+            'description',
+            'amount',
+            'discount',
+            'subtotal',
+            'currency',
+        ]
+
+
+class InvoiceSerializer(serializers.ModelSerializer):
+    subtotal = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    discount = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    rounding = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    total = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    paid = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    balance_due = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True, read_only=True)
+    is_overdue = serializers.BooleanField(read_only=True)
+    lines = InvoiceLineSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Invoice
+        fields = [
+            'id',
+            'foundation_id',
+            'school',
+            'student',
+            'number',
+            'period',
+            'issue_date',
+            'due_date',
+            'subtotal',
+            'discount',
+            'rounding',
+            'total',
+            'paid',
+            'balance_due',
+            'currency',
+            'status',
+            'is_overdue',
+            'lines',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = [
+            'id',
+            'foundation_id',
+            'number',
+            'paid',
+            'balance_due',
+            'is_overdue',
+            'lines',
+            'created_at',
+            'updated_at',
+        ]
