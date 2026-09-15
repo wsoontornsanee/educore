@@ -7,6 +7,8 @@ from apps.academic.models import (
     Assessment,
     AssessmentScore,
     DEFAULT_DESCRIPTOR_BANDS,
+    TimetableSlot,
+    TimetableSubstitution,
     WEIGHTED_ASSESSMENT_TYPES,
 )
 
@@ -20,6 +22,10 @@ class ReasonRequiredError(ValueError):
 
 
 class WeightConfigError(ValueError):
+    pass
+
+
+class TimetableConflictError(ValueError):
     pass
 
 
@@ -173,3 +179,73 @@ def compute_term_grade(student, class_subject) -> dict:
         'missing_assessments': [],
         'formula': " + ".join(terms),
     }
+
+
+def check_timetable_conflicts(class_subject, day_of_week, period_no, room='', exclude_pk=None) -> None:
+    """ACD-017: block teacher, room, and class double-booking for the same day/period."""
+    base_qs = TimetableSlot.objects.filter(
+        foundation_id=class_subject.foundation_id,
+        day_of_week=day_of_week,
+        period_no=period_no,
+        deleted_at__isnull=True,
+    )
+    if exclude_pk:
+        base_qs = base_qs.exclude(pk=exclude_pk)
+
+    if base_qs.filter(class_subject__class_group=class_subject.class_group).exists():
+        raise TimetableConflictError("CLASS_DOUBLE_BOOKED: this class group already has a slot in this period.")
+
+    if base_qs.filter(class_subject__teacher=class_subject.teacher).exists():
+        raise TimetableConflictError("TEACHER_DOUBLE_BOOKED: this teacher already has a slot in this period.")
+
+    if room and base_qs.filter(room=room).exists():
+        raise TimetableConflictError("ROOM_DOUBLE_BOOKED: this room already has a slot in this period.")
+
+
+def create_timetable_slot(class_subject, day_of_week, period_no, start_time, end_time, room='') -> TimetableSlot:
+    check_timetable_conflicts(class_subject, day_of_week, period_no, room)
+    slot = TimetableSlot.objects.create(
+        foundation_id=class_subject.foundation_id,
+        class_subject=class_subject,
+        day_of_week=day_of_week,
+        period_no=period_no,
+        start_time=start_time,
+        end_time=end_time,
+        room=room,
+    )
+    audit(
+        action='academic.timetable_slot.created',
+        entity_type='TimetableSlot',
+        entity_id=slot.id,
+        foundation_id=slot.foundation_id,
+        diff={'class_subject': str(class_subject), 'day_of_week': day_of_week, 'period_no': period_no},
+    )
+    return slot
+
+
+def assign_substitution(slot, date, substitute_teacher, reason='') -> TimetableSubstitution:
+    """ACD-019: assign a single-date substitute for a timetable slot."""
+    original_teacher = slot.class_subject.teacher
+    substitution, created = TimetableSubstitution.objects.update_or_create(
+        foundation_id=slot.foundation_id,
+        slot=slot,
+        date=date,
+        defaults={
+            'original_teacher': original_teacher,
+            'substitute_teacher': substitute_teacher,
+            'reason': reason,
+        },
+    )
+    audit(
+        action='academic.timetable_substitution.assigned',
+        entity_type='TimetableSubstitution',
+        entity_id=substitution.id,
+        foundation_id=slot.foundation_id,
+        diff={
+            'slot': str(slot),
+            'date': str(date),
+            'original_teacher': str(original_teacher),
+            'substitute_teacher': str(substitute_teacher),
+        },
+    )
+    return substitution

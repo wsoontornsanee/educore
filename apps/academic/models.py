@@ -262,3 +262,64 @@ class AssessmentScore(TenantModel):
 
     def __str__(self):
         return f"{self.student.nis} - {self.assessment.title}: {self.score}"
+
+
+class DayOfWeek(models.IntegerChoices):
+    """ISO weekday numbering (1=Monday .. 7=Sunday)."""
+    MONDAY = 1, _('Senin')
+    TUESDAY = 2, _('Selasa')
+    WEDNESDAY = 3, _('Rabu')
+    THURSDAY = 4, _('Kamis')
+    FRIDAY = 5, _('Jumat')
+    SATURDAY = 6, _('Sabtu')
+    SUNDAY = 7, _('Minggu')
+
+
+class TimetableSlot(TenantModel):
+    """A recurring weekly timetable slot for a class subject (spec/04 §5)."""
+    class_subject = models.ForeignKey(ClassSubject, on_delete=models.PROTECT, related_name='timetable_slots')
+    day_of_week = models.PositiveSmallIntegerField(choices=DayOfWeek.choices)
+    period_no = models.PositiveSmallIntegerField()
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    room = models.CharField(max_length=64, blank=True, default='')
+
+    class Meta:
+        db_table = 'timetable_slots'
+        indexes = [
+            models.Index(fields=['foundation_id', 'class_subject_id', 'day_of_week']),
+            models.Index(fields=['foundation_id', 'day_of_week', 'period_no']),
+        ]
+
+    @property
+    def class_group(self):
+        return self.class_subject.class_group
+
+    def __str__(self):
+        return f"{self.class_subject} - {self.get_day_of_week_display()} P{self.period_no}"
+
+
+class TimetableSubstitution(TenantModel):
+    """A single-date teacher substitution for a timetable slot (ACD-019)."""
+    slot = models.ForeignKey(TimetableSlot, on_delete=models.PROTECT, related_name='substitutions')
+    date = models.DateField()
+    original_teacher = models.ForeignKey(Staff, on_delete=models.PROTECT, related_name='+')
+    substitute_teacher = models.ForeignKey(Staff, on_delete=models.PROTECT, related_name='substitute_assignments')
+    reason = models.CharField(max_length=255, blank=True, default='')
+
+    class Meta:
+        db_table = 'timetable_substitutions'
+        indexes = [
+            models.Index(fields=['foundation_id', 'slot_id', 'date']),
+            models.Index(fields=['foundation_id', 'substitute_teacher_id', 'date']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'slot', 'date'],
+                condition=models.Q(deleted_at__isnull=True),
+                name='unique_substitution_per_slot_date',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.slot} on {self.date}: {self.original_teacher} -> {self.substitute_teacher}"

@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 
 from apps.core.pagination import StandardCursorPagination
 from apps.identity.permissions import HasRequiredPermission
-from apps.identity.models import Student
+from apps.identity.models import Staff, Student
 from educore.middleware.tenancy import get_current_foundation_id
 
 from apps.academic.models import (
@@ -19,6 +19,8 @@ from apps.academic.models import (
     LearningObjective,
     Subject,
     Term,
+    TimetableSlot,
+    TimetableSubstitution,
 )
 from apps.academic.serializers import (
     AcademicYearSerializer,
@@ -31,12 +33,17 @@ from apps.academic.serializers import (
     LearningObjectiveSerializer,
     SubjectSerializer,
     TermSerializer,
+    TimetableSlotSerializer,
+    TimetableSubstitutionSerializer,
 )
 from apps.academic.services import (
     ReasonRequiredError,
     ScoreOutOfRangeError,
+    TimetableConflictError,
     WeightConfigError,
+    assign_substitution,
     compute_term_grade,
+    create_timetable_slot,
     publish_assessment,
     set_assessment_score,
 )
@@ -190,6 +197,65 @@ class AssessmentViewSet(TenantScopedModelViewSet):
             results.append(AssessmentScoreSerializer(record).data)
 
         return Response({'scores': results}, status=status.HTTP_200_OK)
+
+
+class TimetableSlotViewSet(TenantScopedModelViewSet):
+    model = TimetableSlot
+    serializer_class = TimetableSlotSerializer
+    filter_params = {'class_subject_id': 'class_subject_id', 'day_of_week': 'day_of_week'}
+    action_permissions = {
+        'list': 'school_config.read', 'retrieve': 'school_config.read',
+        'create': 'school_config.write', 'update': 'school_config.write',
+        'partial_update': 'school_config.write', 'destroy': 'school_config.write',
+    }
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        class_subject = serializer.validated_data['class_subject']
+        try:
+            slot = create_timetable_slot(
+                class_subject=class_subject,
+                day_of_week=serializer.validated_data['day_of_week'],
+                period_no=serializer.validated_data['period_no'],
+                start_time=serializer.validated_data['start_time'],
+                end_time=serializer.validated_data['end_time'],
+                room=serializer.validated_data.get('room', ''),
+            )
+        except TimetableConflictError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(self.get_serializer(slot).data, status=status.HTTP_201_CREATED)
+
+
+class TimetableSubstitutionViewSet(TenantScopedModelViewSet):
+    model = TimetableSubstitution
+    serializer_class = TimetableSubstitutionSerializer
+    filter_params = {'slot_id': 'slot_id', 'date': 'date'}
+    action_permissions = {
+        'list': 'school_config.read', 'retrieve': 'school_config.read',
+        'create': 'school_config.write', 'update': 'school_config.write',
+        'partial_update': 'school_config.write', 'destroy': 'school_config.write',
+    }
+
+    def create(self, request, *args, **kwargs):
+        foundation_id = get_current_foundation_id()
+        slot = TimetableSlot.objects.filter(id=request.data.get('slot'), foundation_id=foundation_id).first()
+        if not slot:
+            return Response({'error': _("Slot jadwal tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        substitute_teacher = Staff.objects.filter(
+            id=request.data.get('substitute_teacher'), foundation_id=foundation_id
+        ).first()
+        if not substitute_teacher:
+            return Response({'error': _("Guru pengganti tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        substitution = assign_substitution(
+            slot=slot,
+            date=request.data.get('date'),
+            substitute_teacher=substitute_teacher,
+            reason=request.data.get('reason', ''),
+        )
+        return Response(self.get_serializer(substitution).data, status=status.HTTP_201_CREATED)
 
 
 class GradebookView(APIView):
