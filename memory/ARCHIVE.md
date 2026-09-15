@@ -131,3 +131,18 @@
   - Verified multi-school parent access enabling parent users to view all linked children across schools under a unified login (`spec/02 §8.2`).
   - 5 new automated tests in `apps/identity/tests/test_student_import_and_api.py` validating all acceptance criteria (total 59 tests passing).
   - PR #10 merged into `main`.
+
+## Step 3.1: Credential Management & Device Core Models (TASK-015)
+- **Date:** 2026-09-15
+- **Milestone:** Step 3.1 Completed & Merged (PR #11)
+- **Details:**
+  - Scaffolding of two new modular applications: `apps/hardware/` (`spec/12`) and `apps/attendance/` (`spec/05`).
+  - Implemented `Device` model (`devices` table) supporting device classes (`GATE_READER`, `FACE_TERMINAL`, `POS_TERMINAL`, `KIOSK`, `HANDHELD`, `GATEWAY`), directions (`IN`, `OUT`, `BIDIRECTIONAL`), and status tracking (`ONLINE`, `OFFLINE`, `DEGRADED`, `RETIRED`).
+  - Implemented device heartbeat action (`POST /api/v1/devices/{id}/heartbeat/`) for self-reported metrics and firmware tracking (`HW-007`), and retirement action (`POST /api/v1/devices/{id}/retire/`) (`HW-015`).
+  - Implemented `Credential` model (`credentials` table) supporting `RFID`, `NFC`, and `QR` credentials with polymorphic binding to either `Student` or `Staff`.
+  - Enforced single active physical card invariant (`HW-019`): issuing a new card automatically revokes the prior active card atomically.
+  - Enforced time-limited and single-use fallback QR credentials (`HW-020`): 15-minute validity window and single-use rejection (`ALREADY_USED`).
+  - Implemented one-action revocation lifecycle (`HW-018`) with immutable `AuditEvent` and domain events.
+  - Implemented `CredentialViewSet` (`/api/v1/credentials/`, `/api/v1/credentials/{id}/revoke/`, `/api/v1/credentials/verify/`) with 3-layer tenancy and cross-school 404 isolation.
+  - 17 new automated tests passing across devices and credentials (total 76 tests passing).
+  - PR #11 merged into `main`.

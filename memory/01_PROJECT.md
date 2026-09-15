@@ -49,8 +49,8 @@
 | `TASK-012` | Student Records | Implement `Student`, `Guardian`, and `GuardianLink` models (`spec/02 §2`) | Completed |
 | `TASK-013` | Staff Records | Implement `Staff` model and offboarding lifecycle (`spec/02 §2, §5`) | Completed |
 | `TASK-014` | Bulk Import | Implement atomic student XLSX import with dry-run diff preview (`spec/02 §5`) | Completed |
-| `TASK-015` | Credentials | Implement RFID card, QR credential management, and revocation (`spec/05 §2`, `spec/12 §5`) | In Progress |
-| `TASK-016` | Gate Events | Implement gate event batch ingestion, debouncing, and daily attendance derivation (`spec/05 §2, §3, §4`) | Pending |
+| `TASK-015` | Credentials | Implement RFID card, QR credential management, and revocation (`spec/05 §2`, `spec/12 §5`) | Completed |
+| `TASK-016` | Gate Events | Implement gate event batch ingestion, debouncing, and daily attendance derivation (`spec/05 §2, §3, §4`) | In Progress |
 | `TASK-017` | Gate Console | Implement live gate console polling, manual check-in, and edge sync stub (`spec/05 §4`, `spec/12 §3, §7`) | Pending |
 
 
