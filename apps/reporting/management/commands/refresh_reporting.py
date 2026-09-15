@@ -14,6 +14,7 @@ from apps.reporting.services import (
     refresh_academic_performance,
     refresh_active_students,
     refresh_daily_attendance,
+    refresh_daily_finance,
     refresh_wallet_activity,
 )
 
@@ -24,6 +25,7 @@ REFRESHERS = [
     ('rpt_daily_attendance', refresh_daily_attendance),
     ('rpt_academic_performance', refresh_academic_performance),
     ('rpt_active_students', refresh_active_students),
+    ('rpt_daily_finance', refresh_daily_finance),
 ]
 
 
