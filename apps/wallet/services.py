@@ -1,3 +1,4 @@
+from datetime import timedelta
 from decimal import Decimal
 
 from django.db import transaction
@@ -6,6 +7,8 @@ from django.utils import timezone
 
 from apps.core.services import audit
 from apps.wallet.models import (
+    POSTransaction,
+    POSTransactionStatus,
     SpendRule,
     Wallet,
     WalletStatus,
@@ -28,6 +31,10 @@ class CurrencyMismatchError(ValueError):
 
 
 class SpendNotAllowedError(ValueError):
+    pass
+
+
+class VoidWindowExpiredError(ValueError):
     pass
 
 
@@ -209,3 +216,98 @@ def reconcile_wallet_balances(foundation_id=None) -> dict:
         )
 
     return {'checked': checked, 'mismatches': mismatches}
+
+
+DEFAULT_VOID_WINDOW_MINUTES = 15
+
+
+def process_pos_transaction(terminal, student, items, client_transaction_id, occurred_at=None) -> POSTransaction:
+    """WAL-018 to WAL-021: online checkout. Rejected sales are still logged (WAL-013)."""
+    existing = POSTransaction.objects.filter(
+        foundation_id=terminal.foundation_id, terminal=terminal, client_transaction_id=client_transaction_id,
+    ).first()
+    if existing:
+        return existing
+
+    occurred_at = occurred_at or timezone.now()
+    merchant = terminal.merchant
+    subtotal = sum((Decimal(str(i['unit_price'])) * i.get('qty', 1) for i in items), Decimal('0.00'))
+    commission = (subtotal * merchant.commission_bps / Decimal('10000')).quantize(Decimal('0.01'))
+
+    wallet = get_or_create_wallet(student)
+
+    for item in items:
+        check = check_spend_allowed(
+            wallet, subtotal, category=item.get('category'), product_sku=item.get('sku'), at_time=occurred_at.time(),
+        )
+        if not check['allowed']:
+            POSTransaction.objects.create(
+                foundation_id=terminal.foundation_id, merchant=merchant, terminal=terminal, student=student,
+                items=items, subtotal=subtotal, commission=commission, total=subtotal,
+                occurred_at=occurred_at, status=POSTransactionStatus.REJECTED,
+                client_transaction_id=client_transaction_id,
+            )
+            raise SpendNotAllowedError(f"SPEND_NOT_ALLOWED: {check['reason']}")
+
+    try:
+        wallet_tx = record_wallet_transaction(
+            wallet, WalletTransactionType.PURCHASE, -subtotal, client_transaction_id,
+            reference=f"POS:{merchant.name}", occurred_at=occurred_at,
+        )
+    except InsufficientBalanceError:
+        POSTransaction.objects.create(
+            foundation_id=terminal.foundation_id, merchant=merchant, terminal=terminal, student=student,
+            items=items, subtotal=subtotal, commission=commission, total=subtotal,
+            occurred_at=occurred_at, status=POSTransactionStatus.REJECTED,
+            client_transaction_id=client_transaction_id,
+        )
+        raise
+
+    pos_tx = POSTransaction.objects.create(
+        foundation_id=terminal.foundation_id, merchant=merchant, terminal=terminal, student=student,
+        items=items, subtotal=subtotal, commission=commission, total=subtotal,
+        occurred_at=occurred_at, status=POSTransactionStatus.COMPLETED,
+        client_transaction_id=client_transaction_id, wallet_transaction=wallet_tx,
+    )
+    audit(
+        action='wallet.pos_transaction.completed',
+        entity_type='POSTransaction',
+        entity_id=pos_tx.id,
+        foundation_id=terminal.foundation_id,
+        diff={'merchant': merchant.name, 'total': str(subtotal)},
+    )
+    return pos_tx
+
+
+def void_pos_transaction(pos_transaction: POSTransaction, reason: str, actor=None,
+                          void_window_minutes=DEFAULT_VOID_WINDOW_MINUTES) -> POSTransaction:
+    """WAL-025: operator void within the window reverses the purchase and restores balance."""
+    if pos_transaction.status != POSTransactionStatus.COMPLETED:
+        raise ValueError(f"INVALID_STATE: transaction is {pos_transaction.status}, not COMPLETED.")
+
+    elapsed = timezone.now() - pos_transaction.occurred_at
+    if elapsed > timedelta(minutes=void_window_minutes):
+        raise VoidWindowExpiredError(
+            f"VOID_WINDOW_EXPIRED: void window is {void_window_minutes} minutes."
+        )
+
+    wallet = pos_transaction.wallet_transaction.wallet
+    record_wallet_transaction(
+        wallet, WalletTransactionType.REFUND, pos_transaction.subtotal,
+        f"void:{pos_transaction.client_transaction_id}",
+        reference=f"VOID:{pos_transaction.merchant.name}",
+    )
+
+    pos_transaction.status = POSTransactionStatus.VOIDED
+    pos_transaction.voided_at = timezone.now()
+    pos_transaction.void_reason = reason
+    pos_transaction.save(update_fields=['status', 'voided_at', 'void_reason', 'updated_at'])
+
+    audit(
+        action='wallet.pos_transaction.voided',
+        entity_type='POSTransaction',
+        entity_id=pos_transaction.id,
+        foundation_id=pos_transaction.foundation_id,
+        diff={'reason': reason, 'restored_amount': str(pos_transaction.subtotal)},
+    )
+    return pos_transaction

@@ -1,15 +1,27 @@
-from django.urls import path
+from django.urls import include, path
+from rest_framework.routers import DefaultRouter
 
 from apps.wallet.views import (
+    MerchantViewSet,
+    POSTerminalViewSet,
+    POSTransactionViewSet,
+    ProductViewSet,
     SpendRuleView,
     WalletDetailView,
     WalletTopupView,
     WalletTransactionsView,
 )
 
+router = DefaultRouter()
+router.register(r'merchants', MerchantViewSet, basename='merchants')
+router.register(r'products', ProductViewSet, basename='products')
+router.register(r'pos/terminals', POSTerminalViewSet, basename='pos-terminals')
+router.register(r'pos/transactions', POSTransactionViewSet, basename='pos-transactions')
+
 urlpatterns = [
     path('wallets/<int:student_id>/', WalletDetailView.as_view(), name='wallet-detail'),
     path('wallets/<int:student_id>/transactions/', WalletTransactionsView.as_view(), name='wallet-transactions'),
     path('wallets/<int:student_id>/topup/', WalletTopupView.as_view(), name='wallet-topup'),
     path('wallets/<int:student_id>/rules/', SpendRuleView.as_view(), name='wallet-rules'),
+    path('', include(router.urls)),
 ]

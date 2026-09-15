@@ -1,5 +1,6 @@
 from django.utils.translation import gettext_lazy as _
-from rest_framework import status
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -8,8 +9,14 @@ from apps.identity.models import Student
 from apps.identity.permissions import HasRequiredPermission
 from educore.middleware.tenancy import get_current_foundation_id
 
-from apps.wallet.models import WalletTransaction
+from apps.wallet.models import Merchant, POSTerminal, POSTransaction, Product, WalletTransaction
 from apps.wallet.serializers import (
+    MerchantSerializer,
+    POSTerminalSerializer,
+    POSTransactionCreateSerializer,
+    POSTransactionSerializer,
+    POSTransactionVoidSerializer,
+    ProductSerializer,
     SpendRuleSerializer,
     TopupSerializer,
     WalletSerializer,
@@ -18,11 +25,15 @@ from apps.wallet.serializers import (
 from apps.wallet.services import (
     CurrencyMismatchError,
     InsufficientBalanceError,
+    SpendNotAllowedError,
+    VoidWindowExpiredError,
     WalletNotActiveError,
     get_or_create_spend_rule,
     get_or_create_wallet,
+    process_pos_transaction,
     set_spend_rule,
     topup_wallet,
+    void_pos_transaction,
 )
 
 
@@ -129,3 +140,101 @@ class SpendRuleView(APIView):
             allowed_window_end=payload.validated_data.get('allowed_window_end'),
         )
         return Response(SpendRuleSerializer(rule).data)
+
+
+class TenantScopedCatalogViewSet(viewsets.ModelViewSet):
+    """Common tenancy-scoped queryset behaviour for merchant/product/terminal catalog data."""
+    model = None
+    pagination_class = StandardCursorPagination
+    permission_classes = [HasRequiredPermission]
+
+    def get_queryset(self):
+        foundation_id = get_current_foundation_id()
+        if not foundation_id:
+            return self.model.objects.none()
+        qs = self.model.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True).order_by('-created_at')
+        for param, field in getattr(self, 'filter_params', {}).items():
+            value = self.request.query_params.get(param)
+            if value:
+                qs = qs.filter(**{field: value})
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(foundation_id=get_current_foundation_id())
+
+
+class MerchantViewSet(TenantScopedCatalogViewSet):
+    model = Merchant
+    serializer_class = MerchantSerializer
+    filter_params = {'school_id': 'school_id'}
+    action_permissions = {
+        'list': 'school_config.read', 'retrieve': 'school_config.read',
+        'create': 'school_config.write', 'update': 'school_config.write',
+        'partial_update': 'school_config.write', 'destroy': 'school_config.write',
+    }
+
+
+class ProductViewSet(TenantScopedCatalogViewSet):
+    model = Product
+    serializer_class = ProductSerializer
+    filter_params = {'merchant_id': 'merchant_id'}
+    action_permissions = {
+        'list': 'school_config.read', 'retrieve': 'school_config.read',
+        'create': 'school_config.write', 'update': 'school_config.write',
+        'partial_update': 'school_config.write', 'destroy': 'school_config.write',
+    }
+
+
+class POSTerminalViewSet(TenantScopedCatalogViewSet):
+    model = POSTerminal
+    serializer_class = POSTerminalSerializer
+    filter_params = {'merchant_id': 'merchant_id'}
+    action_permissions = {
+        'list': 'hardware.read', 'retrieve': 'hardware.read',
+        'create': 'hardware.write', 'update': 'hardware.write',
+        'partial_update': 'hardware.write', 'destroy': 'hardware.write',
+    }
+
+
+class POSTransactionViewSet(TenantScopedCatalogViewSet):
+    model = POSTransaction
+    serializer_class = POSTransactionSerializer
+    filter_params = {'merchant_id': 'merchant_id', 'student_id': 'student_id', 'terminal_id': 'terminal_id'}
+    action_permissions = {
+        'list': 'wallet.topup.read', 'retrieve': 'wallet.topup.read',
+        'create': 'wallet.topup.write', 'void': 'wallet.topup.write',
+    }
+
+    def create(self, request, *args, **kwargs):
+        foundation_id = get_current_foundation_id()
+        payload = POSTransactionCreateSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        data = payload.validated_data
+
+        terminal = POSTerminal.objects.filter(id=data['terminal_id'], foundation_id=foundation_id).first()
+        if not terminal:
+            return Response({'error': _("Terminal tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        student = Student.objects.filter(id=data['student_id'], foundation_id=foundation_id).first()
+        if not student:
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            pos_tx = process_pos_transaction(
+                terminal, student, data['items'], data['client_transaction_id'],
+                occurred_at=data.get('occurred_at'),
+            )
+        except (SpendNotAllowedError, InsufficientBalanceError, WalletNotActiveError, CurrencyMismatchError) as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(self.get_serializer(pos_tx).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='void')
+    def void(self, request, pk=None):
+        pos_tx = self.get_object()
+        payload = POSTransactionVoidSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        try:
+            voided = void_pos_transaction(pos_tx, payload.validated_data.get('reason', ''), actor=request.user)
+        except VoidWindowExpiredError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(self.get_serializer(voided).data)
