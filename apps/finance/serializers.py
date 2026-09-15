@@ -10,6 +10,7 @@ from apps.finance.models import (
     Payment,
     PaymentAllocation,
     PaymentIntent,
+    SchoolQrisConfig,
     SiblingDiscountPolicy,
     StudentCreditBalance,
     StudentFeeAssignment,
@@ -353,4 +354,21 @@ class LedgerJournalSerializer(serializers.ModelSerializer):
             'entries',
             'created_at',
         ]
+
+
+class SchoolQrisConfigSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SchoolQrisConfig
+        fields = ['id', 'school', 'qris_image_key', 'qris_payload', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'school', 'qris_image_key', 'created_at', 'updated_at']
+
+
+class SchoolQrisConfigUpdateSerializer(serializers.Serializer):
+    qris_image = serializers.FileField(required=False)
+    qris_payload = serializers.CharField(required=False, allow_blank=True, default='')
+    is_active = serializers.BooleanField(required=False, default=True)
+
+
+class PaymentProofUploadSerializer(serializers.Serializer):
+    file = serializers.FileField()
 

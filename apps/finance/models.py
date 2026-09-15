@@ -488,3 +488,22 @@ class LedgerEntry(TenantModel):
     def __str__(self):
         return f"Entry {self.account_code} ({self.account_name}): Dr {self.debit} / Cr {self.credit} {self.currency}"
 
+
+class SchoolQrisConfig(TenantModel):
+    """A school's own static QRIS code (spec/06 §4 FIN-010) — the kind printed or
+    exported directly from the school's bank, not a per-transaction dynamic gateway
+    QRIS. A guardian scans it, pays any amount through their own banking/e-wallet
+    app, then submits a receipt through the existing manual-transfer-with-proof flow
+    (channel='STATIC_QRIS') for finance to verify — no gateway call involved at all.
+    """
+    school = models.OneToOneField(School, on_delete=models.PROTECT, related_name='qris_config')
+    qris_image_key = models.CharField(max_length=512, blank=True, default='', help_text=_("MEDIA_ROOT-relative key of the uploaded static QRIS image"))
+    qris_payload = models.TextField(blank=True, default='', help_text=_("Raw QRIS string, if the school has it in addition to/instead of an image"))
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'school_qris_configs'
+
+    def __str__(self):
+        return f"{self.school.name} static QRIS ({'active' if self.is_active else 'inactive'})"
+

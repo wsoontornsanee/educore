@@ -10,6 +10,7 @@ from apps.finance.views import (
     PaymentIntentViewSet,
     PaymentViewSet,
     PaymentWebhookView,
+    SchoolQrisConfigView,
     SiblingDiscountPolicyViewSet,
     StudentFeeAssignmentViewSet,
     StudentStatementView,
@@ -29,6 +30,7 @@ router.register(r'ledger/journals', LedgerJournalViewSet, basename='ledger-journ
 urlpatterns = [
     path('webhooks/payments/<str:provider>/', PaymentWebhookView.as_view(), name='payment-webhook'),
     path('students/<int:pk>/statement/', StudentStatementView.as_view(), name='student-statement'),
+    path('schools/<int:school_id>/qris-config/', SchoolQrisConfigView.as_view(), name='school-qris-config'),
     path('', include(router.urls)),
 ]
 
