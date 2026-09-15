@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from apps.core.locks import advisory_lock
 from apps.core.models import JobRun
-from apps.reporting.services import refresh_wallet_activity
+from apps.reporting.services import refresh_daily_attendance, refresh_wallet_activity
 
 logger = logging.getLogger(__name__)
 
@@ -35,12 +35,14 @@ class Command(BaseCommand):
             job_run = JobRun.objects.create(job_name=f'refresh_reporting_{scope}', status=JobRun.STATUS_RUNNING)
 
             try:
-                result = refresh_wallet_activity(scope=scope)
+                wallet_result = refresh_wallet_activity(scope=scope)
+                attendance_result = refresh_daily_attendance(scope=scope)
                 job_run.finished_at = timezone.now()
                 job_run.status = JobRun.STATUS_SUCCESS
-                job_run.items_processed = result['rows_written']
+                job_run.items_processed = wallet_result['rows_written'] + attendance_result['rows_written']
                 self.stdout.write(self.style.SUCCESS(
-                    f"refresh_reporting --scope={scope}: {result['rows_written']} rpt_wallet_activity row(s) refreshed since {result['start_date']}."
+                    f"refresh_reporting --scope={scope}: {wallet_result['rows_written']} rpt_wallet_activity, "
+                    f"{attendance_result['rows_written']} rpt_daily_attendance row(s) refreshed."
                 ))
             except Exception as exc:
                 job_run.finished_at = timezone.now()
