@@ -140,6 +140,7 @@
 | `TASK-058` | Arrears Reminder Ladder | Automated arrears reminder ladder, per-school policy (default T-3, T-0, T+3, T+7, T+14, T+30), send-time paid cancellation (NTF-004), multi-channel fallback, deduplication, and cron command (`spec/06 §6`, `FIN-025b`, `FIN-026`, `FIN-027`, `FIN-028`, `NTF-004`) | Completed |
 | `TASK-059` | AR Aging & Write-Offs | AR aging calculation across 0-30, 31-60, 61-90, 90+ buckets with rollups, write-off request workflow with Foundation approval gating, balanced bad debt ledger journal (Dr 5400 / Cr 1200), and rpt_ar_aging refresh (`spec/06 §6, §8`, `spec/15 §2`, `FIN-029`, `FIN-031`) | Completed |
 | `TASK-060` | Tuition Installment Plans & Payment Scheduling | Payment plans splitting invoices into N installments, largest-remainder method (CUR-018, CUR-019), parent schedule views, payment cascade, and installment-aligned arrears ladder (`spec/06 §6, §8`, `FIN-030`) | Completed |
+| `TASK-028` | Gateway Reconciliation Job & Settlement Ingestion | Automated daily reconciliation (`reconcile_payments` cron command), `GatewaySettlementBatch` and `PaymentDiscrepancy` models, Xendit `/v2/settlements` pagination, `PaymentProvider.fetch_settlement`, auto-settle + discrepancy resolution API (`spec/06 §5`, `FIN-024`) | Completed |
 
 ---
 

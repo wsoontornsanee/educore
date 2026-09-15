@@ -12,6 +12,9 @@ from apps.finance.views import (
     PaymentIntentViewSet,
     PaymentViewSet,
     PaymentWebhookView,
+    ReconciliationBatchDetailView,
+    ReconciliationBatchListView,
+    ReconciliationDiscrepancyResolveView,
     SchoolArrearsPolicyView,
     SchoolQrisConfigView,
     SiblingDiscountPolicyViewSet,
@@ -37,6 +40,10 @@ urlpatterns = [
     path('students/<int:pk>/statement/', StudentStatementView.as_view(), name='student-statement'),
     path('schools/<int:school_id>/qris-config/', SchoolQrisConfigView.as_view(), name='school-qris-config'),
     path('schools/<int:school_id>/arrears-policy/', SchoolArrearsPolicyView.as_view(), name='school-arrears-policy'),
+    # FIN-024 Gateway Reconciliation
+    path('reconciliation/batches/', ReconciliationBatchListView.as_view(), name='reconciliation-batch-list'),
+    path('reconciliation/batches/<int:pk>/', ReconciliationBatchDetailView.as_view(), name='reconciliation-batch-detail'),
+    path('reconciliation/discrepancies/<int:pk>/resolve/', ReconciliationDiscrepancyResolveView.as_view(), name='reconciliation-discrepancy-resolve'),
     path('', include(router.urls)),
 ]
 

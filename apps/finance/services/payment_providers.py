@@ -1,6 +1,8 @@
+import datetime
 import hashlib
 from abc import ABC, abstractmethod
 from decimal import Decimal
+import dateutil.parser
 import requests
 from django.conf import settings
 from django.utils import timezone
@@ -46,6 +48,31 @@ class PaymentProvider(ABC):
             'bank': str or None,
             'raw': dict,
         }
+        """
+        pass
+
+    @abstractmethod
+    def fetch_settlement(self, date: datetime.date) -> list[dict]:
+        """
+        Fetch the gateway settlement report for a given settlement date.
+
+        Returns a list of normalized settlement records:
+        [
+            {
+                'external_id': str,          # gateway transaction / reference ID
+                'amount': Decimal,           # gross settlement amount
+                'fee': Decimal,              # gateway MDR / fee deducted
+                'net': Decimal,              # amount actually remitted
+                'settled_at': datetime,      # timestamp settlement was finalized
+                'channel': str,              # payment channel e.g. BCA_VA, QRIS
+                'bank': str or None,         # bank code if applicable
+                'raw': dict,                 # unmodified gateway payload
+            },
+            …
+        ]
+
+        Raises PaymentGatewayError on network or authentication failure.
+        Returns an empty list when the provider has no settlements for the date.
         """
         pass
 
@@ -143,6 +170,16 @@ class MidtransPaymentProvider(PaymentProvider):
             'bank': bank,
             'raw': payload,
         }
+
+    def fetch_settlement(self, date: datetime.date) -> list[dict]:
+        """Midtrans does not expose a bulk settlement pull API at this time.
+
+        Settlement reconciliation for Midtrans must be handled via their
+        merchant dashboard CSV export (CMP-024 open item).  Returns empty list
+        so the reconciliation command can treat Midtrans as "no automated
+        settlement" without raising an error.
+        """
+        return []
 
 
 class XenditPaymentProvider(PaymentProvider):
@@ -247,6 +284,66 @@ class XenditPaymentProvider(PaymentProvider):
             'raw': payload,
         }
 
+    def fetch_settlement(self, date: datetime.date) -> list[dict]:
+        """Fetch Xendit settlement report for the given date via GET /v2/settlements.
+
+        Xendit settles per-transaction; we filter by `settlement_date`.
+        The API paginates via `after_id`; we iterate until exhausted.
+        """
+        date_str = date.strftime('%Y-%m-%d')
+        params: dict = {
+            'settlement_date': date_str,
+            'limit': 100,
+        }
+        results: list[dict] = []
+        while True:
+            try:
+                response = requests.get(
+                    f"{self.base_url}/v2/settlements",
+                    params=params,
+                    auth=self._auth(),
+                    timeout=30,
+                )
+            except requests.RequestException as exc:
+                raise PaymentGatewayError(f"Xendit settlement fetch failed: {exc}") from exc
+            if not response.ok:
+                raise PaymentGatewayError(
+                    f"Xendit /v2/settlements returned {response.status_code}: {response.text}"
+                )
+            data = response.json()
+            items = data if isinstance(data, list) else data.get('data', [])
+            for item in items:
+                amount = Decimal(str(item.get('settlement_amount', item.get('amount', '0.00'))))
+                fee = Decimal(str(item.get('fee', item.get('fee_amount', '0.00'))))
+                net = amount - fee
+                channel = (item.get('payment_method') or item.get('channel') or 'XENDIT').upper()
+                bank = item.get('bank_code') or item.get('bank')
+                settled_str = item.get('settled_at') or item.get('settlement_date') or date_str
+                try:
+                    settled_at = dateutil.parser.parse(settled_str)
+                    if settled_at.tzinfo is None:
+                        settled_at = timezone.make_aware(settled_at)
+                except (ValueError, OverflowError, TypeError):
+                    settled_at = timezone.datetime.combine(date, timezone.datetime.min.time(),
+                                                           tzinfo=timezone.get_current_timezone())
+                results.append({
+                    'external_id': str(item.get('reference_id') or item.get('external_id') or item.get('id')),
+                    'amount': amount,
+                    'fee': fee,
+                    'net': net,
+                    'settled_at': settled_at,
+                    'channel': channel,
+                    'bank': bank,
+                    'raw': item,
+                })
+            # Pagination: stop if fewer items returned than limit, or no cursor
+            has_more = data.get('has_more', False) if isinstance(data, dict) else False
+            after_id = (items[-1].get('id') if items else None)
+            if not has_more or not after_id:
+                break
+            params['after_id'] = after_id
+        return results
+
 
 class MockPaymentProvider(PaymentProvider):
     """Deterministic Mock provider for test suites and sandbox environments."""
@@ -313,6 +410,37 @@ class MockPaymentProvider(PaymentProvider):
             'bank': payload.get('bank'),
             'raw': payload,
         }
+
+    def fetch_settlement(self, date: datetime.date) -> list[dict]:
+        """Return two deterministic settlement records for any date — one BCA VA,
+        one QRIS — enabling fully offline unit tests without mocking HTTP.
+        """
+        import datetime as dt
+        settled_at = timezone.datetime.combine(
+            date, dt.time(16, 0, 0), tzinfo=timezone.get_current_timezone()
+        )
+        return [
+            {
+                'external_id': f'MOCK-{date.strftime("%Y%m%d")}-VA-001',
+                'amount': Decimal('500000.00'),
+                'fee': Decimal('3000.00'),
+                'net': Decimal('497000.00'),
+                'settled_at': settled_at,
+                'channel': 'BCA_VA',
+                'bank': 'BCA',
+                'raw': {'mock': True, 'seq': 1},
+            },
+            {
+                'external_id': f'MOCK-{date.strftime("%Y%m%d")}-QRIS-001',
+                'amount': Decimal('250000.00'),
+                'fee': Decimal('1750.00'),
+                'net': Decimal('248250.00'),
+                'settled_at': settled_at,
+                'channel': 'QRIS',
+                'bank': None,
+                'raw': {'mock': True, 'seq': 2},
+            },
+        ]
 
 
 def get_payment_provider(provider_name: str) -> PaymentProvider:
