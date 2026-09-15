@@ -1,8 +1,16 @@
 import hashlib
 from abc import ABC, abstractmethod
 from decimal import Decimal
+import requests
 from django.conf import settings
 from django.utils import timezone
+
+
+class PaymentGatewayError(Exception):
+    """Raised on a payment gateway misconfiguration or a non-2xx gateway response —
+    fails loud rather than silently returning garbage or a confusing downstream error.
+    """
+    pass
 
 
 class PaymentProvider(ABC):
@@ -138,29 +146,73 @@ class MidtransPaymentProvider(PaymentProvider):
 
 
 class XenditPaymentProvider(PaymentProvider):
-    """Xendit API implementation."""
+    """Xendit API implementation.
 
-    def __init__(self, callback_token: str = None):
+    Launch VA provider per the researched [Open Decision] Virtual Account Provider
+    Integration Strategy (2026-09-15): Xendit's Fixed Virtual Account product is the
+    only one of Midtrans/Xendit that supports a genuinely stable, multi-use,
+    reusable-per-customer VA — Midtrans VA numbers are order/transaction-scoped with
+    a 24h-180d expiry, not persistent. FIN-011's "stable per-student VA" requirement
+    is only actually achievable against Xendit as designed here.
+    """
+
+    def __init__(self, api_key: str = None, callback_token: str = None, base_url: str = None):
+        self.api_key = api_key or getattr(settings, 'XENDIT_API_KEY', '')
         self.callback_token = callback_token or getattr(settings, 'XENDIT_CALLBACK_TOKEN', 'sandbox-token')
+        self.base_url = base_url or getattr(settings, 'XENDIT_BASE_URL', 'https://api.xendit.co')
+
+    def _auth(self):
+        if not self.api_key:
+            raise PaymentGatewayError("XENDIT_API_KEY is not configured — cannot call the Xendit API.")
+        return (self.api_key, '')
+
+    def _post(self, path: str, json_body: dict) -> dict:
+        try:
+            response = requests.post(f"{self.base_url}{path}", json=json_body, auth=self._auth(), timeout=15)
+        except requests.RequestException as exc:
+            raise PaymentGatewayError(f"Xendit request to {path} failed: {exc}") from exc
+        if not response.ok:
+            raise PaymentGatewayError(f"Xendit {path} returned {response.status_code}: {response.text}")
+        return response.json()
 
     def create_va(self, student, school, bank: str, amount: Decimal, expires_at) -> dict:
-        code = get_school_code(school)
-        va_number = f"99{code[:4].upper()}{student.id:06d}"
+        """Creates a Fixed (multi-use, open-amount) Virtual Account — reusable across
+        every future payment by this student to this bank, per FIN-011.
+
+        external_id is deterministic (not random) so a retried call after a network
+        failure lands on the same Xendit VA rather than allocating a duplicate.
+        """
+        external_id = f"studentva-{school.foundation_id}-{student.id}-{bank.upper()}"
+        body = self._post('/callback_virtual_accounts', {
+            'external_id': external_id,
+            'bank_code': bank.upper(),
+            'name': student.person.full_name if student.person else external_id,
+            'is_closed': False,
+            'is_single_use': False,
+            'expiration_date': expires_at.isoformat() if expires_at else None,
+        })
         return {
             'provider': 'XENDIT',
             'va_bank': bank.upper(),
-            'va_number': va_number,
+            'va_number': body['account_number'],
             'amount': amount,
             'expires_at': expires_at,
+            'raw': body,
         }
 
     def create_qris(self, student, school, amount: Decimal, expires_at) -> dict:
-        code = get_school_code(school)
+        external_id = f"qris-{school.foundation_id}-{student.id}-{timezone.now().timestamp()}"
+        body = self._post('/qr_codes', {
+            'external_id': external_id,
+            'type': 'DYNAMIC',
+            'amount': float(amount),
+        })
         return {
             'provider': 'XENDIT',
-            'qris_payload': f"https://qr.xendit.co/qr/{code}-{student.id}-{int(amount)}",
+            'qris_payload': body['qr_string'],
             'amount': amount,
             'expires_at': expires_at,
+            'raw': body,
         }
 
     def verify_webhook(self, payload: dict, headers: dict = None) -> bool:

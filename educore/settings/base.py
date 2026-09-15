@@ -155,3 +155,11 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.SessionAuthentication',
     ],
 }
+
+# Xendit payment gateway (spec/06 §4 FIN-011/FIN-012) — launch VA provider per the
+# [Open Decision] Virtual Account Provider Integration Strategy research (2026-09-15):
+# Xendit's Fixed Virtual Account product is the only one of Midtrans/Xendit that
+# supports a genuinely stable, reusable per-student VA.
+XENDIT_API_KEY = os.environ.get('XENDIT_API_KEY', '')
+XENDIT_CALLBACK_TOKEN = os.environ.get('XENDIT_CALLBACK_TOKEN', 'sandbox-token')
+XENDIT_BASE_URL = os.environ.get('XENDIT_BASE_URL', 'https://api.xendit.co')
