@@ -695,3 +695,63 @@ def write_off_invoice(invoice: Invoice, user: User, reason: str = "") -> Invoice
 
     return invoice
 
+
+
+@transaction.atomic
+def add_adhoc_invoice_line(student: Student, school: School, code: str, description: str, amount: Decimal) -> Invoice:
+    """Appends a one-off charge to the student's most recent open invoice, or creates a
+    minimal new one if none is open. Used for handovers into billing from outside the
+    normal monthly generation cycle (spec/17 REC-013: wallet reconciliation handover)."""
+    foundation_id = student.foundation_id
+    currency = school.base_currency or 'IDR'
+
+    invoice = Invoice.objects.filter(
+        foundation_id=foundation_id, student=student,
+        status__in=[InvoiceStatus.DRAFT, InvoiceStatus.ISSUED, InvoiceStatus.PARTIALLY_PAID],
+        deleted_at__isnull=True,
+    ).order_by('-period').first()
+
+    if not invoice:
+        today = timezone.localdate()
+        invoice = Invoice.objects.create(
+            foundation_id=foundation_id,
+            school=school,
+            student=student,
+            number=generate_invoice_number(school, today.year),
+            period=today.strftime('%Y-%m'),
+            issue_date=today,
+            due_date=today + datetime.timedelta(days=7),
+            subtotal=Decimal('0.00'),
+            discount=Decimal('0.00'),
+            rounding=Decimal('0.00'),
+            total=Decimal('0.00'),
+            paid=Decimal('0.00'),
+            currency=currency,
+            status=InvoiceStatus.ISSUED,
+            created_by='system',
+        )
+
+    InvoiceLine.objects.create(
+        foundation_id=foundation_id,
+        invoice=invoice,
+        fee_type=None,
+        code=code,
+        description=description,
+        amount=amount,
+        discount=Decimal('0.00'),
+        subtotal=amount,
+        currency=currency,
+    )
+    invoice.subtotal += amount
+    invoice.total += amount
+    invoice.save(update_fields=['subtotal', 'total', 'updated_at'])
+
+    audit(
+        action='finance.invoice.adhoc_line_added',
+        entity_type='Invoice',
+        entity_id=invoice.id,
+        foundation_id=foundation_id,
+        school_id=school.id,
+        diff={'code': code, 'amount': str(amount)},
+    )
+    return invoice
