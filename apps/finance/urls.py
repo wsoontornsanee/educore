@@ -10,6 +10,7 @@ from apps.finance.views import (
     PaymentIntentViewSet,
     PaymentViewSet,
     PaymentWebhookView,
+    SchoolArrearsPolicyView,
     SchoolQrisConfigView,
     SiblingDiscountPolicyViewSet,
     StudentFeeAssignmentViewSet,
@@ -31,6 +32,7 @@ urlpatterns = [
     path('webhooks/payments/<str:provider>/', PaymentWebhookView.as_view(), name='payment-webhook'),
     path('students/<int:pk>/statement/', StudentStatementView.as_view(), name='student-statement'),
     path('schools/<int:school_id>/qris-config/', SchoolQrisConfigView.as_view(), name='school-qris-config'),
+    path('schools/<int:school_id>/arrears-policy/', SchoolArrearsPolicyView.as_view(), name='school-arrears-policy'),
     path('', include(router.urls)),
 ]
 

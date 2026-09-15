@@ -10,6 +10,7 @@ from apps.finance.models import (
     Payment,
     PaymentAllocation,
     PaymentIntent,
+    SchoolArrearsPolicy,
     SchoolQrisConfig,
     SiblingDiscountPolicy,
     StudentCreditBalance,
@@ -371,4 +372,40 @@ class SchoolQrisConfigUpdateSerializer(serializers.Serializer):
 
 class PaymentProofUploadSerializer(serializers.Serializer):
     file = serializers.FileField()
+
+
+class SchoolArrearsPolicySerializer(serializers.ModelSerializer):
+    effective_ladder_days = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SchoolArrearsPolicy
+        fields = [
+            'id',
+            'school',
+            'ladder_days',
+            'effective_ladder_days',
+            'is_active',
+            'payment_deep_link_base',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'school', 'effective_ladder_days', 'created_at', 'updated_at']
+
+    def get_effective_ladder_days(self, obj):
+        return obj.get_effective_ladder_days()
+
+
+class SchoolArrearsPolicyUpdateSerializer(serializers.Serializer):
+    ladder_days = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+        allow_empty=True,
+    )
+    is_active = serializers.BooleanField(required=False)
+    payment_deep_link_base = serializers.CharField(required=False, max_length=255, allow_blank=False)
+
+    def validate_ladder_days(self, value):
+        if value is not None:
+            return sorted(value)
+        return value
 

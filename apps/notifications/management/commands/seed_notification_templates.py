@@ -1,4 +1,4 @@
-﻿from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand
 from apps.identity.models import Foundation
 from apps.notifications.models import (
     ChannelType,
@@ -61,8 +61,24 @@ CANONICAL_TEMPLATES = [
         'channel': ChannelType.WHATSAPP,
         'locale': 'id-ID',
         'subject': 'Pengingat Tagihan Pembayaran',
-        'body': 'Pengingat: Tagihan {invoice_number} sebesar {amount} untuk ananda {student_name} jatuh tempo pada {due_date}. Silakan selesaikan pembayaran.',
-        'variables': ['invoice_number', 'amount', 'student_name', 'due_date'],
+        'body': 'Pengingat: Tagihan {invoice_number} ({period}) sebesar {amount} untuk ananda {student_name} jatuh tempo pada {due_date}. Pembayaran dapat dilakukan melalui tautan: {deep_link}',
+        'variables': ['invoice_number', 'amount', 'student_name', 'due_date', 'period', 'deep_link'],
+    },
+    {
+        'key': 'finance.payment_due',
+        'channel': ChannelType.PUSH,
+        'locale': 'id-ID',
+        'subject': 'Tagihan Pembayaran: {student_name}',
+        'body': 'Tagihan {invoice_number} ({period}) ananda {student_name} sebesar {amount} jatuh tempo {due_date}. Bayar: {deep_link}',
+        'variables': ['invoice_number', 'amount', 'student_name', 'due_date', 'period', 'deep_link'],
+    },
+    {
+        'key': 'finance.payment_due',
+        'channel': ChannelType.SMS,
+        'locale': 'id-ID',
+        'subject': 'Tagihan Pembayaran',
+        'body': 'Tagihan EduCore ananda {student_name} periode {period} jatuh tempo {due_date}. Buka aplikasi untuk bayar: {deep_link}',
+        'variables': ['student_name', 'period', 'due_date', 'deep_link'],
     },
     {
         'key': 'finance.payment_received',
