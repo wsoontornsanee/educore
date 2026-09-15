@@ -7,6 +7,9 @@ from apps.academic.views import (
     ClassEnrollmentViewSet,
     ClassGroupViewSet,
     ClassSubjectViewSet,
+    ExamAttemptViewSet,
+    ExamQuestionViewSet,
+    ExamViewSet,
     GradebookView,
     HomeworkSubmissionViewSet,
     HomeworkViewSet,
@@ -31,6 +34,9 @@ router.register(r'timetable/slots', TimetableSlotViewSet, basename='timetable-sl
 router.register(r'timetable/substitutions', TimetableSubstitutionViewSet, basename='timetable-substitutions')
 router.register(r'homework', HomeworkViewSet, basename='homework')
 router.register(r'homework-submissions', HomeworkSubmissionViewSet, basename='homework-submissions')
+router.register(r'exams', ExamViewSet, basename='exams')
+router.register(r'exam-questions', ExamQuestionViewSet, basename='exam-questions')
+router.register(r'exam-attempts', ExamAttemptViewSet, basename='exam-attempts')
 
 urlpatterns = [
     path('gradebook/', GradebookView.as_view(), name='gradebook'),

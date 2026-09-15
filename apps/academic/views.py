@@ -16,6 +16,11 @@ from apps.academic.models import (
     ClassEnrollment,
     ClassGroup,
     ClassSubject,
+    Exam,
+    ExamAnswer,
+    ExamAttempt,
+    ExamQuestion,
+    ExamQuestionType,
     Homework,
     HomeworkSubmission,
     LearningObjective,
@@ -32,17 +37,26 @@ from apps.academic.serializers import (
     ClassEnrollmentSerializer,
     ClassGroupSerializer,
     ClassSubjectSerializer,
+    ExamAnswerSerializer,
+    ExamAttemptSerializer,
+    ExamQuestionPublicSerializer,
+    ExamQuestionSerializer,
+    ExamSerializer,
+    GradeEssaySerializer,
     HomeworkGradeSerializer,
     HomeworkSerializer,
     HomeworkSubmissionSerializer,
     HomeworkSubmitSerializer,
     LearningObjectiveSerializer,
+    SaveAnswerSerializer,
     SubjectSerializer,
     TermSerializer,
     TimetableSlotSerializer,
     TimetableSubstitutionSerializer,
 )
 from apps.academic.services import (
+    AttemptAlreadySubmittedError,
+    ExamWindowError,
     InvalidSubmissionFilesError,
     ReasonRequiredError,
     ReminderRateLimitedError,
@@ -50,13 +64,20 @@ from apps.academic.services import (
     TimetableConflictError,
     WeightConfigError,
     assign_substitution,
+    auto_submit_if_expired,
+    compute_remaining_seconds,
     compute_term_grade,
     create_timetable_slot,
     get_homework_completion,
+    grade_essay_answer,
     grade_homework_submission,
     publish_assessment,
+    record_focus_loss,
     remind_unsubmitted,
+    save_answer,
     set_assessment_score,
+    start_attempt,
+    submit_attempt,
     submit_homework,
 )
 
@@ -347,6 +368,129 @@ class HomeworkSubmissionViewSet(TenantScopedModelViewSet):
             actor=request.user,
         )
         return Response(self.get_serializer(graded).data)
+
+
+class ExamViewSet(TenantScopedModelViewSet):
+    model = Exam
+    serializer_class = ExamSerializer
+    filter_params = {'class_subject_id': 'class_subject_id'}
+    action_permissions = {
+        'list': 'grades.read', 'retrieve': 'grades.read',
+        'create': 'grades.write', 'update': 'grades.write',
+        'partial_update': 'grades.write', 'destroy': 'grades.write',
+        'publish': 'grades.write', 'attempts': 'grades.read', 'grading_queue': 'grades.read',
+    }
+
+    @action(detail=True, methods=['post'], url_path='publish')
+    def publish(self, request, pk=None):
+        exam = self.get_object()
+        exam.published = True
+        exam.save(update_fields=['published', 'updated_at'])
+        return Response(self.get_serializer(exam).data)
+
+    @action(detail=True, methods=['post'], url_path='attempts')
+    def attempts(self, request, pk=None):
+        exam = self.get_object()
+        foundation_id = get_current_foundation_id()
+        student = Student.objects.filter(id=request.data.get('student_id'), foundation_id=foundation_id).first()
+        if not student:
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            attempt = start_attempt(exam, student)
+        except ExamWindowError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        attempt = auto_submit_if_expired(attempt)
+        questions_by_id = {q.id: q for q in exam.questions.filter(deleted_at__isnull=True)}
+        ordered_questions = [questions_by_id[qid] for qid in attempt.question_order if qid in questions_by_id]
+
+        return Response({
+            'attempt': ExamAttemptSerializer(attempt).data,
+            'questions': ExamQuestionPublicSerializer(ordered_questions, many=True).data,
+            'remaining_seconds': compute_remaining_seconds(attempt),
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'], url_path='grading-queue')
+    def grading_queue(self, request, pk=None):
+        exam = self.get_object()
+        pending = ExamAnswer.objects.filter(
+            attempt__exam=exam,
+            question__type=ExamQuestionType.ESSAY,
+            points_awarded__isnull=True,
+            deleted_at__isnull=True,
+        ).select_related('attempt', 'question')
+        return Response(ExamAnswerSerializer(pending, many=True).data)
+
+
+class ExamQuestionViewSet(TenantScopedModelViewSet):
+    model = ExamQuestion
+    serializer_class = ExamQuestionSerializer
+    filter_params = {'exam_id': 'exam_id'}
+    action_permissions = {
+        'list': 'grades.write', 'retrieve': 'grades.write',
+        'create': 'grades.write', 'update': 'grades.write',
+        'partial_update': 'grades.write', 'destroy': 'grades.write',
+    }
+
+
+class ExamAttemptViewSet(TenantScopedModelViewSet):
+    model = ExamAttempt
+    serializer_class = ExamAttemptSerializer
+    filter_params = {'exam_id': 'exam_id', 'student_id': 'student_id', 'status': 'status'}
+    action_permissions = {
+        'list': 'grades.read', 'retrieve': 'grades.read',
+        'create': 'grades.write', 'update': 'grades.write',
+        'partial_update': 'grades.write', 'destroy': 'grades.write',
+        'answers': 'grades.read', 'submit': 'grades.read',
+        'focus_loss': 'grades.read', 'grade_answer': 'grades.write',
+    }
+
+    @action(detail=True, methods=['patch'], url_path='answers')
+    def answers(self, request, pk=None):
+        attempt = auto_submit_if_expired(self.get_object())
+        payload = SaveAnswerSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+
+        question = ExamQuestion.objects.filter(
+            id=payload.validated_data['question_id'], exam=attempt.exam, foundation_id=attempt.foundation_id,
+        ).first()
+        if not question:
+            return Response({'error': _("Soal tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            record = save_answer(attempt, question, payload.validated_data['answer'])
+        except AttemptAlreadySubmittedError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            'answer': ExamAnswerSerializer(record).data,
+            'remaining_seconds': compute_remaining_seconds(attempt),
+        })
+
+    @action(detail=True, methods=['post'], url_path='submit')
+    def submit(self, request, pk=None):
+        attempt = auto_submit_if_expired(self.get_object())
+        attempt = submit_attempt(attempt, auto=False)
+        return Response(self.get_serializer(attempt).data)
+
+    @action(detail=True, methods=['post'], url_path='focus-loss')
+    def focus_loss(self, request, pk=None):
+        attempt = record_focus_loss(self.get_object())
+        return Response(self.get_serializer(attempt).data)
+
+    @action(detail=True, methods=['post'], url_path='grade-answer')
+    def grade_answer(self, request, pk=None):
+        attempt = self.get_object()
+        question_id = request.data.get('question_id')
+        exam_answer = ExamAnswer.objects.filter(attempt=attempt, question_id=question_id, foundation_id=attempt.foundation_id).first()
+        if not exam_answer:
+            return Response({'error': _("Jawaban tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        grade_payload = GradeEssaySerializer(data=request.data)
+        grade_payload.is_valid(raise_exception=True)
+        graded = grade_essay_answer(exam_answer, grade_payload.validated_data['points'], actor=request.user)
+        return Response(ExamAnswerSerializer(graded).data)
 
 
 class GradebookView(APIView):

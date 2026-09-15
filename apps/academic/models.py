@@ -390,3 +390,137 @@ class HomeworkSubmission(TenantModel):
 
     def __str__(self):
         return f"{self.student.nis} - {self.homework.title} ({self.status})"
+
+
+class ExamMode(models.TextChoices):
+    ONLINE = 'ONLINE', _('Daring')
+    PAPER = 'PAPER', _('Kertas')
+
+
+class Exam(TenantModel):
+    """An exam window for a class subject (spec/04 §6)."""
+    class_subject = models.ForeignKey(ClassSubject, on_delete=models.PROTECT, related_name='exams')
+    title = models.CharField(max_length=128)
+    mode = models.CharField(max_length=16, choices=ExamMode.choices, default=ExamMode.ONLINE)
+    window_start = models.DateTimeField()
+    window_end = models.DateTimeField()
+    duration_min = models.PositiveSmallIntegerField()
+    shuffle = models.BooleanField(default=False)
+    settings = models.JSONField(default=dict, blank=True, help_text=_("one_question_at_a_time, block_back_navigation, full_screen_lock, etc."))
+    published = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'exams'
+        indexes = [
+            models.Index(fields=['foundation_id', 'class_subject_id']),
+        ]
+
+    def __str__(self):
+        return f"{self.title} ({self.class_subject})"
+
+
+class ExamQuestionType(models.TextChoices):
+    MCQ = 'MCQ', _('Pilihan Ganda')
+    MULTI = 'MULTI', _('Pilihan Ganda Kompleks')
+    TRUE_FALSE = 'TRUE_FALSE', _('Benar/Salah')
+    SHORT = 'SHORT', _('Jawaban Singkat')
+    ESSAY = 'ESSAY', _('Esai')
+    MATCHING = 'MATCHING', _('Menjodohkan')
+
+
+# Types that auto-grade; ESSAY always routes to manual grading (ACD-023).
+AUTO_GRADABLE_QUESTION_TYPES = {
+    ExamQuestionType.MCQ, ExamQuestionType.MULTI, ExamQuestionType.TRUE_FALSE,
+    ExamQuestionType.SHORT, ExamQuestionType.MATCHING,
+}
+
+
+class ExamQuestion(TenantModel):
+    """A question within an exam (spec/04 §6)."""
+    exam = models.ForeignKey(Exam, on_delete=models.PROTECT, related_name='questions')
+    seq = models.PositiveSmallIntegerField()
+    type = models.CharField(max_length=16, choices=ExamQuestionType.choices)
+    body = models.TextField()
+    media = models.JSONField(default=list, blank=True)
+    options = models.JSONField(default=list, blank=True, help_text=_("Choice list for MCQ/MULTI/MATCHING, e.g. [{key, text}]"))
+    points = models.DecimalField(max_digits=6, decimal_places=2, default=Decimal('1.00'))
+    answer_key = models.JSONField(default=dict, blank=True, help_text=_("Grading key; shape depends on type"))
+
+    class Meta:
+        db_table = 'exam_questions'
+        indexes = [
+            models.Index(fields=['foundation_id', 'exam_id', 'seq']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'exam', 'seq'],
+                condition=models.Q(deleted_at__isnull=True),
+                name='unique_question_seq_per_exam',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.exam.title} Q{self.seq}"
+
+
+class ExamAttemptStatus(models.TextChoices):
+    IN_PROGRESS = 'IN_PROGRESS', _('Sedang Berjalan')
+    SUBMITTED = 'SUBMITTED', _('Terkumpul')
+    AUTO_SUBMITTED = 'AUTO_SUBMITTED', _('Terkumpul Otomatis')
+
+
+class ExamAttempt(TenantModel):
+    """A student's attempt at an exam (spec/04 §6)."""
+    exam = models.ForeignKey(Exam, on_delete=models.PROTECT, related_name='attempts')
+    student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name='exam_attempts')
+    started_at = models.DateTimeField()
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    auto_score = models.DecimalField(max_digits=7, decimal_places=2, default=Decimal('0.00'))
+    manual_score = models.DecimalField(max_digits=7, decimal_places=2, default=Decimal('0.00'))
+    final_score = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
+    status = models.CharField(max_length=16, choices=ExamAttemptStatus.choices, default=ExamAttemptStatus.IN_PROGRESS)
+    question_order = models.JSONField(default=list, blank=True, help_text=_("Per-attempt shuffled question id order (ACD-024)"))
+    focus_loss_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = 'exam_attempts'
+        indexes = [
+            models.Index(fields=['foundation_id', 'exam_id', 'student_id']),
+            models.Index(fields=['foundation_id', 'status']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'exam', 'student'],
+                condition=models.Q(deleted_at__isnull=True),
+                name='unique_attempt_per_exam_student',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.student.nis} - {self.exam.title} ({self.status})"
+
+
+class ExamAnswer(TenantModel):
+    """A student's persisted answer to one question within an attempt (ACD-021)."""
+    attempt = models.ForeignKey(ExamAttempt, on_delete=models.PROTECT, related_name='answers')
+    question = models.ForeignKey(ExamQuestion, on_delete=models.PROTECT, related_name='+')
+    answer = models.JSONField(default=dict, blank=True)
+    points_awarded = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    graded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    answered_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'exam_answers'
+        indexes = [
+            models.Index(fields=['foundation_id', 'attempt_id']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'attempt', 'question'],
+                condition=models.Q(deleted_at__isnull=True),
+                name='unique_answer_per_attempt_question',
+            ),
+        ]
+
+    def __str__(self):
+        return f"Attempt#{self.attempt_id} - Q{self.question.seq}"
