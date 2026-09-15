@@ -29,6 +29,7 @@ from apps.academic.models import (
     Homework,
     HomeworkSubmission,
     HomeworkSubmissionStatus,
+    LessonPlan,
     MAX_SUBMISSION_FILES,
     MAX_SUBMISSION_FILE_SIZE,
     ReportCard,
@@ -794,3 +795,26 @@ def get_visible_report_card(report_card: ReportCard) -> dict:
         return {'visible': False, 'reason': 'ARREARS'}
 
     return {'visible': True, 'reason': None}
+
+
+def duplicate_lesson_plan(lesson_plan: LessonPlan, target_week_start_date, actor=None) -> LessonPlan:
+    """TCH-010: duplicate a lesson plan into a new week, as an independent editable copy."""
+    new_plan = LessonPlan.objects.create(
+        foundation_id=lesson_plan.foundation_id,
+        class_subject=lesson_plan.class_subject,
+        week_start_date=target_week_start_date,
+        title=lesson_plan.title,
+        content=lesson_plan.content,
+        attachments=lesson_plan.attachments,
+        created_by=actor,
+    )
+    new_plan.slots.set(lesson_plan.slots.all())
+
+    audit(
+        action='academic.lesson_plan.duplicated',
+        entity_type='LessonPlan',
+        entity_id=new_plan.id,
+        foundation_id=lesson_plan.foundation_id,
+        diff={'source_plan_id': lesson_plan.id, 'target_week': str(target_week_start_date)},
+    )
+    return new_plan
