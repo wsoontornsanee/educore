@@ -9,12 +9,12 @@
 ---
 
 ## 2. Current Build Status
-- **Current Step:** Milestone M2 (Step 2: Student & Staff Records + Bulk Import) Complete — Ready for Milestone M3 (Step 3: Credentials, Gate Attendance Events & Edge Agent Stub).
+- **Current Step:** Milestone M3 (Step 3: Credentials, Gate Attendance Events & Edge Agent Stub) In Progress.
 - **Target Milestone:** Pilot Core (P0: Milestones M0–M4).
   - *M0 (Step 0) [DONE]:* Django project skeleton, `core` app (`TenantModel`, `MoneyField`, `AuditEvent`, `DomainEvent`, `TaskQueue`, `JobRun`, `drain_tasks`, advisory locks, crontab).
   - *M1 (Step 1) [DONE]:* Tenancy, auth, RBAC, feature entitlements, foundation portal, seed data (`identity`, `foundation`). Demo: Foundation admin logs in, sees two schools.
   - *M2 (Step 2) [DONE]:* Student/staff records + bulk XLSX import (`identity`).
-  - *M3 (Step 3) [NEXT UP]:* Credentials, gate attendance events, edge agent stub (`attendance`, `hardware`).
+  - *M3 (Step 3) [IN PROGRESS]:* Credentials, gate attendance events, edge agent stub (`attendance`, `hardware`).
   - *M4 (Step 4):* Notifications service + WhatsApp arrival messaging (`notifications`).
 
 
@@ -32,10 +32,11 @@
 8. **RBAC Scope Isolation & Fail-Closed Guardrails:** Roles are assigned at either `FOUNDATION` scope or `SCHOOL` scope. `HasRequiredPermission` strictly fails closed if a view forgets to define `required_permission` (`IAM-010`), and school-scoped roles cannot access sibling schools (`IAM-012`).
 9. **Layer 3 Tenancy & Standard CursorPagination:** Layer 3 multi-tenancy derivation from authenticated user in `TenancyMiddleware` + `TenantManager` completely seals cross-tenant visibility (returning 404 for sibling foundation entities). `StandardCursorPagination` enforces `-created_at` ordering across all list endpoints.
 10. **Granular Feature Entitlements Hierarchy:** `foundation_entitlements` evaluates per-school overrides before foundation-wide defaults (`IAM-023`). Disabled modules raise HTTP 403 `MODULE_NOT_ENTITLED` (`IAM-024`) via `RequiresModuleEntitlement`, and `GET /api/v1/me` exposes active module flags to hide navigation surfaces dynamically.
+11. **Atomic Bulk Import with Exhaustive Diagnostics:** `StudentBulkImporter` validates entire batches across data types, phone numbers, and DB/in-file uniqueness before committing (`spec/02 §8.3`), offering dry-run preview mode (`?dry_run=true`) and returning specific row error lists upon rejection.
 
 ---
 
-## 4. Active Tasks & Immediate Next Actions (Step 2 / Milestone M2)
+## 4. Active Tasks & Immediate Next Actions (Step 3 / Milestone M3)
 
 | Task ID | Component | Description | Status |
 |---|---|---|---|
@@ -48,7 +49,10 @@
 | `TASK-012` | Student Records | Implement `Student`, `Guardian`, and `GuardianLink` models (`spec/02 §2`) | Completed |
 | `TASK-013` | Staff Records | Implement `Staff` model and offboarding lifecycle (`spec/02 §2, §5`) | Completed |
 | `TASK-014` | Bulk Import | Implement atomic student XLSX import with dry-run diff preview (`spec/02 §5`) | Completed |
-| `TASK-015` | Credentials | Implement RFID card, QR credential management, and revocation (`spec/05 §2`) | Next Up |
+| `TASK-015` | Credentials | Implement RFID card, QR credential management, and revocation (`spec/05 §2`, `spec/12 §5`) | In Progress |
+| `TASK-016` | Gate Events | Implement gate event batch ingestion, debouncing, and daily attendance derivation (`spec/05 §2, §3, §4`) | Pending |
+| `TASK-017` | Gate Console | Implement live gate console polling, manual check-in, and edge sync stub (`spec/05 §4`, `spec/12 §3, §7`) | Pending |
+
 
 
 

@@ -117,4 +117,17 @@
   - 3 new automated tests in `apps/identity/tests/test_staff.py` asserting creation, 3-layer tenancy isolation, and offboarding lifecycle execution (total 54 tests passing).
   - PR #9 merged into `main`.
 
-
+## Step 2.3: Student Directory API and Atomic Bulk XLSX Import (TASK-014)
+- **Date:** 2026-09-15
+- **Milestone:** Step 2.3 Completed & Merged (PR #10) - Milestone M2 (Student & Staff Records + Bulk Import) 100% Complete
+- **Details:**
+  - Implemented `StudentBulkImporter` in `apps/identity/importers.py` supporting both Excel (`.xlsx`) and CSV (`.csv`) formats.
+  - Implemented strict domain validations: 10-digit NISN format, 16-digit NIK format, E.164 phone normalization, and date parsing across multiple formats.
+  - Enforced in-file and database duplicate detection across NISN, NIS, email, and phone.
+  - Guaranteed atomic rollback: any error across rows rejects the entire batch and reports the exact offending rows and errors (`spec/02 §8.3`).
+  - Added dry-run preview mode (`?dry_run=true`) to parse and validate files without committing database state.
+  - Implemented `StudentViewSet` (`/api/v1/students/`) in `apps/identity/views.py` with 3-layer tenancy scoping, status transitions (`IAM-019`), guardian link management (`IAM-014`, `IAM-015`), and bulk import endpoint (`/api/v1/students/import/`).
+  - Enforced cross-school isolation returning HTTP 404 (not 403) for students outside authorized school scopes (`spec/02 §8.1`).
+  - Verified multi-school parent access enabling parent users to view all linked children across schools under a unified login (`spec/02 §8.2`).
+  - 5 new automated tests in `apps/identity/tests/test_student_import_and_api.py` validating all acceptance criteria (total 59 tests passing).
+  - PR #10 merged into `main`.
