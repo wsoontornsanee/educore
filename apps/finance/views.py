@@ -3,7 +3,9 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from apps.core.pagination import StandardCursorPagination
 from apps.core.services import audit
@@ -41,17 +43,24 @@ from apps.finance.serializers import (
     PaymentAllocationSerializer,
     PaymentIntentCreateSerializer,
     PaymentIntentSerializer,
+    PaymentProofUploadSerializer,
     PaymentSerializer,
+    SchoolQrisConfigSerializer,
+    SchoolQrisConfigUpdateSerializer,
     SiblingDiscountPolicySerializer,
     StudentFeeAssignmentSerializer,
     StudentVirtualAccountSerializer,
 )
 
 from apps.finance.services import (
+    InvalidProofFileError,
     approve_discount,
     cancel_invoice,
     create_discount_with_approval_check,
     generate_monthly_invoices,
+    get_school_qris_config,
+    set_school_qris_config,
+    store_payment_proof_file,
     write_off_invoice,
 )
 from educore.middleware.tenancy import get_current_foundation_id, tenant_context
@@ -452,6 +461,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         'cash': 'finance.invoice.write',
         'manual': 'finance.invoice.write',
         'verify': 'finance.invoice.write',
+        'upload_proof': 'finance.invoice.write',
     }
 
     def get_queryset(self):
@@ -523,6 +533,26 @@ class PaymentViewSet(viewsets.ModelViewSet):
             return Response(self.get_serializer(payment).data, status=status.HTTP_201_CREATED)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'], url_path='upload-proof', parser_classes=[MultiPartParser])
+    def upload_proof(self, request):
+        """Upload a payment proof (manual transfer or static QRIS receipt) ahead of
+        submitting it via `manual` (FIN-018)."""
+        foundation_id = get_current_foundation_id()
+        serializer = PaymentProofUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        student_id = request.data.get('student_id')
+        from apps.identity.models import Student
+        student = Student.objects.filter(id=student_id, foundation_id=foundation_id).first()
+        if not student:
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            file_meta = store_payment_proof_file(student.school, serializer.validated_data['file'])
+        except InvalidProofFileError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(file_meta, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'], url_path='verify')
     def verify(self, request, pk=None):
@@ -627,6 +657,46 @@ class StudentStatementView(APIView):
             'payments': PaymentSerializer(payments, many=True).data,
         }
         return Response(data, status=status.HTTP_200_OK)
+
+
+class SchoolQrisConfigView(APIView):
+    """GET/PUT /schools/:school_id/qris-config/ — a school's static QRIS (FIN-010)."""
+    permission_classes = [HasRequiredPermission]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def get_required_permission(self):
+        return 'finance.invoice.write' if self.request.method == 'PUT' else 'finance.invoice.read'
+
+    def get(self, request, school_id):
+        foundation_id = get_current_foundation_id()
+        school = School.objects.filter(id=school_id, foundation_id=foundation_id).first()
+        if not school:
+            return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        config = get_school_qris_config(school)
+        if not config:
+            return Response({'error': _("Konfigurasi QRIS belum diatur.")}, status=status.HTTP_404_NOT_FOUND)
+        return Response(SchoolQrisConfigSerializer(config).data)
+
+    def put(self, request, school_id):
+        foundation_id = get_current_foundation_id()
+        school = School.objects.filter(id=school_id, foundation_id=foundation_id).first()
+        if not school:
+            return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        payload = SchoolQrisConfigUpdateSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+
+        try:
+            config = set_school_qris_config(
+                school,
+                qris_image=payload.validated_data.get('qris_image'),
+                qris_payload=payload.validated_data.get('qris_payload', ''),
+                is_active=payload.validated_data.get('is_active', True),
+            )
+        except InvalidProofFileError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(SchoolQrisConfigSerializer(config).data, status=status.HTTP_200_OK)
 
 
 
