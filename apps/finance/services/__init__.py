@@ -69,3 +69,8 @@ from apps.finance.services.installments import (
     cancel_installment_plan,
     create_installment_plan,
 )
+from apps.finance.services.convenience_fee import (
+    calculate_convenience_fee,
+    get_effective_convenience_fee_policy,
+    set_school_convenience_fee_policy,
+)

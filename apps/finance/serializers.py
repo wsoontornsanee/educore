@@ -1,6 +1,8 @@
 from decimal import Decimal
 from rest_framework import serializers
 from apps.finance.models import (
+    ConvenienceFeeAllocation,
+    ConvenienceFeeType,
     Discount,
     FeePlan,
     FeeType,
@@ -14,6 +16,7 @@ from apps.finance.models import (
     PaymentAllocation,
     PaymentIntent,
     SchoolArrearsPolicy,
+    SchoolConvenienceFeePolicy,
     SchoolQrisConfig,
     SiblingDiscountPolicy,
     StudentCreditBalance,
@@ -256,6 +259,8 @@ class StudentVirtualAccountSerializer(serializers.ModelSerializer):
 
 class PaymentIntentSerializer(serializers.ModelSerializer):
     amount = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    base_amount = serializers.SerializerMethodField()
+    convenience_fee_amount = serializers.SerializerMethodField()
 
     class Meta:
         model = PaymentIntent
@@ -270,11 +275,19 @@ class PaymentIntentSerializer(serializers.ModelSerializer):
             'va_number',
             'qris_payload',
             'amount',
+            'base_amount',
+            'convenience_fee_amount',
             'currency',
             'expires_at',
             'status',
             'created_at',
         ]
+
+    def get_base_amount(self, obj):
+        return obj.metadata.get('base_amount', str(obj.amount))
+
+    def get_convenience_fee_amount(self, obj):
+        return obj.metadata.get('convenience_fee_amount', '0.00')
         read_only_fields = ['id', 'created_at', 'status', 'va_number', 'qris_payload']
 
 
@@ -415,6 +428,20 @@ class SchoolQrisConfigSerializer(serializers.ModelSerializer):
 class SchoolQrisConfigUpdateSerializer(serializers.Serializer):
     qris_image = serializers.FileField(required=False)
     qris_payload = serializers.CharField(required=False, allow_blank=True, default='')
+    is_active = serializers.BooleanField(required=False, default=True)
+
+
+class SchoolConvenienceFeePolicySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SchoolConvenienceFeePolicy
+        fields = ['id', 'school', 'allocation', 'fee_type', 'fee_value', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'school', 'created_at', 'updated_at']
+
+
+class SchoolConvenienceFeePolicyUpdateSerializer(serializers.Serializer):
+    allocation = serializers.ChoiceField(choices=ConvenienceFeeAllocation.choices, default=ConvenienceFeeAllocation.PASSED_TO_PARENT)
+    fee_type = serializers.ChoiceField(choices=ConvenienceFeeType.choices, default=ConvenienceFeeType.FIXED)
+    fee_value = serializers.DecimalField(max_digits=18, decimal_places=2, default=Decimal('0.00'))
     is_active = serializers.BooleanField(required=False, default=True)
 
 
