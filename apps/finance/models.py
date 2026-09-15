@@ -608,6 +608,45 @@ class SchoolConvenienceFeePolicy(TenantModel):
         return f"{self.school.name} convenience fee ({self.allocation}, {self.fee_type} {self.fee_value})"
 
 
+class BankStatementFileFormat(models.TextChoices):
+    MT940 = 'MT940', _('SWIFT MT940')
+    CAMT053 = 'CAMT053', _('ISO 20022 CAMT.053')
+
+
+class BankSftpConfig(TenantModel):
+    """Connection metadata for automated host-to-host SFTP pull of daily bank
+    statement files (spec/14 CMP-024, CMP-026) — one row per school per bank.
+
+    Stores CONNECTION METADATA ONLY, never secret material (password/private
+    key). This codebase has no per-tenant secrets vault yet; until one exists,
+    the actual credential is resolved at pull time from an environment
+    variable named f'BANK_SFTP_KEY_{config.id}' (see
+    apps.finance.services.bank_sftp_pull), which is itself a stopgap — real
+    secrets management is tracked as a follow-up Open Item, not solved here.
+    """
+    school = models.ForeignKey(School, on_delete=models.PROTECT, related_name='bank_sftp_configs')
+    bank_code = models.CharField(max_length=32, help_text=_("e.g. BCA, MANDIRI, BRI"))
+    host = models.CharField(max_length=255)
+    port = models.PositiveIntegerField(default=22)
+    username = models.CharField(max_length=128)
+    remote_directory = models.CharField(max_length=512, default='/', help_text=_("Remote directory to list/pull statement files from"))
+    file_format = models.CharField(max_length=16, choices=BankStatementFileFormat.choices, default=BankStatementFileFormat.MT940)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'bank_sftp_configs'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'school', 'bank_code'],
+                condition=models.Q(deleted_at__isnull=True),
+                name='unique_foundation_school_bank_sftp_config',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.school.name} SFTP {self.bank_code} ({self.host}:{self.port})"
+
+
 DEFAULT_ARREARS_LADDER_DAYS = [-3, 0, 3, 7, 14, 30]
 
 

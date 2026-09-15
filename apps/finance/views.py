@@ -28,6 +28,7 @@ from apps.finance.models import (
     PaymentAllocation,
     PaymentIntent,
     PaymentStatus,
+    BankSftpConfig,
     SchoolArrearsPolicy,
     SchoolConvenienceFeePolicy,
     SchoolQrisConfig,
@@ -56,6 +57,8 @@ from apps.finance.serializers import (
     PaymentIntentSerializer,
     PaymentProofUploadSerializer,
     PaymentSerializer,
+    BankSftpConfigSerializer,
+    BankSftpConfigUpdateSerializer,
     SchoolArrearsPolicySerializer,
     SchoolArrearsPolicyUpdateSerializer,
     SchoolConvenienceFeePolicySerializer,
@@ -80,11 +83,13 @@ from apps.finance.services import (
     calculate_convenience_fee,
     generate_monthly_invoices,
     get_ar_aging_report,
+    get_bank_sftp_configs,
     get_effective_convenience_fee_policy,
     get_school_arrears_policy,
     get_school_qris_config,
     reject_invoice_write_off,
     request_invoice_write_off,
+    set_bank_sftp_config,
     set_school_convenience_fee_policy,
     set_school_qris_config,
     store_payment_proof_file,
@@ -820,6 +825,48 @@ class SchoolConvenienceFeePolicyView(APIView):
             is_active=payload.validated_data.get('is_active', True),
         )
         return Response(SchoolConvenienceFeePolicySerializer(config).data, status=status.HTTP_200_OK)
+
+
+class BankSftpConfigListView(APIView):
+    """GET/PUT /schools/:school_id/bank-sftp-configs/ — CMP-024/CMP-026 SFTP pull
+    connection metadata. GET lists all bank configs for the school; PUT upserts
+    one, keyed by 'bank_code' in the body. Never accepts a password/private key
+    — see apps.finance.services.bank_sftp_pull's module docstring.
+    """
+    permission_classes = [HasRequiredPermission]
+
+    def get_required_permission(self):
+        return 'finance.invoice.write' if self.request.method == 'PUT' else 'finance.invoice.read'
+
+    def get(self, request, school_id):
+        foundation_id = get_current_foundation_id()
+        school = School.objects.filter(id=school_id, foundation_id=foundation_id).first()
+        if not school:
+            return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        configs = get_bank_sftp_configs(school)
+        return Response(BankSftpConfigSerializer(configs, many=True).data)
+
+    def put(self, request, school_id):
+        foundation_id = get_current_foundation_id()
+        school = School.objects.filter(id=school_id, foundation_id=foundation_id).first()
+        if not school:
+            return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        payload = BankSftpConfigUpdateSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+
+        config = set_bank_sftp_config(
+            school,
+            bank_code=payload.validated_data['bank_code'],
+            host=payload.validated_data['host'],
+            port=payload.validated_data.get('port', 22),
+            username=payload.validated_data.get('username', ''),
+            remote_directory=payload.validated_data.get('remote_directory', '/'),
+            file_format=payload.validated_data.get('file_format', 'MT940'),
+            is_active=payload.validated_data.get('is_active', True),
+        )
+        return Response(BankSftpConfigSerializer(config).data, status=status.HTTP_200_OK)
 
 
 class SchoolArrearsPolicyView(APIView):

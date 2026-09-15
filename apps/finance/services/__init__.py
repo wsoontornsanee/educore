@@ -80,3 +80,7 @@ from apps.finance.services.bank_statement_parser import (
     parse_camt053,
     parse_mt940,
 )
+from apps.finance.services.bank_sftp_config import (
+    get_bank_sftp_configs,
+    set_bank_sftp_config,
+)
