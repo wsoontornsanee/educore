@@ -1,3 +1,4 @@
+import logging
 import secrets
 from datetime import timedelta
 from typing import Any, Dict, Optional
@@ -11,6 +12,8 @@ from apps.core.models import AuditEvent, DomainEvent
 from apps.core.services import audit, record_domain_event
 from apps.attendance.models import Credential, CredentialStatus, CredentialType
 from apps.identity.models import Student, Staff
+
+logger = logging.getLogger(__name__)
 
 
 @transaction.atomic
@@ -456,21 +459,30 @@ def ingest_gate_events(
 
             # 5. Trigger notification event only for non-duplicate scans (ATT-006, ATT-007)
             if not is_duplicate_scan:
+                event_payload = {
+                    'gate_event_id': str(gate_event.id),
+                    'event_uuid': str(gate_event.event_uuid),
+                    'school_id': str(device.school_id),
+                    'device_id': str(device.id),
+                    'student_id': str(student.id) if student else None,
+                    'staff_id': str(staff.id) if staff else None,
+                    'direction': direction,
+                    'occurred_at': occurred_at.isoformat(),
+                    'method': method,
+                    'gate_name': device.name,
+                }
                 record_domain_event(
                     name='attendance.gate.scanned',
                     foundation_id=foundation_id,
-                    payload={
-                        'gate_event_id': str(gate_event.id),
-                        'event_uuid': str(gate_event.event_uuid),
-                        'school_id': str(device.school_id),
-                        'device_id': str(device.id),
-                        'student_id': str(student.id) if student else None,
-                        'staff_id': str(staff.id) if staff else None,
-                        'direction': direction,
-                        'occurred_at': occurred_at.isoformat(),
-                        'method': method,
-                    }
+                    payload=event_payload,
                 )
+                # Dispatch parent arrival notification (ATT-006: < 5s)
+                if direction == 'IN' and student:
+                    try:
+                        from apps.notifications.services import handle_gate_scanned_event
+                        handle_gate_scanned_event(event_payload)
+                    except Exception as exc:
+                        logger.warning(f"Error handling gate scanned event notification: {exc}")
 
             # 6. Derive/update Daily Attendance summary for students (ATT-001)
             if student:

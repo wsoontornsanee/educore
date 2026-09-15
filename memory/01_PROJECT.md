@@ -9,13 +9,13 @@
 ---
 
 ## 2. Current Build Status
-- **Current Step:** Milestone M3 (Step 3: Credentials, Gate Attendance Events & Edge Agent Stub) In Progress.
+- **Current Step:** Milestone M4 (Step 4: Notifications Service + WhatsApp Arrival Messaging) In Progress.
 - **Target Milestone:** Pilot Core (P0: Milestones M0–M4).
   - *M0 (Step 0) [DONE]:* Django project skeleton, `core` app (`TenantModel`, `MoneyField`, `AuditEvent`, `DomainEvent`, `TaskQueue`, `JobRun`, `drain_tasks`, advisory locks, crontab).
   - *M1 (Step 1) [DONE]:* Tenancy, auth, RBAC, feature entitlements, foundation portal, seed data (`identity`, `foundation`). Demo: Foundation admin logs in, sees two schools.
   - *M2 (Step 2) [DONE]:* Student/staff records + bulk XLSX import (`identity`).
-  - *M3 (Step 3) [IN PROGRESS]:* Credentials, gate attendance events, edge agent stub (`attendance`, `hardware`).
-  - *M4 (Step 4):* Notifications service + WhatsApp arrival messaging (`notifications`).
+  - *M3 (Step 3) [DONE]:* Credentials, gate attendance events, edge agent stub (`attendance`, `hardware`).
+  - *M4 (Step 4) [IN PROGRESS]:* Notifications service + WhatsApp arrival messaging (`notifications`).
 
 
 ---
@@ -33,10 +33,12 @@
 9. **Layer 3 Tenancy & Standard CursorPagination:** Layer 3 multi-tenancy derivation from authenticated user in `TenancyMiddleware` + `TenantManager` completely seals cross-tenant visibility (returning 404 for sibling foundation entities). `StandardCursorPagination` enforces `-created_at` ordering across all list endpoints.
 10. **Granular Feature Entitlements Hierarchy:** `foundation_entitlements` evaluates per-school overrides before foundation-wide defaults (`IAM-023`). Disabled modules raise HTTP 403 `MODULE_NOT_ENTITLED` (`IAM-024`) via `RequiresModuleEntitlement`, and `GET /api/v1/me` exposes active module flags to hide navigation surfaces dynamically.
 11. **Atomic Bulk Import with Exhaustive Diagnostics:** `StudentBulkImporter` validates entire batches across data types, phone numbers, and DB/in-file uniqueness before committing (`spec/02 §8.3`), offering dry-run preview mode (`?dry_run=true`) and returning specific row error lists upon rejection.
+12. **Idempotent Gate Ingestion & Debouncing:** Ingestion accepts batches indexed by client `event_uuid` (`HW-005`), filtering rapid repeated scans within `debounce_seconds` (`ATT-007`) and inferring in/out direction automatically for bidirectional turnstiles (`ATT-008`).
+13. **Live Gate Console & Edge Synchronization:** Real-time gate monitoring uses cursor-based polling (`ARC-015`, `ATT-013`) by monotonically increasing ID without heavy websocket infra; offline edge devices sync credential whitelists and rules incrementally via timestamp-filtered deltas (`spec/12 §3, §7`).
 
 ---
 
-## 4. Active Tasks & Immediate Next Actions (Step 3 / Milestone M3)
+## 4. Active Tasks & Immediate Next Actions (Step 4 / Milestone M4)
 
 | Task ID | Component | Description | Status |
 |---|---|---|---|
@@ -51,7 +53,9 @@
 | `TASK-014` | Bulk Import | Implement atomic student XLSX import with dry-run diff preview (`spec/02 §5`) | Completed |
 | `TASK-015` | Credentials | Implement RFID card, QR credential management, and revocation (`spec/05 §2`, `spec/12 §5`) | Completed |
 | `TASK-016` | Gate Events | Implement gate event batch ingestion, debouncing, and daily attendance derivation (`spec/05 §2, §3, §4`) | Completed |
-| `TASK-017` | Gate Console | Implement live gate console polling, manual check-in, and edge sync stub (`spec/05 §4`, `spec/12 §3, §7`) | Completed (Pending PR Merge) |
+| `TASK-017` | Gate Console | Implement live gate console polling, manual check-in, and edge sync stub (`spec/05 §4`, `spec/12 §3, §7`) | Completed |
+| `TASK-018` | Notifications | Notification templates, recipient resolution, dispatch queue, provider stub (`spec/13`) | Completed (Pending PR Merge) |
+| `TASK-019` | WhatsApp Arrival | Gate scan WhatsApp arrival notification, quiet hours, status webhook (`spec/05 §4 ATT-006`, `spec/13 §4, §6`) | Completed (Pending PR Merge) |
 
 
 
