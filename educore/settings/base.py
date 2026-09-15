@@ -36,6 +36,8 @@ INSTALLED_APPS = [
     'apps.core.apps.CoreConfig',
     'apps.identity.apps.IdentityConfig',
     'apps.foundation.apps.FoundationConfig',
+    'apps.hardware.apps.HardwareConfig',
+    'apps.attendance.apps.AttendanceConfig',
 ]
 
 MIDDLEWARE = [
