@@ -246,6 +246,59 @@ class InvoiceLine(TenantModel):
         return f"{self.invoice.number} - {self.code}: {self.currency} {self.subtotal}"
 
 
+class InvoiceInstallmentStatus(models.TextChoices):
+    PENDING = 'PENDING', _('Menunggu Pembayaran (Pending)')
+    PARTIALLY_PAID = 'PARTIALLY_PAID', _('Dibayar Sebagian (Partially Paid)')
+    PAID = 'PAID', _('Lunas (Paid)')
+    CANCELLED = 'CANCELLED', _('Dibatalkan (Cancelled)')
+
+
+class InvoiceInstallment(TenantModel):
+    """Payment plan installment schedule for an invoice (spec/06 §6, §8, FIN-030)."""
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='installments')
+    installment_no = models.PositiveSmallIntegerField(help_text=_("Installment index starting from 1"))
+    due_date = models.DateField(help_text=_("Due date for this installment"))
+    amount = MoneyField(default=Decimal('0.00'), help_text=_("Scheduled installment amount (CUR-018)"))
+    paid_amount = MoneyField(default=Decimal('0.00'), help_text=_("Cumulative settled payments on this installment"))
+    currency = models.CharField(max_length=3, default='IDR')
+    status = models.CharField(
+        max_length=32,
+        choices=InvoiceInstallmentStatus.choices,
+        default=InvoiceInstallmentStatus.PENDING,
+        db_index=True,
+    )
+    paid_at = models.DateTimeField(null=True, blank=True)
+    notes = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        db_table = 'invoice_installments'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'invoice', 'installment_no'],
+                condition=models.Q(deleted_at__isnull=True),
+                name='unique_invoice_installment_no',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['foundation_id', 'invoice', 'status']),
+            models.Index(fields=['foundation_id', 'due_date', 'status']),
+        ]
+
+    def __str__(self):
+        return f"{self.invoice.number} - Cicilan #{self.installment_no}: {self.currency} {self.amount} ({self.status})"
+
+    @property
+    def balance_due(self) -> Decimal:
+        """Remaining balance unpaid on this installment."""
+        return max(Decimal('0.00'), self.amount - self.paid_amount)
+
+    @property
+    def is_overdue(self) -> bool:
+        if self.status in [InvoiceInstallmentStatus.PAID, InvoiceInstallmentStatus.CANCELLED]:
+            return False
+        return timezone.localdate() > self.due_date
+
+
 class PaymentMethod(models.TextChoices):
     VA = 'VA', _('Virtual Account')
     QRIS = 'QRIS', _('QRIS')

@@ -17,6 +17,7 @@ from apps.finance.models import (
     FeePlan,
     FeeType,
     Invoice,
+    InvoiceInstallment,
     InvoiceLine,
     InvoiceStatus,
     InvoiceWriteOffRequest,
@@ -36,9 +37,11 @@ from apps.finance.models import (
 )
 from apps.finance.serializers import (
     CashPaymentCreateSerializer,
+    CreateInstallmentPlanSerializer,
     DiscountSerializer,
     FeePlanSerializer,
     FeeTypeSerializer,
+    InvoiceInstallmentSerializer,
     InvoiceSerializer,
     InvoiceWriteOffRequestCreateSerializer,
     InvoiceWriteOffRequestSerializer,
@@ -62,11 +65,15 @@ from apps.finance.serializers import (
 )
 
 from apps.finance.services import (
+    InstallmentPlanAlreadyExistsError,
+    InvalidInstallmentError,
     InvalidProofFileError,
     approve_discount,
     approve_invoice_write_off,
+    cancel_installment_plan,
     cancel_invoice,
     create_discount_with_approval_check,
+    create_installment_plan,
     generate_monthly_invoices,
     get_ar_aging_report,
     get_school_arrears_policy,
@@ -328,13 +335,21 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         'generate': 'finance.invoice.write',
         'cancel': 'finance.invoice.write',
         'write_off': 'finance.invoice.write',
+        'installments': 'finance.invoice.read',
     }
+
+    def get_required_permission(self):
+        if self.action == 'installments':
+            if self.request.method in ['GET', 'HEAD', 'OPTIONS']:
+                return 'finance.invoice.read'
+            return 'finance.invoice.write'
+        return self.action_permissions.get(self.action)
 
     def get_queryset(self):
         foundation_id = get_current_foundation_id()
         if not foundation_id:
             return Invoice.objects.none()
-        qs = Invoice.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True).prefetch_related('lines').order_by('-created_at')
+        qs = Invoice.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True).prefetch_related('lines', 'installments').order_by('-created_at')
         
         school_id = self.request.query_params.get('school_id')
         if school_id:
@@ -410,6 +425,52 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             return Response(self.get_serializer(written_off).data)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['get', 'post', 'delete'], url_path='installments')
+    def installments(self, request, pk=None):
+        """
+        Manage tuition installment plans (spec/06 §6, §8, FIN-030).
+        - GET: List installments for this invoice.
+        - POST: Create an installment plan (count or schedule).
+        - DELETE: Cancel unpaid installments on this invoice.
+        """
+        invoice = self.get_object()
+
+        if request.method == 'GET':
+            installments_qs = invoice.installments.filter(deleted_at__isnull=True).order_by('installment_no')
+            serializer = InvoiceInstallmentSerializer(installments_qs, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        elif request.method == 'POST':
+            serializer = CreateInstallmentPlanSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            data = serializer.validated_data
+
+            try:
+                created = create_installment_plan(
+                    invoice=invoice,
+                    count=data.get('count'),
+                    schedule=data.get('schedule'),
+                    first_due_date=data.get('first_due_date'),
+                    interval_days=data.get('interval_days', 30),
+                    user=request.user,
+                    notes=data.get('notes', ''),
+                )
+                output_serializer = InvoiceInstallmentSerializer(created, many=True)
+                return Response(output_serializer.data, status=status.HTTP_201_CREATED)
+            except InstallmentPlanAlreadyExistsError as e:
+                return Response({'error': str(e)}, status=status.HTTP_409_CONFLICT)
+            except InvalidInstallmentError as e:
+                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        elif request.method == 'DELETE':
+            reason = request.data.get('reason', '') if isinstance(request.data, dict) else ''
+            try:
+                cancelled = cancel_installment_plan(invoice=invoice, user=request.user, reason=reason)
+                output_serializer = InvoiceInstallmentSerializer(cancelled, many=True)
+                return Response(output_serializer.data, status=status.HTTP_200_OK)
+            except InvalidInstallmentError as e:
+                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class PaymentIntentViewSet(viewsets.ModelViewSet):
