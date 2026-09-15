@@ -15,12 +15,15 @@ from apps.academic.services import (
     ReportCardStateError,
     approve_report_card,
     generate_report_cards,
+    get_curriculum_phase,
     get_visible_report_card,
     is_student_blocked_by_arrears,
     publish_report_card,
+    render_report_card_html,
     revise_report_card,
     set_arrears_gate,
     set_assessment_score,
+    set_report_card_content,
 )
 from apps.academic.tests.base import build_academic_fixture
 from apps.finance.models import FeeCategory, FeePlan, FeeRecurrence, FeeType, Invoice, InvoiceStatus
@@ -212,3 +215,157 @@ class ReportCardViewsTests(TestCase):
         )
         self.assertEqual(res_patch.status_code, 200)
         self.assertTrue(res_patch.json()['block_rapor_on_arrears'])
+
+
+class GetCurriculumPhaseTests(TestCase):
+    def test_phase_boundaries(self):
+        self.assertEqual(get_curriculum_phase(1), 'A')
+        self.assertEqual(get_curriculum_phase(2), 'A')
+        self.assertEqual(get_curriculum_phase(3), 'B')
+        self.assertEqual(get_curriculum_phase(4), 'B')
+        self.assertEqual(get_curriculum_phase(5), 'C')
+        self.assertEqual(get_curriculum_phase(6), 'C')
+        self.assertEqual(get_curriculum_phase(7), 'D')
+        self.assertEqual(get_curriculum_phase(9), 'D')
+        self.assertEqual(get_curriculum_phase(10), 'E')
+        self.assertEqual(get_curriculum_phase(11), 'F')
+        self.assertEqual(get_curriculum_phase(12), 'F')
+
+
+class SetReportCardContentTests(TestCase):
+    def setUp(self):
+        self.fx = build_academic_fixture()
+        enroll_and_grade(self.fx)
+        generate_report_cards(self.fx['class_group'], self.fx['term'])
+        self.rc = ReportCard.objects.get(student=self.fx['student'], term=self.fx['term'])
+
+    def test_updates_narrative_and_extracurricular_and_decision(self):
+        updated = set_report_card_content(
+            self.rc,
+            narrative='Sangat baik.',
+            extracurricular_notes=[{'name': 'Pramuka', 'grade': 'Baik'}],
+            promotion_decision='NAIK KE KELAS XI',
+        )
+        self.assertEqual(updated.narrative, 'Sangat baik.')
+        self.assertEqual(updated.extracurricular_notes, [{'name': 'Pramuka', 'grade': 'Baik'}])
+        self.assertEqual(updated.promotion_decision, 'NAIK KE KELAS XI')
+
+    def test_subject_narrative_merges_into_grades_snapshot(self):
+        subject_code = self.rc.grades_snapshot[0]['subject_code']
+        updated = set_report_card_content(self.rc, subject_narratives={subject_code: 'Sangat menguasai materi.'})
+        self.assertEqual(updated.grades_snapshot[0]['objective_narrative'], 'Sangat menguasai materi.')
+
+    def test_rejected_once_published(self):
+        approve_report_card(self.rc)
+        publish_report_card(self.rc)
+        self.rc.refresh_from_db()
+        with self.assertRaises(ReportCardStateError):
+            set_report_card_content(self.rc, narrative='Too late.')
+
+
+class RenderReportCardHtmlTests(TestCase):
+    def setUp(self):
+        self.fx = build_academic_fixture()
+        enroll_and_grade(self.fx)
+        generate_report_cards(self.fx['class_group'], self.fx['term'])
+        self.rc = ReportCard.objects.get(student=self.fx['student'], term=self.fx['term'])
+
+    def test_contains_identity_and_grade_data(self):
+        html_out = render_report_card_html(self.rc)
+        self.assertIn(self.fx['foundation'].brand_name, html_out)
+        self.assertIn(self.fx['school'].name, html_out)
+        self.assertIn(self.fx['school'].npsn, html_out)
+        self.assertIn(self.fx['student'].person.full_name, html_out)
+        self.assertIn(self.fx['student'].nisn, html_out)
+        self.assertIn(self.fx['class_group'].name, html_out)
+        self.assertIn('>E<', html_out)  # Fase for grade_level=10
+        self.assertIn('85', html_out)  # the graded score
+        self.assertIn('Baik', html_out)  # descriptor for 85
+        self.assertEqual(html_out.count('class="page"'), 2)
+
+    def test_homeroom_teacher_name_and_nip_present(self):
+        html_out = render_report_card_html(self.rc)
+        self.assertIn(self.fx['teacher'].person.full_name, html_out)
+        self.assertIn(self.fx['teacher'].nip, html_out)
+
+    def test_principal_falls_back_when_no_school_admin_assigned(self):
+        html_out = render_report_card_html(self.rc)
+        self.assertIn('(...............................)', html_out)
+
+    def test_principal_resolved_from_school_admin_role(self):
+        principal_person = self.fx['teacher'].person  # reuse an existing Staff for simplicity
+        RoleAssignment.all_tenants.create(
+            foundation_id=self.fx['foundation'].id,
+            user=self.fx['teacher_user'],
+            role=RoleAssignment.ROLE_SCHOOL_ADMIN,
+            scope_type=RoleAssignment.SCOPE_SCHOOL,
+            scope_id=self.fx['school'].id,
+        )
+        html_out = render_report_card_html(self.rc)
+        self.assertIn(principal_person.full_name, html_out)
+
+    def test_decision_falls_back_when_unset(self):
+        html_out = render_report_card_html(self.rc)
+        self.assertIn('BELUM DITENTUKAN', html_out)
+
+    def test_extracurricular_placeholder_when_empty(self):
+        html_out = render_report_card_html(self.rc)
+        self.assertIn('Tidak ada catatan ekstrakurikuler', html_out)
+
+    def test_subject_narrative_and_extracurricular_render(self):
+        subject_code = self.rc.grades_snapshot[0]['subject_code']
+        set_report_card_content(
+            self.rc,
+            subject_narratives={subject_code: 'Sangat menguasai konsep aljabar.'},
+            extracurricular_notes=[{'name': 'Pramuka', 'grade': 'Baik'}],
+        )
+        self.rc.refresh_from_db()
+        html_out = render_report_card_html(self.rc)
+        self.assertIn('Sangat menguasai konsep aljabar.', html_out)
+        self.assertIn('Pramuka', html_out)
+
+    def test_narrative_is_html_escaped(self):
+        set_report_card_content(self.rc, narrative='<script>alert(1)</script>')
+        self.rc.refresh_from_db()
+        html_out = render_report_card_html(self.rc)
+        self.assertNotIn('<script>alert(1)</script>', html_out)
+        self.assertIn('&lt;script&gt;', html_out)
+
+
+class ReportCardContentViewTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.fx = build_academic_fixture()
+        enroll_and_grade(self.fx)
+        generate_report_cards(self.fx['class_group'], self.fx['term'])
+        self.rc = ReportCard.objects.get(student=self.fx['student'], term=self.fx['term'])
+        RoleAssignment.all_tenants.create(
+            foundation_id=self.fx['foundation'].id,
+            user=self.fx['teacher_user'],
+            role='school_admin',
+            scope_type=RoleAssignment.SCOPE_SCHOOL,
+            scope_id=self.fx['school'].id,
+        )
+
+    def test_patch_content_via_api(self):
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+        res = self.client.patch(
+            f'/api/v1/academic/report-cards/{self.rc.id}/content/',
+            {'narrative': 'Catatan wali kelas.', 'promotion_decision': 'NAIK KE KELAS XI'},
+            format='json',
+        )
+        self.assertEqual(res.status_code, 200, res.content)
+        self.assertEqual(res.json()['narrative'], 'Catatan wali kelas.')
+        self.assertEqual(res.json()['promotion_decision'], 'NAIK KE KELAS XI')
+
+    def test_patch_content_rejected_once_published(self):
+        approve_report_card(self.rc)
+        publish_report_card(self.rc)
+        self.rc.refresh_from_db()
+
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+        res = self.client.patch(
+            f'/api/v1/academic/report-cards/{self.rc.id}/content/',
+            {'narrative': 'Too late.'}, format='json',
+        )
+        self.assertEqual(res.status_code, 400)

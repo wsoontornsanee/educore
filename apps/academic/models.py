@@ -571,9 +571,18 @@ class ReportCard(TenantModel):
     term = models.ForeignKey(Term, on_delete=models.PROTECT, related_name='report_cards')
     class_group = models.ForeignKey(ClassGroup, on_delete=models.PROTECT, related_name='report_cards')
     status = models.CharField(max_length=16, choices=ReportCardStatus.choices, default=ReportCardStatus.DRAFT)
-    grades_snapshot = models.JSONField(default=list, blank=True, help_text=_("Per-subject final grade/descriptor/status, frozen at generation"))
+    grades_snapshot = models.JSONField(default=list, blank=True, help_text=_(
+        "Per-subject final grade/descriptor/status, frozen at generation. Each item may also "
+        "carry an 'objective_narrative' string (ACD-011), set via set_report_card_content."
+    ))
     attendance_summary = models.JSONField(default=dict, blank=True, help_text=_("Counts by AttendanceStatus for the term"))
     narrative = models.TextField(blank=True, default='')
+    extracurricular_notes = models.JSONField(default=list, blank=True, help_text=_(
+        "ACD-011 extracurricular notes: list of {'name': str, 'grade': str}"
+    ))
+    promotion_decision = models.CharField(max_length=64, blank=True, default='', help_text=_(
+        "e.g. 'NAIK KE KELAS VIII', set manually via set_report_card_content"
+    ))
     version = models.PositiveSmallIntegerField(default=1)
     is_current = models.BooleanField(default=True)
     pdf_key = models.CharField(max_length=255, blank=True, default='')

@@ -60,6 +60,7 @@ from apps.academic.serializers import (
     LessonPlanSerializer,
     PeriodGridSetSerializer,
     PeriodGridSlotSerializer,
+    ReportCardContentUpdateSerializer,
     ReportCardGenerateSerializer,
     ReportCardPolicySerializer,
     ReportCardSerializer,
@@ -109,6 +110,7 @@ from apps.academic.services import (
     send_broadcast,
     set_arrears_gate,
     set_assessment_score,
+    set_report_card_content,
     set_broadcast_policy,
     set_period_grid,
     start_attempt,
@@ -564,7 +566,8 @@ class ExamAttemptViewSet(TenantScopedModelViewSet):
 
 
 class ReportCardViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
-    """Read + state-transition endpoints. Content is generated via `generate`, not raw create/update."""
+    """Read + state-transition endpoints. Content is generated via `generate`,
+    edited via `content`, not raw create/update."""
     serializer_class = ReportCardSerializer
     pagination_class = StandardCursorPagination
     permission_classes = [HasRequiredPermission]
@@ -572,6 +575,7 @@ class ReportCardViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewse
         'list': 'grades.read', 'retrieve': 'grades.read',
         'generate': 'grades.write', 'approve': 'school_config.write',
         'publish': 'school_config.write', 'revise': 'grades.write',
+        'content': 'grades.write',
     }
 
     def get_queryset(self):
@@ -629,6 +633,27 @@ class ReportCardViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewse
         except ReportCardStateError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(self.get_serializer(revised).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['patch'], url_path='content')
+    def content(self, request, pk=None):
+        """ACD-011: edit narrative, extracurricular notes, per-subject objective
+        narrative, and promotion decision — only while DRAFT/PENDING_REVIEW."""
+        report_card = self.get_object()
+        payload = ReportCardContentUpdateSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+
+        try:
+            updated = set_report_card_content(
+                report_card,
+                narrative=payload.validated_data.get('narrative'),
+                extracurricular_notes=payload.validated_data.get('extracurricular_notes'),
+                promotion_decision=payload.validated_data.get('promotion_decision'),
+                subject_narratives=payload.validated_data.get('subject_narratives'),
+                actor=request.user,
+            )
+        except ReportCardStateError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(self.get_serializer(updated).data)
 
 
 class ReportCardPolicyView(APIView):

@@ -228,13 +228,24 @@ class ReportCardSerializer(serializers.ModelSerializer):
         model = ReportCard
         fields = [
             'id', 'foundation_id', 'student', 'term', 'class_group', 'status',
-            'grades_snapshot', 'attendance_summary', 'narrative', 'version', 'is_current',
+            'grades_snapshot', 'attendance_summary', 'narrative', 'extracurricular_notes',
+            'promotion_decision', 'version', 'is_current',
             'pdf_key', 'approved_by', 'approved_at', 'published_at', 'created_at', 'updated_at',
         ]
         read_only_fields = [
             'id', 'foundation_id', 'status', 'grades_snapshot', 'attendance_summary', 'version',
             'is_current', 'pdf_key', 'approved_by', 'approved_at', 'published_at', 'created_at', 'updated_at',
         ]
+
+
+class ReportCardContentUpdateSerializer(serializers.Serializer):
+    """ACD-011: PATCH payload for editing content before publication."""
+    narrative = serializers.CharField(required=False, allow_blank=True)
+    extracurricular_notes = serializers.ListField(
+        child=serializers.DictField(), required=False,
+    )
+    promotion_decision = serializers.CharField(required=False, allow_blank=True, max_length=64)
+    subject_narratives = serializers.DictField(child=serializers.CharField(allow_blank=True), required=False)
 
 
 class ReportCardGenerateSerializer(serializers.Serializer):

@@ -1,3 +1,4 @@
+import html
 import logging
 import random
 from collections import Counter
@@ -12,7 +13,7 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 from apps.core.services import audit
-from apps.identity.models import Student
+from apps.identity.models import Foundation, RoleAssignment, Staff, Student
 from apps.academic.models import (
     ALLOWED_SUBMISSION_CONTENT_TYPES,
     AUTO_GRADABLE_QUESTION_TYPES,
@@ -994,28 +995,331 @@ def approve_report_card(report_card: ReportCard, actor=None) -> ReportCard:
     return report_card
 
 
+def set_report_card_content(
+    report_card: ReportCard,
+    narrative: str = None,
+    extracurricular_notes: list = None,
+    promotion_decision: str = None,
+    subject_narratives: dict = None,
+    actor=None,
+) -> ReportCard:
+    """ACD-011: edit a report card's narrative, extracurricular notes, per-subject
+    objective narrative, and promotion decision before publication.
+
+    All arguments are optional — only provided fields are changed. Only allowed
+    while DRAFT/PENDING_REVIEW (ACD-016: a card is immutable once PUBLISHED).
+    subject_narratives maps subject_code -> narrative text, merged into the
+    matching grades_snapshot item's 'objective_narrative' key.
+    """
+    if report_card.status not in (ReportCardStatus.DRAFT, ReportCardStatus.PENDING_REVIEW):
+        raise ReportCardStateError(
+            f"INVALID_TRANSITION: cannot edit content of a report card in status {report_card.status}."
+        )
+
+    update_fields = ['updated_at']
+    if narrative is not None:
+        report_card.narrative = narrative
+        update_fields.append('narrative')
+    if extracurricular_notes is not None:
+        report_card.extracurricular_notes = extracurricular_notes
+        update_fields.append('extracurricular_notes')
+    if promotion_decision is not None:
+        report_card.promotion_decision = promotion_decision
+        update_fields.append('promotion_decision')
+    if subject_narratives:
+        snapshot = report_card.grades_snapshot
+        for item in snapshot:
+            if item.get('subject_code') in subject_narratives:
+                item['objective_narrative'] = subject_narratives[item['subject_code']]
+        report_card.grades_snapshot = snapshot
+        update_fields.append('grades_snapshot')
+
+    report_card.save(update_fields=update_fields)
+    audit(
+        action='academic.report_card.content_updated',
+        entity_type='ReportCard',
+        entity_id=report_card.id,
+        foundation_id=report_card.foundation_id,
+        diff={
+            'narrative_changed': narrative is not None,
+            'extracurricular_changed': extracurricular_notes is not None,
+            'promotion_decision_changed': promotion_decision is not None,
+            'subject_narratives_changed': list(subject_narratives) if subject_narratives else [],
+        },
+    )
+    return report_card
+
+
+CURRICULUM_PHASE_BY_MAX_GRADE = (
+    (2, 'A'), (4, 'B'), (6, 'C'), (9, 'D'), (10, 'E'), (12, 'F'),
+)
+
+
+def get_curriculum_phase(grade_level: int) -> str:
+    """Kurikulum Merdeka's standard phase-letter mapping (spec/04 §1): Fase A (grade 1-2)
+    through Fase F (grade 11-12). Ministry-defined, not a school-configurable value."""
+    for max_grade, phase in CURRICULUM_PHASE_BY_MAX_GRADE:
+        if grade_level <= max_grade:
+            return phase
+    return CURRICULUM_PHASE_BY_MAX_GRADE[-1][1]
+
+
+def _get_principal_staff(school) -> Staff | None:
+    """Resolves the school's principal as whichever Staff currently holds the
+    school_admin role at that school's scope — no separate 'principal' field
+    to keep in sync; the role assignment IS the source of truth."""
+    assignment = RoleAssignment.all_tenants.filter(
+        foundation_id=school.foundation_id,
+        role=RoleAssignment.ROLE_SCHOOL_ADMIN,
+        scope_type=RoleAssignment.SCOPE_SCHOOL,
+        scope_id=school.id,
+        deleted_at__isnull=True,
+    ).first()
+    if not assignment:
+        return None
+    return Staff.all_tenants.filter(
+        foundation_id=school.foundation_id, user=assignment.user, school=school, deleted_at__isnull=True,
+    ).first()
+
+
+_DESCRIPTOR_COLOR = {
+    'Sangat Baik': '#0E7A4F',
+    'Baik': '#3A302C',
+    'Cukup': '#B56A00',
+    'Perlu Bimbingan': '#B3261E',
+}
+
+_ATTENDANCE_LABELS = (
+    ('SAKIT', 'Sakit', '#1B5FA8'),
+    ('IZIN', 'Izin', '#6B615C'),
+    ('ALPA', 'Tanpa keterangan', '#B3261E'),
+)
+
+
 def render_report_card_html(report_card: ReportCard) -> str:
-    """Minimal functional layout — the branded template is a pending open design decision (memory/01_PROJECT.md §5.6)."""
+    """Branded rapor layout (ACD-010, ACD-011) — see memory/01_PROJECT.md retrospective
+    on TASK-064 for the design source and the deliberate omission of the P5 profile
+    section (no ACD-011 requirement, no real data source).
+
+    A real <table> (not a flex/grid row layout) renders section A so weasyprint
+    repeats <thead> across pages for classes with more subjects than fit on one
+    sheet; section C onward is forced onto a fresh page via page-break-before,
+    matching the design's fixed second page regardless of subject count.
+    """
+    esc = html.escape
     student = report_card.student
-    rows = "".join(
-        f"<tr><td>{g['subject']}</td><td>{g.get('grade') if g.get('grade') is not None else '-'}</td>"
-        f"<td>{g.get('status')}</td></tr>"
-        for g in report_card.grades_snapshot
-    )
-    attendance_rows = "".join(
-        f"<tr><td>{k}</td><td>{v}</td></tr>" for k, v in report_card.attendance_summary.items()
-    )
-    return f"""<html><body>
-<h1>Rapor - {student.person.full_name}</h1>
-<p>NISN: {student.nisn or '-'} | Kelas: {report_card.class_group.name} | {report_card.term.name}</p>
-<h2>Nilai</h2>
-<table border="1"><tr><th>Mapel</th><th>Nilai</th><th>Status</th></tr>{rows}</table>
-<h2>Kehadiran</h2>
-<table border="1"><tr><th>Status</th><th>Jumlah</th></tr>{attendance_rows}</table>
-<h2>Catatan Wali Kelas</h2>
-<p>{report_card.narrative}</p>
-<p>Versi: {report_card.version}</p>
-</body></html>"""
+    class_group = report_card.class_group
+    school = class_group.school
+    term = report_card.term
+    foundation = Foundation.objects.get(id=school.foundation_id)
+
+    semester_label = 'Semester Ganjil' if term.term_no == 1 else 'Semester Genap'
+    phase = get_curriculum_phase(class_group.grade_level)
+    homeroom = class_group.homeroom_teacher
+    principal = _get_principal_staff(school)
+
+    numeric_grades = [g['grade'] for g in report_card.grades_snapshot if g.get('grade') is not None]
+    average = (sum(Decimal(str(g)) for g in numeric_grades) / len(numeric_grades)) if numeric_grades else None
+    average_label = f"{average:.1f}".replace('.', ',') if average is not None else '-'
+    average_descriptor = compute_descriptor(average, Decimal('100')) if average is not None else '-'
+
+    subject_rows = []
+    for i, g in enumerate(report_card.grades_snapshot, start=1):
+        grade = g.get('grade')
+        grade_label = f"{grade:.0f}" if grade is not None else '-'
+        descriptor = compute_descriptor(Decimal(str(grade)), Decimal('100')) if grade is not None else '-'
+        color = _DESCRIPTOR_COLOR.get(descriptor, '#3A302C')
+        narrative = esc(g.get('objective_narrative') or '-')
+        subject_rows.append(f"""
+      <tr>
+        <td style="padding:5px 5px;border-top:1px solid #E5DDD9;font-family:'IBM Plex Mono',monospace;font-size:9pt;text-align:center;color:#6B615C">{i}</td>
+        <td style="padding:5px 8px;border-top:1px solid #E5DDD9;font-size:9.5pt;font-weight:500">{esc(g.get('subject', ''))}</td>
+        <td style="padding:5px 5px;border-top:1px solid #E5DDD9;font-family:'IBM Plex Mono',monospace;font-size:10pt;font-weight:600;text-align:center">{grade_label}</td>
+        <td style="padding:5px 6px;border-top:1px solid #E5DDD9;font-size:9pt;color:{color};font-weight:600">{descriptor}</td>
+        <td style="padding:5px 8px;border-top:1px solid #E5DDD9;font-size:9pt;line-height:1.4;color:#3A302C">{narrative}</td>
+      </tr>""")
+
+    extracurricular_rows = "".join(
+        f"""<div style="padding:7px 10px;border-top:1px solid #E5DDD9;font-size:9pt">{esc(e.get('name', ''))}</div>
+        <div style="padding:5px 8px;border-top:1px solid #E5DDD9;font-size:9pt;font-weight:600">{esc(e.get('grade', ''))}</div>"""
+        for e in report_card.extracurricular_notes
+    ) or '<div style="padding:7px 10px;border-top:1px solid #E5DDD9;font-size:9pt;color:#6B615C;grid-column:1 / -1">Tidak ada catatan ekstrakurikuler.</div>'
+
+    attendance_summary = report_card.attendance_summary
+    total_days = sum(attendance_summary.values())
+    hadir_days = total_days - sum(attendance_summary.get(k, 0) for k, _, _ in _ATTENDANCE_LABELS)
+    attendance_rows = "".join(f"""
+        <div style="padding:9px 12px;display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid #F0EAE7">
+          <div style="display:flex;align-items:center;gap:7px"><span style="width:7px;height:7px;background:{color};border-radius:50%;flex:none"></span><span style="font-size:9.5pt">{label}</span></div>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10pt;font-weight:600">{attendance_summary.get(key, 0)} hari</span>
+        </div>""" for key, label, color in _ATTENDANCE_LABELS)
+
+    homeroom_name = esc(homeroom.person.full_name) if homeroom else '(...............................)'
+    homeroom_nip = f'<span style="font-family:\'IBM Plex Mono\',monospace;font-size:8pt;color:#6B615C">NIP {esc(homeroom.nip)}</span>' if homeroom and homeroom.nip else ''
+    principal_name = esc(principal.person.full_name) if principal else '(...............................)'
+    principal_nip = f'<span style="font-family:\'IBM Plex Mono\',monospace;font-size:8pt;color:#6B615C">NIP {esc(principal.nip)}</span>' if principal and principal.nip else ''
+    issue_date = (report_card.published_at or timezone.now()).strftime('%-d %B %Y')
+    issue_date_short = (report_card.published_at or timezone.now()).strftime('%Y-%m-%d')
+    decision = esc(report_card.promotion_decision) if report_card.promotion_decision else 'BELUM DITENTUKAN'
+    narrative_text = esc(report_card.narrative) if report_card.narrative else '-'
+
+    return f"""<html>
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+@page {{ size: A4; margin: 0; }}
+body {{ margin: 0; font-family: 'IBM Plex Sans', sans-serif; color: #16110F; }}
+* {{ box-sizing: border-box; }}
+table {{ border-collapse: collapse; width: 100%; }}
+.page {{ width: 210mm; min-height: 297mm; padding: 14mm 13mm; box-sizing: border-box; }}
+.page + .page {{ page-break-before: always; }}
+</style>
+</head>
+<body>
+
+<div class="page">
+  <div style="display:flex;gap:16px;align-items:flex-start;border-bottom:3px solid #C8102E;padding-bottom:12px">
+    <div style="width:56px;height:56px;border:1px solid #E5DDD9;display:flex;align-items:center;justify-content:center;flex:none;background:#F7F4F2">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:8pt;color:#6B615C;text-align:center;line-height:1.2">LOGO<br />YAYASAN</span>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:2px;padding-top:2px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:9pt;letter-spacing:.14em;text-transform:uppercase;color:#6B615C">{esc(foundation.brand_name)}</span>
+      <h1 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:16pt;line-height:1.15;letter-spacing:-.01em">{esc(school.name)}</h1>
+      <span style="font-size:9pt;line-height:1.35;color:#3A302C">NPSN {esc(school.npsn)}</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:2px;align-items:flex-end;flex:none;padding-top:2px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:9pt;letter-spacing:.12em;color:#6B615C">RAPOR PESERTA DIDIK</span>
+      <span style="font-size:10pt;font-weight:600">{semester_label}</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:9pt">{esc(term.academic_year.name)}</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:8pt;color:#6B615C">{esc(school.curriculum.replace('_', ' ').title())}</span>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 28px;padding:12px 0;border-bottom:1px solid #E5DDD9">
+    <div style="display:flex;flex-direction:column;gap:5px">
+      <div style="display:grid;grid-template-columns:82px 1fr;gap:8px"><span style="font-size:9pt;color:#6B615C">Nama</span><span style="font-size:10pt;font-weight:600">{esc(student.person.full_name)}</span></div>
+      <div style="display:grid;grid-template-columns:82px 1fr;gap:8px"><span style="font-size:9pt;color:#6B615C">NISN</span><span style="font-family:'IBM Plex Mono',monospace;font-size:9.5pt">{esc(student.nisn or '-')}</span></div>
+      <div style="display:grid;grid-template-columns:82px 1fr;gap:8px"><span style="font-size:9pt;color:#6B615C">NIS</span><span style="font-family:'IBM Plex Mono',monospace;font-size:9.5pt">{esc(student.nis or '-')}</span></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:5px">
+      <div style="display:grid;grid-template-columns:82px 1fr;gap:8px"><span style="font-size:9pt;color:#6B615C">Kelas</span><span style="font-size:10pt;font-weight:600">{esc(class_group.name)}</span></div>
+      <div style="display:grid;grid-template-columns:82px 1fr;gap:8px"><span style="font-size:9pt;color:#6B615C">Fase</span><span style="font-size:9.5pt">{phase}</span></div>
+      <div style="display:grid;grid-template-columns:82px 1fr;gap:8px"><span style="font-size:9pt;color:#6B615C">Wali Kelas</span><span style="font-size:9.5pt">{homeroom_name}</span></div>
+    </div>
+  </div>
+
+  <div style="padding-top:14px;display:flex;flex-direction:column;gap:8px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline">
+      <h2 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:12pt;letter-spacing:-.01em">A. Capaian Hasil Belajar</h2>
+      <span style="font-size:9pt;color:#6B615C">Nilai akhir = rerata tertimbang per kategori asesmen</span>
+    </div>
+
+    <table style="border:1px solid #16110F">
+      <thead>
+        <tr>
+          <th style="padding:5px 5px;background:#16110F;color:#fff;font-family:'IBM Plex Mono',monospace;font-size:8pt;letter-spacing:.08em;text-align:center;width:20px">NO</th>
+          <th style="padding:5px 8px;background:#16110F;color:#fff;font-family:'IBM Plex Mono',monospace;font-size:8pt;letter-spacing:.08em;text-align:left">MATA PELAJARAN</th>
+          <th style="padding:5px 5px;background:#16110F;color:#fff;font-family:'IBM Plex Mono',monospace;font-size:8pt;letter-spacing:.08em;text-align:center;width:42px">NILAI</th>
+          <th style="padding:5px 6px;background:#16110F;color:#fff;font-family:'IBM Plex Mono',monospace;font-size:8pt;letter-spacing:.08em;text-align:left;width:74px">PREDIKAT</th>
+          <th style="padding:5px 8px;background:#16110F;color:#fff;font-family:'IBM Plex Mono',monospace;font-size:8pt;letter-spacing:.08em;text-align:left">CAPAIAN KOMPETENSI</th>
+        </tr>
+      </thead>
+      <tbody>{''.join(subject_rows)}
+        <tr>
+          <td style="padding:8px 5px;border-top:2px solid #16110F;background:#F7F4F2"></td>
+          <td style="padding:8px;border-top:2px solid #16110F;background:#F7F4F2;font-size:9.5pt;font-weight:700">Rata-rata</td>
+          <td style="padding:8px 5px;border-top:2px solid #16110F;background:#F7F4F2;font-family:'IBM Plex Mono',monospace;font-size:11pt;font-weight:700;text-align:center">{average_label}</td>
+          <td style="padding:8px 6px;border-top:2px solid #16110F;background:#F7F4F2;font-size:9pt;font-weight:600">{average_descriptor}</td>
+          <td style="padding:8px;border-top:2px solid #16110F;background:#F7F4F2"></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="margin-top:24px;padding-top:14px;display:flex;justify-content:space-between;align-items:flex-end;border-top:1px solid #E5DDD9">
+    <span style="font-family:'IBM Plex Mono',monospace;font-size:7.5pt;color:#6B615C">Dokumen diterbitkan sistem EduCore · Rev. {report_card.version} · {issue_date_short} · NISN {esc(student.nisn or '-')}</span>
+  </div>
+</div>
+
+<div class="page">
+  <div style="display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid #E5DDD9;padding-bottom:8px">
+    <span style="font-family:'IBM Plex Mono',monospace;font-size:9pt;letter-spacing:.12em;color:#6B615C">RAPOR · {esc(student.person.full_name.upper())} · {esc(class_group.name)} · {semester_label.upper()} {esc(term.academic_year.name)}</span>
+    <span style="font-family:'IBM Plex Mono',monospace;font-size:9pt;color:#6B615C">NISN {esc(student.nisn or '-')}</span>
+  </div>
+
+  <div style="display:flex;gap:16px;flex-wrap:wrap;padding-top:10px">
+    <span style="font-family:'IBM Plex Mono',monospace;font-size:8pt;color:#6B615C">PREDIKAT</span>
+    <span style="font-size:9pt;color:#0E7A4F"><strong>Sangat Baik</strong> ≥ 90</span>
+    <span style="font-size:9pt;color:#3A302C"><strong>Baik</strong> 80–89</span>
+    <span style="font-size:9pt;color:#B56A00"><strong>Cukup</strong> 70–79</span>
+    <span style="font-size:9pt;color:#B3261E"><strong>Perlu Bimbingan</strong> &lt; 70</span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1.25fr 1fr;gap:18px;padding-top:12px">
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <h2 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:12pt;letter-spacing:-.01em">B. Ekstrakurikuler</h2>
+      <div style="border:1px solid #E5DDD9;display:grid;grid-template-columns:1fr 60px">
+        <div style="padding:6px 10px;background:#16110F;color:#fff;font-family:'IBM Plex Mono',monospace;font-size:8pt;letter-spacing:.08em">KEGIATAN</div>
+        <div style="padding:5px 8px;background:#16110F;color:#fff;font-family:'IBM Plex Mono',monospace;font-size:8pt;letter-spacing:.08em">NILAI</div>
+        {extracurricular_rows}
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <h2 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:12pt;letter-spacing:-.01em">C. Kehadiran</h2>
+      <div style="border:1px solid #E5DDD9;display:flex;flex-direction:column">
+        {attendance_rows}
+        <div style="padding:9px 12px;display:flex;justify-content:space-between;align-items:baseline;background:#F7F4F2">
+          <span style="font-size:9.5pt;font-weight:700">Hadir</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5pt;font-weight:700;color:#0E7A4F">{hadir_days} dari {total_days}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="padding-top:14px">
+    <h2 style="margin:0 0 8px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:12pt;letter-spacing:-.01em">D. Catatan Wali Kelas</h2>
+    <div style="border:1px solid #E5DDD9;padding:11px 12px;min-height:80px">
+      <p style="margin:0;font-size:9.5pt;line-height:1.6;color:#16110F">{narrative_text}</p>
+    </div>
+  </div>
+
+  <div style="padding-top:16px">
+    <h2 style="margin:0 0 8px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:12pt;letter-spacing:-.01em">E. Keputusan</h2>
+    <div style="border:1px solid #16110F;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;background:#F7F4F2">
+      <span style="font-size:10pt">Berdasarkan pencapaian kompetensi, peserta didik dinyatakan:</span>
+      <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:13pt;letter-spacing:-.01em">{decision}</span>
+    </div>
+  </div>
+
+  <div style="padding-top:24px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+    <div style="display:flex;flex-direction:column;gap:2px;align-items:center">
+      <span style="font-size:9pt;color:#3A302C">Orang Tua / Wali</span>
+      <div style="height:52px"></div>
+      <div style="width:100%;border-top:1px solid #16110F;padding-top:4px;text-align:center"><span style="font-size:9pt;color:#6B615C">(...............................)</span></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:2px;align-items:center">
+      <span style="font-size:9pt;color:#3A302C">Wali Kelas</span>
+      <div style="height:52px"></div>
+      <div style="width:100%;border-top:1px solid #16110F;padding-top:4px;text-align:center;display:flex;flex-direction:column;gap:1px"><span style="font-size:9pt;font-weight:600">{homeroom_name}</span>{homeroom_nip}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:2px;align-items:center">
+      <span style="font-size:9pt;color:#3A302C">{issue_date}<br />Kepala Sekolah</span>
+      <div style="height:38px"></div>
+      <div style="width:100%;border-top:1px solid #16110F;padding-top:4px;text-align:center;display:flex;flex-direction:column;gap:1px"><span style="font-size:9pt;font-weight:600">{principal_name}</span>{principal_nip}</div>
+    </div>
+  </div>
+
+  <div style="padding-top:12px;display:flex;justify-content:space-between;align-items:flex-end;border-top:1px solid #E5DDD9;margin-top:12px">
+    <span style="font-family:'IBM Plex Mono',monospace;font-size:7.5pt;color:#6B615C">Dokumen diterbitkan sistem EduCore · Rev. {report_card.version} · {issue_date_short} · Tanpa tanda tangan basah dokumen ini tetap sah sebagai terbitan sistem</span>
+  </div>
+</div>
+
+</body>
+</html>"""
 
 
 def render_report_card_pdf(report_card: ReportCard) -> str:
@@ -1073,6 +1377,8 @@ def revise_report_card(report_card: ReportCard, actor=None) -> ReportCard:
         grades_snapshot=report_card.grades_snapshot,
         attendance_summary=report_card.attendance_summary,
         narrative=report_card.narrative,
+        extracurricular_notes=report_card.extracurricular_notes,
+        promotion_decision=report_card.promotion_decision,
         version=report_card.version + 1,
         is_current=True,
     )
