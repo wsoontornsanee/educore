@@ -153,8 +153,10 @@ def dispatch_intent(
             )
             return intent
 
-    # 3. Daily Rate Limit Check (NTF-012: max 20 per day, except EMERGENCY)
-    if category != NotificationCategory.EMERGENCY:
+    # 3. Daily Rate Limit Check (NTF-012: max 20 per day, except EMERGENCY and
+    # WALLET_RECONCILIATION, which is a per-incident debt notice that cannot be
+    # starved by a noisy announcement day (spec/17 §2).
+    if category not in (NotificationCategory.EMERGENCY, NotificationCategory.WALLET_RECONCILIATION):
         today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
         phone_filter = {'recipient_phone': recipient_phone} if recipient_phone else {}
         user_filter = {'recipient_user': recipient_user} if recipient_user else {}
@@ -328,6 +330,17 @@ def process_intent(intent_id: int) -> bool:
                 intent.save(update_fields=['scheduled_for', 'updated_at'])
                 return False
 
+        # NTF-004/REC-008: re-evaluate at send time. If the wallet this notice concerns
+        # has already settled (a top-up landed before this tick), cancel silently —
+        # telling a guardian they owe money they already paid is worse than saying nothing.
+        if intent.category == NotificationCategory.WALLET_RECONCILIATION:
+            from apps.wallet.services import is_reconciliation_notice_still_needed
+            if not is_reconciliation_notice_still_needed(intent):
+                intent.status = IntentStatus.CANCELLED
+                intent.cancellation_reason = _("Saldo telah diselesaikan sebelum notifikasi terkirim (REC-008)")
+                intent.save(update_fields=['status', 'cancellation_reason', 'updated_at'])
+                return False
+
         intent.status = IntentStatus.PROCESSING
         intent.save(update_fields=['status', 'updated_at'])
 
@@ -343,6 +356,11 @@ def process_intent(intent_id: int) -> bool:
         for ch in FALLBACK_CHANNEL_LADDER:
             if ch not in channels_to_try:
                 channels_to_try.append(ch)
+
+        # REC-019: SMS MUST NOT be a fallback channel for wallet debt notices (NTF-009 — no
+        # amounts owed in SMS). If whatsapp and push both fail, the debt surfaces in-app only.
+        if intent.category == NotificationCategory.WALLET_RECONCILIATION:
+            channels_to_try = [c for c in channels_to_try if c != ChannelType.SMS]
 
         dispatched_successfully = False
 
@@ -429,6 +447,13 @@ def process_intent(intent_id: int) -> bool:
                 )
 
                 dispatched_successfully = True
+
+                # REC-012/029: the 48h reminder clock measures the guardian's time to act,
+                # so it starts only once a notice was actually delivered on some channel.
+                if intent.category == NotificationCategory.WALLET_RECONCILIATION:
+                    from apps.wallet.services import mark_reconciliation_notice_sent
+                    mark_reconciliation_notice_sent(intent)
+
                 break
             else:
                 # Log failed delivery attempt and fall through to next channel (NTF-006)

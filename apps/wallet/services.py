@@ -19,6 +19,9 @@ from apps.wallet.models import (
     Product,
     SpendRule,
     Wallet,
+    WalletReconciliation,
+    WalletReconciliationStatus,
+    WalletReconciliationTrigger,
     WalletStatus,
     WalletTransaction,
     WalletTransactionStatus,
@@ -95,6 +98,7 @@ def record_wallet_transaction(
 
     new_balance = locked_wallet.balance + amount
     tx_status = WalletTransactionStatus.COMPLETED
+    had_open_reconciliation = locked_wallet.requires_reconciliation
     if new_balance < Decimal('0.00'):
         if not allow_negative:
             raise InsufficientBalanceError("INSUFFICIENT_BALANCE: transaction would take the wallet negative.")
@@ -122,6 +126,11 @@ def record_wallet_transaction(
         foundation_id=wallet.foundation_id,
         diff={'type': tx_type, 'amount': str(amount), 'balance_after': str(new_balance), 'status': tx_status},
     )
+
+    # REC-005/006: settlement is evaluated inside this same transaction, not by a sweep.
+    if new_balance >= Decimal('0.00') and had_open_reconciliation:
+        settle_reconciliations_for_wallet(locked_wallet, record)
+
     return record
 
 
@@ -529,6 +538,7 @@ def process_offline_pos_batch(terminal, transactions: list) -> dict:
     from apps.identity.models import Student
 
     results = []
+    wallets_needing_notice = {}
     for tx_data in transactions:
         client_transaction_id = tx_data['client_transaction_id']
         existing = POSTransaction.objects.filter(
@@ -574,17 +584,27 @@ def process_offline_pos_batch(terminal, transactions: list) -> dict:
         if blocked:
             continue
 
-        wallet_tx = record_wallet_transaction(
-            wallet, WalletTransactionType.PURCHASE, -subtotal, client_transaction_id,
-            reference=f"POS-OFFLINE:{merchant.name}", occurred_at=occurred_at, allow_negative=True,
-        )
-        pos_tx = POSTransaction.objects.create(
-            foundation_id=terminal.foundation_id, merchant=merchant, terminal=terminal, student=student,
-            items=items, subtotal=subtotal, commission=commission, total=subtotal, occurred_at=occurred_at,
-            status=POSTransactionStatus.COMPLETED, offline_created=True,
-            client_transaction_id=client_transaction_id, wallet_transaction=wallet_tx,
-        )
+        # REC-001: the debit, the POS row, and the reconciliation case (if any) commit
+        # or roll back together.
+        with transaction.atomic():
+            wallet_tx = record_wallet_transaction(
+                wallet, WalletTransactionType.PURCHASE, -subtotal, client_transaction_id,
+                reference=f"POS-OFFLINE:{merchant.name}", occurred_at=occurred_at, allow_negative=True,
+            )
+            pos_tx = POSTransaction.objects.create(
+                foundation_id=terminal.foundation_id, merchant=merchant, terminal=terminal, student=student,
+                items=items, subtotal=subtotal, commission=commission, total=subtotal, occurred_at=occurred_at,
+                status=POSTransactionStatus.COMPLETED, offline_created=True,
+                client_transaction_id=client_transaction_id, wallet_transaction=wallet_tx,
+            )
+            if wallet_tx.status == WalletTransactionStatus.RECONCILE_REQUIRED:
+                create_reconciliation_case(wallet_tx, pos_transaction=pos_tx)
+                wallets_needing_notice[wallet.id] = wallet
+
         results.append({'client_transaction_id': client_transaction_id, 'status': wallet_tx.status})
+
+    for wallet in wallets_needing_notice.values():
+        queue_reconciliation_notice(wallet)
 
     audit(
         action='wallet.pos_offline_batch.processed',
@@ -594,3 +614,175 @@ def process_offline_pos_batch(terminal, transactions: list) -> dict:
         diff={'count': len(transactions)},
     )
     return {'results': results}
+
+
+def create_reconciliation_case(wallet_tx: WalletTransaction, pos_transaction=None) -> WalletReconciliation:
+    """REC-001/002: one OPEN case per accepted overspend. Caller MUST wrap this in the
+    same DB transaction as the accepted wallet_tx (process_offline_pos_batch does)."""
+    wallet = wallet_tx.wallet
+    return WalletReconciliation.objects.create(
+        foundation_id=wallet.foundation_id,
+        wallet=wallet,
+        student=wallet.student,
+        trigger=WalletReconciliationTrigger.OFFLINE_OVERSPEND,
+        shortfall=abs(wallet_tx.balance_after),
+        currency=wallet.currency,
+        balance_at_detection=wallet_tx.balance_after,
+        pos_transaction=pos_transaction,
+        detected_at=wallet_tx.occurred_at,
+        detected_by_job='pos_offline_batch',
+        status=WalletReconciliationStatus.OPEN,
+    )
+
+
+def settle_reconciliations_for_wallet(wallet: Wallet, settling_transaction: WalletTransaction) -> int:
+    """REC-005/006: idempotently settle every OPEN case once the balance is >= 0."""
+    open_cases = list(
+        WalletReconciliation.objects.filter(
+            foundation_id=wallet.foundation_id, wallet=wallet,
+            status=WalletReconciliationStatus.OPEN, deleted_at__isnull=True,
+        )
+    )
+    if not open_cases:
+        return 0
+
+    now = timezone.now()
+    any_notice_sent = any(c.notice_sent_at is not None for c in open_cases)
+
+    for case in open_cases:
+        case.status = WalletReconciliationStatus.SETTLED
+        case.settled_at = now
+        case.settled_by_transaction = settling_transaction
+        case.save(update_fields=['status', 'settled_at', 'settled_by_transaction', 'updated_at'])
+
+    wallet.requires_reconciliation = False
+    wallet.save(update_fields=['requires_reconciliation', 'updated_at'])
+
+    audit(
+        action='wallet.reconciliation.settled',
+        entity_type='Wallet',
+        entity_id=wallet.id,
+        foundation_id=wallet.foundation_id,
+        diff={'settled_count': len(open_cases), 'settling_transaction_id': settling_transaction.id},
+    )
+
+    # REC-020: only send a "settled" notice if a notice was actually sent for the debt.
+    if any_notice_sent:
+        _dispatch_reconciliation_settled_notice(wallet)
+
+    return len(open_cases)
+
+
+def _resolve_financial_guardians(student):
+    """REC-007: every guardian with financial_responsible=True. Non-financial guardians never receive this."""
+    from apps.identity.models import GuardianLink
+    return GuardianLink.objects.filter(
+        foundation_id=student.foundation_id, student=student,
+        financial_responsible=True, deleted_at__isnull=True,
+    ).select_related('guardian__user', 'guardian__person')
+
+
+def queue_reconciliation_notice(wallet: Wallet) -> list:
+    """REC-004/007/009/010/011: one combined notice per wallet per day across every
+    un-notified OPEN case. Safe to call once per affected wallet after a sync batch."""
+    from apps.notifications.models import NotificationCategory
+    from apps.notifications.services import dispatch_intent
+
+    cases = list(
+        WalletReconciliation.objects.filter(
+            foundation_id=wallet.foundation_id, wallet=wallet,
+            status=WalletReconciliationStatus.OPEN, notice_sent_at__isnull=True, deleted_at__isnull=True,
+        ).order_by('detected_at')
+    )
+    if not cases:
+        return []
+
+    total_shortfall = sum((c.shortfall for c in cases), Decimal('0.00'))
+    detected_date = timezone.localtime(cases[0].detected_at).date()
+    deadline_date = detected_date + timedelta(days=7)
+    dedupe_key = f"wallet_recon:{wallet.id}:{detected_date.isoformat()}"
+
+    student = wallet.student
+    guardians = list(_resolve_financial_guardians(student))
+
+    intents = []
+    for link in guardians:
+        guardian = link.guardian
+        if not guardian.user:
+            continue
+        intents.append(dispatch_intent(
+            foundation_id=wallet.foundation_id,
+            category=NotificationCategory.WALLET_RECONCILIATION,
+            template_key='wallet.recon.notice',
+            payload={
+                'guardian_name': guardian.person.full_name if guardian.person else '',
+                'student_name': student.person.full_name if student.person else '',
+                'school_name': student.school.name if student.school else '',
+                'shortfall': str(total_shortfall),
+                'txn_count': str(len(cases)),
+                'detected_date': detected_date.isoformat(),
+                'deadline_date': deadline_date.isoformat(),
+                'deep_link': 'educore://wallet',
+            },
+            school_id=student.school_id,
+            recipient_user=guardian.user,
+            recipient_phone=getattr(guardian.user, 'phone_e164', ''),
+            recipient_email=getattr(guardian.user, 'email', ''),
+            recipient_name=guardian.person.full_name if guardian.person else '',
+            dedupe_key=dedupe_key,
+        ))
+
+    return intents
+
+
+def _dispatch_reconciliation_settled_notice(wallet: Wallet):
+    from apps.notifications.models import NotificationCategory
+    from apps.notifications.services import dispatch_intent
+
+    student = wallet.student
+    today = timezone.localdate().isoformat()
+    for link in _resolve_financial_guardians(student):
+        guardian = link.guardian
+        if not guardian.user:
+            continue
+        dispatch_intent(
+            foundation_id=wallet.foundation_id,
+            category=NotificationCategory.WALLET_RECONCILIATION,
+            template_key='wallet.recon.settled',
+            payload={'student_name': student.person.full_name if student.person else ''},
+            school_id=student.school_id,
+            recipient_user=guardian.user,
+            recipient_phone=getattr(guardian.user, 'phone_e164', ''),
+            recipient_name=guardian.person.full_name if guardian.person else '',
+            dedupe_key=f"wallet_recon_settled:{wallet.id}:{today}",
+        )
+
+
+def is_reconciliation_notice_still_needed(intent) -> bool:
+    """REC-008: called from notifications.process_intent at send time. Parses the
+    dedupe_key this module minted (wallet_recon:{wallet_id}:{date}) to find the wallet."""
+    if not intent.dedupe_key or not intent.dedupe_key.startswith('wallet_recon:'):
+        return True
+    try:
+        wallet_id = int(intent.dedupe_key.split(':')[1])
+    except (IndexError, ValueError):
+        return True
+    return WalletReconciliation.objects.filter(
+        foundation_id=intent.foundation_id, wallet_id=wallet_id,
+        status=WalletReconciliationStatus.OPEN, deleted_at__isnull=True,
+    ).exists()
+
+
+def mark_reconciliation_notice_sent(intent):
+    """REC-012/029: stamps notice_sent_at on the OPEN cases this intent covered, so the
+    48h reminder clock starts only once a notice was actually delivered."""
+    if not intent.dedupe_key or not intent.dedupe_key.startswith('wallet_recon:'):
+        return
+    try:
+        wallet_id = int(intent.dedupe_key.split(':')[1])
+    except (IndexError, ValueError):
+        return
+    WalletReconciliation.objects.filter(
+        foundation_id=intent.foundation_id, wallet_id=wallet_id,
+        status=WalletReconciliationStatus.OPEN, notice_sent_at__isnull=True, deleted_at__isnull=True,
+    ).update(notice_sent_at=timezone.now())
