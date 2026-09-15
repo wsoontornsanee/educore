@@ -6,8 +6,13 @@ from apps.finance.views import (
     FeePlanViewSet,
     FeeTypeViewSet,
     InvoiceViewSet,
+    LedgerJournalViewSet,
+    PaymentIntentViewSet,
+    PaymentViewSet,
+    PaymentWebhookView,
     SiblingDiscountPolicyViewSet,
     StudentFeeAssignmentViewSet,
+    StudentStatementView,
 )
 
 router = DefaultRouter()
@@ -17,7 +22,13 @@ router.register(r'assignments', StudentFeeAssignmentViewSet, basename='fee-assig
 router.register(r'discounts', DiscountViewSet, basename='discounts')
 router.register(r'sibling-policies', SiblingDiscountPolicyViewSet, basename='sibling-policies')
 router.register(r'invoices', InvoiceViewSet, basename='invoices')
+router.register(r'payment-intents', PaymentIntentViewSet, basename='payment-intents')
+router.register(r'payments', PaymentViewSet, basename='payments')
+router.register(r'ledger/journals', LedgerJournalViewSet, basename='ledger-journals')
 
 urlpatterns = [
+    path('webhooks/payments/<str:provider>/', PaymentWebhookView.as_view(), name='payment-webhook'),
+    path('students/<int:pk>/statement/', StudentStatementView.as_view(), name='student-statement'),
     path('', include(router.urls)),
 ]
+

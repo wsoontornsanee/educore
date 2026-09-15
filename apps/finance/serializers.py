@@ -5,9 +5,17 @@ from apps.finance.models import (
     FeeType,
     Invoice,
     InvoiceLine,
+    LedgerEntry,
+    LedgerJournal,
+    Payment,
+    PaymentAllocation,
+    PaymentIntent,
     SiblingDiscountPolicy,
+    StudentCreditBalance,
     StudentFeeAssignment,
+    StudentVirtualAccount,
 )
+
 
 
 class FeeTypeSerializer(serializers.ModelSerializer):
@@ -180,3 +188,169 @@ class InvoiceSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
+
+
+class StudentVirtualAccountSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StudentVirtualAccount
+        fields = [
+            'id',
+            'student',
+            'bank',
+            'va_number',
+            'is_active',
+            'created_at',
+        ]
+        read_only_fields = ['id', 'created_at']
+
+
+class PaymentIntentSerializer(serializers.ModelSerializer):
+    amount = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+
+    class Meta:
+        model = PaymentIntent
+        fields = [
+            'id',
+            'school',
+            'student',
+            'invoice',
+            'method',
+            'provider',
+            'va_bank',
+            'va_number',
+            'qris_payload',
+            'amount',
+            'currency',
+            'expires_at',
+            'status',
+            'created_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'status', 'va_number', 'qris_payload']
+
+
+class PaymentIntentCreateSerializer(serializers.Serializer):
+    invoice_ids = serializers.ListField(child=serializers.IntegerField(), allow_empty=False)
+    method = serializers.ChoiceField(choices=['VA', 'QRIS'])
+    bank = serializers.CharField(required=False, allow_blank=True, default='BCA')
+    provider = serializers.CharField(required=False, default='MOCK')
+
+
+class PaymentAllocationSerializer(serializers.ModelSerializer):
+    amount = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+
+    class Meta:
+        model = PaymentAllocation
+        fields = [
+            'id',
+            'payment',
+            'invoice',
+            'invoice_line',
+            'amount',
+            'currency',
+        ]
+        read_only_fields = ['id']
+
+
+class PaymentSerializer(serializers.ModelSerializer):
+    amount = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    fee = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    net = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    allocations = PaymentAllocationSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Payment
+        fields = [
+            'id',
+            'foundation_id',
+            'school',
+            'student',
+            'amount',
+            'currency',
+            'method',
+            'channel',
+            'reference',
+            'external_id',
+            'paid_at',
+            'settled_at',
+            'status',
+            'fee',
+            'net',
+            'receipt_number',
+            'received_by',
+            'proof_file',
+            'allocations',
+            'created_at',
+        ]
+        read_only_fields = [
+            'id',
+            'foundation_id',
+            'reference',
+            'receipt_number',
+            'paid_at',
+            'settled_at',
+            'status',
+            'fee',
+            'net',
+            'allocations',
+            'created_at',
+        ]
+
+
+class CashPaymentCreateSerializer(serializers.Serializer):
+    student_id = serializers.IntegerField()
+    amount = serializers.DecimalField(max_digits=18, decimal_places=2)
+    invoice_ids = serializers.ListField(child=serializers.IntegerField(), required=False, default=list)
+    notes = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class ManualPaymentCreateSerializer(serializers.Serializer):
+    student_id = serializers.IntegerField()
+    amount = serializers.DecimalField(max_digits=18, decimal_places=2)
+    invoice_ids = serializers.ListField(child=serializers.IntegerField(), required=False, default=list)
+    proof_file = serializers.CharField(required=False, allow_blank=True, default='')
+    channel = serializers.CharField(required=False, default='MANUAL_TRANSFER')
+    notes = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class ManualPaymentVerifySerializer(serializers.Serializer):
+    decision = serializers.ChoiceField(choices=['APPROVE', 'REJECT'])
+    reason = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class LedgerEntrySerializer(serializers.ModelSerializer):
+    debit = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    credit = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+
+    class Meta:
+        model = LedgerEntry
+        fields = [
+            'id',
+            'account_code',
+            'account_name',
+            'debit',
+            'credit',
+            'currency',
+            'ref_type',
+            'ref_id',
+            'occurred_at',
+        ]
+
+
+class LedgerJournalSerializer(serializers.ModelSerializer):
+    entries = LedgerEntrySerializer(many=True, read_only=True)
+
+    class Meta:
+        model = LedgerJournal
+        fields = [
+            'id',
+            'school',
+            'number',
+            'description',
+            'ref_type',
+            'ref_id',
+            'currency',
+            'occurred_at',
+            'entries',
+            'created_at',
+        ]
+

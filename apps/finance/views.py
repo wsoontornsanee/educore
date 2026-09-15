@@ -17,17 +17,36 @@ from apps.finance.models import (
     Invoice,
     InvoiceLine,
     InvoiceStatus,
+    LedgerEntry,
+    LedgerJournal,
+    Payment,
+    PaymentAllocation,
+    PaymentIntent,
+    PaymentStatus,
     SiblingDiscountPolicy,
+    StudentCreditBalance,
     StudentFeeAssignment,
+    StudentVirtualAccount,
 )
 from apps.finance.serializers import (
+    CashPaymentCreateSerializer,
     DiscountSerializer,
     FeePlanSerializer,
     FeeTypeSerializer,
     InvoiceSerializer,
+    LedgerEntrySerializer,
+    LedgerJournalSerializer,
+    ManualPaymentCreateSerializer,
+    ManualPaymentVerifySerializer,
+    PaymentAllocationSerializer,
+    PaymentIntentCreateSerializer,
+    PaymentIntentSerializer,
+    PaymentSerializer,
     SiblingDiscountPolicySerializer,
     StudentFeeAssignmentSerializer,
+    StudentVirtualAccountSerializer,
 )
+
 from apps.finance.services import (
     approve_discount,
     cancel_invoice,
@@ -368,4 +387,246 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             return Response(self.get_serializer(written_off).data)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PaymentIntentViewSet(viewsets.ModelViewSet):
+    """Payment intents for VA and QRIS (spec/06 §2, §4)."""
+    serializer_class = PaymentIntentSerializer
+    pagination_class = StandardCursorPagination
+    permission_classes = [HasRequiredPermission]
+    action_permissions = {
+        'list': 'finance.invoice.read',
+        'retrieve': 'finance.invoice.read',
+        'create': 'finance.invoice.write',
+    }
+
+    def get_queryset(self):
+        foundation_id = get_current_foundation_id()
+        if not foundation_id:
+            return PaymentIntent.objects.none()
+        qs = PaymentIntent.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True).order_by('-created_at')
+        student_id = self.request.query_params.get('student_id')
+        if student_id:
+            qs = qs.filter(student_id=student_id)
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        foundation_id = get_current_foundation_id()
+        serializer = PaymentIntentCreateSerializer(data=request.data)
+
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        from apps.identity.models import Student
+        invoices = list(Invoice.objects.filter(id__in=data['invoice_ids'], foundation_id=foundation_id))
+        if not invoices:
+            return Response({'error': _("Tagihan tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        student = invoices[0].student
+        school = invoices[0].school
+
+        from apps.finance.services.payments import create_payment_intent
+        try:
+            with tenant_context(foundation_id):
+                intent = create_payment_intent(
+                    school=school,
+                    student=student,
+                    invoice_ids=data['invoice_ids'],
+                    method=data['method'],
+                    bank=data.get('bank'),
+                    provider_name=data.get('provider', 'MOCK'),
+                )
+            return Response(self.get_serializer(intent).data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PaymentViewSet(viewsets.ModelViewSet):
+    """Payments, cash desk collection, and manual transfer verification (spec/06 §4)."""
+    serializer_class = PaymentSerializer
+    pagination_class = StandardCursorPagination
+    permission_classes = [HasRequiredPermission]
+    action_permissions = {
+        'list': 'finance.invoice.read',
+        'retrieve': 'finance.invoice.read',
+        'cash': 'finance.invoice.write',
+        'manual': 'finance.invoice.write',
+        'verify': 'finance.invoice.write',
+    }
+
+    def get_queryset(self):
+        foundation_id = get_current_foundation_id()
+        if not foundation_id:
+            return Payment.objects.none()
+        qs = Payment.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True).prefetch_related('allocations').order_by('-created_at')
+        student_id = self.request.query_params.get('student_id')
+        if student_id:
+            qs = qs.filter(student_id=student_id)
+        status_param = self.request.query_params.get('status')
+        if status_param:
+            qs = qs.filter(status=status_param)
+        return qs
+
+    @action(detail=False, methods=['post'], url_path='cash')
+    def cash(self, request):
+        """Cash collection at school desk with receipt generation (FIN-019)."""
+        foundation_id = get_current_foundation_id()
+        serializer = CashPaymentCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        from apps.identity.models import Student
+        student = Student.objects.filter(id=data['student_id'], foundation_id=foundation_id).first()
+        if not student:
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.finance.services.payments import record_cash_payment
+        try:
+            with tenant_context(foundation_id):
+                payment = record_cash_payment(
+                    school=student.school,
+                    student=student,
+                    amount=data['amount'],
+                    invoice_ids=data.get('invoice_ids'),
+                    received_by=request.user,
+                    notes=data.get('notes', ''),
+                )
+            return Response(self.get_serializer(payment).data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'], url_path='manual')
+    def manual(self, request):
+        """Submit manual bank transfer proof for verification (FIN-018)."""
+        foundation_id = get_current_foundation_id()
+        serializer = ManualPaymentCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        from apps.identity.models import Student
+        student = Student.objects.filter(id=data['student_id'], foundation_id=foundation_id).first()
+        if not student:
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.finance.services.payments import submit_manual_transfer
+        try:
+            with tenant_context(foundation_id):
+                payment = submit_manual_transfer(
+                    school=student.school,
+                    student=student,
+                    amount=data['amount'],
+                    invoice_ids=data.get('invoice_ids'),
+                    proof_file=data.get('proof_file', ''),
+                    channel=data.get('channel', 'MANUAL_TRANSFER'),
+                    notes=data.get('notes', ''),
+                )
+            return Response(self.get_serializer(payment).data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='verify')
+    def verify(self, request, pk=None):
+        """Finance officer verifies or rejects manual transfer (FIN-018)."""
+        foundation_id = get_current_foundation_id()
+        payment = self.get_object()
+        serializer = ManualPaymentVerifySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        from apps.finance.services.payments import verify_manual_transfer
+        try:
+            with tenant_context(foundation_id):
+                verified = verify_manual_transfer(
+                    payment=payment,
+                    verified_by=request.user,
+                    decision=data['decision'],
+                    reason=data.get('reason', ''),
+                )
+            return Response(self.get_serializer(verified).data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+from rest_framework.views import APIView
+
+
+class PaymentWebhookView(APIView):
+    """Public signature-verified payment gateway webhook (FIN-013)."""
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
+    def post(self, request, provider):
+        payload = request.data
+        headers = request.headers
+
+        from apps.finance.services.payments import process_payment_webhook
+        try:
+            result = process_payment_webhook(
+                provider_name=provider,
+                payload=payload,
+                headers=headers,
+            )
+            return Response(result, status=status.HTTP_200_OK)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class LedgerJournalViewSet(viewsets.ReadOnlyModelViewSet):
+    """Read-only ledger journals and double-entry postings (FIN-021, FIN-022)."""
+    serializer_class = LedgerJournalSerializer
+    pagination_class = StandardCursorPagination
+    permission_classes = [HasRequiredPermission]
+    action_permissions = {
+        'list': 'finance.invoice.read',
+        'retrieve': 'finance.invoice.read',
+    }
+
+    def get_queryset(self):
+        foundation_id = get_current_foundation_id()
+        if not foundation_id:
+            return LedgerJournal.objects.none()
+        qs = LedgerJournal.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True).prefetch_related('entries').order_by('-created_at')
+        school_id = self.request.query_params.get('school_id')
+        if school_id:
+            qs = qs.filter(school_id=school_id)
+        ref_type = self.request.query_params.get('ref_type')
+        if ref_type:
+            qs = qs.filter(ref_type=ref_type)
+        return qs
+
+
+class StudentStatementView(APIView):
+    """Ledger-backed student statement (spec/06 §8)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'finance.invoice.read'
+
+    def get(self, request, pk):
+        foundation_id = get_current_foundation_id()
+        if not foundation_id:
+            return Response({'error': _("Konteks yayasan tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.identity.models import Student
+        student = Student.objects.filter(id=pk, foundation_id=foundation_id).first()
+        if not student:
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        invoices = Invoice.objects.filter(student=student, foundation_id=foundation_id, deleted_at__isnull=True).order_by('-period')
+        payments = Payment.objects.filter(student=student, foundation_id=foundation_id, status=PaymentStatus.SETTLED, deleted_at__isnull=True).order_by('-paid_at')
+        credit_balance = StudentCreditBalance.objects.filter(student=student, foundation_id=foundation_id).first()
+
+        data = {
+            'student_id': student.id,
+            'student_name': student.person.full_name,
+            'credit_balance': {
+                'amount': str(credit_balance.balance) if credit_balance else '0.00',
+                'currency': credit_balance.currency if credit_balance else 'IDR',
+            },
+            'invoices': InvoiceSerializer(invoices, many=True).data,
+            'payments': PaymentSerializer(payments, many=True).data,
+        }
+        return Response(data, status=status.HTTP_200_OK)
+
+
 

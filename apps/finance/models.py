@@ -244,3 +244,247 @@ class InvoiceLine(TenantModel):
 
     def __str__(self):
         return f"{self.invoice.number} - {self.code}: {self.currency} {self.subtotal}"
+
+
+class PaymentMethod(models.TextChoices):
+    VA = 'VA', _('Virtual Account')
+    QRIS = 'QRIS', _('QRIS')
+    MANUAL = 'MANUAL', _('Transfer Manual (Manual Transfer)')
+    CASH = 'CASH', _('Tunai di Sekolah (Cash at School)')
+
+
+class PaymentStatus(models.TextChoices):
+    PENDING = 'PENDING', _('Menunggu Pembayaran (Pending)')
+    SETTLED = 'SETTLED', _('Berhasil/Lunas (Settled)')
+    FAILED = 'FAILED', _('Gagal (Failed)')
+    CANCELLED = 'CANCELLED', _('Dibatalkan (Cancelled)')
+    PENDING_VERIFICATION = 'PENDING_VERIFICATION', _('Menunggu Verifikasi (Pending Verification)')
+    REJECTED = 'REJECTED', _('Ditolak (Rejected)')
+
+
+class PaymentIntentStatus(models.TextChoices):
+    PENDING = 'PENDING', _('Menunggu Pembayaran (Pending)')
+    COMPLETED = 'COMPLETED', _('Selesai (Completed)')
+    EXPIRED = 'EXPIRED', _('Kedaluwarsa (Expired)')
+    CANCELLED = 'CANCELLED', _('Dibatalkan (Cancelled)')
+
+
+class AccountCode(models.TextChoices):
+    CASH_BANK = '1100', _('Kas / Bank')
+    ACCOUNTS_RECEIVABLE = '1200', _('Piutang SPP & Biaya')
+    UNEARNED_TUITION = '2100', _('Pendapatan Diterima di Muka')
+    STUDENT_CREDIT = '2200', _('Saldo Deposit Siswa')
+    TUITION_REVENUE = '4100', _('Pendapatan SPP')
+    OTHER_REVENUE = '4200', _('Pendapatan Lain-lain')
+    PAYMENT_FEES = '5100', _('Beban Transaksi & Gateway')
+    DISCOUNT_EXPENSE = '5200', _('Beban Potongan & Keringanan')
+    ROUNDING = '5300', _('Beban / Pendapatan Pembulatan')
+
+
+class StudentVirtualAccount(TenantModel):
+    """Stable per-student Virtual Account mapping per bank (spec/06 §4, FIN-011)."""
+    student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name='virtual_accounts')
+    bank = models.CharField(max_length=32, help_text=_("e.g. BCA, MANDIRI, BRI, BNI, PERMATA"))
+    va_number = models.CharField(max_length=64, db_index=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'student_virtual_accounts'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'bank', 'va_number'],
+                name='unique_foundation_bank_va_number',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['foundation_id', 'student', 'bank']),
+        ]
+
+    def __str__(self):
+        return f"VA {self.bank} - {self.student.person.full_name}: {self.va_number}"
+
+
+class PaymentIntent(TenantModel):
+    """Payment intent for initiating VA, QRIS, or gateway payments (spec/06 §2, §4)."""
+    school = models.ForeignKey(School, on_delete=models.PROTECT, related_name='payment_intents')
+    student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name='payment_intents')
+    invoice = models.ForeignKey(Invoice, null=True, blank=True, on_delete=models.PROTECT, related_name='payment_intents')
+    
+    method = models.CharField(max_length=32, choices=PaymentMethod.choices, default=PaymentMethod.VA)
+    provider = models.CharField(max_length=32, default='MIDTRANS', help_text=_("MIDTRANS, XENDIT, MOCK, MANUAL"))
+    va_bank = models.CharField(max_length=32, null=True, blank=True, help_text=_("Bank code for VA, e.g. BCA, MANDIRI"))
+    va_number = models.CharField(max_length=64, null=True, blank=True)
+    qris_payload = models.TextField(null=True, blank=True)
+    
+    amount = MoneyField(default=Decimal('0.00'))
+    currency = models.CharField(max_length=3, default='IDR')
+    expires_at = models.DateTimeField()
+    status = models.CharField(max_length=32, choices=PaymentIntentStatus.choices, default=PaymentIntentStatus.PENDING, db_index=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = 'payment_intents'
+        indexes = [
+            models.Index(fields=['foundation_id', 'school', 'status']),
+            models.Index(fields=['foundation_id', 'student', 'status']),
+            models.Index(fields=['foundation_id', 'va_number']),
+        ]
+
+    def __str__(self):
+        return f"Intent #{self.id} {self.method} ({self.currency} {self.amount}) - {self.status}"
+
+
+class PaymentSequence(TenantModel):
+    """Gapless sequence numbers for payments and receipts (spec/06 §3, §4)."""
+    school = models.ForeignKey(School, on_delete=models.PROTECT, related_name='payment_sequences')
+    sequence_type = models.CharField(max_length=16, help_text=_("PAYMENT, RECEIPT, JOURNAL"))
+    year = models.PositiveIntegerField(help_text=_("Calendar year e.g. 2026"))
+    last_number = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = 'payment_sequences'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'school', 'sequence_type', 'year'],
+                name='unique_school_sequence_type_year',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.school.name} - {self.sequence_type} {self.year}: {self.last_number}"
+
+
+class Payment(TenantModel):
+    """Settled or pending payment record (spec/06 §2, §4)."""
+    school = models.ForeignKey(School, on_delete=models.PROTECT, related_name='payments')
+    student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name='payments')
+    invoice = models.ForeignKey(Invoice, null=True, blank=True, on_delete=models.PROTECT, related_name='payments')
+    payment_intent = models.ForeignKey(PaymentIntent, null=True, blank=True, on_delete=models.PROTECT, related_name='payments')
+    
+    amount = MoneyField(default=Decimal('0.00'))
+    currency = models.CharField(max_length=3, default='IDR')
+    method = models.CharField(max_length=32, choices=PaymentMethod.choices, default=PaymentMethod.VA)
+    channel = models.CharField(max_length=64, help_text=_("e.g. BCA_VA, QRIS_GOPAY, CASHIER, MANDIRI_TRANSFER"))
+    reference = models.CharField(max_length=64, unique=True, db_index=True, help_text=_("Unique payment reference e.g. PAY/SDIT01/2026/000001"))
+    external_id = models.CharField(max_length=128, null=True, blank=True, db_index=True, help_text=_("Gateway order_id or transaction ID"))
+    
+    paid_at = models.DateTimeField(default=timezone.now)
+    settled_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=32, choices=PaymentStatus.choices, default=PaymentStatus.PENDING, db_index=True)
+    
+    fee = MoneyField(default=Decimal('0.00'), help_text=_("Gateway or transaction fee"))
+    net = MoneyField(default=Decimal('0.00'), help_text=_("Net amount received by school (amount - fee)"))
+    
+    receipt_number = models.CharField(max_length=64, null=True, blank=True, help_text=_("Receipt number e.g. RCP/SDIT01/2026/000001"))
+    received_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='received_payments')
+    proof_file = models.CharField(max_length=512, null=True, blank=True, help_text=_("Proof upload file path"))
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = 'payments'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'external_id'],
+                condition=models.Q(external_id__isnull=False),
+                name='unique_foundation_payment_external_id',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['foundation_id', 'school', 'status']),
+            models.Index(fields=['foundation_id', 'student', 'status']),
+            models.Index(fields=['foundation_id', 'paid_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.reference} - {self.student.person.full_name}: {self.currency} {self.amount} ({self.status})"
+
+    def delete(self, using=None, keep_parents=False):
+        """FIN-020: A payment MUST NOT be physically deleted. Soft-delete only."""
+        if not self.deleted_at:
+            self.deleted_at = timezone.now()
+            self.save(update_fields=['deleted_at'])
+
+
+class PaymentAllocation(TenantModel):
+    """Allocation of payment to an invoice and optional invoice line (spec/06 §2, §4)."""
+    payment = models.ForeignKey(Payment, on_delete=models.CASCADE, related_name='allocations')
+    invoice = models.ForeignKey(Invoice, on_delete=models.PROTECT, related_name='allocations')
+    invoice_line = models.ForeignKey(InvoiceLine, null=True, blank=True, on_delete=models.PROTECT, related_name='allocations')
+    amount = MoneyField(default=Decimal('0.00'))
+    currency = models.CharField(max_length=3, default='IDR')
+
+    class Meta:
+        db_table = 'payment_allocations'
+        indexes = [
+            models.Index(fields=['foundation_id', 'payment']),
+            models.Index(fields=['foundation_id', 'invoice']),
+        ]
+
+    def __str__(self):
+        return f"Alloc {self.payment.reference} -> {self.invoice.number}: {self.currency} {self.amount}"
+
+
+class StudentCreditBalance(TenantModel):
+    """Credit balance for a student resulting from overpayments (spec/06 §4, FIN-015)."""
+    student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name='credit_balances')
+    balance = MoneyField(default=Decimal('0.00'))
+    currency = models.CharField(max_length=3, default='IDR')
+
+    class Meta:
+        db_table = 'student_credit_balances'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'student', 'currency'],
+                name='unique_foundation_student_currency_credit_balance',
+            ),
+        ]
+
+    def __str__(self):
+        return f"Credit {self.student.person.full_name}: {self.currency} {self.balance}"
+
+
+class LedgerJournal(TenantModel):
+    """Double-entry general ledger journal header (spec/06 §2, §5, spec/16 CUR-020)."""
+    school = models.ForeignKey(School, on_delete=models.PROTECT, related_name='ledger_journals')
+    number = models.CharField(max_length=64, unique=True, db_index=True, help_text=_("Format: JRN/{school_code}/{YYYY}/{NNNNNN}"))
+    description = models.CharField(max_length=255)
+    ref_type = models.CharField(max_length=32, help_text=_("e.g. INVOICE, PAYMENT, REVENUE_RECOGNITION, REFUND"))
+    ref_id = models.CharField(max_length=64, help_text=_("Primary identifier of the triggering entity"))
+    currency = models.CharField(max_length=3, default='IDR')
+    occurred_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = 'ledger_journals'
+        indexes = [
+            models.Index(fields=['foundation_id', 'school', 'occurred_at']),
+            models.Index(fields=['foundation_id', 'ref_type', 'ref_id']),
+        ]
+
+    def __str__(self):
+        return f"{self.number} ({self.ref_type} #{self.ref_id}) - {self.description}"
+
+
+class LedgerEntry(TenantModel):
+    """Double-entry ledger entry line item (spec/06 §2, §5)."""
+    school = models.ForeignKey(School, on_delete=models.PROTECT, related_name='ledger_entries')
+    journal = models.ForeignKey(LedgerJournal, on_delete=models.CASCADE, related_name='entries')
+    account_code = models.CharField(max_length=32, db_index=True, help_text=_("e.g. 1100, 1200, 2100, 4100"))
+    account_name = models.CharField(max_length=128)
+    debit = MoneyField(default=Decimal('0.00'))
+    credit = MoneyField(default=Decimal('0.00'))
+    currency = models.CharField(max_length=3, default='IDR')
+    ref_type = models.CharField(max_length=32, null=True, blank=True)
+    ref_id = models.CharField(max_length=64, null=True, blank=True)
+    occurred_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = 'ledger_entries'
+        indexes = [
+            models.Index(fields=['foundation_id', 'school', 'account_code']),
+            models.Index(fields=['foundation_id', 'journal']),
+            models.Index(fields=['foundation_id', 'occurred_at']),
+        ]
+
+    def __str__(self):
+        return f"Entry {self.account_code} ({self.account_name}): Dr {self.debit} / Cr {self.credit} {self.currency}"
+
