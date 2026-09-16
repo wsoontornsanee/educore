@@ -38,6 +38,19 @@ export const ParentShell: React.FC<ParentShellProps> = ({ activeTab, onTabChange
     await saveLastChildId(id);
   };
 
+  const selectedChild = allChildren.find((k) => k.student_id === selectedId);
+
+  // PAR-017: never leave the Tagihan tab active for a child the guardian is not
+  // financially responsible for. This covers both the initial-load resolution
+  // and every subsequent child switch, since selectedChild is recomputed above
+  // on every render and this effect re-checks it whenever selectedChild or
+  // activeTab changes.
+  useEffect(() => {
+    if (selectedChild && activeTab === 'INVOICES' && !selectedChild.financial_responsible) {
+      onTabChange('HOME');
+    }
+  }, [selectedChild, activeTab, onTabChange]);
+
   if (loading) {
     return (
       <SafeAreaView style={styles.center}>
@@ -46,7 +59,6 @@ export const ParentShell: React.FC<ParentShellProps> = ({ activeTab, onTabChange
     );
   }
 
-  const selectedChild = allChildren.find((k) => k.student_id === selectedId);
   if (!selectedChild) {
     return (
       <SafeAreaView style={styles.center}>
@@ -59,6 +71,10 @@ export const ParentShell: React.FC<ParentShellProps> = ({ activeTab, onTabChange
   }
 
   const showInvoicesTab = selectedChild.financial_responsible;
+  // PAR-017: also block the render synchronously (not just via the effect above)
+  // so a non-financial-responsible child never has invoice content painted even
+  // for a single frame while onTabChange('HOME') propagates back up to App.tsx.
+  const invoicesBlocked = activeTab === 'INVOICES' && !showInvoicesTab;
 
   return (
     <SafeAreaView style={styles.root}>
@@ -76,7 +92,7 @@ export const ParentShell: React.FC<ParentShellProps> = ({ activeTab, onTabChange
         ))}
       </ScrollView>
 
-      <View style={styles.content}>{children({ selectedChild, allChildren })}</View>
+      <View style={styles.content}>{invoicesBlocked ? null : children({ selectedChild, allChildren })}</View>
 
       <View style={styles.tabBar}>
         <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('HOME')}>
