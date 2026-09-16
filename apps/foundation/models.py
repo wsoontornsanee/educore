@@ -1,7 +1,9 @@
 """Foundation portal models and read-model rollups (spec/03 §4)."""
 from decimal import Decimal
 from django.db import models
-from apps.core.fields import MoneyField
+from apps.core.fields import MoneyField, soft_delete_uniqueness_marker
+from apps.core.models import TenantModel
+
 
 class RptFoundationKPI(models.Model):
     """Reporting rollup table for Foundation Dashboard KPIs (spec/03 §4, spec/15).
@@ -34,6 +36,20 @@ class RptFoundationKPI(models.Model):
     reporting_currency = models.CharField(max_length=3, default='IDR')
     fx_rate_date = models.DateField(null=True, blank=True)
 
+    # Multi-currency consolidation status (FND-005b)
+    MULTI_CURRENCY_SINGLE = 'SINGLE_CURRENCY'
+    MULTI_CURRENCY_CONSOLIDATED = 'CONSOLIDATED'
+    MULTI_CURRENCY_UNSUPPORTED = 'MIXED_CURRENCY_UNSUPPORTED'
+    MULTI_CURRENCY_CHOICES = [
+        (MULTI_CURRENCY_SINGLE, 'Single Currency'),
+        (MULTI_CURRENCY_CONSOLIDATED, 'Consolidated'),
+        (MULTI_CURRENCY_UNSUPPORTED, 'Mixed Currency Unsupported'),
+    ]
+    multi_currency_status = models.CharField(
+        max_length=32, choices=MULTI_CURRENCY_CHOICES, default=MULTI_CURRENCY_SINGLE,
+        help_text="Consolidation status for multi-currency foundations (FND-005b)",
+    )
+
     computed_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -55,3 +71,43 @@ class RptFoundationKPI(models.Model):
         if self.billed > Decimal('0.00'):
             return (self.collected / self.billed * Decimal('100.00')).quantize(Decimal('0.01'))
         return Decimal('0.00')
+
+
+class FxRate(TenantModel):
+    """Per-foundation exchange rate for consolidated reporting (CUR-021).
+
+    Used exclusively by refresh_foundation_kpis (FND-005b) to convert per-school
+    figures into the foundation's reporting_currency. Transactional records are
+    NEVER converted or rewritten (CUR-022, CUR-025).
+    """
+    SOURCE_MANUAL = 'MANUAL'
+    SOURCE_IMPORTED = 'IMPORTED'
+    SOURCE_CHOICES = [
+        (SOURCE_MANUAL, 'Manual'),
+        (SOURCE_IMPORTED, 'Imported'),
+    ]
+
+    base_currency = models.CharField(max_length=3, help_text="Source currency (e.g. USD)")
+    quote_currency = models.CharField(max_length=3, help_text="Target currency (e.g. IDR)")
+    rate = models.DecimalField(max_digits=18, decimal_places=8, help_text="Conversion rate: 1 base_currency = rate quote_currency (CUR-021)")
+    effective_date = models.DateField(help_text="Date this rate is effective from")
+    source = models.CharField(max_length=16, choices=SOURCE_CHOICES, default=SOURCE_MANUAL)
+    active_uniq_marker = soft_delete_uniqueness_marker()
+
+    class Meta:
+        db_table = 'fx_rates'
+        verbose_name = 'Nilai Tukar'
+        verbose_name_plural = 'Daftar Nilai Tukar'
+        ordering = ['-effective_date']
+        indexes = [
+            models.Index(fields=['foundation_id', 'base_currency', 'quote_currency', 'effective_date']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'base_currency', 'quote_currency', 'effective_date', 'active_uniq_marker'],
+                name='unique_fx_rate_per_foundation_currency_date',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.base_currency}/{self.quote_currency} = {self.rate} ({self.effective_date})"

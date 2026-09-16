@@ -61,6 +61,8 @@ class RefreshFoundationKpisTests(TestCase):
         self.assertEqual(row.campus_spend, Decimal('300000.00'))
         self.assertEqual(row.active_students, 120)
         self.assertEqual(row.avg_attendance_pct, Decimal('95.00'))  # (90+5)/100 * 100
+        self.assertEqual(row.currency, 'IDR')  # school's base_currency
+        self.assertEqual(row.multi_currency_status, RptFoundationKPI.MULTI_CURRENCY_SINGLE)
 
     def test_foundation_aggregate_row_sums_all_schools(self):
         refresh_foundation_kpis(scope='full')
@@ -71,6 +73,8 @@ class RefreshFoundationKpisTests(TestCase):
         self.assertEqual(agg.billed, Decimal('5000000.00'))
         self.assertEqual(agg.active_students, 120)
         self.assertEqual(agg.reporting_currency, self.foundation.reporting_currency)
+        self.assertEqual(agg.multi_currency_status, RptFoundationKPI.MULTI_CURRENCY_SINGLE)
+        self.assertIsNone(agg.fx_rate_date)
 
     def test_rerun_is_idempotent(self):
         refresh_foundation_kpis(scope='full')
