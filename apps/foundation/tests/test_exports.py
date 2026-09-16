@@ -51,7 +51,35 @@ class FoundationDashboardExportTests(APITestCase):
     def test_post_export_requires_valid_format(self):
         self.client.force_authenticate(user=self.admin)
         with tenant_context(self.foundation.id):
-            response = self.client.post('/api/v1/foundation/exports', data={'format': 'CSV'}, format='json')
+            response = self.client.post('/api/v1/foundation/exports', data={'format': 'DOCX'}, format='json')
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_post_export_requires_registered_report(self):
+        self.client.force_authenticate(user=self.admin)
+        with tenant_context(self.foundation.id):
+            response = self.client.post(
+                '/api/v1/foundation/exports', data={'format': 'xlsx', 'report': 'not_a_real_report'}, format='json',
+            )
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_post_export_rejects_non_string_report(self):
+        self.client.force_authenticate(user=self.admin)
+        with tenant_context(self.foundation.id):
+            response = self.client.post(
+                '/api/v1/foundation/exports', data={'format': 'xlsx', 'report': {'x': 1}}, format='json',
+            )
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_post_export_rejects_format_not_supported_by_report(self):
+        """A format that's globally valid but not registered for this report_key
+        (e.g. CSV for the dashboard, which only renders PDF/XLSX) must 400,
+        not silently render a mismatched file (FND-010 review finding)."""
+        self.client.force_authenticate(user=self.admin)
+        with tenant_context(self.foundation.id):
+            response = self.client.post(
+                '/api/v1/foundation/exports',
+                data={'format': 'csv', 'report': 'foundation_dashboard'}, format='json',
+            )
             self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_post_export_enqueues_job(self):
