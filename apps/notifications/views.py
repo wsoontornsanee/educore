@@ -1,4 +1,4 @@
-﻿import datetime
+import datetime
 import json
 import logging
 from django.db import transaction
@@ -15,12 +15,15 @@ from apps.identity.permissions import HasRequiredPermission
 from apps.notifications.models import (
     ChannelType,
     DeliveryStatus,
+    DevicePushPlatform,
+    DevicePushToken,
     NotificationDelivery,
     NotificationIntent,
     NotificationPreference,
     NotificationTemplate,
 )
 from apps.notifications.serializers import (
+    DevicePushTokenSerializer,
     NotificationDeliverySerializer,
     NotificationIntentSerializer,
     NotificationPreferenceSerializer,
@@ -206,6 +209,101 @@ class MyNotificationPreferencesView(APIView):
 
         serializer = NotificationPreferenceSerializer(pref)
         return Response(serializer.data)
+
+
+class DevicePushTokenView(APIView):
+    """Register, retrieve, or deactivate mobile/web push tokens (spec/13, docs/frontend-plan.md M4).
+    
+    POST /api/v1/me/push-tokens/   -> upserts a token for the authenticated user
+    GET /api/v1/me/push-tokens/    -> lists active tokens for the authenticated user
+    DELETE /api/v1/me/push-tokens/ -> deactivates a token for the authenticated user
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        tokens = DevicePushToken.all_tenants.filter(
+            foundation_id=foundation_id,
+            user=request.user,
+            is_active=True,
+            deleted_at__isnull=True,
+        ).order_by('-created_at')
+        serializer = DevicePushTokenSerializer(tokens, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        token = request.data.get('token')
+        if not token or not str(token).strip():
+            return Response({'error': _("Token perangkat wajib diisi.")}, status=status.HTTP_400_BAD_REQUEST)
+
+        token = str(token).strip()
+        platform = request.data.get('platform', DevicePushPlatform.ANDROID)
+        if platform not in DevicePushPlatform.values:
+            platform = DevicePushPlatform.ANDROID
+
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        device_token = DevicePushToken.all_tenants.filter(
+            foundation_id=foundation_id,
+            user=request.user,
+            token=token,
+            deleted_at__isnull=True,
+        ).first()
+
+        if device_token:
+            device_token.platform = platform
+            device_token.is_active = True
+            device_token.last_used_at = timezone.now()
+            device_token.save(update_fields=['platform', 'is_active', 'last_used_at', 'updated_at'])
+            created = False
+        else:
+            device_token = DevicePushToken.objects.create(
+                foundation_id=foundation_id,
+                user=request.user,
+                token=token,
+                platform=platform,
+                is_active=True,
+                last_used_at=timezone.now(),
+            )
+            created = True
+
+        audit(
+            action='notifications.push_token.registered',
+            entity_type='DevicePushToken',
+            entity_id=device_token.id,
+            foundation_id=foundation_id,
+            diff={'platform': platform, 'is_active': True, 'created': created},
+        )
+        return Response(
+            DevicePushTokenSerializer(device_token).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+    def delete(self, request):
+        token = request.data.get('token')
+        if not token or not str(token).strip():
+            return Response({'error': _("Parameter token wajib disertakan.")}, status=status.HTTP_400_BAD_REQUEST)
+
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        device_tokens = DevicePushToken.objects.filter(
+            foundation_id=foundation_id,
+            user=request.user,
+            token=str(token).strip(),
+            deleted_at__isnull=True,
+        )
+        count = 0
+        for dt in device_tokens:
+            dt.is_active = False
+            dt.save(update_fields=['is_active', 'updated_at'])
+            count += 1
+
+        audit(
+            action='notifications.push_token.deactivated',
+            entity_type='DevicePushToken',
+            entity_id=0,
+            foundation_id=foundation_id,
+            diff={'token': str(token).strip(), 'count': count},
+        )
+        return Response({'status': 'deactivated', 'count': count}, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])

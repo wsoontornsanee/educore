@@ -997,7 +997,7 @@ def get_teacher_agenda(teacher: Staff, date) -> list:
     substituting into — and excluding their own slots substituted away to someone else.
     Each entry reports whether PeriodAttendance was already submitted for it.
     """
-    from apps.academic.models import TimetableSlot, TimetableSubstitution
+    from apps.academic.models import SubstitutionStatus, TimetableSlot, TimetableSubstitution
 
     weekday = date.isoweekday()
     own_slots = TimetableSlot.objects.filter(
@@ -1011,9 +1011,18 @@ def get_teacher_agenda(teacher: Staff, date) -> list:
         foundation_id=teacher.foundation_id,
         date=date,
         deleted_at__isnull=True,
-    ).select_related('slot__class_subject__class_group', 'slot__class_subject__subject')
-    substitutions_by_slot_id = {s.slot_id: s for s in substitutions}
-    substituted_in = [s for s in substitutions if s.substitute_teacher_id == teacher.id]
+    ).select_related(
+        'slot__class_subject__class_group',
+        'slot__class_subject__subject',
+        'original_teacher__person',
+    )
+    # A slot is only substituted away from the original teacher if NOT declined
+    active_subs_away = [s for s in substitutions if s.status != SubstitutionStatus.DECLINED]
+    substitutions_by_slot_id = {s.slot_id: s for s in active_subs_away}
+    substituted_in = [
+        s for s in substitutions
+        if s.substitute_teacher_id == teacher.id and s.status != SubstitutionStatus.DECLINED
+    ]
 
     relevant_slot_ids = [s.id for s in own_slots] + [s.slot_id for s in substituted_in]
     submitted_slot_ids = set(
@@ -1040,6 +1049,9 @@ def get_teacher_agenda(teacher: Staff, date) -> list:
         })
     for sub in substituted_in:
         slot = sub.slot
+        orig_name = ''
+        if sub.original_teacher and hasattr(sub.original_teacher, 'person'):
+            orig_name = sub.original_teacher.person.full_name
         agenda.append({
             'slot_id': slot.id,
             'period_no': slot.period_no,
@@ -1049,6 +1061,10 @@ def get_teacher_agenda(teacher: Staff, date) -> list:
             'subject': slot.class_subject.subject.name,
             'room': slot.room,
             'is_substitution': True,
+            'substitution_id': sub.id,
+            'substitution_status': sub.status,
+            'original_teacher_name': orig_name,
+            'substitution_reason': sub.reason,
             'attendance_submitted': slot.id in submitted_slot_ids,
         })
 

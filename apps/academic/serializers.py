@@ -131,8 +131,15 @@ class TimetableSlotSerializer(serializers.ModelSerializer):
 class TimetableSubstitutionSerializer(serializers.ModelSerializer):
     class Meta:
         model = TimetableSubstitution
-        fields = ['id', 'foundation_id', 'slot', 'date', 'original_teacher', 'substitute_teacher', 'reason', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'foundation_id', 'original_teacher', 'created_at', 'updated_at']
+        fields = [
+            'id', 'foundation_id', 'slot', 'date', 'original_teacher',
+            'substitute_teacher', 'reason', 'status', 'decline_reason',
+            'responded_at', 'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'foundation_id', 'original_teacher', 'status',
+            'decline_reason', 'responded_at', 'created_at', 'updated_at'
+        ]
 
 
 class HomeworkSerializer(serializers.ModelSerializer):
