@@ -150,6 +150,7 @@ LANGUAGE_CODE = 'id'
 TIME_ZONE = 'Asia/Jakarta'
 USE_I18N = True
 USE_TZ = True
+LOCALE_PATHS = [BASE_DIR / 'locale']
 
 # Static files
 STATIC_URL = '/static/'

@@ -1,0 +1,84 @@
+{% comment %}
+Component: 5-State Screen Banner (spec/17 §8.1, UI-003)
+Usage: {% include "components/banner.html" with state="offline" message="Mode luring aktif. 14 scan tersimpan di perangkat lokal." %}
+Parameters:
+  - state: 'loading' | 'empty' | 'stale' | 'offline' | 'error'
+  - title: Optional heading
+  - message: Optional description message
+  - action_label: Optional button label
+  - action_url: Optional button URL or hx-get target
+  - action_hx_get: Optional HTMX get target
+{% endcomment %}
+{% with st=state|lower %}
+<div class="state-banner state-banner-{{ st }}"
+     role="alert"
+     style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-radius: 0px; border-left-width: 4px; margin-bottom: 16px;
+     {% if st == 'offline' %}
+       background-color: var(--color-warning-bg); border-left-color: var(--color-warning); color: var(--color-ink-900);
+     {% elif st == 'stale' %}
+       background-color: var(--color-surface-alt); border-left-color: var(--color-ink-500); color: var(--color-ink-700); border: 1px solid var(--color-line); border-left: 4px solid var(--color-ink-500);
+     {% elif st == 'error' %}
+       background-color: var(--color-danger-bg); border-left-color: var(--color-danger); color: var(--color-ink-900);
+     {% elif st == 'empty' %}
+       background-color: var(--color-surface); border: 1px solid var(--color-line); border-left-color: var(--color-info); color: var(--color-ink-700); text-align: center; flex-direction: column; gap: 12px; padding: 32px 16px;
+     {% elif st == 'loading' %}
+       background-color: var(--color-surface-alt); border-left-color: var(--color-brand-600); color: var(--color-ink-700);
+     {% else %}
+       background-color: var(--color-info-bg); border-left-color: var(--color-info); color: var(--color-ink-900);
+     {% endif %}">
+
+  <div style="display: flex; align-items: center; gap: 12px;">
+    <!-- State Glyph / Icon -->
+    <span class="banner-icon" style="font-size: 1.25rem; line-height: 1;">
+      {% if st == 'offline' %}
+        ⚡
+      {% elif st == 'stale' %}
+        ⏱
+      {% elif st == 'error' %}
+        ⚠️
+      {% elif st == 'empty' %}
+        📁
+      {% elif st == 'loading' %}
+        <span class="htmx-indicator" style="display: inline-block; animation: pulse 1s infinite;">⏳</span>
+      {% else %}
+        ℹ️
+      {% endif %}
+    </span>
+
+    <div>
+      {% if title %}
+        <div class="text-h3 font-display" style="font-size: 1rem; font-weight: 700; margin-bottom: 2px;">{{ title }}</div>
+      {% endif %}
+      <div class="text-body-sm">
+        {% if message %}
+          {{ message }}
+        {% elif st == 'offline' %}
+          <strong>Koneksi Terputus:</strong> Sistem beroperasi dalam mode luring (offline). Transaksi akan disimpan secara lokal dan disinkronkan otomatis saat kembali terhubung.
+        {% elif st == 'stale' %}
+          Data di-cache untuk performa tinggi. Diperbarui beberapa saat yang lalu.
+        {% elif st == 'error' %}
+          Terjadi kendala saat memuat data. Silakan periksa koneksi atau ulangi proses.
+        {% elif st == 'empty' %}
+          Belum ada data yang tersedia untuk periode atau filter ini.
+        {% elif st == 'loading' %}
+          Memuat data dari server...
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if action_label %}
+    <div style="flex-shrink: 0; margin-left: 16px;">
+      {% if action_hx_get %}
+        <button class="btn btn-secondary text-body-sm" hx-get="{{ action_hx_get }}" hx-swap="outerHTML">
+          {{ action_label }}
+        </button>
+      {% elif action_url %}
+        <a href="{{ action_url }}" class="btn btn-primary text-body-sm">
+          {{ action_label }}
+        </a>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+{% endwith %}

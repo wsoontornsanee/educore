@@ -1,0 +1,45 @@
+# Indonesian translations for EduCore.
+# Copyright (C) 2026 EduCore
+msgid ""
+msgstr ""
+"Project-Id-Version: EduCore 1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-16 11:00+0700\n"
+"PO-Revision-Date: 2026-09-16 11:00+0700\n"
+"Last-Translator: EduCore Team\n"
+"Language-Team: Indonesian\n"
+"Language: id\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "Hadir"
+msgstr "Hadir"
+
+msgid "Terlambat"
+msgstr "Terlambat"
+
+msgid "Sakit"
+msgstr "Sakit"
+
+msgid "Izin"
+msgstr "Izin"
+
+msgid "Alpa"
+msgstr "Alpa"
+
+msgid "Lunas"
+msgstr "Lunas"
+
+msgid "Jatuh Tempo"
+msgstr "Jatuh Tempo"
+
+msgid "Tagihan"
+msgstr "Tagihan"
+
+msgid "Rapor"
+msgstr "Rapor"
+
+msgid "Nilai"
+msgstr "Nilai"

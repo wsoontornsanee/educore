@@ -1,0 +1,45 @@
+{% comment %}
+Component: Status Badge Chip (spec/17 §3.4, §6.4)
+Usage: {% include "components/badge.html" with status="HADIR" label="Hadir Tepat Waktu" %}
+Parameters:
+  - status: Required machine status code (HADIR, TERLAMBAT, SAKIT, IZIN, ALPA, DISPEN, LUNAS, JATUH_TEMPO, SEBAGIAN, DRAF, BATAL)
+  - label: Optional display text (defaults to status)
+{% endcomment %}
+{% with s=status|upper %}
+<span class="status-badge inline-flex items-center font-mono text-label"
+      style="display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 9999px; text-transform: uppercase; font-weight: 600; font-size: 0.6875rem; letter-spacing: 0.05em;
+      {% if s == 'HADIR' or s == 'LUNAS' or s == 'TERBIT' or s == 'AKTIF' %}
+        background-color: var(--color-att-hadir-bg); color: var(--color-att-hadir);
+      {% elif s == 'TERLAMBAT' or s == 'JATUH_TEMPO' or s == 'JATUH TEMPO' or s == 'SEBAGIAN' or s == 'PROSES' %}
+        background-color: var(--color-att-terlambat-bg); color: var(--color-att-terlambat);
+      {% elif s == 'SAKIT' or s == 'INFO' %}
+        background-color: var(--color-att-sakit-bg); color: var(--color-att-sakit);
+      {% elif s == 'IZIN' or s == 'DRAF' or s == 'SELESAI' %}
+        background-color: var(--color-att-izin-bg); color: var(--color-att-izin);
+      {% elif s == 'ALPA' or s == 'BATAL' or s == 'GAGAL' or s == 'MENUNGGAK' or 'MENUNGGAK' in s %}
+        background-color: var(--color-att-alpa-bg); color: var(--color-att-alpa);
+      {% elif s == 'DISPEN' %}
+        background-color: var(--color-att-dispen-bg); color: var(--color-att-dispen);
+      {% else %}
+        background-color: var(--color-surface-alt); color: var(--color-ink-700); border: 1px solid var(--color-line);
+      {% endif %}">
+  <!-- Solid Indicator Dot -->
+  <span class="status-dot" style="display: inline-block; width: 6px; height: 6px; border-radius: 9999px; flex-shrink: 0;
+    {% if s == 'HADIR' or s == 'LUNAS' or s == 'TERBIT' or s == 'AKTIF' %}
+      background-color: var(--color-att-hadir);
+    {% elif s == 'TERLAMBAT' or s == 'JATUH_TEMPO' or s == 'JATUH TEMPO' or s == 'SEBAGIAN' or s == 'PROSES' %}
+      background-color: var(--color-att-terlambat);
+    {% elif s == 'SAKIT' or s == 'INFO' %}
+      background-color: var(--color-att-sakit);
+    {% elif s == 'IZIN' or s == 'DRAF' or s == 'SELESAI' %}
+      background-color: var(--color-att-izin);
+    {% elif s == 'ALPA' or s == 'BATAL' or s == 'GAGAL' or s == 'MENUNGGAK' or 'MENUNGGAK' in s %}
+      background-color: var(--color-att-alpa);
+    {% elif s == 'DISPEN' %}
+      background-color: var(--color-att-dispen);
+    {% else %}
+      background-color: var(--color-ink-500);
+    {% endif %}"></span>
+  <span>{{ label|default:status }}</span>
+</span>
+{% endwith %}
