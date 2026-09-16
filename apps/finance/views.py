@@ -572,7 +572,53 @@ class InvoiceViewSet(viewsets.ModelViewSet):
                 return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class PaymentIntentViewSet(viewsets.ModelViewSet):
+class FinancialScopeMixin:
+    """Resolve the caller's financial data scope (mirrors InvoiceViewSet.get_queryset).
+
+    Shared by PaymentIntentViewSet and PaymentViewSet so that neither one can
+    drift out of sync on guardian/staff scoping for financial records.
+    """
+
+    def _financial_scope(self, foundation_id):
+        """Returns (unrestricted, staff_school_ids, financial_student_ids) where
+        unrestricted=True means foundation-wide finance/admin staff.
+        """
+        from apps.identity.models import RoleAssignment
+        from apps.identity.guardian_access import get_guardian_student_ids
+
+        user = self.request.user
+        if user.is_superuser:
+            return True, set(), set()
+
+        has_fnd_admin = RoleAssignment.all_tenants.filter(
+            foundation_id=foundation_id,
+            user=user,
+            role__in=[
+                RoleAssignment.ROLE_FOUNDATION_ADMIN,
+                RoleAssignment.ROLE_FINANCE_OFFICER,
+            ],
+            scope_type=RoleAssignment.SCOPE_FOUNDATION,
+            deleted_at__isnull=True,
+        ).exists()
+        if has_fnd_admin:
+            return True, set(), set()
+
+        staff_school_ids = set(RoleAssignment.all_tenants.filter(
+            foundation_id=foundation_id,
+            user=user,
+            role__in=[
+                RoleAssignment.ROLE_SCHOOL_ADMIN,
+                RoleAssignment.ROLE_FINANCE_OFFICER,
+            ],
+            scope_type=RoleAssignment.SCOPE_SCHOOL,
+            deleted_at__isnull=True,
+        ).values_list('scope_id', flat=True))
+
+        financial_student_ids = get_guardian_student_ids(user, foundation_id, financial_only=True)
+        return False, staff_school_ids, financial_student_ids
+
+
+class PaymentIntentViewSet(FinancialScopeMixin, viewsets.ModelViewSet):
     """Payment intents for VA and QRIS (spec/06 §2, §4)."""
     serializer_class = PaymentIntentSerializer
     pagination_class = StandardCursorPagination
@@ -580,14 +626,37 @@ class PaymentIntentViewSet(viewsets.ModelViewSet):
     action_permissions = {
         'list': 'finance.invoice.read',
         'retrieve': 'finance.invoice.read',
-        'create': 'finance.invoice.write',
+        # PAR-006: guardians self-serve payment intents under a dedicated key so
+        # that granting them this ability does not also grant 'finance.invoice.write'
+        # (fee/discount CRUD, invoice cancel/write-off, cash payments, period close).
+        'create': 'finance.payment_intent.create',
     }
 
     def get_queryset(self):
         foundation_id = get_current_foundation_id()
         if not foundation_id:
             return PaymentIntent.objects.none()
+
+        user = self.request.user
+        if not user or not user.is_authenticated:
+            return PaymentIntent.objects.none()
+
         qs = PaymentIntent.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True).order_by('-created_at')
+
+        # PAR-017 / IAM-014: non foundation-wide staff must never see another
+        # family's payment intents (VA numbers, amounts, student ids).
+        unrestricted, staff_school_ids, financial_student_ids = self._financial_scope(foundation_id)
+        if not unrestricted:
+            if staff_school_ids and financial_student_ids:
+                from django.db.models import Q
+                qs = qs.filter(Q(school_id__in=staff_school_ids) | Q(student_id__in=financial_student_ids))
+            elif staff_school_ids:
+                qs = qs.filter(school_id__in=staff_school_ids)
+            elif financial_student_ids:
+                qs = qs.filter(student_id__in=financial_student_ids)
+            else:
+                return PaymentIntent.objects.none()
+
         student_id = self.request.query_params.get('student_id')
         if student_id:
             qs = qs.filter(student_id=student_id)
@@ -604,6 +673,17 @@ class PaymentIntentViewSet(viewsets.ModelViewSet):
         invoices = list(Invoice.objects.filter(id__in=data['invoice_ids'], foundation_id=foundation_id))
         if not invoices:
             return Response({'error': _("Tagihan tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        # PAR-017 / IAM-014: a guardian may only create an intent for invoices of
+        # a student they are financially responsible for. Same scope rule as list.
+        unrestricted, staff_school_ids, financial_student_ids = self._financial_scope(foundation_id)
+        if not unrestricted:
+            for invoice in invoices:
+                if invoice.school_id in staff_school_ids:
+                    continue
+                if invoice.student_id in financial_student_ids:
+                    continue
+                return Response({'error': _("Tagihan tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
         student = invoices[0].student
         school = invoices[0].school
@@ -624,7 +704,7 @@ class PaymentIntentViewSet(viewsets.ModelViewSet):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class PaymentViewSet(viewsets.ModelViewSet):
+class PaymentViewSet(FinancialScopeMixin, viewsets.ModelViewSet):
     """Payments, cash desk collection, and manual transfer verification (spec/06 §4)."""
     serializer_class = PaymentSerializer
     pagination_class = StandardCursorPagination
@@ -642,7 +722,27 @@ class PaymentViewSet(viewsets.ModelViewSet):
         foundation_id = get_current_foundation_id()
         if not foundation_id:
             return Payment.objects.none()
+
+        user = self.request.user
+        if not user or not user.is_authenticated:
+            return Payment.objects.none()
+
         qs = Payment.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True).prefetch_related('allocations').order_by('-created_at')
+
+        # PAR-017 / IAM-014: non foundation-wide staff must never see another
+        # family's payments (amounts, student ids, receipt numbers, allocations).
+        unrestricted, staff_school_ids, financial_student_ids = self._financial_scope(foundation_id)
+        if not unrestricted:
+            if staff_school_ids and financial_student_ids:
+                from django.db.models import Q
+                qs = qs.filter(Q(school_id__in=staff_school_ids) | Q(student_id__in=financial_student_ids))
+            elif staff_school_ids:
+                qs = qs.filter(school_id__in=staff_school_ids)
+            elif financial_student_ids:
+                qs = qs.filter(student_id__in=financial_student_ids)
+            else:
+                return Payment.objects.none()
+
         student_id = self.request.query_params.get('student_id')
         if student_id:
             qs = qs.filter(student_id=student_id)
