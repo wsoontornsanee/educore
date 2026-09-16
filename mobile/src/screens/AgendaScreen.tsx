@@ -16,6 +16,7 @@ import {
   View,
 } from 'react-native';
 import { fetchTeacherAgenda, findCurrentSlot } from '../services/agenda';
+import { todayWib } from '../services/localDate';
 import { getPendingCount, syncPendingEntries } from '../services/offlineQueue';
 import { StaleOfflineBanner } from '../components/StaleOfflineBanner';
 import { StatusBadge } from '../components/StatusBadge';
@@ -46,7 +47,7 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
 
   const flatListRef = useRef<FlatList>(null);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = todayWib();
 
   const loadAgenda = async (isPullToRefresh = false) => {
     if (!isPullToRefresh) setLoading(true);

@@ -95,6 +95,54 @@ export interface PushTokenPayload {
   device_name?: string;
 }
 
+export interface ChildSummary {
+  student_id: number;
+  full_name: string;
+  photo_key: string;
+  financial_responsible: boolean;
+}
+
+export interface OtpRequestResponse {
+  challenge_id: number;
+}
+
+export interface AttendanceDayItem {
+  id: number;
+  student: number;
+  date: string;
+  status: AttendanceStatus | 'TERLAMBAT' | 'DISPEN';
+  first_in_at: string | null;
+  first_out_at: string | null;
+}
+
+export interface InvoiceItem {
+  id: number;
+  number: string;
+  period: string;
+  due_date: string;
+  total: string;
+  paid: string;
+  balance_due: string;
+  currency: string;
+  status: string;
+  is_overdue: boolean;
+}
+
+export interface PaymentIntentItem {
+  id: number;
+  invoice: number;
+  method: 'VA' | 'QRIS';
+  va_bank?: string;
+  va_number?: string;
+  qris_payload?: string;
+  amount: string;
+  base_amount: string;
+  convenience_fee_amount: string;
+  currency: string;
+  expires_at: string;
+  status: string;
+}
+
 // POS & Canteen Domain Types (spec/07 §3-§6)
 
 export interface POSProductNutrition {

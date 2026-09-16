@@ -1,17 +1,26 @@
 """API views for Identity, User Profile, and Entitlements (spec/02 §6, §7)."""
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import permissions, status, views, viewsets
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.tokens import RefreshToken
 from apps.core.services import audit
 from educore.middleware.tenancy import get_current_foundation_id
-from .models import FoundationEntitlement
+from .guardian_access import is_staff_user
+from .models import FoundationEntitlement, Guardian, GuardianLink, RoleAssignment, User as UserModel
 from .permissions import IsFoundationAdmin
+from .rbac import assign_role
 from .serializers import (
     EduCoreTokenObtainPairSerializer,
     EduCoreTokenRefreshSerializer,
     FoundationEntitlementSerializer,
+    GuardianChildSerializer,
     UserProfileSerializer,
+    OtpRequestSerializer,
+    OtpVerifySerializer,
 )
+from .services import request_phone_otp, verify_phone_otp, normalize_phone_e164
 
 class EduCoreTokenObtainPairView(TokenObtainPairView):
     """Custom JWT token obtain view supporting dual phone/email identifier login (IAM-001)."""
@@ -503,4 +512,129 @@ class StudentViewSet(viewsets.ModelViewSet):
         return Response(result, status=status.HTTP_200_OK if dry_run else status.HTTP_201_CREATED)
 
 
+class RequestOtpView(views.APIView):
+    """POST /api/v1/auth/otp/request/ — guardian OTP login, step 1 (PAR-001, IAM-002)."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        try:
+            serializer = OtpRequestSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+        except DRFValidationError:
+            return Response({'error': 'Nomor HP wajib diisi.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        phone = serializer.validated_data['phone_e164']
+
+        # Validate phone format first (may embed raw input in error message)
+        try:
+            normalize_phone_e164(phone)
+        except DjangoValidationError:
+            # Return generic message without echoing raw input
+            return Response({'error': 'Format nomor telepon tidak valid. Gunakan format Indonesia (+62... atau 08...).'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Phone format is valid; now attempt OTP request (may fail due to throttle, which is safe to echo)
+        try:
+            challenge, _raw_code = request_phone_otp(phone)
+        except DjangoValidationError as exc:
+            # At this point, any ValidationError must be throttling (format already validated above)
+            return Response({'error': exc.messages[0]}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'challenge_id': challenge.id}, status=status.HTTP_201_CREATED)
+
+
+class VerifyOtpView(views.APIView):
+    """POST /api/v1/auth/otp/verify/ — guardian OTP login, step 2 (PAR-001, IAM-003)."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = OtpVerifySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        ok, message = verify_phone_otp(data['challenge_id'], data['code'])
+        if not ok:
+            return Response({'error': message}, status=status.HTTP_400_BAD_REQUEST)
+
+        from .models import OTPChallenge
+        challenge = OTPChallenge.objects.get(id=data['challenge_id'])
+        user = UserModel.all_tenants.filter(phone_e164=challenge.phone_e164).first()
+        not_registered = Response(
+            {'error': 'Nomor HP ini belum terdaftar sebagai wali murid.', 'code': 'GUARDIAN_NOT_REGISTERED'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+        if not user:
+            return not_registered
+
+        # IAM-014: this endpoint grants a privilege (ROLE_PARENT), so the resolved
+        # user must actually be a registered guardian. Without this check any staff
+        # member owning a phone number could self-grant the parent role via OTP.
+        is_guardian = Guardian.all_tenants.filter(
+            foundation_id=user.foundation_id, user=user, deleted_at__isnull=True
+        ).exists()
+        if not is_guardian:
+            return not_registered
+
+        assignment = assign_role(
+            user=user,
+            role=RoleAssignment.ROLE_PARENT,
+            scope_type=RoleAssignment.SCOPE_FOUNDATION,
+            scope_id=user.foundation_id,
+            foundation_id=user.foundation_id,
+        )
+        audit(
+            action="identity.role.parent_granted",
+            entity_type="RoleAssignment",
+            entity_id=str(assignment.id),
+            actor_id=str(user.id),
+            role=RoleAssignment.ROLE_PARENT,
+            foundation_id=user.foundation_id,
+            school_id=None,
+            ip_address=request.META.get('REMOTE_ADDR'),
+            diff={
+                "role": {"after": RoleAssignment.ROLE_PARENT},
+                "scope_type": {"after": RoleAssignment.SCOPE_FOUNDATION},
+                "scope_id": {"after": user.foundation_id},
+                "granted_via": {"after": "otp_verify"},
+            },
+        )
+
+        refresh = RefreshToken.for_user(user)
+        roles = list(
+            RoleAssignment.all_tenants.filter(
+                foundation_id=user.foundation_id, user=user, deleted_at__isnull=True
+            ).values('id', 'role', 'scope_type', 'scope_id')
+        )
+        return Response({
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': {
+                'id': user.id,
+                'full_name': user.full_name,
+                'phone_e164': user.phone_e164,
+                'email': user.email,
+                'foundation_id': user.foundation_id,
+                'roles': roles,
+            },
+        }, status=status.HTTP_200_OK)
+
+
+class GuardianChildrenView(views.APIView):
+    """GET /api/v1/me/children/ — child switcher list for the authed guardian (PAR-003, PAR-017)."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        if is_staff_user(request.user, foundation_id):
+            return Response(
+                {'error': 'Endpoint ini khusus untuk akun wali murid.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        links = GuardianLink.all_tenants.filter(
+            foundation_id=foundation_id,
+            guardian__user=request.user,
+            guardian__deleted_at__isnull=True,
+            deleted_at__isnull=True,
+            student__deleted_at__isnull=True,
+        ).select_related('student__person')
+        serializer = GuardianChildSerializer(links, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
