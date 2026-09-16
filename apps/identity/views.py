@@ -8,7 +8,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from apps.core.services import audit
 from educore.middleware.tenancy import get_current_foundation_id
 from .guardian_access import is_staff_user
-from .models import FoundationEntitlement, GuardianLink, RoleAssignment, User as UserModel
+from .models import FoundationEntitlement, Guardian, GuardianLink, RoleAssignment, User as UserModel
 from .permissions import IsFoundationAdmin
 from .rbac import assign_role
 from .serializers import (
@@ -557,18 +557,44 @@ class VerifyOtpView(views.APIView):
         from .models import OTPChallenge
         challenge = OTPChallenge.objects.get(id=data['challenge_id'])
         user = UserModel.all_tenants.filter(phone_e164=challenge.phone_e164).first()
+        not_registered = Response(
+            {'error': 'Nomor HP ini belum terdaftar sebagai wali murid.', 'code': 'GUARDIAN_NOT_REGISTERED'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
         if not user:
-            return Response(
-                {'error': 'Nomor HP ini belum terdaftar sebagai wali murid.', 'code': 'GUARDIAN_NOT_REGISTERED'},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+            return not_registered
 
-        assign_role(
+        # IAM-014: this endpoint grants a privilege (ROLE_PARENT), so the resolved
+        # user must actually be a registered guardian. Without this check any staff
+        # member owning a phone number could self-grant the parent role via OTP.
+        is_guardian = Guardian.all_tenants.filter(
+            foundation_id=user.foundation_id, user=user, deleted_at__isnull=True
+        ).exists()
+        if not is_guardian:
+            return not_registered
+
+        assignment = assign_role(
             user=user,
             role=RoleAssignment.ROLE_PARENT,
             scope_type=RoleAssignment.SCOPE_FOUNDATION,
             scope_id=user.foundation_id,
             foundation_id=user.foundation_id,
+        )
+        audit(
+            action="identity.role.parent_granted",
+            entity_type="RoleAssignment",
+            entity_id=str(assignment.id),
+            actor_id=str(user.id),
+            role=RoleAssignment.ROLE_PARENT,
+            foundation_id=user.foundation_id,
+            school_id=None,
+            ip_address=request.META.get('REMOTE_ADDR'),
+            diff={
+                "role": {"after": RoleAssignment.ROLE_PARENT},
+                "scope_type": {"after": RoleAssignment.SCOPE_FOUNDATION},
+                "scope_id": {"after": user.foundation_id},
+                "granted_via": {"after": "otp_verify"},
+            },
         )
 
         refresh = RefreshToken.for_user(user)

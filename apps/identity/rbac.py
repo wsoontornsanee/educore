@@ -31,6 +31,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'grades.read',
         'attendance.read', 'attendance.write',
         'finance.invoice.read', 'finance.invoice.write',
+        'finance.payment_intent.create',
         'finance.payment.read', 'finance.payment.write',
         'wallet.topup.read',
         'behaviour.read',
@@ -58,6 +59,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     ROLE_FINANCE_OFFICER: {
         'student_records.read',
         'finance.invoice.read', 'finance.invoice.write',
+        'finance.payment_intent.create',
         'finance.payment.read', 'finance.payment.write',
         'wallet.topup.read', 'wallet.topup.write',
         'behaviour.read',
@@ -83,6 +85,12 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'grades.read',
         'attendance.read',
         'finance.invoice.read',
+        # PAR-006: guardians may only self-serve a payment intent for their own
+        # outstanding invoices. This deliberately does NOT reuse
+        # 'finance.invoice.write', which gates fee/discount CRUD, invoice
+        # cancel/write-off, cash & manual payment recording and fiscal period
+        # close — none of which a guardian may ever reach.
+        'finance.payment_intent.create',
         'wallet.topup.read', 'wallet.topup.write',
         'behaviour.read',
         'clinic.read',

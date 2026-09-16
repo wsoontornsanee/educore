@@ -5,11 +5,35 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import AuthenticationFailed, InvalidToken
 from rest_framework_simplejwt.settings import api_settings
 
+from educore.middleware.tenancy import get_current_foundation_id, set_current_foundation_id
+
 
 class EduCoreJWTAuthentication(JWTAuthentication):
     """JWT Authentication querying User.all_tenants to bypass fail-closed tenant scoping
     before request foundation context is established by TenancyMiddleware.
     """
+
+    def authenticate(self, request):
+        result = super().authenticate(request)
+        if result is None:
+            return result
+
+        user, _token = result
+        # ARC-002: TenancyMiddleware runs before DRF authentication, so a Bearer
+        # JWT request reaches it as AnonymousUser and the thread-local foundation
+        # context is left unset. Every TenantManager queryset then fails closed and
+        # returns nothing (and TenantModel writes have no tenant). Establish the
+        # context here — the first point at which the token's user is known.
+        # TenancyMiddleware still clears the thread-local when the response is done.
+        foundation_id = getattr(user, 'foundation_id', None)
+        if foundation_id and get_current_foundation_id() is None:
+            set_current_foundation_id(foundation_id)
+            request.foundation_id = foundation_id
+            underlying = getattr(request, '_request', None)
+            if underlying is not None:
+                underlying.foundation_id = foundation_id
+
+        return result
 
     def get_user(self, validated_token):
         try:
