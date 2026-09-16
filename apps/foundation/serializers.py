@@ -1,5 +1,6 @@
 """Serializers for Foundation portal and School management (spec/02, spec/03)."""
 from rest_framework import serializers
+from apps.core.models import AuditEvent
 from apps.identity.models import Foundation, School
 from .models import RptFoundationKPI
 
@@ -71,6 +72,24 @@ class FoundationKPISerializer(serializers.ModelSerializer):
             'computed_at',
         ]
 
+class AuditEventSerializer(serializers.ModelSerializer):
+    """Serializer for the Audit Explorer (FND-010)."""
+    class Meta:
+        model = AuditEvent
+        fields = [
+            'id',
+            'actor_id',
+            'role',
+            'foundation_id',
+            'school_id',
+            'ip_address',
+            'action',
+            'entity_type',
+            'entity_id',
+            'diff',
+            'timestamp',
+        ]
+
 
 class CampusComparisonSchoolSerializer(serializers.Serializer):
     """Per-school aggregated KPI and ranking data for campus comparison (spec/03 §2, FND-004)."""
@@ -104,4 +123,3 @@ class CampusComparisonSummarySerializer(serializers.Serializer):
     active_students = serializers.IntegerField(read_only=True)
     avg_attendance_pct = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=True)
     reporting_currency = serializers.CharField(read_only=True)
-
