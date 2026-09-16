@@ -109,6 +109,10 @@ def dispatch_intent(
     if not scheduled_for:
         scheduled_for = timezone.now()
 
+    recipient_phone = recipient_phone or ''
+    recipient_email = recipient_email or ''
+    recipient_name = recipient_name or ''
+
     cat_config = CATEGORY_CONFIG.get(category, {})
     if not priority:
         priority = cat_config.get('priority', NotificationPriority.NORMAL)

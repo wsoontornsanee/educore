@@ -1,0 +1,151 @@
+{% load l10n %}
+{% comment %}
+Component: Homework Teacher Completion Bar (spec/04 §7, ACD-030, spec/17 §6.4)
+Usage: {% include "components/homework_completion_bar.html" with homework=homework completion=completion %}
+Parameters:
+  - homework: Homework model instance or dict with id, title, due_at, last_reminded_at
+  - completion: Dict from get_homework_completion (total, graded, submitted, late, missing, percentages)
+  - remind_url: Optional override for remind endpoint
+  - status_url: Optional override for remind-status endpoint
+{% endcomment %}
+<div id="completion-card-{{ homework.id }}"
+     class="card homework-completion-card"
+     style="border: 1px solid var(--color-line); background-color: var(--color-surface); padding: 20px; border-radius: 0px;">
+
+  <!-- Header: Homework Meta & Due Status -->
+  <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
+    <div>
+      <div class="text-label text-ink-500" style="margin-bottom: 4px;">Penyelesaian Tugas Kelas</div>
+      <h3 class="text-h3 font-display text-ink-900" style="margin: 0;">{{ homework.title }}</h3>
+    </div>
+    <div style="text-align: right;">
+      <span class="text-body-sm text-ink-500 font-mono">
+        Total Siswa: <strong class="text-ink-900">{{ completion.total }}</strong>
+      </span>
+      {% if homework.due_at %}
+        <div class="text-body-sm text-ink-500" style="margin-top: 2px;">
+          Tenggat: <span class="font-mono">{{ homework.due_at|date:"d M Y, H:i" }}</span>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- 4-Segment Multi-Color Progress Bar -->
+  <div class="completion-bar-track"
+       style="display: flex; width: 100%; height: 14px; background-color: var(--color-surface-alt); border: 1px solid var(--color-line); border-radius: 0px; overflow: hidden; margin-bottom: 16px;"
+       role="progressbar"
+       aria-valuenow="{{ completion.graded|add:completion.submitted }}"
+       aria-valuemin="0"
+       aria-valuemax="{{ completion.total }}">
+
+    {% if completion.percentages.graded > 0 %}
+      <div class="bar-segment-graded"
+           title="Dinilai: {{ completion.graded }} siswa ({{ completion.percentages.graded }}%)"
+           style="width: {{ completion.percentages.graded|unlocalize }}%; background-color: var(--color-success); transition: width 300ms ease-out;"></div>
+    {% endif %}
+
+    {% if completion.percentages.submitted > 0 %}
+      <div class="bar-segment-submitted"
+           title="Terkumpul (Tepat Waktu): {{ completion.submitted }} siswa ({{ completion.percentages.submitted }}%)"
+           style="width: {{ completion.percentages.submitted|unlocalize }}%; background-color: var(--color-info); transition: width 300ms ease-out;"></div>
+    {% endif %}
+
+    {% if completion.percentages.late > 0 %}
+      <div class="bar-segment-late"
+           title="Terlambat: {{ completion.late }} siswa ({{ completion.percentages.late }}%)"
+           style="width: {{ completion.percentages.late|unlocalize }}%; background-color: var(--color-warning); transition: width 300ms ease-out;"></div>
+    {% endif %}
+
+    {% if completion.percentages.missing > 0 %}
+      <div class="bar-segment-missing"
+           title="Belum Mengumpulkan: {{ completion.missing }} siswa ({{ completion.percentages.missing }}%)"
+           style="width: {{ completion.percentages.missing|unlocalize }}%; background-color: var(--color-att-alpa-bg); border-left: 1px dashed var(--color-line); transition: width 300ms ease-out;"></div>
+    {% endif %}
+  </div>
+
+  <!-- Legend & Statistics Grid -->
+  <div class="completion-legend-grid"
+       style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 20px;">
+
+    <!-- Graded -->
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span style="display: inline-block; width: 8px; height: 8px; border-radius: 9999px; background-color: var(--color-success); flex-shrink: 0;"></span>
+      <div>
+        <div class="text-label text-ink-500">Dinilai</div>
+        <div class="text-body font-mono font-semibold" style="color: var(--color-success);">
+          {{ completion.graded }} <span class="text-body-sm font-normal text-ink-500">({{ completion.percentages.graded }}%)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Submitted -->
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span style="display: inline-block; width: 8px; height: 8px; border-radius: 9999px; background-color: var(--color-info); flex-shrink: 0;"></span>
+      <div>
+        <div class="text-label text-ink-500">Terkumpul</div>
+        <div class="text-body font-mono font-semibold" style="color: var(--color-info);">
+          {{ completion.submitted }} <span class="text-body-sm font-normal text-ink-500">({{ completion.percentages.submitted }}%)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Late -->
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span style="display: inline-block; width: 8px; height: 8px; border-radius: 9999px; background-color: var(--color-warning); flex-shrink: 0;"></span>
+      <div>
+        <div class="text-label text-ink-500">Terlambat</div>
+        <div class="text-body font-mono font-semibold" style="color: var(--color-warning);">
+          {{ completion.late }} <span class="text-body-sm font-normal text-ink-500">({{ completion.percentages.late }}%)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Missing -->
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span style="display: inline-block; width: 8px; height: 8px; border-radius: 9999px; background-color: var(--color-danger); flex-shrink: 0;"></span>
+      <div>
+        <div class="text-label text-ink-500">Belum Mengumpulkan</div>
+        <div class="text-body font-mono font-semibold" style="color: var(--color-danger);">
+          {{ completion.missing }} <span class="text-body-sm font-normal text-ink-500">({{ completion.percentages.missing }}%)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Actions & Reminder Control Bar -->
+  <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 16px; border-top: 1px solid var(--color-line); flex-wrap: wrap; gap: 12px;">
+    <div>
+      {% if completion.missing > 0 %}
+        <button class="btn btn-secondary text-body-sm"
+                hx-post="{{ remind_url|default:'/api/v1/academic/homework/'|add:homework.id|add:'/remind/' }}"
+                hx-swap="none"
+                hx-indicator="#remind-spinner-{{ homework.id }}"
+                style="gap: 8px;">
+          <span>🔔</span>
+          <span>Ingatkan Siswa Belum Mengumpulkan ({{ completion.missing }})</span>
+        </button>
+        <span id="remind-spinner-{{ homework.id }}" class="htmx-indicator text-body-sm text-ink-500" style="margin-left: 8px;">
+          Mengirim pengingat ke wali murid...
+        </span>
+      {% else %}
+        <span class="text-body-sm text-success" style="display: inline-flex; align-items: center; gap: 6px;">
+          <span>✓</span>
+          <span>Semua siswa telah mengumpulkan tugas.</span>
+        </span>
+      {% endif %}
+    </div>
+
+    <div>
+      <button class="btn btn-ghost text-body-sm text-ink-700"
+              hx-get="{{ status_url|default:'/api/v1/academic/homework/'|add:homework.id|add:'/remind-status/' }}"
+              hx-target="#remind-receipts-{{ homework.id }}"
+              hx-swap="innerHTML"
+              style="font-size: 0.8125rem;">
+        <span>📋 Status Pengiriman Pengingat</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Reminder Delivery Receipts Container (Target of status_url) -->
+  <div id="remind-receipts-{{ homework.id }}" style="margin-top: 12px;"></div>
+</div>
