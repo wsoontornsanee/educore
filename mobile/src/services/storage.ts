@@ -18,6 +18,7 @@ export const StorageKeys = {
   REFRESH_TOKEN: 'educore_refresh_token',
   USER_PROFILE: 'educore_user_profile',
   PENDING_PUSH_TOKEN: 'educore_push_token',
+  LAST_CHILD_ID: 'educore_parent_last_child_id',
 };
 
 export async function setItem(key: string, value: string): Promise<void> {
@@ -98,4 +99,15 @@ export async function cacheGet<T>(key: string): Promise<{ value: T; cachedAt: st
   } catch {
     return null;
   }
+}
+
+export async function saveLastChildId(studentId: number): Promise<void> {
+  await setItem(StorageKeys.LAST_CHILD_ID, String(studentId));
+}
+
+export async function getLastChildId(): Promise<number | null> {
+  const raw = await getItem(StorageKeys.LAST_CHILD_ID);
+  if (!raw) return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
 }

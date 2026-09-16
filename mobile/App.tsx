@@ -15,14 +15,21 @@ import { LoginScreen } from './src/screens/LoginScreen';
 import { AgendaScreen } from './src/screens/AgendaScreen';
 import { RollCallScreen } from './src/screens/RollCallScreen';
 import { SubstitutionModal } from './src/screens/SubstitutionModal';
+import { ParentShell, ParentTab } from './src/screens/parent/ParentShell';
+import { ParentHomeScreen } from './src/screens/parent/ParentHomeScreen'; // added in Task 9
+import { ParentAttendanceScreen } from './src/screens/parent/ParentAttendanceScreen'; // added in Task 10
+import { ParentInvoicesScreen } from './src/screens/parent/ParentInvoicesScreen'; // added in Task 11
 import { colors } from './src/theme/tokens';
 import { StudentRosterItem, TimetableSlotItem, UserProfile } from './src/types';
+
+const isParent = (user: UserProfile | null) => !!user?.roles?.some((r) => r.role === 'parent');
 
 export default function App() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [activeSlot, setActiveSlot] = useState<TimetableSlotItem | null>(null);
   const [subModalSlot, setSubModalSlot] = useState<TimetableSlotItem | null>(null);
+  const [parentTab, setParentTab] = useState<ParentTab>('HOME');
 
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -100,6 +107,18 @@ export default function App() {
       <StatusBar style="dark" />
       {!currentUser ? (
         <LoginScreen onLoginSuccess={handleLoginSuccess} />
+      ) : isParent(currentUser) ? (
+        <ParentShell activeTab={parentTab} onTabChange={setParentTab} onLogout={handleLogout}>
+          {({ selectedChild }) =>
+            parentTab === 'HOME' ? (
+              <ParentHomeScreen child={selectedChild} />
+            ) : parentTab === 'ATTENDANCE' ? (
+              <ParentAttendanceScreen child={selectedChild} />
+            ) : (
+              <ParentInvoicesScreen child={selectedChild} />
+            )
+          }
+        </ParentShell>
       ) : activeSlot ? (
         <RollCallScreen
           slot={activeSlot}
