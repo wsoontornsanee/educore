@@ -8,7 +8,7 @@ from django.utils.translation import gettext_lazy as _
 
 from apps.core.models import AuditEvent, DomainEvent
 from apps.core.services import audit, record_domain_event
-from apps.identity.models import GuardianLink, School, Student, User
+from apps.identity.models import Foundation, GuardianLink, School, Student, User
 from apps.finance.models import (
     Discount,
     DiscountStatus,
@@ -154,14 +154,17 @@ def create_discount_with_approval_check(
     valid_to: Optional[datetime.date] = None,
     fee_type: Optional[FeeType] = None,
     user: Optional[Any] = None,
-    approval_threshold: Decimal = Decimal('1000000.00'),
+    approval_threshold: Optional[Decimal] = None,
     percent_threshold: Decimal = Decimal('25.00'),
 ) -> Discount:
     """
     Creates a discount or waiver with automatic foundation approval gating (FIN-007).
-    
-    Discounts exceeding approval_threshold (default Rp 1,000,000 or >25%) require approval.
+
+    Discounts exceeding approval_threshold (default: foundation.approval_threshold, FND-007) or >25% require approval.
     """
+    if approval_threshold is None:
+        approval_threshold = Foundation.objects.get(id=foundation_id).approval_threshold
+
     if not isinstance(value, Decimal):
         value = Decimal(str(value))
 

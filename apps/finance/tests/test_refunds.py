@@ -195,6 +195,33 @@ class RefundServiceTests(TestCase):
         self.assertEqual(refund.approved_by, self.foundation_admin)
         self.assertIsNotNone(refund.approved_at)
 
+    def test_request_refund_uses_foundation_configured_threshold(self):
+        """FND-007: refund gating MUST follow foundation.approval_threshold, not a hardcoded constant."""
+        self.foundation.approval_threshold = Decimal('300000.00')
+        self.foundation.save(update_fields=['approval_threshold'])
+
+        below_threshold = request_refund(
+            payment=self.payment,
+            amount=Decimal('200000.00'),
+            reason="Kelebihan bayar di bawah ambang batas baru",
+            destination_bank_name="BCA",
+            destination_account_number="1234567890",
+            destination_account_holder="Ayah Budi",
+            requested_by=self.finance_user,
+        )
+        self.assertEqual(below_threshold.status, RefundStatus.APPROVED)
+
+        above_threshold = request_refund(
+            payment=self.payment,
+            amount=Decimal('400000.00'),
+            reason="Kelebihan bayar di atas ambang batas baru",
+            destination_bank_name="BCA",
+            destination_account_number="1234567890",
+            destination_account_holder="Ayah Budi",
+            requested_by=self.finance_user,
+        )
+        self.assertEqual(above_threshold.status, RefundStatus.PENDING_APPROVAL)
+
     def test_request_refund_unsettled_payment_fails(self):
         """Cannot request refund on pending or rejected payment."""
         pending_payment = Payment.objects.create(

@@ -9,9 +9,11 @@ Defines:
 """
 import logging
 from datetime import timedelta
+from decimal import Decimal
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
 from django.utils import timezone
+from apps.core.fields import MoneyField
 from apps.core.models import TenantModel
 from .managers import UserManager, AllUsersManager
 
@@ -44,6 +46,10 @@ class Foundation(models.Model):
     address = models.TextField(blank=True, default='', help_text="Official registered address")
     timezone = models.CharField(max_length=32, default='Asia/Jakarta', help_text="Default timezone: Asia/Jakarta, Asia/Makassar, or Asia/Jayapura")
     reporting_currency = models.CharField(max_length=3, default='IDR', help_text="Currency for consolidated reporting (CUR-007)")
+    approval_threshold = MoneyField(
+        default=Decimal('1000000.00'),
+        help_text="Nominal ambang batas persetujuan yayasan untuk diskon, keringanan, dan refund (FND-007, FIN-007, FIN-032)",
+    )
     plan_tier = models.CharField(max_length=32, choices=PLAN_CHOICES, default=PLAN_STANDARD)
     status = models.CharField(max_length=32, choices=STATUS_CHOICES, default=STATUS_ACTIVE, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)

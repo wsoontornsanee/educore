@@ -34,6 +34,7 @@ class FoundationSettingsSerializer(serializers.ModelSerializer):
             'address',
             'timezone',
             'reporting_currency',
+            'approval_threshold',
             'plan_tier',
             'status',
             'created_at',

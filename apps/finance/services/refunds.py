@@ -7,7 +7,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.services import audit, record_domain_event
-from apps.identity.models import RoleAssignment, User
+from apps.identity.models import Foundation, RoleAssignment, User
 from apps.identity.rbac import is_foundation_admin
 from apps.finance.models import (
     AccountCode,
@@ -54,10 +54,12 @@ def request_refund(
     """
     Submits a refund request against a settled payment (spec/06 §7, FIN-020, FIN-032, FIN-034).
     Enforces cumulative refund limit <= payment.amount.
-    Gated by foundation approval threshold (FND-007, FIN-032).
+    Gated by the payment's foundation.approval_threshold (FND-007, FIN-032).
     """
     if approval_threshold is None:
-        approval_threshold = DEFAULT_REFUND_APPROVAL_THRESHOLD
+        approval_threshold = Foundation.objects.filter(id=payment.foundation_id).values_list(
+            'approval_threshold', flat=True
+        ).first() or DEFAULT_REFUND_APPROVAL_THRESHOLD
 
     # Lock payment record for inspection
     payment = Payment.objects.select_for_update().get(id=payment.id)

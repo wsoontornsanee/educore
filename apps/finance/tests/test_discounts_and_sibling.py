@@ -227,3 +227,31 @@ class DiscountsAndSiblingEngineTests(TestCase):
             reject_discount(disc_to_reject, user=self.admin_user, reason="Tidak memenuhi kriteria yayasan")
             disc_to_reject.refresh_from_db()
             self.assertEqual(disc_to_reject.status, DiscountStatus.REJECTED)
+
+    def test_approval_threshold_uses_foundation_configured_value(self):
+        """FND-007: discount gating MUST follow foundation.approval_threshold, not a hardcoded constant."""
+        self.foundation.approval_threshold = Decimal('5000000.00')
+        self.foundation.save(update_fields=['approval_threshold'])
+
+        with tenant_context(self.foundation.id):
+            below_threshold = create_discount_with_approval_check(
+                foundation_id=self.foundation.id,
+                student=self.child1,
+                type=DiscountType.FIXED,
+                value=Decimal('3000000.00'),
+                reason="Keringanan Di Bawah Ambang Batas Yayasan",
+                valid_from=datetime.date(2026, 7, 1),
+                user=self.admin_user,
+            )
+            self.assertEqual(below_threshold.status, DiscountStatus.APPROVED)
+
+            above_threshold = create_discount_with_approval_check(
+                foundation_id=self.foundation.id,
+                student=self.child1,
+                type=DiscountType.FIXED,
+                value=Decimal('6000000.00'),
+                reason="Keringanan Di Atas Ambang Batas Yayasan",
+                valid_from=datetime.date(2026, 7, 1),
+                user=self.admin_user,
+            )
+            self.assertEqual(above_threshold.status, DiscountStatus.PENDING_APPROVAL)
