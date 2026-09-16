@@ -8,6 +8,7 @@ from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
+from apps.core import storage
 from apps.core.services import audit, write_generated_file
 from apps.wallet.models import (
     MerchantSettlement,
@@ -642,8 +643,9 @@ def generate_settlement_statement_pdf(settlement: MerchantSettlement) -> str:
         data = html_content.encode('utf-8')
         content_type = 'text/html'
 
+    key = storage.build_deterministic_object_key('settlement_statement', filename)
     stored_file = write_generated_file(
-        purpose='settlement_statement', filename=filename, data=data,
+        purpose='settlement_statement', filename=filename, data=data, key=key,
         content_type=content_type, foundation_id=settlement.foundation_id,
     )
     settlement.statement_pdf_key = stored_file.key

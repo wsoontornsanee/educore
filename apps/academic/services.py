@@ -12,6 +12,7 @@ from django.utils.translation import gettext_lazy as _
 
 logger = logging.getLogger(__name__)
 
+from apps.core import storage
 from apps.core.services import audit, write_generated_file
 from apps.identity.models import Foundation, RoleAssignment, Staff, Student
 from apps.academic.models import (
@@ -1764,8 +1765,9 @@ def render_report_card_pdf(report_card: ReportCard) -> str:
         data = html_content.encode('utf-8')
         content_type = 'text/html'
 
+    key = storage.build_deterministic_object_key('report_card_pdf', filename)
     stored_file = write_generated_file(
-        purpose='report_card_pdf', filename=filename, data=data,
+        purpose='report_card_pdf', filename=filename, data=data, key=key,
         content_type=content_type, foundation_id=report_card.foundation_id,
     )
     return stored_file.key

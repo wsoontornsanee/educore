@@ -167,25 +167,42 @@ def confirm_upload(stored_file_id, actor=None):
     return stored_file
 
 
-def write_generated_file(purpose, filename, data, content_type, foundation_id=None, uploaded_by=None, school_id=None):
+def write_generated_file(purpose, filename, data, content_type, foundation_id=None, uploaded_by=None, school_id=None, key=None):
     """For server-generated files (PDFs): write bytes directly to GCS and
     create an already-confirmed StoredFile row in one step — no two-phase
-    commit needed since the server itself performed the write."""
+    commit needed since the server itself performed the write.
+
+    Pass an explicit `key` (e.g. via storage.build_deterministic_object_key)
+    for documents that represent one canonical rendering per entity — a
+    re-render then overwrites the same GCS object and updates the same
+    StoredFile row (matched by the unique `key`) instead of creating a new
+    row and orphaning the previous object. Omit `key` to get the default
+    uuid-suffixed key, which always creates a fresh row.
+    """
     if foundation_id is None:
         foundation_id = get_current_foundation_id()
 
-    key = storage.build_object_key(purpose, filename)
+    if key is None:
+        key = storage.build_object_key(purpose, filename)
     storage.upload_bytes(key, data, content_type)
 
-    return StoredFile.objects.create(
-        foundation_id=foundation_id,
-        school_id=school_id,
-        bucket=settings.GCS_BUCKET_NAME,
+    # Known race: two concurrent calls for the same deterministic key can both
+    # miss on the get() below and collide on StoredFile.key's unique
+    # constraint. Same unguarded update_or_create pattern already accepted
+    # elsewhere (SchoolQrisConfig.objects.update_or_create) — acceptable
+    # while callers are single manual actions per entity.
+    stored_file, _created = StoredFile.all_tenants.update_or_create(
         key=key,
-        purpose=purpose,
-        content_type=content_type,
-        size=len(data),
-        checksum=hashlib.md5(data, usedforsecurity=False).hexdigest(),
-        confirmed_at=timezone.now(),
-        uploaded_by=uploaded_by or '',
+        defaults={
+            'foundation_id': foundation_id,
+            'school_id': school_id,
+            'bucket': settings.GCS_BUCKET_NAME,
+            'purpose': purpose,
+            'content_type': content_type,
+            'size': len(data),
+            'checksum': hashlib.md5(data, usedforsecurity=False).hexdigest(),
+            'confirmed_at': timezone.now(),
+            'uploaded_by': uploaded_by or '',
+        },
     )
+    return stored_file
