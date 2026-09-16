@@ -85,3 +85,17 @@ export async function getUserProfile(): Promise<UserProfile | null> {
     return null;
   }
 }
+
+export async function cacheSet<T>(key: string, value: T): Promise<void> {
+  await setItem(key, JSON.stringify({ value, cachedAt: new Date().toISOString() }));
+}
+
+export async function cacheGet<T>(key: string): Promise<{ value: T; cachedAt: string } | null> {
+  const raw = await getItem(key);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as { value: T; cachedAt: string };
+  } catch {
+    return null;
+  }
+}
