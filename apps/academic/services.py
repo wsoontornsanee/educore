@@ -7,7 +7,6 @@ import csv
 import io
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
-from django.conf import settings
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -1539,21 +1538,28 @@ table {{ border-collapse: collapse; width: 100%; }}
 
 def render_report_card_pdf(report_card: ReportCard) -> str:
     """Render and persist the report card document. Falls back to HTML if weasyprint's
-    native libraries are unavailable in this environment (see memory/01_PROJECT.md)."""
+    native libraries are unavailable in this environment (see memory/01_PROJECT.md).
+    Written to GCS via core.write_generated_file, catalogued as a core.StoredFile
+    row (ARC-026, ARC-030) — no raw filesystem write.
+    """
     html_content = render_report_card_html(report_card)
-    output_dir = Path(settings.MEDIA_ROOT) / 'report_cards'
-    output_dir.mkdir(parents=True, exist_ok=True)
 
     try:
         from weasyprint import HTML
-        key = f"report_cards/{report_card.id}_v{report_card.version}.pdf"
-        HTML(string=html_content).write_pdf(str(Path(settings.MEDIA_ROOT) / key))
+        filename = f"{report_card.id}_v{report_card.version}.pdf"
+        data = HTML(string=html_content).write_pdf()
+        content_type = 'application/pdf'
     except Exception:
         logger.warning("weasyprint unavailable, falling back to HTML rapor output", exc_info=True)
-        key = f"report_cards/{report_card.id}_v{report_card.version}.html"
-        (Path(settings.MEDIA_ROOT) / key).write_text(html_content, encoding='utf-8')
+        filename = f"{report_card.id}_v{report_card.version}.html"
+        data = html_content.encode('utf-8')
+        content_type = 'text/html'
 
-    return key
+    stored_file = write_generated_file(
+        purpose='report_card_pdf', filename=filename, data=data,
+        content_type=content_type, foundation_id=report_card.foundation_id,
+    )
+    return stored_file.key
 
 
 def publish_report_card(report_card: ReportCard, actor=None) -> ReportCard:
