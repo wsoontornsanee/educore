@@ -1,6 +1,7 @@
 """API views for Identity, User Profile, and Entitlements (spec/02 §6, §7)."""
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import permissions, status, views, viewsets
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from apps.core.services import audit
@@ -512,11 +513,16 @@ class RequestOtpView(views.APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
-        serializer = OtpRequestSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        try:
+            serializer = OtpRequestSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+        except DRFValidationError:
+            return Response({'error': 'Nomor HP wajib diisi.'}, status=status.HTTP_400_BAD_REQUEST)
+
         try:
             challenge, _raw_code = request_phone_otp(serializer.validated_data['phone_e164'])
-        except DjangoValidationError as exc:
-            return Response({'error': exc.messages[0]}, status=status.HTTP_400_BAD_REQUEST)
+        except DjangoValidationError:
+            # Return generic message without echoing raw input (for phone format validation)
+            return Response({'error': 'Format nomor telepon tidak valid. Gunakan format Indonesia (+62... atau 08...).'}, status=status.HTTP_400_BAD_REQUEST)
         return Response({'challenge_id': challenge.id}, status=status.HTTP_201_CREATED)
 
