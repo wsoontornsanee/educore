@@ -132,3 +132,12 @@ was actually produced (`application/pdf` or `text/html`).
 - Authorization/size/content-type rules for any `purpose` beyond
   `homework_submission`, `report_card_pdf`, `settlement_statement` — add to
   `PURPOSE_RULES` when a new upload type actually needs one.
+- Re-render orphaning `report_card_pdf`/`settlement_statement` objects and
+  `StoredFile` rows on every re-render (unlike the old deterministic-key
+  behavior, which overwrote in place) — logged as a new Notion Open Item:
+  https://app.notion.com/p/3dd347a6659481bab97eff1ced998635
+- Legacy `pdf_key`/`statement_pdf_key` values written before this migration
+  (if any exist) point to old `MEDIA_ROOT`-relative paths with no `StoredFile`
+  row and no marker distinguishing them from post-migration GCS keys. A
+  future signed-GET download endpoint for these fields (see the item above)
+  must handle both formats or treat pre-migration values as unreadable.
