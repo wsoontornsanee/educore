@@ -1,12 +1,14 @@
 import logging
 from decimal import Decimal
 from typing import Any, Optional
+from django.core.exceptions import PermissionDenied
 from django.db import models, transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.services import audit, record_domain_event
 from apps.identity.models import RoleAssignment, User
+from apps.identity.rbac import is_foundation_admin
 from apps.finance.models import (
     AccountCode,
     InvoiceStatus,
@@ -99,16 +101,9 @@ def request_refund(
         )
 
     # Check threshold policy (FIN-032, FND-007)
-    is_foundation_admin = bool(
-        requested_by.is_superuser or RoleAssignment.objects.filter(
-            user=requested_by,
-            foundation_id=payment.foundation_id,
-            scope_type=RoleAssignment.SCOPE_FOUNDATION,
-            deleted_at__isnull=True,
-        ).exists()
-    )
+    is_admin = is_foundation_admin(requested_by, payment.foundation_id)
 
-    if amount > approval_threshold and not is_foundation_admin:
+    if amount > approval_threshold and not is_admin:
         status = RefundStatus.PENDING_APPROVAL
         approved_by = None
         approved_at = None
@@ -139,7 +134,7 @@ def request_refund(
         entity_type='Refund',
         entity_id=refund.id,
         actor_id=str(requested_by.id),
-        role='foundation_admin' if is_foundation_admin else 'finance_officer',
+        role='foundation_admin' if is_admin else 'finance_officer',
         foundation_id=refund.foundation_id,
         school_id=refund.school_id,
         diff={
@@ -178,6 +173,11 @@ def approve_refund(
     """
     Approves or rejects a pending refund request (spec/06 §7, FIN-032, FND-007, FND-008).
     """
+    if not is_foundation_admin(user, refund.foundation_id):
+        raise PermissionDenied(
+            _("Persetujuan atau penolakan pengembalian dana memerlukan wewenang Admin Yayasan (FND-007, FIN-032).")
+        )
+
     if refund.status != RefundStatus.PENDING_APPROVAL:
         raise InvalidRefundStateError(
             _("Hanya pengembalian dana dengan status PENDING_APPROVAL yang dapat diproses persetujuannya.")

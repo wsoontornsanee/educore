@@ -275,11 +275,11 @@ class WriteOffWorkflowTests(TestCase):
         self.assertEqual(create_resp.status_code, status.HTTP_201_CREATED)
         request_id = create_resp.data['id']
 
-        # 2. School finance officer tries to approve -> 400 with permission denied error
+        # 2. School finance officer tries to approve -> 403 Forbidden
         approve_attempt = self.client.post(f'/api/v1/finance/write-offs/{request_id}/approve/', {
             'notes': "Approve diri sendiri",
         }, format='json')
-        self.assertEqual(approve_attempt.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(approve_attempt.status_code, status.HTTP_403_FORBIDDEN)
 
         # 3. Foundation Admin approves
         self.client.force_authenticate(user=self.foundation_admin)
