@@ -4,7 +4,7 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from apps.core.fields import MoneyField
+from apps.core.fields import MoneyField, soft_delete_uniqueness_marker
 from apps.core.models import TenantModel
 from apps.identity.models import School, User
 
@@ -32,6 +32,7 @@ class NotificationCategory(models.TextChoices):
     ANNOUNCEMENT = 'ANNOUNCEMENT', _('Pengumuman Sekolah (Announcement)')
     WALLET_RECONCILIATION = 'WALLET_RECONCILIATION', _('Rekonsiliasi Dompet (Wallet Reconciliation)')
     SUBSTITUTE_ASSIGNED = 'SUBSTITUTE_ASSIGNED', _('Penugasan Guru Pengganti (Substitute Assigned)')
+    SUBSTITUTE_DECLINED = 'SUBSTITUTE_DECLINED', _('Penolakan Guru Pengganti (Substitute Declined)')
 
 
 class NotificationPriority(models.TextChoices):
@@ -158,6 +159,12 @@ CATEGORY_CONFIG = {
         'quiet_hours_respected': True,
         'opt_out_allowed': True,
     },
+    NotificationCategory.SUBSTITUTE_DECLINED: {
+        'default_channels': [ChannelType.WHATSAPP, ChannelType.PUSH],
+        'priority': NotificationPriority.HIGH,
+        'quiet_hours_respected': True,
+        'opt_out_allowed': False,
+    },
 }
 
 
@@ -265,3 +272,34 @@ class NotificationDelivery(TenantModel):
 
     def __str__(self):
         return f"Delivery #{self.id} [{self.channel}][{self.provider}] status={self.status} (Intent #{self.intent_id})"
+
+
+class DevicePushPlatform(models.TextChoices):
+    ANDROID = 'ANDROID', _('Android')
+    IOS = 'IOS', _('iOS')
+    WEB = 'WEB', _('Web')
+
+
+class DevicePushToken(TenantModel):
+    """A mobile or web device push token registered for a user (spec/13, docs/frontend-plan.md M4)."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='push_tokens')
+    token = models.CharField(max_length=255)
+    platform = models.CharField(max_length=16, choices=DevicePushPlatform.choices, default=DevicePushPlatform.ANDROID)
+    is_active = models.BooleanField(default=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    active_uniq_marker = soft_delete_uniqueness_marker()
+
+    class Meta:
+        db_table = 'device_push_tokens'
+        indexes = [
+            models.Index(fields=['foundation_id', 'user_id', 'is_active']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'user', 'token', 'active_uniq_marker'],
+                name='unique_user_device_push_token',
+            ),
+        ]
+
+    def __str__(self):
+        return f"PushToken [{self.platform}] user={self.user_id} active={self.is_active}"

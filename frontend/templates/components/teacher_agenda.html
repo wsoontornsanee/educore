@@ -1,0 +1,492 @@
+{% load l10n %}
+{% comment %}
+Component: Teacher Mobile Agenda Surface & Substitution Workflow (spec/09 §2, §3 TCH-001..003, TCH-015, ACD-019, spec/17)
+Usage: {% include "components/teacher_agenda.html" with agenda=agenda current_date=current_date teacher=teacher %}
+Parameters:
+  - agenda: List of slot dicts from get_teacher_agenda (slot_id, period_no, start_time, end_time, class_group, subject, room, is_substitution, attendance_submitted, substitution_id, substitution_status, original_teacher_name, substitution_reason)
+  - current_date: date object or string
+  - teacher: Staff model instance
+{% endcomment %}
+
+<div id="teacher-agenda-container"
+     class="teacher-agenda-layout"
+     style="display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 720px; margin: 0 auto; font-family: var(--font-body, 'IBM Plex Sans', sans-serif);">
+
+  <!-- Mobile Header: Today's Date, Teacher Info, and Offline Sync Status -->
+  <header class="card agenda-header"
+          style="padding: 16px 20px; background-color: var(--color-surface); border: 1px solid var(--color-line); border-radius: 0px;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px;">
+      <div>
+        <div class="text-label text-ink-500" style="margin-bottom: 2px;">Agenda Mengajar Harian</div>
+        <h2 class="text-h2 font-display text-ink-900" style="margin: 0; font-size: 1.35rem;">
+          {{ current_date|date:"l, d F Y"|default:current_date }}
+        </h2>
+        <div class="text-body-sm text-ink-500" style="margin-top: 4px;">
+          Guru: <strong class="text-ink-900">{{ teacher.person.full_name|default:teacher }}</strong>
+        </div>
+      </div>
+
+      <!-- Network & Push Token Status -->
+      <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
+        <div id="network-status-badge"
+             class="inline-flex items-center text-body-sm font-mono"
+             style="gap: 6px; padding: 4px 10px; background-color: var(--color-surface-alt); border: 1px solid var(--color-line); border-radius: 0px;">
+          <span id="network-status-dot" style="width: 8px; height: 8px; background-color: var(--color-success); display: inline-block;"></span>
+          <span id="network-status-text">Online</span>
+        </div>
+        <button id="btn-register-push"
+                onclick="TeacherAgenda.registerPushToken()"
+                class="button button-ghost text-body-sm text-ink-500"
+                style="padding: 2px 6px; font-size: 0.75rem; border: none; text-decoration: underline; cursor: pointer;">
+          Aktifkan Notifikasi Push
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Substitution Notification & Response Banners (ACD-019, TCH-015) -->
+  {% for item in agenda %}
+    {% if item.is_substitution and item.substitution_status == 'PENDING' %}
+      <div id="substitution-banner-{{ item.substitution_id }}"
+           class="card substitution-banner"
+           style="border-left: 4px solid var(--color-warning); background-color: #FFFDF5; border-top: 1px solid var(--color-line); border-right: 1px solid var(--color-line); border-bottom: 1px solid var(--color-line); padding: 16px 20px; border-radius: 0px;"
+           role="alert">
+        
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
+          <div>
+            <span class="text-label" style="background-color: var(--color-warning); color: #000; padding: 2px 8px; font-weight: bold; font-size: 0.75rem;">
+              PERMINTAAN GURU PENGGANTI
+            </span>
+            <h4 class="font-display text-ink-900" style="margin: 8px 0 4px 0; font-size: 1.1rem;">
+              {{ item.subject }} · {{ item.class_group }}
+            </h4>
+            <div class="text-body-sm text-ink-700">
+              Menggantikan: <strong>{{ item.original_teacher_name|default:"Guru Reguler" }}</strong>
+            </div>
+            <div class="text-body-sm text-ink-500 font-mono" style="margin-top: 2px;">
+              Jam Ke-{{ item.period_no }} ({{ item.start_time|time:"H:i" }} - {{ item.end_time|time:"H:i" }})
+            </div>
+            {% if item.substitution_reason %}
+              <div class="text-body-sm text-ink-700" style="margin-top: 6px; font-style: italic;">
+                "{{ item.substitution_reason }}"
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- Quick Actions: Accept & Decline -->
+          <div style="display: flex; gap: 8px; align-items: center; margin-top: 8px;">
+            <button type="button"
+                    onclick="TeacherAgenda.acceptSubstitution({{ item.substitution_id }})"
+                    class="button button-primary"
+                    style="background-color: var(--color-brand, #C8102E); color: #fff; border: 1px solid var(--color-brand, #C8102E); padding: 8px 16px; font-weight: 600; cursor: pointer; border-radius: 0px;">
+              Terima
+            </button>
+            <button type="button"
+                    onclick="TeacherAgenda.openDeclineModal({{ item.substitution_id }})"
+                    class="button button-secondary"
+                    style="background-color: var(--color-surface); color: var(--color-ink-700); border: 1px solid var(--color-line); padding: 8px 16px; font-weight: 500; cursor: pointer; border-radius: 0px;">
+              Berhalangan
+            </button>
+          </div>
+        </div>
+
+        <!-- Inline Decline Reason Box (Hidden by default) -->
+        <div id="decline-box-{{ item.substitution_id }}"
+             style="display: none; margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--color-line);">
+          <label for="decline-reason-{{ item.substitution_id }}" class="text-label text-ink-700" style="display: block; margin-bottom: 6px;">
+            Alasan Berhalangan / Penolakan (Wajib Diisi):
+          </label>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <input type="text"
+                   id="decline-reason-{{ item.substitution_id }}"
+                   placeholder="Contoh: Sedang mendampingi lomba / sakit"
+                   style="flex: 1; min-width: 240px; padding: 8px 12px; border: 1px solid var(--color-line); border-radius: 0px; font-family: var(--font-body);" />
+            <button type="button"
+                    onclick="TeacherAgenda.submitDecline({{ item.substitution_id }})"
+                    class="button button-danger"
+                    style="background-color: var(--color-danger, #D32F2F); color: #fff; border: none; padding: 8px 16px; font-weight: 600; cursor: pointer; border-radius: 0px;">
+              Kirim Penolakan
+            </button>
+            <button type="button"
+                    onclick="TeacherAgenda.closeDeclineModal({{ item.substitution_id }})"
+                    class="button button-ghost"
+                    style="background-color: transparent; border: 1px solid var(--color-line); padding: 8px 12px; cursor: pointer; border-radius: 0px;">
+              Batal
+            </button>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  {% endfor %}
+
+  <!-- Timetable Slots List (TCH-001) -->
+  <div class="agenda-slots-list" style="display: flex; flex-direction: column; gap: 12px;">
+    {% if not agenda %}
+      <div class="card empty-agenda"
+           style="padding: 32px 20px; text-align: center; background-color: var(--color-surface); border: 1px dashed var(--color-line); border-radius: 0px;">
+        <p class="text-ink-500 font-display" style="margin: 0; font-size: 1rem;">
+          Tidak ada jadwal mengajar pada tanggal ini.
+        </p>
+      </div>
+    {% else %}
+      {% for slot in agenda %}
+        <div id="slot-card-{{ slot.slot_id }}"
+             class="card slot-card"
+             style="background-color: var(--color-surface); border: 1px solid var(--color-line); border-radius: 0px; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; transition: box-shadow 150ms ease;">
+          
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="font-mono text-ink-900"
+                    style="font-weight: 700; font-size: 0.9rem; padding: 2px 8px; background-color: var(--color-surface-alt); border: 1px solid var(--color-line);">
+                Jam {{ slot.period_no }}
+              </span>
+              <span class="font-mono text-body-sm text-ink-500">
+                {{ slot.start_time|time:"H:i" }} - {{ slot.end_time|time:"H:i" }}
+              </span>
+              {% if slot.room %}
+                <span class="text-body-sm text-ink-500" style="padding-left: 6px; border-left: 1px solid var(--color-line);">
+                  {{ slot.room }}
+                </span>
+              {% endif %}
+            </div>
+
+            <!-- Attendance & Substitution Badges -->
+            <div style="display: flex; gap: 6px; align-items: center;">
+              {% if slot.is_substitution %}
+                <span class="text-label"
+                      style="background-color: #EBF3FA; color: #026AA7; padding: 2px 6px; font-size: 0.7rem; font-weight: bold; border: 1px solid #B9D5E9;">
+                  GURU PENGGANTI
+                </span>
+              {% endif %}
+
+              {% if slot.attendance_submitted %}
+                <span class="inline-flex items-center text-label text-success"
+                      style="color: var(--color-success, #2E7D32); font-weight: 600; font-size: 0.75rem;">
+                  ✓ Presensi Selesai
+                </span>
+              {% else %}
+                <span class="inline-flex items-center text-label text-warning"
+                      style="color: #B78103; font-weight: 600; font-size: 0.75rem;">
+                  ○ Belum Presensi
+                </span>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Subject & Class Info -->
+          <div>
+            <h3 class="font-display text-ink-900" style="margin: 0; font-size: 1.15rem;">
+              {{ slot.subject }}
+            </h3>
+            <div class="text-body text-ink-700" style="margin-top: 2px;">
+              Kelas: <strong>{{ slot.class_group }}</strong>
+            </div>
+            {% if slot.is_substitution and slot.original_teacher_name %}
+              <div class="text-body-sm text-ink-500" style="margin-top: 2px;">
+                Pengganti untuk: {{ slot.original_teacher_name }}
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- Action Button: Open Fast Roll Call (TCH-002) -->
+          <div style="display: flex; justify-content: flex-end; padding-top: 8px; border-top: 1px solid var(--color-surface-alt);">
+            <button type="button"
+                    onclick="TeacherAgenda.openRollCall({{ slot.slot_id }}, '{{ slot.class_group|escapejs }}', '{{ slot.subject|escapejs }}', '{{ current_date|date:'Y-m-d'|default:current_date }}')"
+                    class="button button-primary"
+                    style="background-color: {% if slot.attendance_submitted %}var(--color-surface-alt){% else %}var(--color-brand, #C8102E){% endif %}; color: {% if slot.attendance_submitted %}var(--color-ink-900){% else %}#fff{% endif %}; border: 1px solid var(--color-line); padding: 8px 16px; font-weight: 600; cursor: pointer; border-radius: 0px; font-family: var(--font-body);">
+              {% if slot.attendance_submitted %}Ubah Presensi{% else %}Buka Presensi Kelas{% endif %}
+            </button>
+          </div>
+
+        </div>
+      {% endfor %}
+    {% endif %}
+  </div>
+
+  <!-- Fast Roll Call Modal / Panel (TCH-002, TCH-003) -->
+  <div id="rollcall-modal"
+       style="display: none; position: fixed; inset: 0; z-index: 999; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; padding: 16px;">
+    
+    <div class="card rollcall-panel"
+         style="background: var(--color-surface); width: 100%; max-width: 600px; max-height: 90vh; display: flex; flex-direction: column; border: 1px solid var(--color-line); border-radius: 0px;">
+      
+      <!-- Panel Header -->
+      <div style="padding: 16px 20px; border-bottom: 1px solid var(--color-line); display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <div class="text-label text-ink-500" id="rollcall-meta">Presensi Kelas</div>
+          <h3 class="font-display text-ink-900" id="rollcall-title" style="margin: 2px 0 0 0; font-size: 1.2rem;">
+            Matematika
+          </h3>
+        </div>
+        <button type="button"
+                onclick="TeacherAgenda.closeRollCall()"
+                style="background: none; border: none; font-size: 1.5rem; line-height: 1; cursor: pointer; color: var(--color-ink-500);">&times;</button>
+      </div>
+
+      <!-- Quick Action: Mark All Present -->
+      <div style="padding: 12px 20px; background-color: var(--color-surface-alt); border-bottom: 1px solid var(--color-line); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+        <span class="text-body-sm text-ink-700">Default: Seluruh siswa dianggap <strong>HADIR</strong></span>
+        <button type="button"
+                onclick="TeacherAgenda.markAllPresent()"
+                class="button button-ghost"
+                style="background: #fff; border: 1px solid var(--color-line); padding: 4px 10px; font-size: 0.8rem; cursor: pointer; border-radius: 0px;">
+          Setel Semua Hadir
+        </button>
+      </div>
+
+      <!-- Student List Container -->
+      <div id="rollcall-students-list"
+           style="overflow-y: auto; padding: 12px 20px; flex: 1; display: flex; flex-direction: column; gap: 10px;">
+        <div class="text-body text-ink-500 text-center" style="padding: 24px;">Memuat daftar siswa...</div>
+      </div>
+
+      <!-- Panel Footer -->
+      <div style="padding: 16px 20px; border-top: 1px solid var(--color-line); display: flex; justify-content: flex-end; gap: 8px; background: var(--color-surface);">
+        <button type="button"
+                onclick="TeacherAgenda.closeRollCall()"
+                class="button button-ghost"
+                style="border: 1px solid var(--color-line); background: transparent; padding: 8px 16px; cursor: pointer; border-radius: 0px;">
+          Batal
+        </button>
+        <button type="button"
+                id="btn-submit-rollcall"
+                onclick="TeacherAgenda.submitRollCall()"
+                class="button button-primary"
+                style="background-color: var(--color-brand, #C8102E); color: #fff; border: none; padding: 8px 20px; font-weight: 600; cursor: pointer; border-radius: 0px;">
+          Simpan Presensi
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Client-side Logic (ACD-019, TCH-001..003, TCH-015) -->
+<script>
+window.TeacherAgenda = (function() {
+  let activeSlotId = null;
+  let activeDate = null;
+  let studentExceptions = {}; // student_id -> status ('SAKIT', 'IZIN', 'ALPA')
+
+  function getCsrfToken() {
+    const cookie = document.cookie.split('; ').find(row => row.startsWith('csrftoken='));
+    return cookie ? cookie.split('=')[1] : '';
+  }
+
+  async function acceptSubstitution(subId) {
+    if (!confirm("Konfirmasi kesediaan Anda untuk mengajar pada jadwal ini?")) return;
+    try {
+      const resp = await fetch(`/api/v1/academic/timetable/substitutions/${subId}/accept/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCsrfToken(),
+        },
+      });
+      if (resp.ok) {
+        window.location.reload();
+      } else {
+        const err = await resp.json();
+        alert(err.error || "Gagal menerima penugasan.");
+      }
+    } catch (e) {
+      alert("Terjadi kesalahan jaringan.");
+    }
+  }
+
+  function openDeclineModal(subId) {
+    const box = document.getElementById(`decline-box-${subId}`);
+    if (box) box.style.display = 'block';
+  }
+
+  function closeDeclineModal(subId) {
+    const box = document.getElementById(`decline-box-${subId}`);
+    if (box) box.style.display = 'none';
+  }
+
+  async function submitDecline(subId) {
+    const reasonInput = document.getElementById(`decline-reason-${subId}`);
+    const reason = reasonInput ? reasonInput.value.trim() : '';
+    if (!reason) {
+      alert("Alasan penolakan wajib diisi.");
+      return;
+    }
+
+    try {
+      const resp = await fetch(`/api/v1/academic/timetable/substitutions/${subId}/decline/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCsrfToken(),
+        },
+        body: JSON.stringify({ reason: reason }),
+      });
+      if (resp.ok) {
+        window.location.reload();
+      } else {
+        const err = await resp.json();
+        alert(err.error || "Gagal menolak penugasan.");
+      }
+    } catch (e) {
+      alert("Terjadi kesalahan jaringan.");
+    }
+  }
+
+  async function registerPushToken() {
+    const token = prompt("Masukkan token FCM / Push Notification perangkat:");
+    if (!token || !token.trim()) return;
+
+    try {
+      const resp = await fetch('/api/v1/me/push-tokens/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCsrfToken(),
+        },
+        body: JSON.stringify({ token: token.trim(), platform: 'WEB' }),
+      });
+      if (resp.ok) {
+        alert("Token perangkat berhasil didaftarkan.");
+      } else {
+        const err = await resp.json();
+        alert(err.error || "Gagal mendaftarkan token.");
+      }
+    } catch (e) {
+      alert("Terjadi kesalahan koneksi saat mendaftarkan token.");
+    }
+  }
+
+  function openRollCall(slotId, classGroupName, subjectName, dateStr) {
+    activeSlotId = slotId;
+    activeDate = dateStr;
+    studentExceptions = {};
+
+    document.getElementById('rollcall-title').innerText = `${subjectName} · ${classGroupName}`;
+    document.getElementById('rollcall-meta').innerText = `Presensi Tanggal ${dateStr}`;
+    document.getElementById('rollcall-modal').style.display = 'flex';
+
+    renderMockStudents();
+  }
+
+  function closeRollCall() {
+    document.getElementById('rollcall-modal').style.display = 'none';
+  }
+
+  function setStudentStatus(studentId, status) {
+    if (status === 'HADIR') {
+      delete studentExceptions[studentId];
+    } else {
+      studentExceptions[studentId] = status;
+    }
+    updateStudentRowUI(studentId, status);
+  }
+
+  function updateStudentRowUI(studentId, activeStatus) {
+    const row = document.getElementById(`student-row-${studentId}`);
+    if (!row) return;
+    const buttons = row.querySelectorAll('.status-btn');
+    buttons.forEach(btn => {
+      const btnStatus = btn.getAttribute('data-status');
+      if (btnStatus === activeStatus) {
+        btn.style.backgroundColor = getStatusColor(btnStatus);
+        btn.style.color = '#fff';
+        btn.style.borderColor = getStatusColor(btnStatus);
+      } else {
+        btn.style.backgroundColor = '#fff';
+        btn.style.color = 'var(--color-ink-700)';
+        btn.style.borderColor = 'var(--color-line)';
+      }
+    });
+  }
+
+  function getStatusColor(status) {
+    switch (status) {
+      case 'HADIR': return 'var(--color-success, #2E7D32)';
+      case 'SAKIT': return '#1976D2';
+      case 'IZIN': return '#F57C00';
+      case 'ALPA': return 'var(--color-danger, #D32F2F)';
+      default: return 'var(--color-ink-700)';
+    }
+  }
+
+  function markAllPresent() {
+    studentExceptions = {};
+    const container = document.getElementById('rollcall-students-list');
+    const rows = container.querySelectorAll('.student-row');
+    rows.forEach(row => {
+      const id = row.getAttribute('data-student-id');
+      updateStudentRowUI(id, 'HADIR');
+    });
+  }
+
+  async function submitRollCall() {
+    if (!activeSlotId || !activeDate) return;
+    const btn = document.getElementById('btn-submit-rollcall');
+    btn.disabled = true;
+    btn.innerText = 'Menyimpan...';
+
+    const payload = {
+      date: activeDate,
+      exceptions: studentExceptions,
+    };
+
+    try {
+      const resp = await fetch(`/api/v1/timetable/slots/${activeSlotId}/period-attendance/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCsrfToken(),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (resp.ok) {
+        closeRollCall();
+        window.location.reload();
+      } else {
+        const err = await resp.json();
+        alert(err.error || "Gagal menyimpan presensi.");
+      }
+    } catch (e) {
+      alert("Terjadi kesalahan koneksi saat mengirim presensi.");
+    } finally {
+      btn.disabled = false;
+      btn.innerText = 'Simpan Presensi';
+    }
+  }
+
+  function renderMockStudents() {
+    const container = document.getElementById('rollcall-students-list');
+    container.innerHTML = `
+      <div class="text-body-sm text-ink-500 font-mono" style="padding-bottom: 8px; border-bottom: 1px solid var(--color-line);">
+        Daftar Siswa Kelas
+      </div>
+      <div id="student-row-1" data-student-id="1" class="student-row" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--color-surface-alt);">
+        <div>
+          <strong class="text-ink-900">Ahmad Fauzi</strong>
+          <div class="text-body-sm text-ink-500 font-mono">NIS: 2026001</div>
+        </div>
+        <div style="display: flex; gap: 4px;">
+          <button type="button" class="status-btn" data-status="HADIR" onclick="TeacherAgenda.setStudentStatus(1, 'HADIR')" style="padding: 4px 8px; font-size: 0.75rem; border: 1px solid var(--color-line); background: var(--color-success, #2E7D32); color: #fff; cursor: pointer;">HADIR</button>
+          <button type="button" class="status-btn" data-status="SAKIT" onclick="TeacherAgenda.setStudentStatus(1, 'SAKIT')" style="padding: 4px 8px; font-size: 0.75rem; border: 1px solid var(--color-line); background: #fff; cursor: pointer;">SAKIT</button>
+          <button type="button" class="status-btn" data-status="IZIN" onclick="TeacherAgenda.setStudentStatus(1, 'IZIN')" style="padding: 4px 8px; font-size: 0.75rem; border: 1px solid var(--color-line); background: #fff; cursor: pointer;">IZIN</button>
+          <button type="button" class="status-btn" data-status="ALPA" onclick="TeacherAgenda.setStudentStatus(1, 'ALPA')" style="padding: 4px 8px; font-size: 0.75rem; border: 1px solid var(--color-line); background: #fff; cursor: pointer;">ALPA</button>
+        </div>
+      </div>
+    `;
+  }
+
+  return {
+    acceptSubstitution,
+    openDeclineModal,
+    closeDeclineModal,
+    submitDecline,
+    registerPushToken,
+    openRollCall,
+    closeRollCall,
+    setStudentStatus,
+    markAllPresent,
+    submitRollCall,
+  };
+})();
+</script>

@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from django.conf import settings
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ from apps.academic.models import (
     ReportCard,
     ReportCardPolicy,
     ReportCardStatus,
+    SubstitutionStatus,
     TimetableSlot,
     TimetableSubstitution,
     WEIGHTED_ASSESSMENT_TYPES,
@@ -96,6 +98,14 @@ class TimetableConflictError(ValueError):
 
 
 class SlotNotScheduledError(ValueError):
+    pass
+
+
+class NotAuthorizedForSlotError(PermissionError):
+    pass
+
+
+class SubstitutionDeclineReasonRequiredError(ValueError):
     pass
 
 
@@ -1137,6 +1147,9 @@ def assign_substitution(slot, date, substitute_teacher, reason='') -> TimetableS
             'original_teacher': original_teacher,
             'substitute_teacher': substitute_teacher,
             'reason': reason,
+            'status': SubstitutionStatus.PENDING,
+            'decline_reason': '',
+            'responded_at': None,
         },
     )
     audit(
@@ -1182,13 +1195,93 @@ def assign_substitution(slot, date, substitute_teacher, reason='') -> TimetableS
     return substitution
 
 
+def accept_substitution(substitution: TimetableSubstitution, actor=None) -> TimetableSubstitution:
+    """ACD-019/TCH-015: Accept a pending timetable substitution."""
+    substitution.status = SubstitutionStatus.ACCEPTED
+    substitution.responded_at = timezone.now()
+    substitution.save(update_fields=['status', 'responded_at', 'updated_at'])
+
+    audit(
+        action='academic.timetable_substitution.accepted',
+        entity_type='TimetableSubstitution',
+        entity_id=substitution.id,
+        foundation_id=substitution.foundation_id,
+        diff={
+            'slot_id': substitution.slot_id,
+            'date': str(substitution.date),
+            'substitute_teacher_id': substitution.substitute_teacher_id,
+            'status': substitution.status,
+        },
+    )
+    return substitution
+
+
+def decline_substitution(substitution: TimetableSubstitution, reason: str, actor=None) -> TimetableSubstitution:
+    """ACD-019/TCH-015: Decline a pending timetable substitution with mandatory reason,
+    notifying the original teacher / admin.
+    """
+    cleaned_reason = (reason or '').strip()
+    if not cleaned_reason:
+        raise SubstitutionDeclineReasonRequiredError(_("Alasan penolakan wajib diisi."))
+
+    substitution.status = SubstitutionStatus.DECLINED
+    substitution.decline_reason = cleaned_reason
+    substitution.responded_at = timezone.now()
+    substitution.save(update_fields=['status', 'decline_reason', 'responded_at', 'updated_at'])
+
+    audit(
+        action='academic.timetable_substitution.declined',
+        entity_type='TimetableSubstitution',
+        entity_id=substitution.id,
+        foundation_id=substitution.foundation_id,
+        diff={
+            'slot_id': substitution.slot_id,
+            'date': str(substitution.date),
+            'substitute_teacher_id': substitution.substitute_teacher_id,
+            'decline_reason': cleaned_reason,
+            'status': substitution.status,
+        },
+    )
+
+    try:
+        from apps.notifications.models import NotificationCategory
+        from apps.notifications.services import dispatch_intent
+
+        original_teacher = substitution.original_teacher
+        substitute_teacher = substitution.substitute_teacher
+        slot = substitution.slot
+        dispatch_intent(
+            foundation_id=substitution.foundation_id,
+            category=NotificationCategory.SUBSTITUTE_DECLINED,
+            template_key='academic.substitution.declined',
+            payload={
+                'class_group': slot.class_subject.class_group.name,
+                'subject': slot.class_subject.subject.name,
+                'date': str(substitution.date),
+                'period_no': str(slot.period_no),
+                'substitute_teacher': substitute_teacher.person.full_name,
+                'reason': cleaned_reason,
+            },
+            school_id=slot.class_subject.class_group.school_id,
+            recipient_user=original_teacher.user,
+            recipient_phone=getattr(original_teacher.user, 'phone_e164', ''),
+            recipient_email=getattr(original_teacher.user, 'email', ''),
+            recipient_name=original_teacher.person.full_name,
+            dedupe_key=f"substitution_declined:{substitution.id}",
+        )
+    except Exception as exc:
+        logger.warning(f"Error notifying teacher for declined TimetableSubstitution #{substitution.id}: {exc}")
+
+    return substitution
+
+
 def get_effective_teacher_for_slot(slot, date):
     """ACD-020: the teacher authorized to teach/submit attendance for this slot on this date —
-    the date's substitute if one is assigned, otherwise the slot's regular teacher.
+    the date's substitute if one is assigned and not declined, otherwise the slot's regular teacher.
     """
     substitution = TimetableSubstitution.objects.filter(
-        foundation_id=slot.foundation_id, slot=slot, date=date,
-    ).first()
+        foundation_id=slot.foundation_id, slot=slot, date=date, deleted_at__isnull=True,
+    ).exclude(status=SubstitutionStatus.DECLINED).first()
     if substitution:
         return substitution.substitute_teacher
     return slot.class_subject.teacher
@@ -1217,7 +1310,7 @@ def get_expected_periods_for_school(school, date, missing_only=False) -> list:
     substitutions_by_slot_id = {
         s.slot_id: s for s in TimetableSubstitution.objects.filter(
             foundation_id=school.foundation_id, slot_id__in=slot_ids, date=date, deleted_at__isnull=True,
-        )
+        ).exclude(status=SubstitutionStatus.DECLINED)
     }
     submitted_slot_ids = set(
         PeriodAttendance.objects.filter(

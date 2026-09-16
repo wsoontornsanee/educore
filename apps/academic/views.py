@@ -351,9 +351,11 @@ class TimetableSubstitutionViewSet(TenantScopedModelViewSet):
     serializer_class = TimetableSubstitutionSerializer
     filter_params = {'slot_id': 'slot_id', 'date': 'date'}
     action_permissions = {
-        'list': 'school_config.read', 'retrieve': 'school_config.read',
+        'list': 'attendance.read', 'retrieve': 'attendance.read',
         'create': 'school_config.write', 'update': 'school_config.write',
         'partial_update': 'school_config.write', 'destroy': 'school_config.write',
+        'accept': 'attendance.write',
+        'decline': 'attendance.write',
     }
 
     def create(self, request, *args, **kwargs):
@@ -375,6 +377,46 @@ class TimetableSubstitutionViewSet(TenantScopedModelViewSet):
             reason=request.data.get('reason', ''),
         )
         return Response(self.get_serializer(substitution).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='accept')
+    def accept(self, request, pk=None):
+        substitution = self.get_object()
+        user_staff = Staff.objects.filter(user=request.user, foundation_id=substitution.foundation_id).first()
+        is_substitute = user_staff and user_staff.id == substitution.substitute_teacher_id
+        school_id = getattr(getattr(substitution.slot, 'class_group', None), 'school_id', None)
+        from apps.identity.rbac import has_permission
+        is_admin = has_permission(request.user, 'school_config.write', substitution.foundation_id, school_id=school_id)
+        if not (is_substitute or is_admin):
+            return Response(
+                {'error': _("Hanya guru pengganti terkait atau admin yang dapat merespons penugasan ini.")},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        from apps.academic.services import accept_substitution
+        substitution = accept_substitution(substitution, actor=request.user)
+        return Response(self.get_serializer(substitution).data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='decline')
+    def decline(self, request, pk=None):
+        substitution = self.get_object()
+        user_staff = Staff.objects.filter(user=request.user, foundation_id=substitution.foundation_id).first()
+        is_substitute = user_staff and user_staff.id == substitution.substitute_teacher_id
+        school_id = getattr(getattr(substitution.slot, 'class_group', None), 'school_id', None)
+        from apps.identity.rbac import has_permission
+        is_admin = has_permission(request.user, 'school_config.write', substitution.foundation_id, school_id=school_id)
+        if not (is_substitute or is_admin):
+            return Response(
+                {'error': _("Hanya guru pengganti terkait atau admin yang dapat merespons penugasan ini.")},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        reason = request.data.get('reason', '')
+        from apps.academic.services import SubstitutionDeclineReasonRequiredError, decline_substitution
+        try:
+            substitution = decline_substitution(substitution, reason=reason, actor=request.user)
+        except (SubstitutionDeclineReasonRequiredError, ValueError) as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(self.get_serializer(substitution).data, status=status.HTTP_200_OK)
 
 
 class HomeworkViewSet(TenantScopedModelViewSet):

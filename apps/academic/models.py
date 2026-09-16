@@ -301,6 +301,12 @@ class TimetableSlot(TenantModel):
         return f"{self.class_subject} - {self.get_day_of_week_display()} P{self.period_no}"
 
 
+class SubstitutionStatus(models.TextChoices):
+    PENDING = 'PENDING', _('Menunggu Konfirmasi')
+    ACCEPTED = 'ACCEPTED', _('Diterima')
+    DECLINED = 'DECLINED', _('Ditolak')
+
+
 class TimetableSubstitution(TenantModel):
     """A single-date teacher substitution for a timetable slot (ACD-019)."""
     slot = models.ForeignKey(TimetableSlot, on_delete=models.PROTECT, related_name='substitutions')
@@ -308,6 +314,9 @@ class TimetableSubstitution(TenantModel):
     original_teacher = models.ForeignKey(Staff, on_delete=models.PROTECT, related_name='+')
     substitute_teacher = models.ForeignKey(Staff, on_delete=models.PROTECT, related_name='substitute_assignments')
     reason = models.CharField(max_length=255, blank=True, default='')
+    status = models.CharField(max_length=16, choices=SubstitutionStatus.choices, default=SubstitutionStatus.PENDING)
+    decline_reason = models.CharField(max_length=255, blank=True, default='')
+    responded_at = models.DateTimeField(null=True, blank=True)
     active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:

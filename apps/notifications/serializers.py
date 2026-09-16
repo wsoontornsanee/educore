@@ -1,5 +1,6 @@
-﻿from rest_framework import serializers
+from rest_framework import serializers
 from apps.notifications.models import (
+    DevicePushToken,
     NotificationDelivery,
     NotificationIntent,
     NotificationPreference,
@@ -107,3 +108,19 @@ class NotificationIntentSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
         read_only_fields = ['id', 'foundation_id', 'created_at', 'updated_at']
+
+
+class DevicePushTokenSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DevicePushToken
+        fields = [
+            'id',
+            'foundation_id',
+            'token',
+            'platform',
+            'is_active',
+            'last_used_at',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'foundation_id', 'last_used_at', 'created_at', 'updated_at']
