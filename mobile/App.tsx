@@ -16,6 +16,7 @@ import { AgendaScreen } from './src/screens/AgendaScreen';
 import { RollCallScreen } from './src/screens/RollCallScreen';
 import { SubstitutionModal } from './src/screens/SubstitutionModal';
 import { POSKioskScreen } from './src/screens/POSKioskScreen';
+import { ParentNutritionDashboardScreen } from './src/screens/ParentNutritionDashboardScreen';
 import { initPosQueueDb } from './src/services/posOfflineQueue';
 import { colors } from './src/theme/tokens';
 import { StudentRosterItem, TimetableSlotItem, UserProfile } from './src/types';
@@ -26,8 +27,10 @@ export default function App() {
   const [activeSlot, setActiveSlot] = useState<TimetableSlotItem | null>(null);
   const [subModalSlot, setSubModalSlot] = useState<TimetableSlotItem | null>(null);
   const [posMode, setPosMode] = useState(false);
+  const [nutritionMode, setNutritionMode] = useState(false);
 
   const isCanteenOperator = currentUser?.roles?.some((r) => r.role === 'canteen_operator');
+  const isParent = currentUser?.roles?.some((r) => r.role === 'parent');
   const todayStr = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
@@ -105,6 +108,16 @@ export default function App() {
       <StatusBar style="dark" />
       {!currentUser ? (
         <LoginScreen onLoginSuccess={handleLoginSuccess} />
+      ) : isParent || nutritionMode ? (
+        <ParentNutritionDashboardScreen
+          onBack={() => {
+            if (nutritionMode) {
+              setNutritionMode(false);
+            } else {
+              handleLogout();
+            }
+          }}
+        />
       ) : isCanteenOperator || posMode ? (
         <POSKioskScreen
           onBack={() => {
