@@ -43,7 +43,12 @@ from .serializers import (
     FoundationSettingsSerializer,
     SchoolSerializer,
 )
-from .services import REPORT_KEY_FOUNDATION_DASHBOARD, filter_foundation_audit_events, filter_foundation_kpis
+from .services import (
+    REPORT_KEY_FOUNDATION_DASHBOARD,
+    filter_foundation_audit_events,
+    filter_foundation_kpis,
+    get_foundation_enrolment_pipeline,
+)
 
 FOUNDATION_KPI_STALE_AFTER_SECONDS = 15 * 60  # FND-006
 
@@ -881,3 +886,321 @@ class FoundationApprovalDecideView(views.APIView):
         except (DjangoValidationError, ValueError) as exc:
             detail = exc.messages[0] if hasattr(exc, 'messages') else str(exc)
             return Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class FoundationEnrolmentView(views.APIView):
+    """Foundation Enrolment Pipeline view for admissions and retention (spec/03 §2, §5).
+
+    Features:
+    - Group by campus or grade (group_by=campus|grade).
+    - Tracks prospects, accepted, active, churned counts, conversion rate %, and retention rate %.
+    - Date filtering by from and to.
+    - Exportable to CSV and XLSX with mandatory FND-014 audit headers.
+    """
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'school_config.read'
+
+    def perform_content_negotiation(self, request, force=False):
+        """Bypass DRF's default renderer filtering for csv/xlsx so custom export responses can stream directly."""
+        format_param = request.query_params.get('format', '').lower()
+        if format_param in ['csv', 'xlsx']:
+            renderers = self.get_renderers()
+            return (renderers[0], renderers[0].media_type)
+        return super().perform_content_negotiation(request, force=force)
+
+    def get(self, request):
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        if not foundation_id:
+            return Response({"detail": "Konteks Yayasan tidak ditemukan."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            foundation = Foundation.objects.get(id=foundation_id)
+        except Foundation.DoesNotExist:
+            return Response({"detail": "Yayasan tidak ditemukan."}, status=status.HTTP_404_NOT_FOUND)
+
+        from_param = request.query_params.get('from')
+        to_param = request.query_params.get('to')
+        if from_param:
+            try:
+                datetime.date.fromisoformat(from_param)
+            except ValueError:
+                return Response(
+                    {"detail": "Format tanggal 'from' tidak valid. Gunakan format YYYY-MM-DD."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        if to_param:
+            try:
+                datetime.date.fromisoformat(to_param)
+            except ValueError:
+                return Response(
+                    {"detail": "Format tanggal 'to' tidak valid. Gunakan format YYYY-MM-DD."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        if from_param and to_param and from_param > to_param:
+            return Response(
+                {"detail": "Tanggal 'from' tidak boleh melebihi tanggal 'to'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        group_by = request.query_params.get('group_by', 'campus').lower().strip()
+        if group_by not in ('campus', 'grade'):
+            return Response(
+                {"detail": "Parameter group_by tidak valid. Pilihan yang didukung: campus, grade."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        school_ids = request.query_params.getlist('school_ids') or request.query_params.getlist('school_ids[]')
+        school_id = request.query_params.get('school_id')
+        if school_id:
+            school_ids = [school_id]
+        elif len(school_ids) == 1 and ',' in school_ids[0]:
+            school_ids = school_ids[0].split(',')
+
+        pipeline_data = get_foundation_enrolment_pipeline(
+            foundation_id=foundation.id,
+            school_ids=school_ids,
+            from_date=from_param,
+            to_date=to_param,
+            group_by=group_by,
+        )
+
+        format_param = request.query_params.get('format', 'json').lower()
+        if format_param in ['csv', 'xlsx']:
+            actor_name = getattr(request.user, 'full_name', '') or getattr(request.user, 'email', 'Unknown User')
+            generated_at = timezone.now().strftime('%Y-%m-%d %H:%M:%S UTC')
+            filter_summary = f"Dari: {pipeline_data['period']['from']}, Sampai: {pipeline_data['period']['to']}, Group By: {group_by}"
+            if format_param == 'csv':
+                return self._render_csv(pipeline_data, generated_at, actor_name, filter_summary)
+            if format_param == 'xlsx':
+                return self._render_xlsx(pipeline_data, generated_at, actor_name, filter_summary)
+
+        return Response(pipeline_data, status=status.HTTP_200_OK)
+
+    def _render_csv(self, pipeline_data, generated_at, actor_name, filter_summary):
+        output = io.StringIO()
+        writer = csv.writer(output)
+
+        # FND-014: Mandatory Audit Header Comments
+        writer.writerow([f"# Laporan Pipa Pendaftaran Yayasan (EduCore)"])
+        writer.writerow([f"# Waktu Dibuat : {generated_at}"])
+        writer.writerow([f"# Pengguna     : {actor_name}"])
+        writer.writerow([f"# Filter       : {filter_summary}"])
+        writer.writerow([])
+
+        group_by = pipeline_data['group_by']
+        if group_by == 'campus':
+            writer.writerow([
+                "Nama Sekolah", "NPSN", "Jenjang", "Tingkat Kelas",
+                "Calon Siswa (Prospects)", "Diterima (Accepted)", "Siswa Aktif", "Keluar (Churned)",
+                "Tingkat Konversi (%)", "Tingkat Retensi (%)"
+            ])
+            for item in pipeline_data['data']:
+                writer.writerow([
+                    item['school_name'],
+                    item['npsn'],
+                    item['level'],
+                    "Semua Kelas",
+                    item['prospects'],
+                    item['accepted'],
+                    item['active'],
+                    item['churned'],
+                    f"{item['conversion_rate_pct']:.2f}",
+                    f"{item['retention_rate_pct']:.2f}",
+                ])
+                for g in item.get('grades', []):
+                    writer.writerow([
+                        f"  - {item['school_name']}",
+                        item['npsn'],
+                        item['level'],
+                        g['grade_name'],
+                        g['prospects'],
+                        g['accepted'],
+                        g['active'],
+                        g['churned'],
+                        f"{g['conversion_rate_pct']:.2f}",
+                        f"{g['retention_rate_pct']:.2f}",
+                    ])
+        else:
+            # group_by == 'grade'
+            writer.writerow([
+                "Tingkat Kelas", "Nama Sekolah", "NPSN", "Jenjang",
+                "Calon Siswa (Prospects)", "Diterima (Accepted)", "Siswa Aktif", "Keluar (Churned)",
+                "Tingkat Konversi (%)", "Tingkat Retensi (%)"
+            ])
+            for item in pipeline_data['data']:
+                writer.writerow([
+                    item['grade_name'],
+                    "Semua Kampus",
+                    "",
+                    "",
+                    item['prospects'],
+                    item['accepted'],
+                    item['active'],
+                    item['churned'],
+                    f"{item['conversion_rate_pct']:.2f}",
+                    f"{item['retention_rate_pct']:.2f}",
+                ])
+                for c in item.get('campuses', []):
+                    writer.writerow([
+                        f"  - {item['grade_name']}",
+                        c['school_name'],
+                        c['npsn'],
+                        c['level'],
+                        c['prospects'],
+                        c['accepted'],
+                        c['active'],
+                        c['churned'],
+                        f"{c['conversion_rate_pct']:.2f}",
+                        f"{c['retention_rate_pct']:.2f}",
+                    ])
+
+        s = pipeline_data['summary']
+        writer.writerow([])
+        writer.writerow([
+            "Total Ringkasan",
+            f"{s['total_schools']} Sekolah",
+            "",
+            "",
+            s['total_prospects'],
+            s['total_accepted'],
+            s['total_active'],
+            s['total_churned'],
+            f"{s['conversion_rate_pct']:.2f}",
+            f"{s['retention_rate_pct']:.2f}",
+        ])
+
+        response = HttpResponse(output.getvalue().encode('utf-8-sig'), content_type='text/csv; charset=utf-8')
+        response['Content-Disposition'] = 'attachment; filename="pipa_pendaftaran_yayasan.csv"'
+        return response
+
+    def _render_xlsx(self, pipeline_data, generated_at, actor_name, filter_summary):
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Pipa Pendaftaran"
+
+        # Styles
+        title_font = Font(name="Arial", size=14, bold=True, color="C8102E")
+        meta_font = Font(name="Arial", size=9, italic=True, color="555555")
+        header_font = Font(name="Arial", size=10, bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="1F2937", end_color="1F2937", fill_type="solid")
+        summary_font = Font(name="Arial", size=10, bold=True)
+        thin_border = Border(
+            left=Side(style='thin', color='D1D5DB'),
+            right=Side(style='thin', color='D1D5DB'),
+            top=Side(style='thin', color='D1D5DB'),
+            bottom=Side(style='thin', color='D1D5DB'),
+        )
+        top_double_border = Border(
+            top=Side(style='thin', color='1F2937'),
+            bottom=Side(style='double', color='1F2937'),
+        )
+
+        # FND-014: Metadata Header Banner
+        ws.cell(row=1, column=1, value="Laporan Pipa Pendaftaran Yayasan (EduCore)").font = title_font
+        ws.cell(row=2, column=1, value=f"Waktu Dibuat : {generated_at}").font = meta_font
+        ws.cell(row=3, column=1, value=f"Pengguna     : {actor_name}").font = meta_font
+        ws.cell(row=4, column=1, value=f"Filter       : {filter_summary}").font = meta_font
+
+        group_by = pipeline_data['group_by']
+        headers = [
+            "Nama Sekolah" if group_by == 'campus' else "Tingkat Kelas",
+            "NPSN" if group_by == 'campus' else "Nama Sekolah",
+            "Jenjang" if group_by == 'campus' else "Jenjang",
+            "Tingkat Kelas" if group_by == 'campus' else "NPSN",
+            "Calon Siswa (Prospects)", "Diterima (Accepted)", "Siswa Aktif", "Keluar (Churned)",
+            "Tingkat Konversi (%)", "Tingkat Retensi (%)",
+        ]
+        start_row = 6
+        for col_idx, h in enumerate(headers, start=1):
+            c = ws.cell(row=start_row, column=col_idx, value=h)
+            c.font = header_font
+            c.fill = header_fill
+            c.alignment = Alignment(horizontal="center" if col_idx in [2, 3, 4] else "left", vertical="center")
+
+        current_row = start_row + 1
+        for item in pipeline_data['data']:
+            if group_by == 'campus':
+                row_vals = [
+                    item['school_name'],
+                    item['npsn'],
+                    item['level'],
+                    "Semua Kelas",
+                    item['prospects'],
+                    item['accepted'],
+                    item['active'],
+                    item['churned'],
+                    float(item['conversion_rate_pct']),
+                    float(item['retention_rate_pct']),
+                ]
+            else:
+                row_vals = [
+                    item['grade_name'],
+                    "Semua Kampus",
+                    "",
+                    "",
+                    item['prospects'],
+                    item['accepted'],
+                    item['active'],
+                    item['churned'],
+                    float(item['conversion_rate_pct']),
+                    float(item['retention_rate_pct']),
+                ]
+            for col_idx, val in enumerate(row_vals, start=1):
+                c = ws.cell(row=current_row, column=col_idx, value=val)
+                c.border = thin_border
+                if col_idx in [1, 2, 3, 4]:
+                    c.alignment = Alignment(horizontal="center" if col_idx in [2, 3] else "left")
+                elif col_idx in [5, 6, 7, 8]:
+                    c.number_format = '#,##0'
+                    c.alignment = Alignment(horizontal="right")
+                elif col_idx in [9, 10]:
+                    c.number_format = '0.00"%"'
+                    c.alignment = Alignment(horizontal="right")
+            current_row += 1
+
+        # Summary Row
+        s = pipeline_data['summary']
+        summary_vals = [
+            "Total Ringkasan",
+            f"{s['total_schools']} Sekolah",
+            "",
+            "",
+            s['total_prospects'],
+            s['total_accepted'],
+            s['total_active'],
+            s['total_churned'],
+            float(s['conversion_rate_pct']),
+            float(s['retention_rate_pct']),
+        ]
+        for col_idx, val in enumerate(summary_vals, start=1):
+            c = ws.cell(row=current_row, column=col_idx, value=val)
+            c.font = summary_font
+            c.border = top_double_border
+            if col_idx in [5, 6, 7, 8]:
+                c.number_format = '#,##0'
+                c.alignment = Alignment(horizontal="right")
+            elif col_idx in [9, 10]:
+                c.number_format = '0.00"%"'
+                c.alignment = Alignment(horizontal="right")
+
+        for col in ws.columns:
+            max_len = 0
+            col_letter = col[0].column_letter
+            for cell in col:
+                if cell.row < start_row:
+                    continue
+                val_str = str(cell.value or '')
+                if len(val_str) > max_len:
+                    max_len = len(val_str)
+            ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+
+        buffer = io.BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+
+        response = HttpResponse(
+            buffer.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        response['Content-Disposition'] = 'attachment; filename="pipa_pendaftaran_yayasan.xlsx"'
+        return response
+

@@ -207,6 +207,329 @@ def notify_foundation_dashboard_export_ready(job: ExportJob, download_url: str):
     )
 
 
+def _get_foundation_enrolment_pipeline_impl(
+    foundation_id: int,
+    school_ids=None,
+    from_date=None,
+    to_date=None,
+    group_by: str = 'campus',
+) -> dict:
+    import datetime
+    from apps.core.models import DomainEvent
+    from apps.identity.models import School, Student
+    from django.db.models import Prefetch
+
+    if to_date is None:
+        to_date = timezone.now().date()
+    elif isinstance(to_date, str):
+        to_date = datetime.date.fromisoformat(to_date)
+
+    if from_date is None:
+        try:
+            from apps.academic.models import AcademicYear
+            ay = AcademicYear.objects.filter(foundation_id=foundation_id, is_active=True).order_by('-start_date').first()
+            from_date = ay.start_date if ay and ay.start_date else to_date.replace(month=1, day=1)
+        except Exception:
+            from_date = to_date.replace(month=1, day=1)
+    elif isinstance(from_date, str):
+        from_date = datetime.date.fromisoformat(from_date)
+
+    group_by = (group_by or 'campus').lower().strip()
+    if group_by not in ('campus', 'grade'):
+        raise ValueError("Parameter group_by tidak valid. Pilihan yang didukung: campus, grade.")
+
+    schools_qs = School.objects.filter(foundation_id=foundation_id, is_active=True)
+    if school_ids:
+        schools_qs = schools_qs.filter(id__in=school_ids)
+    schools = list(schools_qs.order_by('name'))
+
+    if not schools:
+        return {
+            'group_by': group_by,
+            'period': {'from': str(from_date), 'to': str(to_date)},
+            'summary': {
+                'total_schools': 0,
+                'total_prospects': 0,
+                'total_accepted': 0,
+                'total_active': 0,
+                'total_churned': 0,
+                'conversion_rate_pct': 0.0,
+                'retention_rate_pct': 0.0,
+            },
+            'data': [],
+        }
+
+    # 1. Identify accepted student IDs in period [from_date, to_date]
+    accepted_student_ids = set()
+
+    # A. Status change events PROSPECT -> ACTIVE
+    status_events = DomainEvent.objects.filter(
+        foundation_id=foundation_id,
+        name='identity.student.status_changed',
+        occurred_at__date__gte=from_date,
+        occurred_at__date__lte=to_date,
+    )
+    for ev in status_events:
+        p = ev.payload or {}
+        if p.get('new_status') == Student.STATUS_ACTIVE and p.get('old_status') == Student.STATUS_PROSPECT:
+            if p.get('student_id'):
+                accepted_student_ids.add(int(p['student_id']))
+
+    # B. Class enrollment date in period
+    try:
+        from apps.academic.models import ClassEnrollment
+        enrolled_ids = ClassEnrollment.objects.filter(
+            foundation_id=foundation_id,
+            student__school__in=schools,
+            enrolled_at__gte=from_date,
+            enrolled_at__lte=to_date,
+        ).values_list('student_id', flat=True)
+        accepted_student_ids.update(enrolled_ids)
+    except Exception:
+        pass
+
+    # C. Directly created as ACTIVE in period
+    direct_active = Student.objects.filter(
+        foundation_id=foundation_id,
+        school__in=schools,
+        status=Student.STATUS_ACTIVE,
+        created_at__date__gte=from_date,
+        created_at__date__lte=to_date,
+    ).values_list('id', flat=True)
+    accepted_student_ids.update(direct_active)
+
+    # 2. Identify churned student IDs in period [from_date, to_date]
+    churned_student_ids = set()
+    for ev in status_events:
+        p = ev.payload or {}
+        if p.get('new_status') in (Student.STATUS_INACTIVE, Student.STATUS_TRANSFERRED_OUT):
+            if p.get('student_id'):
+                churned_student_ids.add(int(p['student_id']))
+
+    churned_students = Student.objects.filter(
+        foundation_id=foundation_id,
+        school__in=schools,
+        status__in=[Student.STATUS_INACTIVE, Student.STATUS_TRANSFERRED_OUT],
+        updated_at__date__gte=from_date,
+        updated_at__date__lte=to_date,
+    ).values_list('id', flat=True)
+    churned_student_ids.update(churned_students)
+
+    # 3. Fetch all students for target schools with active class group
+    try:
+        from apps.academic.models import ClassEnrollment, ClassGroup
+        active_enrollments_qs = ClassEnrollment.objects.filter(
+            foundation_id=foundation_id, is_active=True
+        ).select_related('class_group')
+        students = Student.objects.filter(
+            foundation_id=foundation_id, school__in=schools
+        ).prefetch_related(Prefetch('class_enrollments', queryset=active_enrollments_qs, to_attr='active_enrollments'))
+    except Exception:
+        students = Student.objects.filter(foundation_id=foundation_id, school__in=schools)
+
+    school_grades = {s.id: set() for s in schools}
+    try:
+        from apps.academic.models import ClassGroup
+        for s_id, gl in ClassGroup.objects.filter(foundation_id=foundation_id, school__in=schools).values_list('school_id', 'grade_level'):
+            if gl is not None:
+                school_grades[s_id].add(gl)
+    except Exception:
+        pass
+
+    # 4. Tally metrics per (school_id, grade_level)
+    matrix = {}  # (school_id, grade_level) -> {'prospects': 0, 'accepted': 0, 'active': 0, 'churned': 0}
+
+    for st in students:
+        s_id = st.school_id
+        gr = st.effective_grade_level
+        if gr is not None and s_id in school_grades:
+            school_grades[s_id].add(gr)
+
+        key = (s_id, gr)
+        if key not in matrix:
+            matrix[key] = {'prospects': 0, 'accepted': 0, 'active': 0, 'churned': 0}
+
+        # Prospects in pipeline
+        if st.status == Student.STATUS_PROSPECT and st.created_at.date() <= to_date:
+            matrix[key]['prospects'] += 1
+
+        # Accepted
+        if st.id in accepted_student_ids:
+            matrix[key]['accepted'] += 1
+
+        # Active
+        if st.status == Student.STATUS_ACTIVE and st.created_at.date() <= to_date:
+            matrix[key]['active'] += 1
+
+        # Churned
+        if st.id in churned_student_ids:
+            matrix[key]['churned'] += 1
+
+    def calc_rates(p, a, act, ch):
+        conv = round((a / (p + a) * 100), 2) if (p + a) > 0 else 0.0
+        ret = round((act / (act + ch) * 100), 2) if (act + ch) > 0 else (100.0 if act > 0 else 0.0)
+        return conv, ret
+
+    tot_p = 0
+    tot_a = 0
+    tot_act = 0
+    tot_ch = 0
+
+    if group_by == 'campus':
+        data = []
+        for s in schools:
+            s_p = 0
+            s_a = 0
+            s_act = 0
+            s_ch = 0
+            grades_list = []
+
+            all_gr = sorted(school_grades.get(s.id, set()))
+            if (s.id, None) in matrix:
+                all_gr.append(None)
+
+            for gr in all_gr:
+                cell = matrix.get((s.id, gr), {'prospects': 0, 'accepted': 0, 'active': 0, 'churned': 0})
+                cp, ca, cact, cch = cell['prospects'], cell['accepted'], cell['active'], cell['churned']
+                c_conv, c_ret = calc_rates(cp, ca, cact, cch)
+                s_p += cp
+                s_a += ca
+                s_act += cact
+                s_ch += cch
+                grades_list.append({
+                    'grade_level': gr,
+                    'grade_name': f"Kelas {gr}" if gr is not None else "Belum Ditentukan",
+                    'prospects': cp,
+                    'accepted': ca,
+                    'active': cact,
+                    'churned': cch,
+                    'conversion_rate_pct': c_conv,
+                    'retention_rate_pct': c_ret,
+                })
+
+            s_conv, s_ret = calc_rates(s_p, s_a, s_act, s_ch)
+            tot_p += s_p
+            tot_a += s_a
+            tot_act += s_act
+            tot_ch += s_ch
+
+            data.append({
+                'school_id': s.id,
+                'school_name': s.name,
+                'npsn': s.npsn,
+                'level': s.level,
+                'prospects': s_p,
+                'accepted': s_a,
+                'active': s_act,
+                'churned': s_ch,
+                'conversion_rate_pct': s_conv,
+                'retention_rate_pct': s_ret,
+                'grades': grades_list,
+            })
+    else:
+        # group_by == 'grade'
+        all_grades = sorted({gr for s_id in school_grades for gr in school_grades[s_id] if gr is not None})
+        has_none = any(gr is None for (s_id, gr) in matrix.keys())
+        if has_none:
+            all_grades.append(None)
+
+        data = []
+        for gr in all_grades:
+            g_p = 0
+            g_a = 0
+            g_act = 0
+            g_ch = 0
+            campuses_list = []
+
+            for s in schools:
+                cell = matrix.get((s.id, gr), {'prospects': 0, 'accepted': 0, 'active': 0, 'churned': 0})
+                cp, ca, cact, cch = cell['prospects'], cell['accepted'], cell['active'], cell['churned']
+                c_conv, c_ret = calc_rates(cp, ca, cact, cch)
+                g_p += cp
+                g_a += ca
+                g_act += cact
+                g_ch += cch
+                campuses_list.append({
+                    'school_id': s.id,
+                    'school_name': s.name,
+                    'npsn': s.npsn,
+                    'level': s.level,
+                    'prospects': cp,
+                    'accepted': ca,
+                    'active': cact,
+                    'churned': cch,
+                    'conversion_rate_pct': c_conv,
+                    'retention_rate_pct': c_ret,
+                })
+
+            g_conv, g_ret = calc_rates(g_p, g_a, g_act, g_ch)
+            tot_p += g_p
+            tot_a += g_a
+            tot_act += g_act
+            tot_ch += g_ch
+
+            data.append({
+                'grade_level': gr,
+                'grade_name': f"Kelas {gr}" if gr is not None else "Belum Ditentukan",
+                'prospects': g_p,
+                'accepted': g_a,
+                'active': g_act,
+                'churned': g_ch,
+                'conversion_rate_pct': g_conv,
+                'retention_rate_pct': g_ret,
+                'campuses': campuses_list,
+            })
+
+    tot_conv, tot_ret = calc_rates(tot_p, tot_a, tot_act, tot_ch)
+    summary = {
+        'total_schools': len(schools),
+        'total_prospects': tot_p,
+        'total_accepted': tot_a,
+        'total_active': tot_act,
+        'total_churned': tot_ch,
+        'conversion_rate_pct': tot_conv,
+        'retention_rate_pct': tot_ret,
+    }
+
+    return {
+        'group_by': group_by,
+        'period': {'from': str(from_date), 'to': str(to_date)},
+        'summary': summary,
+        'data': data,
+    }
+
+
+def get_foundation_enrolment_pipeline(
+    foundation_id: int,
+    school_ids=None,
+    from_date=None,
+    to_date=None,
+    group_by: str = 'campus',
+) -> dict:
+    """Computes the Enrolment Pipeline metrics for the Foundation portal (spec/03 §2, §5).
+
+    Tracks admissions and retention metrics:
+    - prospects: Prospective students in the pipeline (status=PROSPECT).
+    - accepted: Students admitted/accepted during [from_date, to_date].
+    - active: Currently active students as of to_date.
+    - churned: Students who became inactive or transferred out during [from_date, to_date].
+    - conversion_rate_pct: accepted / (prospects + accepted) * 100
+    - retention_rate_pct: active / (active + churned) * 100
+
+    Supports grouping by 'campus' or 'grade'.
+    """
+    from educore.middleware.tenancy import tenant_context
+
+    with tenant_context(foundation_id):
+        return _get_foundation_enrolment_pipeline_impl(
+            foundation_id=foundation_id,
+            school_ids=school_ids,
+            from_date=from_date,
+            to_date=to_date,
+            group_by=group_by,
+        )
+
+
 def _day_start(date_value):
     """Parse a date (or 'YYYY-MM-DD' string) into an aware start-of-day datetime
     in the current timezone. Filtering `timestamp` (a DateTimeField) against a

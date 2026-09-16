@@ -123,3 +123,54 @@ class CampusComparisonSummarySerializer(serializers.Serializer):
     active_students = serializers.IntegerField(read_only=True)
     avg_attendance_pct = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=True)
     reporting_currency = serializers.CharField(read_only=True)
+
+
+class EnrolmentPipelineGradeBreakdownSerializer(serializers.Serializer):
+    """Breakdown by grade within a campus (spec/03 §2)."""
+    grade_level = serializers.IntegerField(allow_null=True)
+    grade_name = serializers.CharField()
+    prospects = serializers.IntegerField()
+    accepted = serializers.IntegerField()
+    active = serializers.IntegerField()
+    churned = serializers.IntegerField()
+    conversion_rate_pct = serializers.FloatField()
+    retention_rate_pct = serializers.FloatField()
+
+
+class EnrolmentPipelineCampusItemSerializer(serializers.Serializer):
+    """Per-campus enrolment pipeline metrics (spec/03 §2, §5)."""
+    school_id = serializers.IntegerField()
+    school_name = serializers.CharField()
+    npsn = serializers.CharField(allow_blank=True)
+    level = serializers.CharField()
+    prospects = serializers.IntegerField()
+    accepted = serializers.IntegerField()
+    active = serializers.IntegerField()
+    churned = serializers.IntegerField()
+    conversion_rate_pct = serializers.FloatField()
+    retention_rate_pct = serializers.FloatField()
+    grades = EnrolmentPipelineGradeBreakdownSerializer(many=True, required=False)
+
+
+class EnrolmentPipelineGradeItemSerializer(serializers.Serializer):
+    """Per-grade enrolment pipeline metrics across campuses (spec/03 §2, §5)."""
+    grade_level = serializers.IntegerField(allow_null=True)
+    grade_name = serializers.CharField()
+    prospects = serializers.IntegerField()
+    accepted = serializers.IntegerField()
+    active = serializers.IntegerField()
+    churned = serializers.IntegerField()
+    conversion_rate_pct = serializers.FloatField()
+    retention_rate_pct = serializers.FloatField()
+    campuses = serializers.ListField(child=serializers.DictField(), required=False)
+
+
+class EnrolmentPipelineSummarySerializer(serializers.Serializer):
+    """Consolidated summary for foundation enrolment pipeline (spec/03 §2)."""
+    total_schools = serializers.IntegerField()
+    total_prospects = serializers.IntegerField()
+    total_accepted = serializers.IntegerField()
+    total_active = serializers.IntegerField()
+    total_churned = serializers.IntegerField()
+    conversion_rate_pct = serializers.FloatField()
+    retention_rate_pct = serializers.FloatField()

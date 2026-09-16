@@ -350,6 +350,7 @@ class StudentViewSet(viewsets.ModelViewSet):
             nis=data['nis'],
             nisn=data.get('nisn'),
             photo_key=data.get('photo_key', ''),
+            target_grade_level=data.get('target_grade_level'),
             status=Student.STATUS_PROSPECT,
             created_by=str(request.user.id),
         )
