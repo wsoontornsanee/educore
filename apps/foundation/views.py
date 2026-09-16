@@ -34,13 +34,14 @@ from .approvals import (
     InvalidApprovalIdError,
     list_foundation_approvals,
 )
-from .models import RptFoundationKPI
+from .models import FxRate, RptFoundationKPI
 from .serializers import (
     AuditEventSerializer,
     CampusComparisonSchoolSerializer,
     CampusComparisonSummarySerializer,
     FoundationKPISerializer,
     FoundationSettingsSerializer,
+    FxRateSerializer,
     SchoolSerializer,
 )
 from .services import (
@@ -261,6 +262,61 @@ class FoundationKPIView(views.APIView):
             'delta': delta,
             'delta_pct': delta_pct,
         }
+
+
+class FxRateViewSet(viewsets.ModelViewSet):
+    """CRUD API for foundation-level exchange rates (CUR-021, FND-005b).
+
+    Used by refresh_foundation_kpis to consolidate multi-currency KPIs into the
+    foundation's reporting_currency. Scoped to the authenticated user's foundation.
+    """
+    serializer_class = FxRateSerializer
+    permission_classes = [HasRequiredPermission]
+    queryset = FxRate.all_tenants.all()
+    action_permissions = {
+        'list': 'school_config.read',
+        'retrieve': 'school_config.read',
+        'create': 'school_config.write',
+        'update': 'school_config.write',
+        'partial_update': 'school_config.write',
+        'destroy': 'school_config.write',
+    }
+
+    def get_queryset(self):
+        foundation_id = get_current_foundation_id() or getattr(self.request.user, 'foundation_id', None)
+        return FxRate.all_tenants.filter(foundation_id=foundation_id, deleted_at__isnull=True).order_by('-effective_date')
+
+    def perform_create(self, serializer):
+        foundation_id = get_current_foundation_id() or getattr(self.request.user, 'foundation_id', None)
+        serializer.save(foundation_id=foundation_id)
+        audit(
+            action="foundation.fx_rate.created",
+            entity_type="FxRate",
+            entity_id=f"{serializer.instance.id}",
+            actor_id=str(self.request.user.id),
+            role="foundation_admin",
+            foundation_id=foundation_id,
+            ip_address=self.request.META.get('REMOTE_ADDR'),
+            diff={
+                "base_currency": {"after": serializer.instance.base_currency},
+                "quote_currency": {"after": serializer.instance.quote_currency},
+                "rate": {"after": str(serializer.instance.rate)},
+            },
+        )
+
+    def perform_destroy(self, instance):
+        foundation_id = instance.foundation_id
+        instance.delete()  # soft delete via TenantModel
+        audit(
+            action="foundation.fx_rate.deleted",
+            entity_type="FxRate",
+            entity_id=str(instance.id),
+            actor_id=str(self.request.user.id),
+            role="foundation_admin",
+            foundation_id=foundation_id,
+            ip_address=self.request.META.get('REMOTE_ADDR'),
+            diff={"rate": {"before": str(instance.rate)}, "is_deleted": {"before": False, "after": True}},
+        )
 
 
 CAMPUS_COMPARISON_METRIC_MAP = {

@@ -1,10 +1,12 @@
 """Services for the Foundation portal: KPI filtering shared by the live
 dashboard view and its exports (spec/03 §4/§5, FND-014, RPT-002/003), plus the
-Audit Explorer's filtering and CSV export (spec/03 §2/§5, FND-010)."""
+Audit Explorer's filtering and CSV export (spec/03 §2/§5, FND-010), and FX
+conversion for multi-currency consolidation (CUR-021, FND-005b)."""
 import csv
 import io
 import logging
 from datetime import datetime as dt_datetime, time as dt_time, timedelta
+from decimal import Decimal
 
 from apps.core.models import AuditEvent, ExportJob
 from apps.core.services import (
@@ -614,3 +616,67 @@ def render_foundation_audit_export(job: ExportJob):
 
 register_export_formats(REPORT_KEY_FOUNDATION_AUDIT, {ExportJob.FORMAT_CSV})
 register_export_permission(REPORT_KEY_FOUNDATION_AUDIT, 'audit_log.read')
+
+
+# ──────────────────────────────────────────────
+# FX Conversion Service (CUR-021, FND-005b)
+# ──────────────────────────────────────────────
+
+
+class FxRateNotFoundError(ValueError):
+    """Raised when no exchange rate is available for the requested currency pair and date."""
+
+
+def get_fx_rate(from_currency: str, to_currency: str, as_of_date, foundation_id: int):
+    """Find the most recent FxRate on or before as_of_date for the given pair.
+
+    Returns the FxRate instance, or None if no rate is found.
+    """
+    from .models import FxRate
+
+    if from_currency == to_currency:
+        return None  # no rate needed for same-currency conversion
+
+    return FxRate.all_tenants.filter(
+        foundation_id=foundation_id,
+        base_currency=from_currency,
+        quote_currency=to_currency,
+        effective_date__lte=as_of_date,
+        deleted_at__isnull=True,
+    ).order_by('-effective_date').first()
+
+
+def convert_currency(amount, from_currency: str, to_currency: str, as_of_date, foundation_id: int):
+    """Convert `amount` from from_currency to to_currency using the most recent
+    FxRate on or before as_of_date.
+
+    Returns (converted_amount, fx_rate_instance) if a rate is found.
+    Raises FxRateNotFoundError if no rate is available for the pair and date.
+
+    CUR-022: FX is used ONLY for consolidated reporting, never for transactions.
+    CUR-024: A missing rate surfaces as an explicit error, never a silent zero.
+    """
+    from decimal import ROUND_HALF_UP
+
+    if from_currency == to_currency:
+        return amount, None
+
+    rate = get_fx_rate(from_currency, to_currency, as_of_date, foundation_id)
+    if rate is None:
+        raise FxRateNotFoundError(
+            f"No exchange rate found for {from_currency} → {to_currency} on or before {as_of_date} "
+            f"for foundation {foundation_id}."
+        )
+
+    converted = (amount * rate.rate).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    return converted, rate
+
+
+def has_mixed_currencies(foundation_id: int) -> bool:
+    """Check whether a foundation's active schools use more than one base_currency."""
+    currencies = set(
+        School.all_tenants.filter(
+            foundation_id=foundation_id, is_active=True, deleted_at__isnull=True,
+        ).values_list('base_currency', flat=True).distinct()
+    )
+    return len(currencies) > 1

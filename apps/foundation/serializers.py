@@ -2,7 +2,7 @@
 from rest_framework import serializers
 from apps.core.models import AuditEvent
 from apps.identity.models import Foundation, School
-from .models import RptFoundationKPI
+from .models import FxRate, RptFoundationKPI
 
 class SchoolSerializer(serializers.ModelSerializer):
     """Serializer for School CRUD operations."""
@@ -89,6 +89,24 @@ class AuditEventSerializer(serializers.ModelSerializer):
             'diff',
             'timestamp',
         ]
+
+
+class FxRateSerializer(serializers.ModelSerializer):
+    """Serializer for exchange rate CRUD (CUR-021)."""
+    class Meta:
+        model = FxRate
+        fields = [
+            'id',
+            'foundation_id',
+            'base_currency',
+            'quote_currency',
+            'rate',
+            'effective_date',
+            'source',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'foundation_id', 'created_at', 'updated_at']
 
 
 class CampusComparisonSchoolSerializer(serializers.Serializer):

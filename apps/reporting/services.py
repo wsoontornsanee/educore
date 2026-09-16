@@ -374,9 +374,12 @@ def refresh_foundation_kpis(scope: str, since=None) -> dict:
     live transactional joins) — rpt_daily_finance, rpt_ar_aging, rpt_active_students,
     rpt_daily_attendance, rpt_wallet_activity. rpt_ar_aging keeps one snapshot per
     as_of day rather than a period range, so the most recent as_of on or before the
-    period's end is used. Currency is hardcoded 'IDR' throughout, matching every
-    upstream rpt_* refresher's current single-currency simplification (FND-005b
-    multi-currency consolidation is tracked separately — no FxRate service exists).
+    period's end is used.
+
+    Multi-currency (FND-005b): detects when a foundation's schools use more than one
+    base_currency. Per-school rows always use the school's own currency. The aggregate
+    row either sums directly (SINGLE_CURRENCY), converts via FxRate (CONSOLIDATED), or
+    flags the gap (MIXED_CURRENCY_UNSUPPORTED) — never silently sums wrong (CUR-024).
 
     scope='dashboard': current month only (matches the 5-minute incremental cadence
     of its source tables). scope='full': current + previous month, same backfill
@@ -388,6 +391,7 @@ def refresh_foundation_kpis(scope: str, since=None) -> dict:
     uniqueness constraint on the nullable school_id column.
     """
     from apps.foundation.models import RptFoundationKPI
+    from apps.foundation.services import FxRateNotFoundError, convert_currency, has_mixed_currencies
     from apps.identity.models import Foundation
 
     now = timezone.now()
@@ -404,6 +408,9 @@ def refresh_foundation_kpis(scope: str, since=None) -> dict:
 
     rows_written = 0
     for foundation in Foundation.objects.all():
+        is_mixed = has_mixed_currencies(foundation.id)
+        reporting_currency = foundation.reporting_currency or 'IDR'
+
         for month in target_months:
             month_end = (month.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
             period_end = min(month_end, today)
@@ -418,8 +425,12 @@ def refresh_foundation_kpis(scope: str, since=None) -> dict:
                 'ar_90_plus': Decimal('0.00'), 'campus_spend': Decimal('0.00'), 'active_students': 0,
                 'present_like': 0, 'attendance_marks': 0,
             }
+            agg_fx_rate_date = None
+            conversion_failed = False
 
             for school in School.all_tenants.filter(foundation_id=foundation.id, deleted_at__isnull=True):
+                school_currency = school.base_currency or 'IDR'
+
                 finance = RptDailyFinance.all_tenants.filter(
                     foundation_id=foundation.id, school=school, date__gte=month, date__lte=period_end,
                 ).aggregate(billed=Sum('billed'), collected=Sum('collected'))
@@ -456,6 +467,7 @@ def refresh_foundation_kpis(scope: str, since=None) -> dict:
                     (Decimal(present_like) / Decimal(attendance_marks)) * Decimal('100')
                 ).quantize(Decimal('0.01')) if attendance_marks else Decimal('0.00')
 
+                # Per-school row: always in the school's own currency
                 RptFoundationKPI.objects.update_or_create(
                     foundation_id=foundation.id, school_id=school.id,
                     period_start=month, period_end=month_end,
@@ -465,20 +477,65 @@ def refresh_foundation_kpis(scope: str, since=None) -> dict:
                         'ar_61_90': ar_buckets['61_90'], 'ar_90_plus': ar_buckets['90_PLUS'],
                         'campus_spend': campus_spend, 'active_students': active_students,
                         'avg_attendance_pct': avg_attendance_pct,
-                        'currency': 'IDR', 'reporting_currency': foundation.reporting_currency,
+                        'currency': school_currency,
+                        'reporting_currency': reporting_currency,
                         'fx_rate_date': None,
+                        'multi_currency_status': RptFoundationKPI.MULTI_CURRENCY_SINGLE,
                     },
                 )
                 rows_written += 1
 
-                totals['billed'] += billed
-                totals['collected'] += collected
-                totals['outstanding'] += outstanding
-                totals['ar_0_30'] += ar_buckets['0_30']
-                totals['ar_31_60'] += ar_buckets['31_60']
-                totals['ar_61_90'] += ar_buckets['61_90']
-                totals['ar_90_plus'] += ar_buckets['90_PLUS']
-                totals['campus_spend'] += campus_spend
+                # Accumulate for aggregate row — convert to reporting_currency if mixed
+                if is_mixed and school_currency != reporting_currency:
+                    try:
+                        converted_billed, rate = convert_currency(
+                            billed, school_currency, reporting_currency, period_end, foundation.id,
+                        )
+                        converted_collected, _ = convert_currency(
+                            collected, school_currency, reporting_currency, period_end, foundation.id,
+                        )
+                        converted_outstanding, _ = convert_currency(
+                            outstanding, school_currency, reporting_currency, period_end, foundation.id,
+                        )
+                        converted_ar_0_30, _ = convert_currency(
+                            ar_buckets['0_30'], school_currency, reporting_currency, period_end, foundation.id,
+                        )
+                        converted_ar_31_60, _ = convert_currency(
+                            ar_buckets['31_60'], school_currency, reporting_currency, period_end, foundation.id,
+                        )
+                        converted_ar_61_90, _ = convert_currency(
+                            ar_buckets['61_90'], school_currency, reporting_currency, period_end, foundation.id,
+                        )
+                        converted_ar_90_plus, _ = convert_currency(
+                            ar_buckets['90_PLUS'], school_currency, reporting_currency, period_end, foundation.id,
+                        )
+                        converted_campus_spend, _ = convert_currency(
+                            campus_spend, school_currency, reporting_currency, period_end, foundation.id,
+                        )
+                        if agg_fx_rate_date is None:
+                            agg_fx_rate_date = rate.effective_date
+
+                        totals['billed'] += converted_billed
+                        totals['collected'] += converted_collected
+                        totals['outstanding'] += converted_outstanding
+                        totals['ar_0_30'] += converted_ar_0_30
+                        totals['ar_31_60'] += converted_ar_31_60
+                        totals['ar_61_90'] += converted_ar_61_90
+                        totals['ar_90_plus'] += converted_ar_90_plus
+                        totals['campus_spend'] += converted_campus_spend
+                    except FxRateNotFoundError:
+                        conversion_failed = True
+                else:
+                    # Same currency — sum directly
+                    totals['billed'] += billed
+                    totals['collected'] += collected
+                    totals['outstanding'] += outstanding
+                    totals['ar_0_30'] += ar_buckets['0_30']
+                    totals['ar_31_60'] += ar_buckets['31_60']
+                    totals['ar_61_90'] += ar_buckets['61_90']
+                    totals['ar_90_plus'] += ar_buckets['90_PLUS']
+                    totals['campus_spend'] += campus_spend
+
                 totals['active_students'] += active_students
                 totals['present_like'] += present_like
                 totals['attendance_marks'] += attendance_marks
@@ -487,18 +544,45 @@ def refresh_foundation_kpis(scope: str, since=None) -> dict:
                 (Decimal(totals['present_like']) / Decimal(totals['attendance_marks'])) * Decimal('100')
             ).quantize(Decimal('0.01')) if totals['attendance_marks'] else Decimal('0.00')
 
-            RptFoundationKPI.objects.update_or_create(
-                foundation_id=foundation.id, school_id=None,
-                period_start=month, period_end=month_end,
-                defaults={
+            if conversion_failed:
+                # CUR-024: missing rate surfaces as an explicit gap, never silent zero
+                agg_defaults = {
+                    'billed': Decimal('0.00'), 'collected': Decimal('0.00'), 'outstanding': Decimal('0.00'),
+                    'ar_0_30': Decimal('0.00'), 'ar_31_60': Decimal('0.00'),
+                    'ar_61_90': Decimal('0.00'), 'ar_90_plus': Decimal('0.00'),
+                    'campus_spend': Decimal('0.00'), 'active_students': totals['active_students'],
+                    'avg_attendance_pct': agg_avg_attendance,
+                    'currency': reporting_currency, 'reporting_currency': reporting_currency,
+                    'fx_rate_date': None,
+                    'multi_currency_status': RptFoundationKPI.MULTI_CURRENCY_UNSUPPORTED,
+                }
+            elif is_mixed:
+                agg_defaults = {
                     'billed': totals['billed'], 'collected': totals['collected'], 'outstanding': totals['outstanding'],
                     'ar_0_30': totals['ar_0_30'], 'ar_31_60': totals['ar_31_60'],
                     'ar_61_90': totals['ar_61_90'], 'ar_90_plus': totals['ar_90_plus'],
                     'campus_spend': totals['campus_spend'], 'active_students': totals['active_students'],
                     'avg_attendance_pct': agg_avg_attendance,
-                    'currency': foundation.reporting_currency, 'reporting_currency': foundation.reporting_currency,
+                    'currency': reporting_currency, 'reporting_currency': reporting_currency,
+                    'fx_rate_date': agg_fx_rate_date,
+                    'multi_currency_status': RptFoundationKPI.MULTI_CURRENCY_CONSOLIDATED,
+                }
+            else:
+                agg_defaults = {
+                    'billed': totals['billed'], 'collected': totals['collected'], 'outstanding': totals['outstanding'],
+                    'ar_0_30': totals['ar_0_30'], 'ar_31_60': totals['ar_31_60'],
+                    'ar_61_90': totals['ar_61_90'], 'ar_90_plus': totals['ar_90_plus'],
+                    'campus_spend': totals['campus_spend'], 'active_students': totals['active_students'],
+                    'avg_attendance_pct': agg_avg_attendance,
+                    'currency': reporting_currency, 'reporting_currency': reporting_currency,
                     'fx_rate_date': None,
-                },
+                    'multi_currency_status': RptFoundationKPI.MULTI_CURRENCY_SINGLE,
+                }
+
+            RptFoundationKPI.objects.update_or_create(
+                foundation_id=foundation.id, school_id=None,
+                period_start=month, period_end=month_end,
+                defaults=agg_defaults,
             )
             rows_written += 1
 

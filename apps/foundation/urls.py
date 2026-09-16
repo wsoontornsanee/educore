@@ -11,11 +11,13 @@ from .views import (
     FoundationExportView,
     FoundationKPIView,
     FoundationSettingsView,
+    FxRateViewSet,
     SchoolViewSet,
 )
 
 router = DefaultRouter()
 router.register('schools', SchoolViewSet, basename='school')
+router.register('fx-rates', FxRateViewSet, basename='fx-rate')
 
 urlpatterns = [
     path('foundation/settings', FoundationSettingsView.as_view(), name='foundation-settings'),
