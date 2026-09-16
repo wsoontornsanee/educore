@@ -8,8 +8,8 @@
 
 ---
 
-- **Current Step:** Awaiting PR #95 merge approval for [Open Item] FND-008 Mandatory Reason Not Enforced on Approve (only Reject).
-- **Preceding Step:** [Open Item] Foundation Enrolment Pipeline View (spec/03 §2, §5) [DONE - PR #92 merged].
+- **Current Step:** Awaiting next task selection from Notion backlog.
+- **Preceding Step:** [Open Item] FND-008 Mandatory Reason Not Enforced on Approve (only Reject) [DONE - PR #95 merged].
 - **Target Milestone:** P0 Pilot Core [DONE] (M0–M5) -> P1 Classroom [DONE] (M6–M9) -> P2 Campus Economy (M10–M13): canteen wallet + POS [wallet core started], kiosks, face recognition, campus life (`spec/00 §6`).
   - *M0 (Step 0) [DONE]:* Django project skeleton, `core` app (`TenantModel`, `MoneyField`, `AuditEvent`, `DomainEvent`, `TaskQueue`, `JobRun`, `drain_tasks`, advisory locks, crontab).
   - *M1 (Step 1) [DONE]:* Tenancy, auth, RBAC, feature entitlements, foundation portal, seed data (`identity`, `foundation`). Demo: Foundation admin logs in, sees two schools.
