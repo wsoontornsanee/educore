@@ -8,8 +8,8 @@
 
 ---
 
-- **Current Step:** Frontend Mobile Track — React Native Setup, Offline Queue & Push Integration [DONE - PR #85 pending merge]. Branch `feat/frontend-mobile-track`.
-- **Preceding Step:** Frontend Milestone 5 — Exam Lockdown Client & Proctor Console (ACD-024) [DONE - PR #82 merged].
+- **Current Step:** Frontend Delivery Plan (Milestones 0–5 + Mobile Track) [100% COMPLETE & MERGED in PRs #77–#82, #85]. Paused per user request.
+- **Preceding Step:** Frontend Mobile Track — React Native Setup, Offline Queue & Push Integration [DONE - PR #85 merged].
 - **Target Milestone:** P0 Pilot Core [DONE] (M0–M5) -> P1 Classroom [DONE] (M6–M9) -> P2 Campus Economy (M10–M13): canteen wallet + POS [wallet core started], kiosks, face recognition, campus life (`spec/00 §6`).
   - *M0 (Step 0) [DONE]:* Django project skeleton, `core` app (`TenantModel`, `MoneyField`, `AuditEvent`, `DomainEvent`, `TaskQueue`, `JobRun`, `drain_tasks`, advisory locks, crontab).
   - *M1 (Step 1) [DONE]:* Tenancy, auth, RBAC, feature entitlements, foundation portal, seed data (`identity`, `foundation`). Demo: Foundation admin logs in, sees two schools.
