@@ -70,3 +70,38 @@ class FoundationKPISerializer(serializers.ModelSerializer):
             'fx_rate_date',
             'computed_at',
         ]
+
+
+class CampusComparisonSchoolSerializer(serializers.Serializer):
+    """Per-school aggregated KPI and ranking data for campus comparison (spec/03 §2, FND-004)."""
+    rank = serializers.IntegerField(read_only=True)
+    school_id = serializers.IntegerField(read_only=True)
+    school_name = serializers.CharField(read_only=True)
+    npsn = serializers.CharField(read_only=True, allow_blank=True)
+    level = serializers.CharField(read_only=True)
+    currency = serializers.CharField(read_only=True)
+    billed = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    collected = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    collection_rate_pct = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=True)
+    outstanding = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    ar_0_30 = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    ar_31_60 = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    ar_61_90 = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    ar_90_plus = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    campus_spend = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    active_students = serializers.IntegerField(read_only=True)
+    avg_attendance_pct = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=True)
+
+
+class CampusComparisonSummarySerializer(serializers.Serializer):
+    """Consolidated summary totals across compared schools in reporting currency (FND-005b)."""
+    total_schools = serializers.IntegerField(read_only=True)
+    billed = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    collected = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    collection_rate_pct = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=True)
+    outstanding = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    campus_spend = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    active_students = serializers.IntegerField(read_only=True)
+    avg_attendance_pct = serializers.DecimalField(max_digits=5, decimal_places=2, coerce_to_string=True)
+    reporting_currency = serializers.CharField(read_only=True)
+
