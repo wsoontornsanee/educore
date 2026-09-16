@@ -8,9 +8,9 @@
 
 ---
 
-- **Current Step:** Awaiting next task selection from Notion backlog.
-- **Preceding Step:** [Open Item] Multi-Currency KPI Consolidation (FND-005b) [DONE - PR #94 merged].
-- **Recent Completed Step:** [Open Item] FND-008 Mandatory Reason Not Enforced on Approve (only Reject) [DONE - PR #95 merged].
+- **Current Step:** Awaiting next step / deployment instruction.
+- **Preceding Step:** Step 11.1 — Cashless Canteen Wallet & Offline-First POS Kiosk (TASK-033) [DONE - PR #96 merged].
+- **Recent Completed Step:** Step 11.1 — Cashless Canteen Wallet & Offline-First POS Kiosk (TASK-033) [DONE - PR #96 merged].
 - **Target Milestone:** P0 Pilot Core [DONE] (M0–M5) -> P1 Classroom [DONE] (M6–M9) -> P2 Campus Economy (M10–M13): canteen wallet + POS [wallet core started], kiosks, face recognition, campus life (`spec/00 §6`).
   - *M0 (Step 0) [DONE]:* Django project skeleton, `core` app (`TenantModel`, `MoneyField`, `AuditEvent`, `DomainEvent`, `TaskQueue`, `JobRun`, `drain_tasks`, advisory locks, crontab).
   - *M1 (Step 1) [DONE]:* Tenancy, auth, RBAC, feature entitlements, foundation portal, seed data (`identity`, `foundation`). Demo: Foundation admin logs in, sees two schools.
@@ -190,6 +190,7 @@
 | `TASK-M5` | Frontend M5 — Exam Lockdown Client & Proctor Console (ACD-024, ACD-021..026) | Built `GET /api/v1/academic/exams/:id/proctor/` live monitoring endpoint, integrated `IdempotentViewMixin` on `ExamAttemptViewSet` for network-safe autosave with `Idempotency-Key` headers, built student lockdown screen (`exam_lockdown.html`) with fullscreen enforcement, non-punitive focus loss tracking, <=20s autosave, server time resync, and question palette, built proctor console dashboard (`exam_proctor_console.html`) with 6-column live grid, polling refresh toggle, and summary stat cards, and created comprehensive test suite (`test_exam_lockdown_proctor.py`) asserting tenancy isolation, metrics correctness, idempotency, and focus-loss tracking (`spec/04 §6`, `spec/17`, `ACD-021..026`). | Completed (PR #82) |
 | `TASK-M-MOBILE` | Frontend Mobile Track — React Native Setup, Offline Queue & Push Integration | React Native Expo setup, dual-auth JWT backend + storage, SQLite offline queue with FIFO sync replay to `/api/v1/period-attendance/sync/`, agenda and roll call screens with gate exceptions, substitution modal, and push notifications (`spec/09`, `spec/17`, `ACD-019`, `TCH-001..004`). | Completed (PR #85) |
 | `TASK-FND-004` | Foundation Campus Comparison Endpoint | Server-side rollup aggregation (`rpt_foundation_kpis`), ranking/sorting by any KPI metric, 25-school capacity, <=15m freshness check, multi-currency reporting, and CSV/XLSX export streaming with audit header banners (`spec/03 §2, §5`, `FND-004`, `FND-005`, `FND-005b`, `FND-006`, `FND-014`). PR: [#89](https://github.com/wsoontornsanee/educore/pull/89) | Completed (PR #89) |
+| `TASK-033` | Step 11.1 — Cashless Canteen Wallet & Offline-First POS Kiosk | Canteen operator RBAC, student nutrition summary API (`WAL-024`), React Native tablet POS kiosk (`POSKioskScreen.tsx`), offline SQLite/IndexedDB queue sync (`WAL-015`, `WAL-016`), live spend-rule validations (`WAL-009`..`013`), and digital receipt (`WAL-020`) (`spec/07 §3-§8`, `spec/12`). PR: [#96](https://github.com/wsoontornsanee/educore/pull/96) | Completed (PR #96) |
 
 
 ---

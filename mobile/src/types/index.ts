@@ -142,3 +142,107 @@ export interface PaymentIntentItem {
   expires_at: string;
   status: string;
 }
+
+// POS & Canteen Domain Types (spec/07 §3-§6)
+
+export interface POSProductNutrition {
+  calories?: number;
+  sugar_g?: number;
+  is_healthy?: boolean;
+}
+
+export interface POSProduct {
+  id: number;
+  sku: string;
+  name: string;
+  price: string | number;
+  category: string;
+  nutrition?: POSProductNutrition;
+  allergens?: string[];
+  is_active?: boolean;
+}
+
+export interface POSStudent {
+  id: number;
+  full_name: string;
+  nisn: string | null;
+  nis: string | null;
+  card_uid?: string | null;
+  photo_url?: string | null;
+  balance: string | number;
+  daily_limit?: string | number | null;
+  spent_today?: string | number;
+  blocked_categories?: string[];
+  allowed_window_start?: string | null; // e.g. "09:30"
+  allowed_window_end?: string | null;   // e.g. "13:30"
+}
+
+export interface POSCartItem {
+  product: POSProduct;
+  qty: number;
+  unit_price: number;
+}
+
+export interface POSOfflineTransactionItem {
+  sku: string;
+  name: string;
+  qty: number;
+  unit_price: string;
+  category?: string;
+  nutrition?: POSProductNutrition;
+  allergens?: string[];
+}
+
+export interface POSOfflineTransaction {
+  id: string;
+  client_transaction_id: string;
+  terminal_id: number;
+  student_id: number;
+  student_name?: string;
+  items: POSOfflineTransactionItem[];
+  subtotal: number;
+  total: number;
+  occurred_at: string;
+  status: 'PENDING' | 'SYNCING' | 'SYNCED' | 'FAILED';
+  attempts: number;
+  created_at: string;
+  last_error?: string | null;
+}
+
+export interface POSSessionData {
+  terminal_id: number;
+  terminal_name: string;
+  merchant_id: number;
+  merchant_name: string;
+  school_id: number;
+  catalog: POSProduct[];
+  roster: POSStudent[];
+  sync_cursor?: string;
+}
+
+export interface POSReceipt {
+  transaction_id: string;
+  client_transaction_id: string;
+  student_name: string;
+  student_nis?: string | null;
+  items: Array<{
+    sku: string;
+    name: string;
+    qty: number;
+    unit_price: number;
+    total: number;
+  }>;
+  subtotal: number;
+  total: number;
+  balance_before?: number;
+  balance_after?: number;
+  occurred_at: string;
+  offline_created: boolean;
+  terminal_name?: string;
+  merchant_name?: string;
+}
+
+export interface POSSpendRuleCheckResult {
+  allowed: boolean;
+  reason?: string;
+}

@@ -17,6 +17,7 @@ ROLE_SCHOOL_ADMIN = RoleAssignment.ROLE_SCHOOL_ADMIN
 ROLE_FINANCE_OFFICER = RoleAssignment.ROLE_FINANCE_OFFICER
 ROLE_TEACHER = RoleAssignment.ROLE_TEACHER
 ROLE_COUNSELLOR = RoleAssignment.ROLE_COUNSELLOR
+ROLE_CANTEEN_OPERATOR = RoleAssignment.ROLE_CANTEEN_OPERATOR
 ROLE_PARENT = RoleAssignment.ROLE_PARENT
 
 # Scope Types
@@ -79,6 +80,11 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'attendance.read',
         'behaviour.read', 'behaviour.write',
         'clinic.read',
+    },
+    ROLE_CANTEEN_OPERATOR: {
+        'student_records.read',
+        'wallet.topup.read',
+        'wallet.topup.write',
     },
     ROLE_PARENT: {
         'student_records.read',

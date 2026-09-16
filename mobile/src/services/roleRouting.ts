@@ -14,6 +14,7 @@ export const STAFF_ROLES = [
   'finance_officer',
   'teacher',
   'counsellor',
+  'canteen_operator',
 ];
 
 export function isStaff(user: UserProfile | null): boolean {

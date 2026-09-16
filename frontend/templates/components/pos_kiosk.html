@@ -1,0 +1,800 @@
+{% load l10n %}
+{% comment %}
+Component: Tablet POS Kiosk Surface (spec/07 §3-§7, spec/12, spec/17)
+Usage: {% include "components/pos_kiosk.html" with terminal=terminal merchant=merchant products=products students=students %}
+Parameters:
+  - terminal: POSTerminal instance or dict (id, device_id, name)
+  - merchant: Merchant instance or dict (id, name, type)
+  - products: List of Product instances or dicts (id, sku, name, price, category, nutrition, allergens)
+  - students: Optional list of Student instances or dicts (id, full_name, nis, nisn, balance, daily_limit)
+{% endcomment %}
+
+<div id="pos-kiosk-container"
+     class="pos-kiosk-layout"
+     style="display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 720px; background-color: var(--color-surface, #F8FAFC); font-family: var(--font-body, 'IBM Plex Sans', sans-serif); border: 1px solid var(--color-line, #E2E8F0); border-radius: 0px; box-sizing: border-box;">
+
+  <!-- Kiosk Top Navigation Bar -->
+  <header style="height: 64px; background-color: var(--color-primary, #C8102E); color: #FFFFFF; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-radius: 0px;">
+    <div style="display: flex; align-items: center; gap: 16px;">
+      <div>
+        <h2 style="margin: 0; font-size: 1.25rem; font-weight: 700; color: #FFFFFF; letter-spacing: -0.02em;">
+          {{ merchant.name|default:"Kantin Sekolah EduCore" }}
+        </h2>
+        <div style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.85); margin-top: 2px;">
+          Terminal: <strong>{{ terminal.name|default:terminal.device_id|default:"Kiosk 1" }}</strong> (ID: <span id="pos-terminal-id">{{ terminal.id|default:1 }}</span>) • Floor Limit: Rp 50.000
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <!-- Offline Queue Indicator -->
+      <div id="pos-offline-badge"
+           style="display: none; align-items: center; gap: 6px; background-color: #D97706; color: #FFFFFF; padding: 4px 12px; font-size: 0.8rem; font-weight: 700; border-radius: 0px;">
+        <span id="pos-offline-count">0</span> Transaksi Offline
+        <button type="button"
+                onclick="PosKiosk.syncOfflineQueue()"
+                style="background: #FFFFFF; color: #D97706; border: none; font-size: 0.75rem; font-weight: bold; padding: 2px 8px; cursor: pointer; border-radius: 0px; margin-left: 4px;">
+          Sync Sekarang
+        </button>
+      </div>
+
+      <!-- Online Status Pill -->
+      <div id="pos-network-pill"
+           style="display: flex; align-items: center; gap: 6px; background-color: rgba(0,0,0,0.25); padding: 4px 12px; font-size: 0.8rem; font-weight: 600; border: 1px solid rgba(255,255,255,0.3); border-radius: 0px;">
+        <span id="pos-network-dot" style="width: 8px; height: 8px; background-color: #16A34A; display: inline-block;"></span>
+        <span id="pos-network-label">Online</span>
+      </div>
+
+      <!-- Void Action Button -->
+      <button id="pos-btn-void"
+              type="button"
+              onclick="PosKiosk.promptVoidLast()"
+              style="display: none; background-color: rgba(0,0,0,0.35); color: #FFFFFF; border: 1px solid rgba(255,255,255,0.4); padding: 6px 14px; font-size: 0.8rem; font-weight: 600; cursor: pointer; border-radius: 0px;">
+        Batalkan (Void) Terakhir
+      </button>
+    </div>
+  </header>
+
+  <!-- 2-Column Split Body Layout (spec/12) -->
+  <div style="display: flex; flex: 1; min-height: 0;">
+    
+    <!-- LEFT PANEL: Product Catalog Grid & Categories -->
+    <div style="flex: 1.4; display: flex; flex-direction: column; border-right: 1px solid var(--color-line, #E2E8F0); background-color: #FFFFFF;">
+      
+      <!-- Search & Category Filters -->
+      <div style="padding: 16px; border-bottom: 1px solid var(--color-line, #E2E8F0); background-color: var(--color-surface, #F8FAFC);">
+        <input id="pos-search-input"
+               type="text"
+               placeholder="Cari produk berdasarkan nama atau SKU..."
+               oninput="PosKiosk.filterProducts()"
+               style="width: 100%; height: 42px; padding: 0 14px; font-size: 0.95rem; border: 1px solid var(--color-line-dark, #CBD5E1); background-color: #FFFFFF; border-radius: 0px; box-sizing: border-box; margin-bottom: 12px;" />
+
+        <div id="pos-category-tabs" style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px;">
+          <button type="button"
+                  class="pos-cat-btn pos-cat-btn-active"
+                  data-category="ALL"
+                  onclick="PosKiosk.selectCategory('ALL')"
+                  style="padding: 6px 14px; font-size: 0.85rem; font-weight: 600; background-color: #0F172A; color: #FFFFFF; border: none; cursor: pointer; border-radius: 0px; white-space: nowrap;">
+            Semua Menu
+          </button>
+        </div>
+      </div>
+
+      <!-- Catalog Cards Scroll Area -->
+      <div id="pos-catalog-grid"
+           style="flex: 1; overflow-y: auto; padding: 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; align-content: flex-start;">
+        <!-- Product cards injected by JS or server rendered -->
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL: Student Card Tap Header + Active Cart -->
+    <div style="flex: 1; display: flex; flex-direction: column; background-color: var(--color-surface, #F8FAFC);">
+      
+      <!-- Student Card Tap / Identification Header (WAL-019) -->
+      <div id="pos-student-card-panel"
+           style="padding: 16px; background-color: #FFFFFF; border-bottom: 1px solid var(--color-line, #E2E8F0);">
+        
+        <div id="pos-student-identified" style="display: none;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <div id="pos-student-avatar"
+                   style="width: 50px; height: 50px; background-color: #FDF2F4; border: 1px solid var(--color-primary, #C8102E); display: flex; align-items: center; justify-content: center; font-size: 1.35rem; font-weight: 700; color: var(--color-primary, #C8102E); border-radius: 0px;">
+                S
+              </div>
+              <div>
+                <div id="pos-student-name" style="font-size: 1.05rem; font-weight: 700; color: #0F172A;">Nama Siswa</div>
+                <div id="pos-student-nis" style="font-size: 0.8rem; color: #64748B;">NIS: -</div>
+              </div>
+            </div>
+            <button type="button"
+                    onclick="PosKiosk.resetStudent()"
+                    style="padding: 4px 10px; background-color: #F1F5F9; border: 1px solid #CBD5E1; color: #334155; font-size: 0.75rem; font-weight: 600; cursor: pointer; border-radius: 0px;">
+              Ganti Siswa
+            </button>
+          </div>
+
+          <!-- Balance & Limit Info -->
+          <div style="display: flex; gap: 16px; margin-top: 12px; padding: 10px 14px; background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 0px;">
+            <div style="flex: 1;">
+              <div style="font-size: 0.75rem; color: #64748B;">Saldo Dompet</div>
+              <div id="pos-student-balance" style="font-size: 1.15rem; font-weight: 700; color: #16A34A;">Rp 0</div>
+            </div>
+            <div style="flex: 1;">
+              <div style="font-size: 0.75rem; color: #64748B;">Limit Harian</div>
+              <div id="pos-student-limit" style="font-size: 0.95rem; font-weight: 600; color: #334155;">Tidak Ada Limit</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Student Tap / Input Prompt -->
+        <div id="pos-student-prompt" style="display: block;">
+          <div style="font-size: 0.95rem; font-weight: 700; color: #0F172A; margin-bottom: 4px;">
+            💳 Tap Kartu Pelajar (NFC / Barcode)
+          </div>
+          <p style="font-size: 0.8rem; color: #64748B; margin: 0 0 10px 0;">
+            Tempelkan kartu siswa pada reader atau masukkan NIS/NISN di bawah sebelum konfirmasi belanja.
+          </p>
+          <div style="display: flex; gap: 8px;">
+            <input id="pos-card-input"
+                   type="text"
+                   placeholder="Scan kartu / ketik NIS..."
+                   onkeydown="if(event.key === 'Enter') PosKiosk.identifyStudentByInput()"
+                   style="flex: 1; height: 40px; padding: 0 12px; font-size: 0.9rem; border: 1px solid #CBD5E1; background-color: #FFFFFF; border-radius: 0px; box-sizing: border-box;" />
+            <button type="button"
+                    onclick="PosKiosk.identifyStudentByInput()"
+                    style="padding: 0 16px; background-color: #0F172A; color: #FFFFFF; border: none; font-size: 0.85rem; font-weight: 600; cursor: pointer; border-radius: 0px;">
+              Pilih
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cart Header -->
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background-color: #F1F5F9; border-bottom: 1px solid var(--color-line, #E2E8F0);">
+        <span id="pos-cart-title" style="font-size: 0.9rem; font-weight: 700; color: #0F172A;">
+          Keranjang (0 Item)
+        </span>
+        <button type="button"
+                onclick="PosKiosk.clearCart()"
+                style="background: none; border: none; color: #DC2626; font-size: 0.8rem; font-weight: 600; cursor: pointer; text-decoration: underline;">
+          Kosongkan
+        </button>
+      </div>
+
+      <!-- Cart Line Items Scroll Area -->
+      <div id="pos-cart-items" style="flex: 1; overflow-y: auto; padding: 12px 16px;">
+        <div id="pos-cart-empty" style="text-align: center; padding: 40px 10px; color: #94A3B8;">
+          <div style="font-size: 1rem; font-weight: 600; color: #64748B;">Keranjang Belanja Kosong</div>
+          <div style="font-size: 0.8rem; margin-top: 4px;">Pilih menu makanan/minuman dari katalog di sebelah kiri.</div>
+        </div>
+      </div>
+
+      <!-- Spend Rule Rejection Alert Banner (WAL-010 to WAL-013) -->
+      <div id="pos-rule-alert"
+           style="display: none; padding: 10px 16px; background-color: #FEE2E2; border-top: 1px solid #DC2626; color: #DC2626; font-size: 0.85rem; font-weight: 600;">
+        ⚠️ <span id="pos-rule-reason">Aturan belanja terlanggar.</span>
+      </div>
+
+      <!-- Cart Footer & Rapid Checkout Button (≤3s WAL-018) -->
+      <div style="padding: 16px; background-color: #FFFFFF; border-top: 1px solid var(--color-line, #E2E8F0);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+          <span style="font-size: 1rem; color: #64748B;">Total Tagihan:</span>
+          <span id="pos-cart-total" style="font-size: 1.45rem; font-weight: 700; color: var(--color-primary, #C8102E);">
+            Rp 0
+          </span>
+        </div>
+
+        <button id="pos-btn-checkout"
+                type="button"
+                disabled
+                onclick="PosKiosk.checkout()"
+                style="width: 100%; height: 54px; background-color: #16A34A; color: #FFFFFF; border: none; font-size: 1.1rem; font-weight: 700; cursor: pointer; border-radius: 0px; opacity: 0.5; transition: opacity 0.2s;">
+          Bayar Sekarang (Rp 0)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Digital Thermal Receipt Slip Modal (WAL-020) -->
+  <div id="pos-receipt-modal"
+       style="display: none; position: fixed; inset: 0; background-color: rgba(0,0,0,0.6); z-index: 9999; align-items: center; justify-content: center; padding: 20px;">
+    
+    <div style="width: 100%; max-width: 400px; background-color: #FFFFFF; padding: 24px; border-radius: 0px; border: 1px solid #000; box-shadow: 0 10px 25px rgba(0,0,0,0.25); font-family: monospace;">
+      <div style="text-align: center; margin-bottom: 12px;">
+        <h3 style="margin: 0; font-size: 1.25rem; font-weight: 700; color: #000;">STRUK PEMBELIAN KANTIN</h3>
+        <div id="receipt-merchant" style="font-size: 0.95rem; font-weight: 600; color: #333;">Kantin EduCore</div>
+        <div id="receipt-meta" style="font-size: 0.8rem; color: #666; margin-top: 4px;">Terminal: Kiosk 1 • ONLINE</div>
+        <div id="receipt-id" style="font-size: 0.75rem; color: #888;">ID: pos-0000</div>
+      </div>
+
+      <div style="border-top: 1px dashed #000; margin: 10px 0;"></div>
+
+      <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 8px;">
+        <span>Siswa:</span>
+        <strong id="receipt-student">-</strong>
+      </div>
+
+      <div style="border-top: 1px dashed #000; margin: 10px 0;"></div>
+
+      <!-- Receipt items -->
+      <div id="receipt-items-list" style="margin: 10px 0; max-height: 180px; overflow-y: auto;"></div>
+
+      <div style="border-top: 1px dashed #000; margin: 10px 0;"></div>
+
+      <div style="display: flex; justify-content: space-between; font-size: 1.15rem; font-weight: 700; margin: 8px 0;">
+        <span>TOTAL:</span>
+        <span id="receipt-total">Rp 0</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #16A34A; margin-bottom: 16px;">
+        <span>Sisa Saldo:</span>
+        <strong id="receipt-balance-after">Rp 0</strong>
+      </div>
+
+      <button type="button"
+              onclick="PosKiosk.closeReceipt()"
+              style="width: 100%; height: 44px; background-color: #0F172A; color: #FFFFFF; border: none; font-size: 0.95rem; font-weight: 600; cursor: pointer; border-radius: 0px;">
+        Selesai / Transaksi Baru
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+/**
+ * PosKiosk Controller & Offline Queue Manager
+ * Integrates IndexedDB offline queueing with /api/v1/pos/transactions/batch/
+ */
+window.PosKiosk = (function() {
+  const DB_NAME = 'educore_pos_offline_db';
+  const DB_VERSION = 1;
+  const STORE_NAME = 'pos_queue';
+
+  let db = null;
+  let terminalId = parseInt(document.getElementById('pos-terminal-id')?.innerText || '1', 10);
+  let catalog = [];
+  let roster = [];
+  let activeStudent = null;
+  let cart = [];
+  let lastReceipt = null;
+
+  // Initialize IndexedDB
+  function initDb() {
+    return new Promise((resolve, reject) => {
+      if (!window.indexedDB) {
+        console.warn('IndexedDB not supported in this environment.');
+        return resolve(null);
+      }
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = (e) => {
+        const d = e.target.result;
+        if (!d.objectStoreNames.contains(STORE_NAME)) {
+          d.createObjectStore(STORE_NAME, { keyPath: 'id' });
+        }
+      };
+      req.onsuccess = (e) => {
+        db = e.target.result;
+        updateOfflineBadge();
+        resolve(db);
+      };
+      req.onerror = () => resolve(null);
+    });
+  }
+
+  function enqueueOfflineTransaction(tx) {
+    return new Promise((resolve) => {
+      if (!db) return resolve();
+      const tr = db.transaction([STORE_NAME], 'readwrite');
+      tr.objectStore(STORE_NAME).put(tx);
+      tr.oncomplete = () => {
+        updateOfflineBadge();
+        resolve();
+      };
+      tr.onerror = () => resolve();
+    });
+  }
+
+  function getOfflineQueue() {
+    return new Promise((resolve) => {
+      if (!db) return resolve([]);
+      const tr = db.transaction([STORE_NAME], 'readonly');
+      const req = tr.objectStore(STORE_NAME).getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => resolve([]);
+    });
+  }
+
+  function removeOfflineTransactions(ids) {
+    return new Promise((resolve) => {
+      if (!db || ids.length === 0) return resolve();
+      const tr = db.transaction([STORE_NAME], 'readwrite');
+      const store = tr.objectStore(STORE_NAME);
+      ids.forEach(id => store.delete(id));
+      tr.oncomplete = () => {
+        updateOfflineBadge();
+        resolve();
+      };
+      tr.onerror = () => resolve();
+    });
+  }
+
+  async function updateOfflineBadge() {
+    const queue = await getOfflineQueue();
+    const badge = document.getElementById('pos-offline-badge');
+    const countSpan = document.getElementById('pos-offline-count');
+    if (badge && countSpan) {
+      countSpan.innerText = queue.length;
+      badge.style.display = queue.length > 0 ? 'inline-flex' : 'none';
+    }
+  }
+
+  // Load Session from backend or local fallback
+  async function loadSession() {
+    try {
+      const res = await fetch('/api/v1/pos/sessions/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ terminal_id: terminalId })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        catalog = data.catalog || [];
+        roster = data.roster || [];
+        localStorage.setItem(`pos_session_${terminalId}`, JSON.stringify(data));
+        renderCategories();
+        renderCatalog();
+        return;
+      }
+    } catch (e) {
+      console.warn('Offline: loading cached POS session', e);
+    }
+
+    const cached = localStorage.getItem(`pos_session_${terminalId}`);
+    if (cached) {
+      const data = JSON.parse(cached);
+      catalog = data.catalog || [];
+      roster = data.roster || [];
+      renderCategories();
+      renderCatalog();
+    }
+  }
+
+  function renderCategories() {
+    const container = document.getElementById('pos-category-tabs');
+    if (!container) return;
+    const cats = new Set(['ALL']);
+    catalog.forEach(p => { if (p.category) cats.add(p.category); });
+
+    container.innerHTML = Array.from(cats).map(cat => `
+      <button type="button"
+              class="pos-cat-btn ${cat === 'ALL' ? 'pos-cat-btn-active' : ''}"
+              data-category="${cat}"
+              onclick="PosKiosk.selectCategory('${cat}')"
+              style="padding: 6px 14px; font-size: 0.85rem; font-weight: 600; background-color: ${cat === 'ALL' ? '#0F172A' : '#F1F5F9'}; color: ${cat === 'ALL' ? '#FFFFFF' : '#334155'}; border: none; cursor: pointer; border-radius: 0px; white-space: nowrap;">
+        ${cat === 'ALL' ? 'Semua Menu' : cat}
+      </button>
+    `).join('');
+  }
+
+  function renderCatalog(filterCategory = 'ALL', search = '') {
+    const grid = document.getElementById('pos-catalog-grid');
+    if (!grid) return;
+
+    const filtered = catalog.filter(p => {
+      const matchCat = filterCategory === 'ALL' || p.category === filterCategory;
+      const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase());
+      return matchCat && matchSearch && p.is_active !== false;
+    });
+
+    grid.innerHTML = filtered.map(p => {
+      const isHealthy = p.nutrition?.is_healthy;
+      const calories = p.nutrition?.calories;
+      const allergens = p.allergens && p.allergens.length > 0 ? p.allergens.join(', ') : null;
+      return `
+        <div class="pos-product-card"
+             onclick="PosKiosk.addToCart(${p.id})"
+             style="border: 1px solid #E2E8F0; padding: 14px; background: #FFFFFF; cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; border-radius: 0px; transition: border-color 0.15s;">
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              ${isHealthy ? '<span style="font-size: 10px; font-weight: bold; background: #DCFCE7; color: #16A34A; padding: 2px 6px;">🌱 Sehat</span>' : '<span></span>'}
+              ${calories ? `<span style="font-size: 10px; color: #64748B;">${calories} kcal</span>` : ''}
+            </div>
+            <div style="font-size: 0.95rem; font-weight: 700; color: #0F172A; margin-bottom: 4px;">${p.name}</div>
+            <div style="font-size: 0.75rem; color: #94A3B8; font-family: monospace;">SKU: ${p.sku}</div>
+          </div>
+          <div style="margin-top: 12px;">
+            <div style="font-size: 1.05rem; font-weight: 700; color: #C8102E;">Rp ${Number(p.price).toLocaleString('id-ID')}</div>
+            ${allergens ? `<div style="font-size: 10px; color: #DC2626; margin-top: 4px;">⚠️ ${allergens}</div>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function selectCategory(cat) {
+    document.querySelectorAll('.pos-cat-btn').forEach(btn => {
+      const active = btn.getAttribute('data-category') === cat;
+      btn.style.backgroundColor = active ? '#0F172A' : '#F1F5F9';
+      btn.style.color = active ? '#FFFFFF' : '#334155';
+    });
+    const search = document.getElementById('pos-search-input')?.value || '';
+    renderCatalog(cat, search);
+  }
+
+  function filterProducts() {
+    const cat = document.querySelector('.pos-cat-btn[style*="rgb(15, 23, 42)"]')?.getAttribute('data-category') || 'ALL';
+    const search = document.getElementById('pos-search-input')?.value || '';
+    renderCatalog(cat, search);
+  }
+
+  function identifyStudentByInput() {
+    const input = document.getElementById('pos-card-input')?.value?.trim().toUpperCase();
+    if (!input) return;
+
+    const found = roster.find(s =>
+      (s.card_uid && s.card_uid.toUpperCase() === input) ||
+      (s.nis && s.nis.toUpperCase() === input) ||
+      (s.nisn && s.nisn === input) ||
+      String(s.id) === input
+    );
+
+    if (found) {
+      activeStudent = found;
+      document.getElementById('pos-student-prompt').style.display = 'none';
+      document.getElementById('pos-student-identified').style.display = 'block';
+      document.getElementById('pos-student-name').innerText = found.full_name;
+      document.getElementById('pos-student-nis').innerText = `NIS: ${found.nis || found.nisn || '-'}`;
+      document.getElementById('pos-student-avatar').innerText = found.full_name.charAt(0);
+      document.getElementById('pos-student-balance').innerText = `Rp ${Number(found.balance).toLocaleString('id-ID')}`;
+      document.getElementById('pos-student-limit').innerText = found.daily_limit !== null && found.daily_limit !== undefined
+        ? `Rp ${Number(found.daily_limit).toLocaleString('id-ID')}`
+        : 'Tidak Ada Limit';
+      validateSpendRules();
+    } else {
+      alert(`Siswa dengan kartu/NIS "${input}" tidak ditemukan dalam daftar.`);
+    }
+  }
+
+  function resetStudent() {
+    activeStudent = null;
+    document.getElementById('pos-student-identified').style.display = 'none';
+    document.getElementById('pos-student-prompt').style.display = 'block';
+    document.getElementById('pos-card-input').value = '';
+    validateSpendRules();
+  }
+
+  function addToCart(productId) {
+    const product = catalog.find(p => p.id === productId);
+    if (!product) return;
+
+    const existing = cart.find(item => item.product.id === productId);
+    if (existing) {
+      existing.qty += 1;
+    } else {
+      cart.push({ product, qty: 1, unit_price: Number(product.price) });
+    }
+    renderCart();
+  }
+
+  function updateCartQty(productId, delta) {
+    cart = cart.map(item => {
+      if (item.product.id === productId) {
+        const newQty = item.qty + delta;
+        return newQty > 0 ? { ...item, qty: newQty } : null;
+      }
+      return item;
+    }).filter(Boolean);
+    renderCart();
+  }
+
+  function clearCart() {
+    cart = [];
+    renderCart();
+  }
+
+  function renderCart() {
+    const container = document.getElementById('pos-cart-items');
+    const title = document.getElementById('pos-cart-title');
+    const totalEl = document.getElementById('pos-cart-total');
+    const btn = document.getElementById('pos-btn-checkout');
+
+    const totalQty = cart.reduce((sum, item) => sum + item.qty, 0);
+    const subtotal = cart.reduce((sum, item) => sum + item.unit_price * item.qty, 0);
+
+    if (title) title.innerText = `Keranjang (${totalQty} Item)`;
+    if (totalEl) totalEl.innerText = `Rp ${subtotal.toLocaleString('id-ID')}`;
+
+    if (cart.length === 0) {
+      container.innerHTML = `
+        <div id="pos-cart-empty" style="text-align: center; padding: 40px 10px; color: #94A3B8;">
+          <div style="font-size: 1rem; font-weight: 600; color: #64748B;">Keranjang Belanja Kosong</div>
+          <div style="font-size: 0.8rem; margin-top: 4px;">Pilih menu makanan/minuman dari katalog di sebelah kiri.</div>
+        </div>
+      `;
+    } else {
+      container.innerHTML = cart.map(item => `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #E2E8F0;">
+          <div style="flex: 1;">
+            <div style="font-size: 0.9rem; font-weight: 700; color: #0F172A;">${item.product.name}</div>
+            <div style="font-size: 0.75rem; color: #64748B;">Rp ${item.unit_price.toLocaleString('id-ID')}</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px; margin: 0 12px;">
+            <button type="button" onclick="PosKiosk.updateCartQty(${item.product.id}, -1)" style="width: 26px; height: 26px; background: #F1F5F9; border: 1px solid #CBD5E1; font-weight: bold; cursor: pointer;">-</button>
+            <span style="font-size: 0.9rem; font-weight: 700; min-width: 18px; text-align: center;">${item.qty}</span>
+            <button type="button" onclick="PosKiosk.updateCartQty(${item.product.id}, 1)" style="width: 26px; height: 26px; background: #F1F5F9; border: 1px solid #CBD5E1; font-weight: bold; cursor: pointer;">+</button>
+          </div>
+          <div style="font-size: 0.95rem; font-weight: 700; color: #0F172A; min-width: 75px; text-align: right;">
+            Rp ${(item.unit_price * item.qty).toLocaleString('id-ID')}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    validateSpendRules();
+  }
+
+  function validateSpendRules() {
+    const btn = document.getElementById('pos-btn-checkout');
+    const alertBanner = document.getElementById('pos-rule-alert');
+    const alertText = document.getElementById('pos-rule-reason');
+    const subtotal = cart.reduce((sum, item) => sum + item.unit_price * item.qty, 0);
+
+    if (!activeStudent || cart.length === 0) {
+      if (alertBanner) alertBanner.style.display = 'none';
+      if (btn) {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+        btn.innerText = `Bayar Sekarang (Rp ${subtotal.toLocaleString('id-ID')})`;
+      }
+      return;
+    }
+
+    // 1. Time Window check
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    if (activeStudent.allowed_window_start && activeStudent.allowed_window_end) {
+      if (timeStr < activeStudent.allowed_window_start || timeStr > activeStudent.allowed_window_end) {
+        showRejection(`Di luar jam belanja (${activeStudent.allowed_window_start} - ${activeStudent.allowed_window_end}).`);
+        return;
+      }
+    }
+
+    // 2. Blocked Categories
+    if (activeStudent.blocked_categories && activeStudent.blocked_categories.length > 0) {
+      const blocked = new Set(activeStudent.blocked_categories.map(c => c.toUpperCase()));
+      for (const item of cart) {
+        if (blocked.has((item.product.category || '').toUpperCase())) {
+          showRejection(`Kategori "${item.product.category}" dilarang untuk siswa ini.`);
+          return;
+        }
+      }
+    }
+
+    // 3. Daily spending limit
+    if (activeStudent.daily_limit !== null && activeStudent.daily_limit !== undefined) {
+      const limit = Number(activeStudent.daily_limit);
+      const spent = Number(activeStudent.spent_today || 0);
+      if (spent + subtotal > limit) {
+        showRejection(`Batas belanja harian Rp ${limit.toLocaleString('id-ID')} terlampaui.`);
+        return;
+      }
+    }
+
+    // 4. Floor limit Rp 50,000
+    const balance = Number(activeStudent.balance || 0);
+    if (balance - subtotal < -50000.0) {
+      showRejection('Melebihi batas saldo minimum offline (Rp 50.000).');
+      return;
+    }
+
+    if (alertBanner) alertBanner.style.display = 'none';
+    if (btn) {
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.innerText = `Bayar Sekarang • Rp ${subtotal.toLocaleString('id-ID')}`;
+    }
+  }
+
+  function showRejection(reason) {
+    const btn = document.getElementById('pos-btn-checkout');
+    const alertBanner = document.getElementById('pos-rule-alert');
+    const alertText = document.getElementById('pos-rule-reason');
+    if (alertBanner && alertText) {
+      alertText.innerText = reason;
+      alertBanner.style.display = 'block';
+    }
+    if (btn) {
+      btn.disabled = true;
+      btn.style.opacity = '0.5';
+    }
+  }
+
+  async function checkout() {
+    if (!activeStudent || cart.length === 0) return;
+    const subtotal = cart.reduce((sum, item) => sum + item.unit_price * item.qty, 0);
+    const client_tx_id = `pos-web-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const occurred_at = new Date().toISOString();
+
+    const itemsPayload = cart.map(item => ({
+      sku: item.product.sku,
+      name: item.product.name,
+      qty: item.qty,
+      unit_price: String(item.unit_price)
+    }));
+
+    let offlineCreated = false;
+    let serverId = client_tx_id;
+
+    try {
+      const res = await fetch('/api/v1/pos/transactions/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          terminal_id: terminalId,
+          student_id: activeStudent.id,
+          items: itemsPayload,
+          client_transaction_id: client_tx_id,
+          occurred_at
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        serverId = String(data.id);
+      } else {
+        const err = await res.json();
+        if (res.status === 400 && err.error) {
+          alert(`Transaksi ditolak: ${err.error}`);
+          return;
+        }
+        offlineCreated = true;
+      }
+    } catch {
+      offlineCreated = true;
+    }
+
+    if (offlineCreated) {
+      await enqueueOfflineTransaction({
+        id: client_tx_id,
+        terminal_id: terminalId,
+        student_id: activeStudent.id,
+        student_name: activeStudent.full_name,
+        items: itemsPayload,
+        occurred_at
+      });
+    }
+
+    const receipt = {
+      transaction_id: serverId,
+      student_name: activeStudent.full_name,
+      items: [...cart],
+      total: subtotal,
+      balance_after: Number(activeStudent.balance || 0) - subtotal,
+      occurred_at,
+      offline_created: offlineCreated
+    };
+
+    lastReceipt = receipt;
+    activeStudent.balance = receipt.balance_after;
+    document.getElementById('pos-student-balance').innerText = `Rp ${receipt.balance_after.toLocaleString('id-ID')}`;
+
+    displayReceipt(receipt);
+    cart = [];
+    renderCart();
+
+    const voidBtn = document.getElementById('pos-btn-void');
+    if (voidBtn) voidBtn.style.display = 'inline-block';
+  }
+
+  function displayReceipt(r) {
+    document.getElementById('receipt-merchant').innerText = document.querySelector('h2')?.innerText || 'Kantin';
+    document.getElementById('receipt-meta').innerText = `Terminal: ${terminalId} • ${r.offline_created ? 'OFFLINE (Tersimpan di Kiosk)' : 'ONLINE'}`;
+    document.getElementById('receipt-id').innerText = `ID: #${r.transaction_id}`;
+    document.getElementById('receipt-student').innerText = r.student_name;
+    document.getElementById('receipt-total').innerText = `Rp ${r.total.toLocaleString('id-ID')}`;
+    document.getElementById('receipt-balance-after').innerText = `Rp ${r.balance_after.toLocaleString('id-ID')}`;
+
+    const itemsContainer = document.getElementById('receipt-items-list');
+    itemsContainer.innerHTML = r.items.map(item => `
+      <div style="display: flex; justify-content: space-between; font-size: 0.85rem; padding: 2px 0;">
+        <span>${item.qty}x ${item.product ? item.product.name : item.name}</span>
+        <span>Rp ${(item.unit_price * item.qty).toLocaleString('id-ID')}</span>
+      </div>
+    `).join('');
+
+    document.getElementById('pos-receipt-modal').style.display = 'flex';
+  }
+
+  function closeReceipt() {
+    document.getElementById('pos-receipt-modal').style.display = 'none';
+  }
+
+  async function promptVoidLast() {
+    if (!lastReceipt) return;
+    const reason = prompt(`Batalkan transaksi #${lastReceipt.transaction_id}? Masukkan alasan:`, 'Salah input menu');
+    if (!reason) return;
+
+    try {
+      const res = await fetch(`/api/v1/pos/transactions/${lastReceipt.transaction_id}/void/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
+      });
+      if (res.ok) {
+        alert('Transaksi berhasil dibatalkan dan saldo dikembalikan.');
+        lastReceipt = null;
+        document.getElementById('pos-btn-void').style.display = 'none';
+        if (activeStudent) {
+          activeStudent.balance = Number(activeStudent.balance) + lastReceipt.total;
+          document.getElementById('pos-student-balance').innerText = `Rp ${activeStudent.balance.toLocaleString('id-ID')}`;
+        }
+      } else {
+        const err = await res.json();
+        alert(`Gagal void: ${err.error || 'Batas waktu pembatalan terlampaui.'}`);
+      }
+    } catch {
+      alert('Gagal menghubungi server untuk pembatalan.');
+    }
+  }
+
+  async function syncOfflineQueue() {
+    const queue = await getOfflineQueue();
+    if (queue.length === 0) return;
+
+    try {
+      const res = await fetch('/api/v1/pos/transactions/batch/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          terminal_id: terminalId,
+          transactions: queue.map(t => ({
+            client_transaction_id: t.id,
+            student_id: t.student_id,
+            items: t.items,
+            occurred_at: t.occurred_at
+          }))
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        await removeOfflineTransactions(queue.map(q => q.id));
+        alert(`Berhasil sinkronisasi: ${data.created || queue.length} transaksi diproses.`);
+      } else {
+        alert('Server menolak sinkronisasi batch.');
+      }
+    } catch (e) {
+      alert(`Koneksi gagal: ${e.message}`);
+    }
+  }
+
+  // Auto-init on page load
+  document.addEventListener('DOMContentLoaded', () => {
+    initDb();
+    loadSession();
+    window.addEventListener('online', () => {
+      document.getElementById('pos-network-dot').style.backgroundColor = '#16A34A';
+      document.getElementById('pos-network-label').innerText = 'Online';
+      syncOfflineQueue();
+    });
+    window.addEventListener('offline', () => {
+      document.getElementById('pos-network-dot').style.backgroundColor = '#DC2626';
+      document.getElementById('pos-network-label').innerText = 'Offline';
+    });
+  });
+
+  return {
+    selectCategory,
+    filterProducts,
+    identifyStudentByInput,
+    resetStudent,
+    addToCart,
+    updateCartQty,
+    clearCart,
+    checkout,
+    closeReceipt,
+    promptVoidLast,
+    syncOfflineQueue
+  };
+})();
+</script>

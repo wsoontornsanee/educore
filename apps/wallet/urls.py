@@ -24,6 +24,7 @@ from apps.wallet.views import (
     WalletTopupView,
     WalletTopupWebhookView,
     WalletTransactionsView,
+    StudentNutritionSummaryView,
 )
 
 router = DefaultRouter()
@@ -40,6 +41,8 @@ urlpatterns = [
     path('wallets/<int:student_id>/auto-topup-config/', WalletAutoTopupConfigView.as_view(), name='wallet-auto-topup-config'),
     path('webhooks/wallet-topup/<str:provider>/', WalletTopupWebhookView.as_view(), name='wallet-topup-webhook'),
     path('wallets/<int:student_id>/rules/', SpendRuleView.as_view(), name='wallet-rules'),
+    path('students/<int:student_id>/nutrition-summary/', StudentNutritionSummaryView.as_view(), name='student-nutrition-summary'),
+    path('wallets/<int:student_id>/nutrition-summary/', StudentNutritionSummaryView.as_view(), name='wallet-nutrition-summary'),
     path('settlements/<int:settlement_id>/download/', SettlementStatementDownloadView.as_view(), name='settlement-download'),
     path('pos/sessions/', POSSessionView.as_view(), name='pos-sessions'),
     path('pos/sync/', POSSyncView.as_view(), name='pos-sync'),

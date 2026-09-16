@@ -239,6 +239,7 @@ class RoleAssignment(TenantModel):
     ROLE_FINANCE_OFFICER = 'finance_officer'
     ROLE_TEACHER = 'teacher'
     ROLE_COUNSELLOR = 'counsellor'
+    ROLE_CANTEEN_OPERATOR = 'canteen_operator'
     ROLE_PARENT = 'parent'
     ROLE_CHOICES = [
         (ROLE_FOUNDATION_ADMIN, 'Foundation Admin'),
@@ -246,6 +247,7 @@ class RoleAssignment(TenantModel):
         (ROLE_FINANCE_OFFICER, 'Finance Officer'),
         (ROLE_TEACHER, 'Teacher'),
         (ROLE_COUNSELLOR, 'Counsellor'),
+        (ROLE_CANTEEN_OPERATOR, 'Canteen Operator'),
         (ROLE_PARENT, 'Parent'),
     ]
 

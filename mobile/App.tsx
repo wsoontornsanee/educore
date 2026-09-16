@@ -18,9 +18,11 @@ import { AgendaScreen } from './src/screens/AgendaScreen';
 import { RollCallScreen } from './src/screens/RollCallScreen';
 import { SubstitutionModal } from './src/screens/SubstitutionModal';
 import { ParentShell, ParentTab } from './src/screens/parent/ParentShell';
-import { ParentHomeScreen } from './src/screens/parent/ParentHomeScreen'; // added in Task 9
-import { ParentAttendanceScreen } from './src/screens/parent/ParentAttendanceScreen'; // added in Task 10
-import { ParentInvoicesScreen } from './src/screens/parent/ParentInvoicesScreen'; // added in Task 11
+import { ParentHomeScreen } from './src/screens/parent/ParentHomeScreen';
+import { ParentAttendanceScreen } from './src/screens/parent/ParentAttendanceScreen';
+import { ParentInvoicesScreen } from './src/screens/parent/ParentInvoicesScreen';
+import { POSKioskScreen } from './src/screens/POSKioskScreen';
+import { initPosQueueDb } from './src/services/posOfflineQueue';
 import { colors } from './src/theme/tokens';
 import { StudentRosterItem, TimetableSlotItem, UserProfile } from './src/types';
 
@@ -30,12 +32,15 @@ export default function App() {
   const [activeSlot, setActiveSlot] = useState<TimetableSlotItem | null>(null);
   const [subModalSlot, setSubModalSlot] = useState<TimetableSlotItem | null>(null);
   const [parentTab, setParentTab] = useState<ParentTab>('HOME');
+  const [posMode, setPosMode] = useState(false);
 
+  const isCanteenOperator = currentUser?.roles?.some((r) => r.role === 'canteen_operator');
   const todayStr = todayWib();
 
   useEffect(() => {
     const bootstrap = async () => {
       await initQueueDb();
+      await initPosQueueDb();
       const authState = await checkAuth();
       if (authState.authenticated && authState.user) {
         setCurrentUser(authState.user);
@@ -121,6 +126,16 @@ export default function App() {
             )
           }
         </ParentShell>
+      ) : isCanteenOperator || posMode ? (
+        <POSKioskScreen
+          onBack={() => {
+            if (posMode) {
+              setPosMode(false);
+            } else {
+              handleLogout();
+            }
+          }}
+        />
       ) : activeSlot ? (
         <RollCallScreen
           slot={activeSlot}
