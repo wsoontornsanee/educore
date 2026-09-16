@@ -1,5 +1,9 @@
 """Serializers for Identity, RBAC, Entitlements, and User Profile (spec/02 §6, §7)."""
+from django.contrib.auth import authenticate, get_user_model
 from rest_framework import serializers
+from rest_framework_simplejwt.exceptions import AuthenticationFailed
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer, TokenRefreshSerializer
+from rest_framework_simplejwt.settings import api_settings
 from .models import FoundationEntitlement, RoleAssignment, School, User
 from .entitlements import get_active_entitlements
 
@@ -265,5 +269,96 @@ class StudentImportSerializer(serializers.Serializer):
     school_id = serializers.IntegerField()
     file = serializers.FileField()
     dry_run = serializers.BooleanField(default=True)
+
+
+class EduCoreTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """Custom JWT serializer supporting dual phone/email identifier login (IAM-001)."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['identifier'] = serializers.CharField(required=False)
+        self.fields[self.username_field].required = False
+
+    def validate(self, attrs):
+        identifier = attrs.get('identifier') or attrs.get(self.username_field) or attrs.get('email')
+        password = attrs.get('password')
+
+        if not identifier or not password:
+            raise serializers.ValidationError('Identifier dan password wajib diisi.')
+
+        user = authenticate(
+            request=self.context.get('request'),
+            username=identifier,
+            password=password,
+        )
+
+        if not user:
+            raise serializers.ValidationError('Kredensial tidak valid atau akun terkunci.')
+
+        if not user.is_active:
+            raise serializers.ValidationError('Akun pengguna tidak aktif.')
+
+        refresh = self.get_token(user)
+
+        return {
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+            'user': {
+                'id': user.id,
+                'full_name': user.full_name,
+                'phone_e164': user.phone_e164,
+                'email': user.email,
+                'foundation_id': user.foundation_id,
+                'roles': list(
+                    RoleAssignment.all_tenants.filter(
+                        foundation_id=user.foundation_id,
+                        user=user,
+                        deleted_at__isnull=True,
+                    ).values('id', 'role', 'scope_type', 'scope_id')
+                ),
+            },
+        }
+
+
+class EduCoreTokenRefreshSerializer(TokenRefreshSerializer):
+    """Custom TokenRefreshSerializer using User.all_tenants for unscoped user lookup."""
+
+    def validate(self, attrs):
+        refresh = self.token_class(attrs["refresh"])
+
+        user_id = refresh.payload.get(api_settings.USER_ID_CLAIM, None)
+        if user_id:
+            user_model = get_user_model()
+            manager = getattr(user_model, 'all_tenants', user_model.objects)
+            try:
+                user = manager.get(**{api_settings.USER_ID_FIELD: user_id})
+            except user_model.DoesNotExist:
+                user = None
+
+            if user and not api_settings.USER_AUTHENTICATION_RULE(user):
+                raise AuthenticationFailed(
+                    self.error_messages["no_active_account"],
+                    "no_active_account",
+                )
+
+        data = {"access": str(refresh.access_token)}
+
+        if api_settings.ROTATE_REFRESH_TOKENS:
+            if api_settings.BLACKLIST_AFTER_ROTATION:
+                try:
+                    refresh.blacklist()
+                except AttributeError:
+                    pass
+
+            refresh.set_jti()
+            refresh.set_exp()
+            refresh.set_iat()
+            refresh.outstand()
+
+            data["refresh"] = str(refresh)
+
+        return data
+
+
 
 
