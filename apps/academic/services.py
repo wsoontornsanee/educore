@@ -1376,8 +1376,9 @@ def render_report_card_html(report_card: ReportCard) -> str:
     homeroom_nip = f'<span style="font-family:\'IBM Plex Mono\',monospace;font-size:8pt;color:#6B615C">NIP {esc(homeroom.nip)}</span>' if homeroom and homeroom.nip else ''
     principal_name = esc(principal.person.full_name) if principal else '(...............................)'
     principal_nip = f'<span style="font-family:\'IBM Plex Mono\',monospace;font-size:8pt;color:#6B615C">NIP {esc(principal.nip)}</span>' if principal and principal.nip else ''
-    issue_date = (report_card.published_at or timezone.now()).strftime('%-d %B %Y')
-    issue_date_short = (report_card.published_at or timezone.now()).strftime('%Y-%m-%d')
+    pub_dt = report_card.published_at or timezone.now()
+    issue_date = f"{pub_dt.day} {pub_dt.strftime('%B %Y')}"
+    issue_date_short = pub_dt.strftime('%Y-%m-%d')
     decision = esc(report_card.promotion_decision) if report_card.promotion_decision else 'BELUM DITENTUKAN'
     narrative_text = esc(report_card.narrative) if report_card.narrative else '-'
 
@@ -1554,7 +1555,7 @@ def render_report_card_pdf(report_card: ReportCard) -> str:
     except Exception:
         logger.warning("weasyprint unavailable, falling back to HTML rapor output", exc_info=True)
         key = f"report_cards/{report_card.id}_v{report_card.version}.html"
-        (Path(settings.MEDIA_ROOT) / key).write_text(html_content)
+        (Path(settings.MEDIA_ROOT) / key).write_text(html_content, encoding='utf-8')
 
     return key
 

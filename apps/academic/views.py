@@ -754,6 +754,10 @@ class StudentReportCardView(APIView):
         if not student:
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
+        from apps.identity.guardian_access import can_guardian_access_student
+        if not can_guardian_access_student(request.user, student.id, foundation_id):
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
         term_id = request.query_params.get('term_id')
         report_card = ReportCard.objects.filter(
             student=student, term_id=term_id, is_current=True, foundation_id=foundation_id,

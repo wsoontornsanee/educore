@@ -245,32 +245,31 @@ class StudentViewSet(viewsets.ModelViewSet):
             ).exists()
 
             if not has_fnd_admin:
+                from .guardian_access import get_guardian_student_ids, STAFF_ROLES
+
                 # User has school-scoped roles or parent role
-                assigned_school_ids = set(RoleAssignment.all_tenants.filter(
+                staff_school_ids = set(RoleAssignment.all_tenants.filter(
                     foundation_id=foundation_id,
                     user=user,
+                    role__in=STAFF_ROLES,
                     scope_type=RoleAssignment.SCOPE_SCHOOL,
                     deleted_at__isnull=True,
                 ).values_list('scope_id', flat=True))
 
-                # If parent, can view their linked students across schools (IAM-009, IAM-014)
-                has_parent_role = RoleAssignment.all_tenants.filter(
-                    foundation_id=foundation_id,
-                    user=user,
-                    role=RoleAssignment.ROLE_PARENT,
-                    deleted_at__isnull=True,
-                ).exists()
+                parent_student_ids = get_guardian_student_ids(user, foundation_id)
 
-                if has_parent_role:
-                    parent_student_ids = Student.all_tenants.filter(
-                        foundation_id=foundation_id,
-                        guardian_links__guardian__user=user,
-                        guardian_links__deleted_at__isnull=True,
-                        deleted_at__isnull=True,
-                    ).values_list('id', flat=True)
-                    qs = qs.filter(Q(school_id__in=assigned_school_ids) | Q(id__in=parent_student_ids))
+                if staff_school_ids and parent_student_ids:
+                    # Dual role: staff at some schools, parent at others (IAM-009, IAM-014)
+                    qs = qs.filter(Q(school_id__in=staff_school_ids) | Q(id__in=parent_student_ids))
+                elif staff_school_ids:
+                    # Staff only
+                    qs = qs.filter(school_id__in=staff_school_ids)
+                elif parent_student_ids:
+                    # Parent only: strictly linked students (IAM-014)
+                    qs = qs.filter(id__in=parent_student_ids)
                 else:
-                    qs = qs.filter(school_id__in=assigned_school_ids)
+                    # Neither staff nor linked students
+                    return qs.none()
 
         # Filters
         school_id = self.request.query_params.get('school_id')

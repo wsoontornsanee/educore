@@ -517,20 +517,36 @@ class AttendanceDayViewSet(viewsets.ModelViewSet):
         if not user.is_authenticated:
             return AttendanceDay.objects.none()
 
+        from apps.identity.guardian_access import get_guardian_student_ids, STAFF_ROLES
+        from django.db.models import Q
+
         has_fnd_admin = RoleAssignment.all_tenants.filter(
             user=user,
             foundation_id=foundation_id,
+            role__in=STAFF_ROLES,
             scope_type=RoleAssignment.SCOPE_FOUNDATION,
             deleted_at__isnull=True,
         ).exists()
         if not has_fnd_admin:
-            user_school_ids = RoleAssignment.all_tenants.filter(
+
+            staff_school_ids = set(RoleAssignment.all_tenants.filter(
                 user=user,
                 foundation_id=foundation_id,
+                role__in=STAFF_ROLES,
                 scope_type=RoleAssignment.SCOPE_SCHOOL,
                 deleted_at__isnull=True,
-            ).values_list('scope_id', flat=True)
-            qs = qs.filter(school_id__in=user_school_ids)
+            ).values_list('scope_id', flat=True))
+
+            parent_student_ids = get_guardian_student_ids(user, foundation_id)
+
+            if staff_school_ids and parent_student_ids:
+                qs = qs.filter(Q(school_id__in=staff_school_ids) | Q(student_id__in=parent_student_ids))
+            elif staff_school_ids:
+                qs = qs.filter(school_id__in=staff_school_ids)
+            elif parent_student_ids:
+                qs = qs.filter(student_id__in=parent_student_ids)
+            else:
+                return qs.none()
 
         school_param = self.request.query_params.get('school_id')
         if school_param:
@@ -551,32 +567,15 @@ class AttendanceDayViewSet(viewsets.ModelViewSet):
         return qs.order_by('-date', '-created_at')
 
     def get_object(self):
-        foundation_id = getattr(self.request, 'foundation_id', None)
-        obj_id = self.kwargs.get('pk')
+        queryset = self.filter_queryset(self.get_queryset())
+        lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
+        filter_kwargs = {self.lookup_field: self.kwargs[lookup_url_kwarg]}
         try:
-            att_day = AttendanceDay.objects.select_related('school', 'student').get(id=obj_id, foundation_id=foundation_id)
+            obj = queryset.get(**filter_kwargs)
         except (AttendanceDay.DoesNotExist, ValueError):
             raise NotFound("Data kehadiran harian tidak ditemukan.")
-
-        user = self.request.user
-        has_fnd_admin = RoleAssignment.all_tenants.filter(
-            user=user,
-            foundation_id=foundation_id,
-            scope_type=RoleAssignment.SCOPE_FOUNDATION,
-            deleted_at__isnull=True,
-        ).exists()
-        if not has_fnd_admin:
-            user_school_ids = set(RoleAssignment.all_tenants.filter(
-                user=user,
-                foundation_id=foundation_id,
-                scope_type=RoleAssignment.SCOPE_SCHOOL,
-                deleted_at__isnull=True,
-            ).values_list('scope_id', flat=True))
-            if att_day.school_id not in user_school_ids:
-                raise NotFound("Data kehadiran harian tidak ditemukan.")
-
-        self.check_object_permissions(self.request, att_day)
-        return att_day
+        self.check_object_permissions(self.request, obj)
+        return obj
 
     @action(detail=True, methods=['post'], url_path='override')
     def override(self, request, pk=None):

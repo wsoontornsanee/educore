@@ -17,6 +17,7 @@ weasyprint>=62.3
 requests>=2.32.3
 cryptography>=43.0.1
 python-dateutil>=2.9.0
+python-dotenv>=1.0.0
 
 # Testing & Quality
 pytest>=8.3.2
