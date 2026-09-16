@@ -112,9 +112,45 @@ class BehaviourRecordViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         foundation_id = get_current_foundation_id()
-        if not foundation_id:
-            return BehaviourRecord.objects.none()
         qs = BehaviourRecord.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True).select_related('reason', 'student__person', 'recorded_by').order_by('-created_at')
+
+        user = self.request.user
+        if not user or not user.is_authenticated:
+            return BehaviourRecord.objects.none()
+
+        if not user.is_superuser:
+            from apps.identity.models import RoleAssignment
+            from apps.identity.guardian_access import get_guardian_student_ids, STAFF_ROLES
+
+            has_fnd_admin = RoleAssignment.all_tenants.filter(
+                foundation_id=foundation_id,
+                user=user,
+                role=RoleAssignment.ROLE_FOUNDATION_ADMIN,
+                scope_type=RoleAssignment.SCOPE_FOUNDATION,
+                deleted_at__isnull=True,
+            ).exists()
+
+            if not has_fnd_admin:
+                staff_school_ids = set(RoleAssignment.all_tenants.filter(
+                    foundation_id=foundation_id,
+                    user=user,
+                    role__in=STAFF_ROLES,
+                    scope_type=RoleAssignment.SCOPE_SCHOOL,
+                    deleted_at__isnull=True,
+                ).values_list('scope_id', flat=True))
+
+                parent_student_ids = get_guardian_student_ids(user, foundation_id)
+
+                if staff_school_ids and parent_student_ids:
+                    from django.db.models import Q
+                    qs = qs.filter(Q(school_id__in=staff_school_ids) | Q(student_id__in=parent_student_ids))
+                elif staff_school_ids:
+                    qs = qs.filter(school_id__in=staff_school_ids)
+                elif parent_student_ids:
+                    qs = qs.filter(student_id__in=parent_student_ids)
+                else:
+                    return BehaviourRecord.objects.none()
+
         student_id = self.request.query_params.get('student_id')
         if student_id:
             qs = qs.filter(student_id=student_id)
@@ -252,6 +288,10 @@ class StudentBehaviourSummaryView(APIView):
         except Student.DoesNotExist:
             raise exceptions.NotFound("Siswa tidak ditemukan.")
 
+        from apps.identity.guardian_access import can_guardian_access_student
+        if not can_guardian_access_student(request.user, student.id, foundation_id):
+            raise exceptions.NotFound("Siswa tidak ditemukan.")
+
         term = None
         term_id = request.query_params.get('term_id')
         if term_id:
@@ -284,6 +324,44 @@ class BehaviourCaseViewSet(viewsets.ModelViewSet):
         if not foundation_id:
             return BehaviourCase.objects.none()
         qs = BehaviourCase.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True).select_related('student__person', 'assigned_counsellor__person').order_by('-created_at')
+
+        user = self.request.user
+        if not user or not user.is_authenticated:
+            return BehaviourCase.objects.none()
+
+        if not user.is_superuser:
+            from apps.identity.models import RoleAssignment
+            from apps.identity.guardian_access import get_guardian_student_ids, STAFF_ROLES
+
+            has_fnd_admin = RoleAssignment.all_tenants.filter(
+                foundation_id=foundation_id,
+                user=user,
+                role=RoleAssignment.ROLE_FOUNDATION_ADMIN,
+                scope_type=RoleAssignment.SCOPE_FOUNDATION,
+                deleted_at__isnull=True,
+            ).exists()
+
+            if not has_fnd_admin:
+                staff_school_ids = set(RoleAssignment.all_tenants.filter(
+                    foundation_id=foundation_id,
+                    user=user,
+                    role__in=STAFF_ROLES,
+                    scope_type=RoleAssignment.SCOPE_SCHOOL,
+                    deleted_at__isnull=True,
+                ).values_list('scope_id', flat=True))
+
+                parent_student_ids = get_guardian_student_ids(user, foundation_id)
+
+                if staff_school_ids and parent_student_ids:
+                    from django.db.models import Q
+                    qs = qs.filter(Q(school_id__in=staff_school_ids) | Q(student_id__in=parent_student_ids))
+                elif staff_school_ids:
+                    qs = qs.filter(school_id__in=staff_school_ids)
+                elif parent_student_ids:
+                    qs = qs.filter(student_id__in=parent_student_ids)
+                else:
+                    return BehaviourCase.objects.none()
+
         student_id = self.request.query_params.get('student_id')
         if student_id:
             qs = qs.filter(student_id=student_id)

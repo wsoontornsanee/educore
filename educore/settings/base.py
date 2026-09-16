@@ -12,6 +12,24 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
+# Load environment variables from .env if present
+_env_file = BASE_DIR / '.env'
+if _env_file.exists():
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(_env_file)
+    except ImportError:
+        with open(_env_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#') or '=' not in line:
+                    continue
+                k, v = line.split('=', 1)
+                k, v = k.strip(), v.strip()
+                if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
+                    v = v[1:-1]
+                os.environ.setdefault(k, v)
+
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-educore-dev-key-change-in-production')
 
 DEBUG = False
@@ -88,6 +106,7 @@ DB_USER = os.environ.get('EDUCORE_DB_USER', 'root')
 DB_PASSWORD = os.environ.get('EDUCORE_DB_PASSWORD', '')
 DB_HOST = os.environ.get('EDUCORE_DB_HOST', '127.0.0.1')
 DB_PORT = os.environ.get('EDUCORE_DB_PORT', '3306')
+TEST_DB_NAME = os.environ.get('EDUCORE_TEST_DB_NAME', 'test_educore')
 
 DATABASES = {
     'default': {
@@ -101,6 +120,11 @@ DATABASES = {
             'charset': 'utf8mb4',
             'collation': 'utf8mb4_0900_ai_ci',
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION'",
+        },
+        'TEST': {
+            'NAME': TEST_DB_NAME,
+            'CHARSET': 'utf8mb4',
+            'COLLATION': 'utf8mb4_0900_ai_ci',
         },
     }
 }

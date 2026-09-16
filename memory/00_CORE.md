@@ -93,8 +93,8 @@ From `spec/01 §5`:
 
 1. **Database Backend:**
    - Production/Staging: MySQL 8.0 (`utf8mb4_0900_ai_ci`).
-   - Development: Local MySQL 8.0 via `docker-compose.yml` or native service. Pure-Python driver fallback via `pymysql.install_as_MySQLdb()`.
+   - Development & Testing: MySQL 8.0 instance configured via `.env` (`EDUCORE_DB_*` and `EDUCORE_TEST_DB_NAME=test_educore`). Pure-Python driver fallback via `pymysql.install_as_MySQLdb()`.
    - Lightweight test fallback: `EDUCORE_USE_SQLITE=1` supported for running fast offline test suites.
 2. **Test Runner:**
-   - Tests run via `python manage.py test` or `pytest`.
+   - Tests run via `python manage.py test` or `pytest` (`--reuse-db` enabled by default in `pytest.ini` for remote/local MySQL speed).
    - Dynamic test models in tests use portable raw SQL creation to ensure cross-engine compatibility.

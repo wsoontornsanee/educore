@@ -83,8 +83,15 @@ from apps.wallet.services import (
 )
 
 
-def _get_student_or_404(student_id, foundation_id):
-    return Student.objects.filter(id=student_id, foundation_id=foundation_id).first()
+def _get_student_or_404(student_id, foundation_id, user=None):
+    student = Student.objects.filter(id=student_id, foundation_id=foundation_id).first()
+    if not student:
+        return None
+    if user and user.is_authenticated:
+        from apps.identity.guardian_access import can_guardian_access_student
+        if not can_guardian_access_student(user, student.id, foundation_id):
+            return None
+    return student
 
 
 class WalletDetailView(APIView):
@@ -94,7 +101,7 @@ class WalletDetailView(APIView):
 
     def get(self, request, student_id):
         foundation_id = get_current_foundation_id()
-        student = _get_student_or_404(student_id, foundation_id)
+        student = _get_student_or_404(student_id, foundation_id, user=request.user)
         if not student:
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
         wallet = get_or_create_wallet(student)
@@ -109,7 +116,7 @@ class WalletTransactionsView(APIView):
 
     def get(self, request, student_id):
         foundation_id = get_current_foundation_id()
-        student = _get_student_or_404(student_id, foundation_id)
+        student = _get_student_or_404(student_id, foundation_id, user=request.user)
         if not student:
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
         wallet = get_or_create_wallet(student)
@@ -131,7 +138,7 @@ class WalletTopupView(APIView):
 
     def post(self, request, student_id):
         foundation_id = get_current_foundation_id()
-        student = _get_student_or_404(student_id, foundation_id)
+        student = _get_student_or_404(student_id, foundation_id, user=request.user)
         if not student:
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
         wallet = get_or_create_wallet(student)
@@ -160,7 +167,7 @@ class WalletTopupIntentView(APIView):
 
     def post(self, request, student_id):
         foundation_id = get_current_foundation_id()
-        student = _get_student_or_404(student_id, foundation_id)
+        student = _get_student_or_404(student_id, foundation_id, user=request.user)
         if not student:
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
         wallet = get_or_create_wallet(student)
@@ -195,7 +202,7 @@ class WalletAutoTopupConfigView(APIView):
 
     def get(self, request, student_id):
         foundation_id = get_current_foundation_id()
-        student = _get_student_or_404(student_id, foundation_id)
+        student = _get_student_or_404(student_id, foundation_id, user=request.user)
         if not student:
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
         wallet = get_or_create_wallet(student)
@@ -210,7 +217,7 @@ class WalletAutoTopupConfigView(APIView):
 
     def put(self, request, student_id):
         foundation_id = get_current_foundation_id()
-        student = _get_student_or_404(student_id, foundation_id)
+        student = _get_student_or_404(student_id, foundation_id, user=request.user)
         if not student:
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
         wallet = get_or_create_wallet(student)
@@ -258,7 +265,7 @@ class SpendRuleView(APIView):
 
     def get(self, request, student_id):
         foundation_id = get_current_foundation_id()
-        student = _get_student_or_404(student_id, foundation_id)
+        student = _get_student_or_404(student_id, foundation_id, user=request.user)
         if not student:
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
         rule = get_or_create_spend_rule(student)
@@ -266,7 +273,7 @@ class SpendRuleView(APIView):
 
     def put(self, request, student_id):
         foundation_id = get_current_foundation_id()
-        student = _get_student_or_404(student_id, foundation_id)
+        student = _get_student_or_404(student_id, foundation_id, user=request.user)
         if not student:
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 

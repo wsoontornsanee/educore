@@ -361,6 +361,49 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         if not foundation_id:
             return Invoice.objects.none()
         qs = Invoice.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True).prefetch_related('lines', 'installments').order_by('-created_at')
+
+        user = self.request.user
+        if not user or not user.is_authenticated:
+            return Invoice.objects.none()
+
+        if not user.is_superuser:
+            from apps.identity.models import RoleAssignment
+            from apps.identity.guardian_access import get_guardian_student_ids
+
+            has_fnd_admin = RoleAssignment.all_tenants.filter(
+                foundation_id=foundation_id,
+                user=user,
+                role__in=[
+                    RoleAssignment.ROLE_FOUNDATION_ADMIN,
+                    RoleAssignment.ROLE_FINANCE_OFFICER,
+                ],
+                scope_type=RoleAssignment.SCOPE_FOUNDATION,
+                deleted_at__isnull=True,
+            ).exists()
+
+            if not has_fnd_admin:
+                staff_school_ids = set(RoleAssignment.all_tenants.filter(
+                    foundation_id=foundation_id,
+                    user=user,
+                    role__in=[
+                        RoleAssignment.ROLE_SCHOOL_ADMIN,
+                        RoleAssignment.ROLE_FINANCE_OFFICER,
+                    ],
+                    scope_type=RoleAssignment.SCOPE_SCHOOL,
+                    deleted_at__isnull=True,
+                ).values_list('scope_id', flat=True))
+
+                financial_student_ids = get_guardian_student_ids(user, foundation_id, financial_only=True)
+
+                if staff_school_ids and financial_student_ids:
+                    from django.db.models import Q
+                    qs = qs.filter(Q(school_id__in=staff_school_ids) | Q(student_id__in=financial_student_ids))
+                elif staff_school_ids:
+                    qs = qs.filter(school_id__in=staff_school_ids)
+                elif financial_student_ids:
+                    qs = qs.filter(student_id__in=financial_student_ids)
+                else:
+                    return Invoice.objects.none()
         
         school_id = self.request.query_params.get('school_id')
         if school_id:
