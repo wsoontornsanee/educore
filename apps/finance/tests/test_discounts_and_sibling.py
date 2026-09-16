@@ -1,5 +1,6 @@
 import datetime
 from decimal import Decimal
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 from apps.identity.models import Foundation, Guardian, GuardianLink, Person, RoleAssignment, School, Student, User
@@ -207,8 +208,12 @@ class DiscountsAndSiblingEngineTests(TestCase):
             self.assertEqual(disc_high.status, DiscountStatus.PENDING_APPROVAL)
             self.assertIsNone(disc_high.approved_at)
 
-            # 3. Approve high discount
-            approve_discount(disc_high, user=self.admin_user)
+            # 3. Approve high discount without reason fails (FND-008)
+            with self.assertRaises(ValidationError):
+                approve_discount(disc_high, user=self.admin_user, reason='')
+
+            # Approve high discount with reason
+            approve_discount(disc_high, user=self.admin_user, reason='Disetujui Ketua Yayasan')
             disc_high.refresh_from_db()
             self.assertEqual(disc_high.status, DiscountStatus.APPROVED)
             self.assertIsNotNone(disc_high.approved_at)

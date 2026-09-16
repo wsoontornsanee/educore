@@ -172,7 +172,7 @@ def decide_foundation_approval(approval_id, foundation_id, user, decision, reaso
             # under the wrong label (a real gap an earlier review caught).
             raise ApprovalNotFoundError(approval_id)
         if decision_upper == 'APPROVE':
-            result = approve_discount(discount, user)
+            result = approve_discount(discount, user, reason=reason)
         else:
             result = reject_discount(discount, user, reason=reason)
         return _serialize_discount(result)

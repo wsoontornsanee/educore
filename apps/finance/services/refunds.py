@@ -189,8 +189,11 @@ def approve_refund(
     if decision_upper not in ['APPROVE', 'REJECT']:
         raise RefundValidationError(_("Keputusan harus 'APPROVE' atau 'REJECT'."))
 
-    if decision_upper == 'REJECT' and not reason.strip():
-        raise RefundValidationError(_("Alasan penolakan wajib diisi jika permohonan ditolak."))
+    if not reason or not reason.strip():
+        if decision_upper == 'APPROVE':
+            raise RefundValidationError(_("Alasan persetujuan pengembalian dana wajib diisi."))
+        else:
+            raise RefundValidationError(_("Alasan penolakan pengembalian dana wajib diisi."))
 
     now = timezone.now()
     if decision_upper == 'APPROVE':
@@ -207,7 +210,7 @@ def approve_refund(
             role='foundation_admin',
             foundation_id=refund.foundation_id,
             school_id=refund.school_id,
-            diff={'status': RefundStatus.APPROVED},
+            diff={'status': RefundStatus.APPROVED, 'reason': reason.strip()},
         )
         record_domain_event(
             name='finance.refund_approved',

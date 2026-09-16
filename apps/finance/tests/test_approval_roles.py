@@ -1,6 +1,6 @@
 import datetime
 from decimal import Decimal
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -174,8 +174,12 @@ class ApprovalRoleVerificationTests(TestCase):
             with self.assertRaises(PermissionDenied):
                 reject_discount(disc, user=self.finance_officer, reason="Ditolak")
 
-            # Foundation admin approves -> OK
-            approved = approve_discount(disc, user=self.foundation_admin)
+            # Foundation admin approves without reason -> ValidationError (FND-008)
+            with self.assertRaises(ValidationError):
+                approve_discount(disc, user=self.foundation_admin, reason="")
+
+            # Foundation admin approves with reason -> OK
+            approved = approve_discount(disc, user=self.foundation_admin, reason="Disetujui untuk permohonan keringanan")
             self.assertEqual(approved.status, DiscountStatus.APPROVED)
             self.assertEqual(approved.approved_by, self.foundation_admin)
 
@@ -194,16 +198,20 @@ class ApprovalRoleVerificationTests(TestCase):
 
         # 1. Finance officer tries to approve -> 403 Forbidden
         self.client.force_authenticate(user=self.finance_officer)
-        res = self.client.post(f"/api/v1/finance/discounts/{disc.id}/approve/")
+        res = self.client.post(f"/api/v1/finance/discounts/{disc.id}/approve/", {'reason': 'Disetujui'})
         self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
 
         # 2. Finance officer tries to reject -> 403 Forbidden
         res = self.client.post(f"/api/v1/finance/discounts/{disc.id}/reject/", {'reason': 'Ditolak'})
         self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
 
-        # 3. Foundation Admin approves -> 200 OK
+        # 3. Foundation Admin tries to approve without reason -> 400 Bad Request
         self.client.force_authenticate(user=self.foundation_admin)
-        res = self.client.post(f"/api/v1/finance/discounts/{disc.id}/approve/")
+        res = self.client.post(f"/api/v1/finance/discounts/{disc.id}/approve/", {'reason': ''})
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # 4. Foundation Admin approves with reason -> 200 OK
+        res = self.client.post(f"/api/v1/finance/discounts/{disc.id}/approve/", {'reason': 'Disetujui oleh yayasan'})
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data['status'], DiscountStatus.APPROVED)
 
@@ -284,7 +292,7 @@ class ApprovalRoleVerificationTests(TestCase):
 
             # Finance officer calling service -> PermissionDenied
             with self.assertRaises(PermissionDenied):
-                approve_refund(refund, user=self.finance_officer, decision='APPROVE')
+                approve_refund(refund, user=self.finance_officer, decision='APPROVE', reason='Disetujui')
 
             with self.assertRaises(PermissionDenied):
                 approve_refund(refund, user=self.finance_officer, decision='REJECT', reason='Tidak valid')
@@ -293,15 +301,22 @@ class ApprovalRoleVerificationTests(TestCase):
         self.client.force_authenticate(user=self.finance_officer)
         res = self.client.post(
             f"/api/v1/finance/refunds/{refund.id}/approve/",
-            {'decision': 'APPROVE'},
+            {'decision': 'APPROVE', 'reason': 'Disetujui'},
         )
         self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
 
-        # Foundation Admin approves via API -> 200 OK
+        # Foundation Admin tries to approve without reason -> 400 Bad Request
         self.client.force_authenticate(user=self.foundation_admin)
         res = self.client.post(
             f"/api/v1/finance/refunds/{refund.id}/approve/",
             {'decision': 'APPROVE'},
+        )
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Foundation Admin approves via API with reason -> 200 OK
+        res = self.client.post(
+            f"/api/v1/finance/refunds/{refund.id}/approve/",
+            {'decision': 'APPROVE', 'reason': 'Pengembalian dana valid disetujui'},
         )
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data['status'], RefundStatus.APPROVED)

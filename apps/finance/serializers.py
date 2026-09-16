@@ -667,7 +667,7 @@ class RefundRequestCreateSerializer(serializers.Serializer):
 
 class RefundApproveSerializer(serializers.Serializer):
     decision = serializers.ChoiceField(choices=['APPROVE', 'REJECT', 'approve', 'reject'], required=True)
-    reason = serializers.CharField(required=False, allow_blank=True, default='')
+    reason = serializers.CharField(required=True, allow_blank=False, min_length=1)
 
 
 class RefundExecuteSerializer(serializers.Serializer):
