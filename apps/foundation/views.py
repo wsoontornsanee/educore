@@ -108,7 +108,10 @@ class FoundationSettingsView(generics.RetrieveUpdateAPIView):
             role="foundation_admin",
             foundation_id=foundation.id,
             ip_address=self.request.META.get('REMOTE_ADDR'),
-            diff={"legal_name": {"after": foundation.legal_name}},
+            diff={
+                "legal_name": {"after": foundation.legal_name},
+                "approval_threshold": {"after": str(foundation.approval_threshold)},
+            },
         )
 
 class FoundationKPIView(views.APIView):
