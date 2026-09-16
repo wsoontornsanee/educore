@@ -7,13 +7,15 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 from apps.core.services import audit
 from educore.middleware.tenancy import get_current_foundation_id
-from .models import FoundationEntitlement, RoleAssignment, User as UserModel
+from .guardian_access import is_staff_user
+from .models import FoundationEntitlement, GuardianLink, RoleAssignment, User as UserModel
 from .permissions import IsFoundationAdmin
 from .rbac import assign_role
 from .serializers import (
     EduCoreTokenObtainPairSerializer,
     EduCoreTokenRefreshSerializer,
     FoundationEntitlementSerializer,
+    GuardianChildSerializer,
     UserProfileSerializer,
     OtpRequestSerializer,
     OtpVerifySerializer,
@@ -587,4 +589,26 @@ class VerifyOtpView(views.APIView):
                 'roles': roles,
             },
         }, status=status.HTTP_200_OK)
+
+
+class GuardianChildrenView(views.APIView):
+    """GET /api/v1/me/children/ — child switcher list for the authed guardian (PAR-003, PAR-017)."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        if is_staff_user(request.user, foundation_id):
+            return Response(
+                {'error': 'Endpoint ini khusus untuk akun wali murid.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        links = GuardianLink.all_tenants.filter(
+            foundation_id=foundation_id,
+            guardian__user=request.user,
+            guardian__deleted_at__isnull=True,
+            deleted_at__isnull=True,
+            student__deleted_at__isnull=True,
+        ).select_related('student__person')
+        serializer = GuardianChildSerializer(links, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 

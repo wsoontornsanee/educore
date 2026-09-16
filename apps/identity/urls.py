@@ -6,6 +6,7 @@ from .views import (
     EduCoreTokenObtainPairView,
     EduCoreTokenRefreshView,
     FoundationEntitlementViewSet,
+    GuardianChildrenView,
     RequestOtpView,
     VerifyOtpView,
     StaffViewSet,
@@ -23,6 +24,7 @@ urlpatterns = [
     path('auth/otp/request/', RequestOtpView.as_view(), name='otp-request'),
     path('auth/otp/verify/', VerifyOtpView.as_view(), name='otp-verify'),
     path('me', CurrentUserView.as_view(), name='current-user'),
+    path('me/children/', GuardianChildrenView.as_view(), name='guardian-children'),
 ] + router.urls
 
 

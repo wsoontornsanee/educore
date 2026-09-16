@@ -369,3 +369,10 @@ class OtpRequestSerializer(serializers.Serializer):
 class OtpVerifySerializer(serializers.Serializer):
     challenge_id = serializers.IntegerField()
     code = serializers.CharField(max_length=6, min_length=6)
+
+
+class GuardianChildSerializer(serializers.Serializer):
+    student_id = serializers.IntegerField(source='student.id')
+    full_name = serializers.CharField(source='student.person.full_name')
+    photo_key = serializers.CharField(source='student.photo_key')
+    financial_responsible = serializers.BooleanField()
