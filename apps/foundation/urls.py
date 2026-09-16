@@ -3,6 +3,8 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 from .views import (
     CampusComparisonView,
+    FoundationApprovalDecideView,
+    FoundationApprovalsInboxView,
     FoundationAuditEventView,
     FoundationExportStatusView,
     FoundationExportView,
@@ -21,5 +23,7 @@ urlpatterns = [
     path('foundation/schools/compare', CampusComparisonView.as_view(), name='foundation-campus-compare'),
     path('foundation/exports', FoundationExportView.as_view(), name='foundation-exports'),
     path('foundation/exports/<int:job_id>', FoundationExportStatusView.as_view(), name='foundation-export-status'),
+    path('foundation/approvals', FoundationApprovalsInboxView.as_view(), name='foundation-approvals'),
+    path('foundation/approvals/<str:approval_id>/decide', FoundationApprovalDecideView.as_view(), name='foundation-approval-decide'),
 ] + router.urls
 

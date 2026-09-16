@@ -3,6 +3,8 @@ import csv
 import datetime
 from decimal import Decimal
 import io
+from django.core.exceptions import PermissionDenied
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Avg, Max, Sum
 from django.http import HttpResponse
 from django.utils import timezone
@@ -25,6 +27,13 @@ from apps.core.services import (
 from apps.identity.models import Foundation, School
 from apps.identity.permissions import HasRequiredPermission
 from educore.middleware.tenancy import get_current_foundation_id
+from .approvals import (
+    ApprovalNotFoundError,
+    APPROVAL_TYPES,
+    decide_foundation_approval,
+    InvalidApprovalIdError,
+    list_foundation_approvals,
+)
 from .models import RptFoundationKPI
 from .serializers import (
     AuditEventSerializer,
@@ -808,3 +817,67 @@ class FoundationAuditEventView(generics.ListAPIView):
             from_date=params.get('from'),
             to_date=params.get('to'),
         )
+
+
+class FoundationApprovalsInboxView(views.APIView):
+    """GET /foundation/approvals?status=pending&type=discount|waiver|refund|payroll
+    — unified governance inbox across discount, waiver, and refund approvals
+    (FND-007/008/009, spec/03 §2/§5). See apps/foundation/approvals.py's
+    module docstring for the discount-vs-waiver labeling rule and why
+    payroll always returns empty."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'school_config.read'
+
+    def get(self, request):
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        if not foundation_id:
+            return Response({"detail": "Konteks Yayasan tidak ditemukan."}, status=status.HTTP_400_BAD_REQUEST)
+
+        approval_type = request.query_params.get('type')
+        if approval_type and approval_type not in APPROVAL_TYPES:
+            return Response(
+                {"detail": f"Tipe '{approval_type}' tidak dikenali. Pilihan: {', '.join(APPROVAL_TYPES)}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        items = list_foundation_approvals(
+            foundation_id, status=request.query_params.get('status'), approval_type=approval_type,
+        )
+        return Response({'results': items})
+
+
+class FoundationApprovalDecideView(views.APIView):
+    """POST /foundation/approvals/:id/decide {decision: APPROVE|REJECT, reason}
+    (FND-008/009). `:id` is the composite id from the inbox list (e.g.
+    'discount:42'). Delegates to the existing per-domain approve/reject
+    service functions, which independently enforce foundation-admin-only
+    authorization regardless of this view's own RBAC permission. Gated by
+    'finance.invoice.write' (matching DiscountViewSet.approve/reject) rather
+    than the inbox list's broader 'school_config.read', since this is the
+    same money-moving mutation as the per-domain endpoints it wraps."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'finance.invoice.write'
+
+    def post(self, request, approval_id):
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        if not foundation_id:
+            return Response({"detail": "Konteks Yayasan tidak ditemukan."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            result = decide_foundation_approval(
+                approval_id,
+                foundation_id=foundation_id,
+                user=request.user,
+                decision=request.data.get('decision'),
+                reason=request.data.get('reason', ''),
+            )
+            return Response(result)
+        except ApprovalNotFoundError:
+            return Response({"detail": "Persetujuan tidak ditemukan."}, status=status.HTTP_404_NOT_FOUND)
+        except InvalidApprovalIdError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except PermissionDenied as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+        except (DjangoValidationError, ValueError) as exc:
+            detail = exc.messages[0] if hasattr(exc, 'messages') else str(exc)
+            return Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
