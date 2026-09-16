@@ -3,7 +3,12 @@ import base64
 import hashlib
 import logging
 
-from google.cloud.exceptions import NotFound
+try:
+    from google.cloud.exceptions import NotFound
+except ImportError:
+    class NotFound(Exception):
+        """Fallback exception when google-cloud-storage is not installed."""
+        pass
 
 from django.conf import settings
 from django.utils import timezone
