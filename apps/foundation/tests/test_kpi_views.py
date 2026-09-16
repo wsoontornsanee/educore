@@ -94,6 +94,36 @@ class FoundationKPIAndSettingsTests(APITestCase):
             self.assertEqual(row['active_students'], 450)
             self.assertEqual(row['avg_attendance_pct'], "96.50")
 
+    def test_get_foundation_kpis_filters_by_school_ids_and_date_range(self):
+        """FoundationKPIView.get delegates to filter_foundation_kpis (shared with
+        the dashboard export renderer) — pin down its school_ids/from/to contract
+        directly, not just the single-row default case."""
+        other_school = School.all_tenants.create(
+            foundation_id=self.foundation.id, name="SMP Bina Bangsa", npsn="40100002", level=School.LEVEL_SMP,
+        )
+        other_period_row = RptFoundationKPI.objects.create(
+            foundation_id=self.foundation.id, school_id=other_school.id,
+            period_start=date(2026, 8, 1), period_end=date(2026, 8, 31),
+            billed=Decimal('10000000.00'), collected=Decimal('9000000.00'),
+            active_students=100, avg_attendance_pct=Decimal('90.00'),
+            currency='IDR', reporting_currency='IDR',
+        )
+        self.client.force_authenticate(user=self.admin)
+
+        with tenant_context(self.foundation.id):
+            response = self.client.get(f'/api/v1/foundation/kpis?school_ids={self.school.id}')
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual([r['school_id'] for r in response.data['results']], [self.school.id])
+
+            response = self.client.get('/api/v1/foundation/kpis?from=2026-09-01&to=2026-09-30')
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual(len(response.data['results']), 1)
+            self.assertEqual(response.data['results'][0]['school_id'], self.school.id)
+
+            response = self.client.get('/api/v1/foundation/kpis?from=2026-08-01&to=2026-08-31')
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual([r['school_id'] for r in response.data['results']], [other_school.id])
+
     def test_foundation_kpis_freshness_flag(self):
         """FND-006: freshness must be surfaced and flagged stale beyond 15 minutes."""
         self.client.force_authenticate(user=self.admin)

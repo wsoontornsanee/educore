@@ -199,3 +199,44 @@ class StoredFile(TenantModel):
 
     def __str__(self):
         return f"{self.purpose}:{self.key}"
+
+class ExportJob(TenantModel):
+    """Async report export job (ARC-010, RPT-002/003, FND-014).
+
+    All exports run through TaskQueue regardless of expected row count — the
+    RPT-002 "over 10,000 rows" async threshold is trivially satisfied by
+    always being async, avoiding a separate sync code path for small exports.
+    """
+    STATUS_PENDING = 'PENDING'
+    STATUS_RUNNING = 'RUNNING'
+    STATUS_COMPLETED = 'COMPLETED'
+    STATUS_FAILED = 'FAILED'
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_RUNNING, 'Running'),
+        (STATUS_COMPLETED, 'Completed'),
+        (STATUS_FAILED, 'Failed'),
+    ]
+
+    FORMAT_PDF = 'PDF'
+    FORMAT_XLSX = 'XLSX'
+    FORMAT_CHOICES = [(FORMAT_PDF, 'PDF'), (FORMAT_XLSX, 'XLSX')]
+
+    report_key = models.CharField(max_length=64, db_index=True, help_text="Registered export-renderer key, e.g. 'foundation_dashboard'")
+    format = models.CharField(max_length=16, choices=FORMAT_CHOICES)
+    filters = models.JSONField(default=dict)
+    status = models.CharField(max_length=32, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    result_key = models.CharField(max_length=500, blank=True, default='', help_text="StoredFile key once COMPLETED")
+    error_text = models.TextField(blank=True, default='')
+    requested_by = models.CharField(max_length=64, blank=True, default='')
+    requested_by_name = models.CharField(max_length=128, blank=True, default='', help_text="Actor display name, for the RPT-003/FND-014 export header")
+
+    class Meta:
+        db_table = 'export_jobs'
+        indexes = [
+            models.Index(fields=['foundation_id', 'status']),
+        ]
+
+    def __str__(self):
+        return f"ExportJob#{self.id} {self.report_key} ({self.status})"
