@@ -1,3 +1,5 @@
+from unittest import mock
+
 from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
@@ -49,23 +51,33 @@ class SetSchoolQrisConfigTests(TestCase):
         self.assertTrue(config.is_active)
         self.assertEqual(config.qris_image_key, '')
 
-    def test_set_config_with_image_stored_on_disk(self):
+    @mock.patch('apps.core.storage._client')
+    def test_set_config_with_image_written_to_gcs(self, mock_client):
+        mock_blob = mock.MagicMock()
+        mock_client.return_value.bucket.return_value.blob.return_value = mock_blob
+
         image = SimpleUploadedFile('qris.png', b'\x89PNG fake bytes', content_type='image/png')
         config = set_school_qris_config(self.fx['school'], qris_image=image)
 
-        self.assertTrue(config.qris_image_key.startswith(f'qris_config/{self.fx["school"].id}/'))
-        stored_path = Path(settings.MEDIA_ROOT) / config.qris_image_key
-        self.assertTrue(stored_path.exists())
-        stored_path.unlink()
+        self.assertTrue(config.qris_image_key.startswith('STG/qris_config_image/'))
+        mock_blob.upload_from_string.assert_called_once_with(b'\x89PNG fake bytes', content_type='image/png')
+        self.assertFalse((Path(settings.MEDIA_ROOT) / config.qris_image_key).exists())
 
-    def test_updating_payload_only_keeps_existing_image(self):
+        from apps.core.models import StoredFile
+        stored = StoredFile.objects.get(key=config.qris_image_key)
+        self.assertEqual(stored.purpose, 'qris_config_image')
+        self.assertIsNotNone(stored.confirmed_at)
+
+    @mock.patch('apps.core.storage._client')
+    def test_updating_payload_only_keeps_existing_image(self, mock_client):
+        mock_client.return_value.bucket.return_value.blob.return_value = mock.MagicMock()
+
         image = SimpleUploadedFile('qris.png', b'\x89PNG fake bytes', content_type='image/png')
         first = set_school_qris_config(self.fx['school'], qris_image=image, qris_payload='v1')
         second = set_school_qris_config(self.fx['school'], qris_payload='v2')
 
         self.assertEqual(second.qris_image_key, first.qris_image_key)
         self.assertEqual(second.qris_payload, 'v2')
-        Path(settings.MEDIA_ROOT, first.qris_image_key).unlink()
 
     def test_disallowed_content_type_rejected(self):
         bad_file = SimpleUploadedFile('virus.exe', b'MZ', content_type='application/x-msdownload')
@@ -85,14 +97,24 @@ class StorePaymentProofFileTests(TestCase):
     def setUp(self):
         self.fx = build_finance_fixture()
 
-    def test_valid_proof_stored_on_disk(self):
+    @mock.patch('apps.core.storage._client')
+    def test_valid_proof_written_to_gcs(self, mock_client):
+        mock_blob = mock.MagicMock()
+        mock_client.return_value.bucket.return_value.blob.return_value = mock_blob
+
         upload = SimpleUploadedFile('bukti.jpg', b'\xff\xd8\xff fake jpeg', content_type='image/jpeg')
-        meta = store_payment_proof_file(self.fx['school'], upload)
+        meta = store_payment_proof_file(self.fx['school'], upload, uploaded_by=str(self.fx['finance_user'].pk))
 
         self.assertEqual(meta['filename'], 'bukti.jpg')
-        stored_path = Path(settings.MEDIA_ROOT) / meta['key']
-        self.assertTrue(stored_path.exists())
-        stored_path.unlink()
+        self.assertTrue(meta['key'].startswith('STG/payment_proof/'))
+        mock_blob.upload_from_string.assert_called_once_with(b'\xff\xd8\xff fake jpeg', content_type='image/jpeg')
+        self.assertFalse((Path(settings.MEDIA_ROOT) / meta['key']).exists())
+
+        from apps.core.models import StoredFile
+        stored = StoredFile.objects.get(key=meta['key'])
+        self.assertEqual(stored.purpose, 'payment_proof')
+        self.assertEqual(stored.uploaded_by, str(self.fx['finance_user'].pk))
+        self.assertIsNotNone(stored.confirmed_at)
 
     def test_oversized_proof_rejected(self):
         from apps.finance.services.qris_config import MAX_PROOF_FILE_SIZE
@@ -133,7 +155,9 @@ class PaymentProofUploadAndStaticQrisFlowTests(TestCase):
         self.client = APIClient()
         self.fx = build_finance_fixture()
 
-    def test_upload_proof_then_submit_static_qris_payment_via_api(self):
+    @mock.patch('apps.core.storage._client')
+    def test_upload_proof_then_submit_static_qris_payment_via_api(self, mock_client):
+        mock_client.return_value.bucket.return_value.blob.return_value = mock.MagicMock()
         self.client.force_authenticate(user=self.fx['finance_user'])
 
         upload = SimpleUploadedFile('bukti.jpg', b'\xff\xd8\xff fake jpeg', content_type='image/jpeg')

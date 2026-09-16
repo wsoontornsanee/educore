@@ -1,9 +1,4 @@
-from pathlib import Path
-from uuid import uuid4
-
-from django.conf import settings
-
-from apps.core.services import audit
+from apps.core.services import audit, write_generated_file
 from apps.finance.models import SchoolQrisConfig
 
 # Own constants, not shared with apps.academic's submission limits — each app in
@@ -32,12 +27,13 @@ def set_school_qris_config(school, qris_image=None, qris_payload='', is_active=T
         if qris_image.size > MAX_PROOF_FILE_SIZE:
             raise InvalidProofFileError(f"FILE_TOO_LARGE: '{qris_image.name}' exceeds 20MB.")
 
-        output_dir = Path(settings.MEDIA_ROOT) / 'qris_config' / str(school.id)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        qris_image_key = f"qris_config/{school.id}/{uuid4().hex}_{qris_image.name}"
-        with open(Path(settings.MEDIA_ROOT) / qris_image_key, 'wb') as out:
-            for chunk in qris_image.chunks():
-                out.write(chunk)
+        data = b''.join(qris_image.chunks())
+        stored_file = write_generated_file(
+            purpose='qris_config_image', filename=qris_image.name,
+            data=data, content_type=qris_image.content_type,
+            foundation_id=school.foundation_id, school_id=school.id,
+        )
+        qris_image_key = stored_file.key
 
     config, _created = SchoolQrisConfig.objects.update_or_create(
         foundation_id=school.foundation_id,
@@ -63,29 +59,28 @@ def get_school_qris_config(school) -> SchoolQrisConfig:
     return SchoolQrisConfig.objects.filter(school=school).first()
 
 
-def store_payment_proof_file(school, uploaded_file) -> dict:
+def store_payment_proof_file(school, uploaded_file, uploaded_by=None) -> dict:
     """FIN-018: validate and persist one uploaded payment proof (manual transfer or
     static QRIS receipt), returning the {key, filename, size, content_type} dict
     submit_manual_transfer's `proof_file` field expects.
 
-    Same raw-pathlib/MEDIA_ROOT convention as store_homework_submission_file — no
-    Django storage abstraction is used anywhere in this codebase.
+    Written directly to GCS via core.write_generated_file, catalogued as a
+    core.StoredFile row (ARC-026, ARC-030) — no raw filesystem write.
     """
     if uploaded_file.content_type not in ALLOWED_PROOF_CONTENT_TYPES:
         raise InvalidProofFileError(f"UNSUPPORTED_FILE_TYPE: '{uploaded_file.content_type}' is not accepted.")
     if uploaded_file.size > MAX_PROOF_FILE_SIZE:
         raise InvalidProofFileError(f"FILE_TOO_LARGE: '{uploaded_file.name}' exceeds 20MB.")
 
-    output_dir = Path(settings.MEDIA_ROOT) / 'payment_proofs' / str(school.id)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    key = f"payment_proofs/{school.id}/{uuid4().hex}_{uploaded_file.name}"
-    with open(Path(settings.MEDIA_ROOT) / key, 'wb') as out:
-        for chunk in uploaded_file.chunks():
-            out.write(chunk)
+    data = b''.join(uploaded_file.chunks())
+    stored_file = write_generated_file(
+        purpose='payment_proof', filename=uploaded_file.name,
+        data=data, content_type=uploaded_file.content_type,
+        foundation_id=school.foundation_id, school_id=school.id, uploaded_by=uploaded_by,
+    )
 
     return {
-        'key': key,
+        'key': stored_file.key,
         'filename': uploaded_file.name,
         'size': uploaded_file.size,
         'content_type': uploaded_file.content_type,

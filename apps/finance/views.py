@@ -722,7 +722,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
         try:
-            file_meta = store_payment_proof_file(student.school, serializer.validated_data['file'])
+            file_meta = store_payment_proof_file(
+                student.school, serializer.validated_data['file'], uploaded_by=str(request.user.pk),
+            )
         except InvalidProofFileError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(file_meta, status=status.HTTP_201_CREATED)
