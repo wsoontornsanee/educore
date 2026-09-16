@@ -18,6 +18,7 @@ from apps.finance.models import (
     Payment,
     PaymentAllocation,
     PaymentIntent,
+    Refund,
     SchoolArrearsPolicy,
     SchoolConvenienceFeePolicy,
     SchoolQrisConfig,
@@ -601,5 +602,76 @@ class FiscalPeriodReopenActionSerializer(serializers.Serializer):
     school_id = serializers.IntegerField(required=True)
     period = serializers.CharField(required=False, allow_blank=True, default='')
     reason = serializers.CharField(required=True, min_length=3)
+
+
+class RefundSerializer(serializers.ModelSerializer):
+    amount = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    student_name = serializers.CharField(source='student.person.full_name', read_only=True, default=None)
+    payment_reference = serializers.CharField(source='payment.reference', read_only=True, default=None)
+    requested_by_name = serializers.CharField(source='requested_by.full_name', read_only=True, default=None)
+    approved_by_name = serializers.CharField(source='approved_by.full_name', read_only=True, default=None)
+    executed_by_name = serializers.CharField(source='executed_by.full_name', read_only=True, default=None)
+    journal_number = serializers.CharField(source='journal.number', read_only=True, default=None)
+
+    class Meta:
+        model = Refund
+        fields = [
+            'id',
+            'foundation_id',
+            'school',
+            'student',
+            'student_name',
+            'payment',
+            'payment_reference',
+            'amount',
+            'currency',
+            'reason',
+            'destination_bank_name',
+            'destination_account_number',
+            'destination_account_holder',
+            'status',
+            'requested_by',
+            'requested_by_name',
+            'approved_by',
+            'approved_by_name',
+            'approved_at',
+            'rejection_reason',
+            'payout_reference',
+            'payout_proof_file',
+            'executed_by',
+            'executed_by_name',
+            'executed_at',
+            'journal',
+            'journal_number',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'foundation_id', 'school', 'student', 'student_name',
+            'payment_reference', 'status', 'requested_by', 'requested_by_name',
+            'approved_by', 'approved_by_name', 'approved_at', 'rejection_reason',
+            'payout_reference', 'payout_proof_file', 'executed_by', 'executed_by_name',
+            'executed_at', 'journal', 'journal_number', 'created_at', 'updated_at',
+        ]
+
+
+class RefundRequestCreateSerializer(serializers.Serializer):
+    payment_id = serializers.IntegerField(required=True)
+    amount = serializers.DecimalField(max_digits=18, decimal_places=2, required=True, min_value=Decimal('0.01'))
+    currency = serializers.CharField(max_length=3, required=False, default='IDR')
+    reason = serializers.CharField(required=True, min_length=3)
+    destination_bank_name = serializers.CharField(max_length=64, required=True)
+    destination_account_number = serializers.CharField(max_length=64, required=True)
+    destination_account_holder = serializers.CharField(max_length=128, required=True)
+
+
+class RefundApproveSerializer(serializers.Serializer):
+    decision = serializers.ChoiceField(choices=['APPROVE', 'REJECT', 'approve', 'reject'], required=True)
+    reason = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class RefundExecuteSerializer(serializers.Serializer):
+    payout_reference = serializers.CharField(max_length=128, required=True)
+    payout_proof_file = serializers.CharField(max_length=512, required=False, allow_blank=True, default='')
 
 

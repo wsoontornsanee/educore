@@ -18,6 +18,7 @@ from apps.finance.views import (
     ReconciliationBatchDetailView,
     ReconciliationBatchListView,
     ReconciliationDiscrepancyResolveView,
+    RefundViewSet,
     SchoolArrearsPolicyView,
     SchoolConvenienceFeePolicyView,
     SchoolQrisConfigView,
@@ -35,6 +36,7 @@ router.register(r'sibling-policies', SiblingDiscountPolicyViewSet, basename='sib
 router.register(r'invoices', InvoiceViewSet, basename='invoices')
 router.register(r'payment-intents', PaymentIntentViewSet, basename='payment-intents')
 router.register(r'payments', PaymentViewSet, basename='payments')
+router.register(r'refunds', RefundViewSet, basename='refunds')
 router.register(r'write-offs', InvoiceWriteOffRequestViewSet, basename='write-offs')
 router.register(r'ledger/journals', LedgerJournalViewSet, basename='ledger-journals')
 router.register(r'periods', FiscalPeriodViewSet, basename='fiscal-periods')

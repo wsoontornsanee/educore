@@ -30,6 +30,8 @@ from apps.finance.models import (
     PaymentAllocation,
     PaymentIntent,
     PaymentStatus,
+    Refund,
+    RefundStatus,
     BankSftpConfig,
     SchoolArrearsPolicy,
     SchoolConvenienceFeePolicy,
@@ -73,22 +75,32 @@ from apps.finance.serializers import (
     SiblingDiscountPolicySerializer,
     StudentFeeAssignmentSerializer,
     StudentVirtualAccountSerializer,
+    RefundSerializer,
+    RefundRequestCreateSerializer,
+    RefundApproveSerializer,
+    RefundExecuteSerializer,
 )
 
 from apps.finance.services import (
+    ExceededPaymentAmountError,
     InstallmentPlanAlreadyExistsError,
     InvalidInstallmentError,
     InvalidProofFileError,
+    InvalidRefundStateError,
     PeriodClosedError,
     PeriodCloseValidationError,
+    RefundValidationError,
     approve_discount,
     approve_invoice_write_off,
+    approve_refund,
     cancel_installment_plan,
     cancel_invoice,
+    cancel_refund,
     close_fiscal_period,
     create_discount_with_approval_check,
     create_installment_plan,
     calculate_convenience_fee,
+    execute_refund,
     generate_monthly_invoices,
     get_ar_aging_report,
     get_bank_sftp_configs,
@@ -98,6 +110,7 @@ from apps.finance.services import (
     reopen_fiscal_period,
     reject_invoice_write_off,
     request_invoice_write_off,
+    request_refund,
     set_bank_sftp_config,
     set_school_convenience_fee_policy,
     set_school_qris_config,
@@ -1438,5 +1451,121 @@ class FiscalPeriodViewSet(viewsets.ReadOnlyModelViewSet):
                 )
             return Response(self.get_serializer(fiscal_period).data, status=status.HTTP_200_OK)
         except ValueError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class RefundViewSet(viewsets.ModelViewSet):
+    """Refund requests, approval threshold gating, and execution tracking (spec/06 §7, §8, FIN-020, FIN-032, FIN-033, FIN-034)."""
+    serializer_class = RefundSerializer
+    pagination_class = StandardCursorPagination
+    permission_classes = [HasRequiredPermission]
+    action_permissions = {
+        'list': 'finance.payment.read',
+        'retrieve': 'finance.payment.read',
+        'create': 'finance.payment.write',
+        'approve': 'finance.payment.write',
+        'execute': 'finance.payment.write',
+        'cancel': 'finance.payment.write',
+    }
+
+    def get_queryset(self):
+        foundation_id = get_current_foundation_id()
+        if not foundation_id:
+            return Refund.objects.none()
+        qs = Refund.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True).order_by('-created_at')
+        school_id = self.request.query_params.get('school_id')
+        if school_id:
+            qs = qs.filter(school_id=school_id)
+        student_id = self.request.query_params.get('student_id')
+        if student_id:
+            qs = qs.filter(student_id=student_id)
+        payment_id = self.request.query_params.get('payment_id')
+        if payment_id:
+            qs = qs.filter(payment_id=payment_id)
+        status_param = self.request.query_params.get('status')
+        if status_param:
+            qs = qs.filter(status=status_param.upper())
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        foundation_id = get_current_foundation_id()
+        serializer = RefundRequestCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        payment = Payment.objects.filter(
+            id=data['payment_id'],
+            foundation_id=foundation_id,
+            deleted_at__isnull=True,
+        ).first()
+        if not payment:
+            return Response({'error': _("Pembayaran tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            with tenant_context(foundation_id):
+                refund = request_refund(
+                    payment=payment,
+                    amount=data['amount'],
+                    reason=data['reason'],
+                    destination_bank_name=data['destination_bank_name'],
+                    destination_account_number=data['destination_account_number'],
+                    destination_account_holder=data['destination_account_holder'],
+                    requested_by=request.user,
+                    currency=data.get('currency', payment.currency),
+                )
+            return Response(self.get_serializer(refund).data, status=status.HTTP_201_CREATED)
+        except (RefundValidationError, ExceededPaymentAmountError, ValueError) as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='approve')
+    def approve(self, request, pk=None):
+        """Approve or reject a refund request (FIN-032)."""
+        refund = self.get_object()
+        serializer = RefundApproveSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        try:
+            with tenant_context(refund.foundation_id):
+                updated = approve_refund(
+                    refund=refund,
+                    user=request.user,
+                    decision=data['decision'],
+                    reason=data.get('reason', ''),
+                )
+            return Response(self.get_serializer(updated).data, status=status.HTTP_200_OK)
+        except (RefundValidationError, InvalidRefundStateError, ValueError) as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='execute')
+    def execute(self, request, pk=None):
+        """Execute refund payout, record proof, reverse allocations, and post ledger journal (FIN-033)."""
+        refund = self.get_object()
+        serializer = RefundExecuteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        try:
+            with tenant_context(refund.foundation_id):
+                executed = execute_refund(
+                    refund=refund,
+                    user=request.user,
+                    payout_reference=data['payout_reference'],
+                    payout_proof_file=data.get('payout_proof_file', ''),
+                )
+            return Response(self.get_serializer(executed).data, status=status.HTTP_200_OK)
+        except (RefundValidationError, InvalidRefundStateError, ExceededPaymentAmountError, ValueError) as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='cancel')
+    def cancel(self, request, pk=None):
+        """Cancel an unexecuted refund request."""
+        refund = self.get_object()
+        reason = request.data.get('reason', '') if isinstance(request.data, dict) else ''
+        try:
+            with tenant_context(refund.foundation_id):
+                cancelled = cancel_refund(refund=refund, user=request.user, reason=reason)
+            return Response(self.get_serializer(cancelled).data, status=status.HTTP_200_OK)
+        except (InvalidRefundStateError, ValueError) as exc:
             return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
