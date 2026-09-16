@@ -94,3 +94,14 @@ export interface PushTokenPayload {
   platform: 'ios' | 'android' | 'web';
   device_name?: string;
 }
+
+export interface ChildSummary {
+  student_id: number;
+  full_name: string;
+  photo_key: string;
+  financial_responsible: boolean;
+}
+
+export interface OtpRequestResponse {
+  challenge_id: number;
+}
