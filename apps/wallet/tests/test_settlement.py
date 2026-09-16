@@ -76,6 +76,18 @@ class RunSettlementTests(TestCase):
         settlement.refresh_from_db()
         self.assertEqual(settlement.statement_pdf_key, key)
 
+    def test_re_generating_statement_overwrites_in_place(self):
+        from apps.core.models import StoredFile
+
+        self._checkout('tx-8')
+        settlement = run_merchant_settlement(self.merchant, self.today, self.today)
+
+        first_key = generate_settlement_statement_pdf(settlement)
+        second_key = generate_settlement_statement_pdf(settlement)
+
+        self.assertEqual(first_key, second_key, "re-generating the same settlement must reuse the same key")
+        self.assertEqual(StoredFile.all_tenants.filter(key=first_key).count(), 1)
+
 
 class SettlementViewsTests(TestCase):
     def setUp(self):

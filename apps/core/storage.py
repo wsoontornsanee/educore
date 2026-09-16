@@ -28,6 +28,17 @@ def build_object_key(purpose: str, filename: str) -> str:
     return f"{settings.GCS_PATH_PREFIX}/{purpose}/{uuid4().hex}_{filename}"
 
 
+def build_deterministic_object_key(purpose: str, name: str) -> str:
+    """Namespaced GCS object key with no uuid: '<STG|PRD>/<purpose>/<name>'.
+
+    For server-generated documents that represent one canonical rendering per
+    entity (report card PDFs, settlement statements) — re-rendering overwrites
+    the same object in place instead of orphaning the previous one under a
+    fresh random key.
+    """
+    return f"{settings.GCS_PATH_PREFIX}/{purpose}/{name}"
+
+
 def generate_upload_url(key: str, content_type: str, expires_seconds: int = 600) -> str:
     """Signed PUT URL a client uploads directly to, bypassing the server (ARC-030)."""
     bucket = _client().bucket(settings.GCS_BUCKET_NAME)

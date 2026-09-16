@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 from django.test import SimpleTestCase, override_settings
 
 from apps.core.storage import (
+    build_deterministic_object_key,
     build_object_key,
     generate_download_url,
     generate_upload_url,
@@ -28,6 +29,18 @@ class BuildObjectKeyTests(SimpleTestCase):
         first = build_object_key('reports', 'rapor.pdf')
         second = build_object_key('reports', 'rapor.pdf')
         self.assertNotEqual(first, second)
+
+
+class BuildDeterministicObjectKeyTests(SimpleTestCase):
+    @override_settings(GCS_PATH_PREFIX='STG')
+    def test_key_uses_configured_prefix_and_exact_name(self):
+        key = build_deterministic_object_key('report_card_pdf', '5_v1.pdf')
+        self.assertEqual(key, 'STG/report_card_pdf/5_v1.pdf')
+
+    def test_key_is_stable_across_calls(self):
+        first = build_deterministic_object_key('settlement_statement', '9.pdf')
+        second = build_deterministic_object_key('settlement_statement', '9.pdf')
+        self.assertEqual(first, second)
 
 
 class SignedUrlTests(SimpleTestCase):

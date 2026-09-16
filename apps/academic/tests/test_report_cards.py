@@ -21,6 +21,7 @@ from apps.academic.services import (
     is_student_blocked_by_arrears,
     publish_report_card,
     render_report_card_html,
+    render_report_card_pdf,
     revise_report_card,
     set_arrears_gate,
     set_assessment_score,
@@ -98,6 +99,15 @@ class ReportCardStateMachineTests(TestCase):
         published = publish_report_card(self.rc)
         self.assertEqual(published.status, ReportCardStatus.PUBLISHED)
         self.assertTrue(published.pdf_key)
+
+    def test_re_rendering_same_version_overwrites_in_place(self):
+        from apps.core.models import StoredFile
+
+        first_key = render_report_card_pdf(self.rc)
+        second_key = render_report_card_pdf(self.rc)
+
+        self.assertEqual(first_key, second_key, "re-rendering the same version must reuse the same key")
+        self.assertEqual(StoredFile.all_tenants.filter(key=first_key).count(), 1)
 
     def test_revise_only_allowed_when_published(self):
         with self.assertRaises(ReportCardStateError):

@@ -157,6 +157,25 @@ class WriteGeneratedFileTests(TestCase):
         self.assertTrue(sf.checksum)
         self.assertTrue(sf.key.startswith('STG/report_card_pdf/'))
 
+    @patch('apps.core.storage._client')
+    def test_write_generated_file_with_explicit_key_overwrites_in_place(self, mock_client):
+        mock_blob = MagicMock()
+        mock_client.return_value.bucket.return_value.blob.return_value = mock_blob
+
+        first = write_generated_file(
+            purpose='report_card_pdf', filename='rapor.pdf', key='STG/report_card_pdf/5_v1.pdf',
+            data=b'first render', content_type='application/pdf', foundation_id=1,
+        )
+        second = write_generated_file(
+            purpose='report_card_pdf', filename='rapor.pdf', key='STG/report_card_pdf/5_v1.pdf',
+            data=b'second render, longer', content_type='application/pdf', foundation_id=1,
+        )
+
+        self.assertEqual(first.id, second.id, "re-render must reuse the same StoredFile row, not create a new one")
+        self.assertEqual(StoredFile.all_tenants.filter(key='STG/report_card_pdf/5_v1.pdf').count(), 1)
+        self.assertEqual(second.size, len(b'second render, longer'))
+        self.assertEqual(mock_blob.upload_from_string.call_count, 2)
+
 
 class PurposeRulesDriftTests(TestCase):
     """Guards apps.core.services.PURPOSE_RULES['homework_submission'] against
