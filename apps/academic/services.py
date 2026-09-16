@@ -536,7 +536,7 @@ def validate_submission_files(files) -> None:
             raise InvalidSubmissionFilesError(f"UNSUPPORTED_FILE_TYPE: '{content_type}' is not accepted.")
 
 
-def store_homework_submission_file(homework: Homework, uploaded_file) -> dict:
+def store_homework_submission_file(homework: Homework, uploaded_file, uploaded_by=None) -> dict:
     """ACD-027: validate and persist one uploaded homework attachment, returning the
     {key, filename, size, content_type} dict submit_homework's `files` list expects.
 
@@ -556,7 +556,7 @@ def store_homework_submission_file(homework: Homework, uploaded_file) -> dict:
     stored_file = write_generated_file(
         purpose='homework_submission', filename=uploaded_file.name,
         data=data, content_type=uploaded_file.content_type,
-        foundation_id=homework.foundation_id,
+        foundation_id=homework.foundation_id, uploaded_by=uploaded_by,
     )
 
     return {
