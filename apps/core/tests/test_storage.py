@@ -3,7 +3,13 @@ from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase, override_settings
 
-from apps.core.storage import build_object_key, generate_download_url, generate_upload_url
+from apps.core.storage import (
+    build_object_key,
+    generate_download_url,
+    generate_upload_url,
+    upload_bytes,
+    get_blob_metadata,
+)
 
 
 class BuildObjectKeyTests(SimpleTestCase):
@@ -50,3 +56,27 @@ class SignedUrlTests(SimpleTestCase):
         mock_blob.generate_signed_url.assert_called_once_with(
             version='v4', expiration=600, method='GET',
         )
+
+
+class UploadBytesTests(SimpleTestCase):
+    @patch('apps.core.storage._client')
+    def test_upload_bytes_writes_to_configured_bucket(self, mock_client):
+        mock_blob = MagicMock()
+        mock_client.return_value.bucket.return_value.blob.return_value = mock_blob
+
+        upload_bytes('STG/report_card_pdf/abc.pdf', b'%PDF-1.4', 'application/pdf')
+
+        mock_client.return_value.bucket.return_value.blob.assert_called_once_with('STG/report_card_pdf/abc.pdf')
+        mock_blob.upload_from_string.assert_called_once_with(b'%PDF-1.4', content_type='application/pdf')
+
+
+class GetBlobMetadataTests(SimpleTestCase):
+    @patch('apps.core.storage._client')
+    def test_get_blob_metadata_reloads_and_returns_fields(self, mock_client):
+        mock_blob = MagicMock(size=2048, content_type='application/pdf', md5_hash='abc123==')
+        mock_client.return_value.bucket.return_value.blob.return_value = mock_blob
+
+        result = get_blob_metadata('STG/homework_submission/abc_tugas.pdf')
+
+        mock_blob.reload.assert_called_once()
+        self.assertEqual(result, {'size': 2048, 'content_type': 'application/pdf', 'md5_hash': 'abc123=='})
