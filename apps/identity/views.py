@@ -1,11 +1,25 @@
 """API views for Identity, User Profile, and Entitlements (spec/02 §6, §7)."""
 from rest_framework import permissions, status, views, viewsets
 from rest_framework.response import Response
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from apps.core.services import audit
 from educore.middleware.tenancy import get_current_foundation_id
 from .models import FoundationEntitlement
 from .permissions import IsFoundationAdmin
-from .serializers import FoundationEntitlementSerializer, UserProfileSerializer
+from .serializers import (
+    EduCoreTokenObtainPairSerializer,
+    EduCoreTokenRefreshSerializer,
+    FoundationEntitlementSerializer,
+    UserProfileSerializer,
+)
+
+class EduCoreTokenObtainPairView(TokenObtainPairView):
+    """Custom JWT token obtain view supporting dual phone/email identifier login (IAM-001)."""
+    serializer_class = EduCoreTokenObtainPairSerializer
+
+class EduCoreTokenRefreshView(TokenRefreshView):
+    """Tenant-aware JWT token refresh view."""
+    serializer_class = EduCoreTokenRefreshSerializer
 
 class CurrentUserView(views.APIView):
     """Returns the authenticated user's profile, roles, accessible schools, and entitlements (spec/02 §7).

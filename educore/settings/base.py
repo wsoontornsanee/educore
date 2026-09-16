@@ -187,7 +187,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'apps.core.pagination.StandardCursorPagination',
     'PAGE_SIZE': 50,
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'apps.identity.authentication.EduCoreJWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
 }
