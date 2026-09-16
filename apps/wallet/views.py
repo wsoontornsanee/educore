@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.pagination import StandardCursorPagination
+from apps.core.services import build_signed_download
 from apps.identity.models import School, Student
 from apps.identity.permissions import HasRequiredPermission
 from educore.middleware.tenancy import get_current_foundation_id
@@ -358,6 +359,23 @@ class MerchantViewSet(TenantScopedCatalogViewSet):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         generate_settlement_statement_pdf(settlement)
         return Response(MerchantSettlementSerializer(settlement).data, status=status.HTTP_201_CREATED)
+
+
+class SettlementStatementDownloadView(APIView):
+    """Signed-GET download URL for a merchant settlement's statement PDF."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'finance.payment.read'
+
+    def get(self, request, settlement_id):
+        foundation_id = get_current_foundation_id()
+        settlement = MerchantSettlement.objects.filter(
+            id=settlement_id, foundation_id=foundation_id, deleted_at__isnull=True,
+        ).first()
+        if not settlement:
+            return Response({'error': _("Settlement tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        if not settlement.statement_pdf_key:
+            return Response({'error': _("Belum ada dokumen statement untuk diunduh.")}, status=status.HTTP_404_NOT_FOUND)
+        return Response(build_signed_download(settlement.statement_pdf_key))
 
 
 class ProductViewSet(TenantScopedCatalogViewSet):

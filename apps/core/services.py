@@ -1,5 +1,6 @@
 """Core service helpers for auditing, asynchronous task enqueueing, and domain events."""
 import base64
+import datetime
 import hashlib
 import logging
 
@@ -206,3 +207,13 @@ def write_generated_file(purpose, filename, data, content_type, foundation_id=No
         },
     )
     return stored_file
+
+
+def build_signed_download(key, expires_seconds=600) -> dict:
+    """Resolve a GCS object key to a short-lived signed GET URL, for any
+    caller exposing a StoredFile-backed key to a client (report card PDFs,
+    settlement statements, etc.)."""
+    return {
+        'download_url': storage.generate_download_url(key, expires_seconds),
+        'expires_at': timezone.now() + datetime.timedelta(seconds=expires_seconds),
+    }
