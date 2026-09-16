@@ -6,15 +6,13 @@ from datetime import timedelta
 import csv
 import io
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
-from pathlib import Path
-from uuid import uuid4
 
 from django.conf import settings
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
-from apps.core.services import audit
+from apps.core.services import audit, write_generated_file
 from apps.identity.models import Foundation, RoleAssignment, Staff, Student
 from apps.academic.models import (
     ALLOWED_SUBMISSION_CONTENT_TYPES,
@@ -544,10 +542,9 @@ def store_homework_submission_file(homework: Homework, uploaded_file) -> dict:
     {key, filename, size, content_type} dict submit_homework's `files` list expects.
 
     Reuses validate_submission_files (wrapped as a one-item list) rather than
-    duplicating its size/content-type rules. Written directly to MEDIA_ROOT via
-    pathlib, matching the existing raw-filesystem convention (render_report_card_pdf,
-    generate_settlement_statement_pdf) — no Django storage abstraction is used
-    anywhere else in this codebase.
+    duplicating its size/content-type rules. Written directly to GCS via
+    core.write_generated_file, catalogued as a core.StoredFile row (ARC-026,
+    ARC-030) — no raw filesystem write.
     """
     file_meta = {
         'filename': uploaded_file.name,
@@ -556,16 +553,15 @@ def store_homework_submission_file(homework: Homework, uploaded_file) -> dict:
     }
     validate_submission_files([file_meta])
 
-    output_dir = Path(settings.MEDIA_ROOT) / 'homework_submissions' / str(homework.id)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    key = f"homework_submissions/{homework.id}/{uuid4().hex}_{uploaded_file.name}"
-    with open(Path(settings.MEDIA_ROOT) / key, 'wb') as out:
-        for chunk in uploaded_file.chunks():
-            out.write(chunk)
+    data = b''.join(uploaded_file.chunks())
+    stored_file = write_generated_file(
+        purpose='homework_submission', filename=uploaded_file.name,
+        data=data, content_type=uploaded_file.content_type,
+        foundation_id=homework.foundation_id,
+    )
 
     return {
-        'key': key,
+        'key': stored_file.key,
         'filename': uploaded_file.name,
         'size': uploaded_file.size,
         'content_type': uploaded_file.content_type,
