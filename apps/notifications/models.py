@@ -33,6 +33,7 @@ class NotificationCategory(models.TextChoices):
     WALLET_RECONCILIATION = 'WALLET_RECONCILIATION', _('Rekonsiliasi Dompet (Wallet Reconciliation)')
     SUBSTITUTE_ASSIGNED = 'SUBSTITUTE_ASSIGNED', _('Penugasan Guru Pengganti (Substitute Assigned)')
     SUBSTITUTE_DECLINED = 'SUBSTITUTE_DECLINED', _('Penolakan Guru Pengganti (Substitute Declined)')
+    EXPORT_READY = 'EXPORT_READY', _('Ekspor Laporan Siap (Export Ready)')
 
 
 class NotificationPriority(models.TextChoices):
@@ -164,6 +165,15 @@ CATEGORY_CONFIG = {
         'priority': NotificationPriority.HIGH,
         'quiet_hours_respected': True,
         'opt_out_allowed': False,
+    },
+    NotificationCategory.EXPORT_READY: {
+        # RPT-002: an operational heads-up that a requested export finished, not a
+        # statutory notice. PUSH only — IN_APP has no registered provider yet
+        # (see apps/notifications/providers.py's _PROVIDERS registry).
+        'default_channels': [ChannelType.PUSH],
+        'priority': NotificationPriority.NORMAL,
+        'quiet_hours_respected': True,
+        'opt_out_allowed': True,
     },
 }
 

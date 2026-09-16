@@ -172,6 +172,15 @@ CANONICAL_TEMPLATES = [
         'body': 'Pengingat: tugas "{title}" ({subject}) belum dikumpulkan, batas waktu {due_at}.',
         'variables': ['title', 'subject', 'due_at'],
     },
+    # RPT-002 — closes the "export finishes with no notification" gap for async report exports.
+    {
+        'key': 'core.export.ready',
+        'channel': ChannelType.PUSH,
+        'locale': 'id-ID',
+        'subject': 'Ekspor {report_name} Siap',
+        'body': 'Ekspor {report_name} ({format}) sudah siap diunduh. Tautan berlaku 24 jam: {deep_link}',
+        'variables': ['report_name', 'format', 'deep_link'],
+    },
 ]
 
 
