@@ -10,7 +10,8 @@ from rest_framework import generics, status, views, viewsets
 from rest_framework.response import Response
 import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-from apps.core.services import audit
+from apps.core.models import ExportJob
+from apps.core.services import audit, create_export_job, get_export_job_status
 from apps.identity.models import Foundation, School
 from apps.identity.permissions import HasRequiredPermission
 from educore.middleware.tenancy import get_current_foundation_id
@@ -22,6 +23,7 @@ from .serializers import (
     FoundationSettingsSerializer,
     SchoolSerializer,
 )
+from .services import REPORT_KEY_FOUNDATION_DASHBOARD, filter_foundation_kpis
 
 FOUNDATION_KPI_STALE_AFTER_SECONDS = 15 * 60  # FND-006
 
@@ -150,24 +152,17 @@ class FoundationKPIView(views.APIView):
         if not foundation_id:
             return Response({"detail": "Konteks Yayasan tidak ditemukan."}, status=status.HTTP_400_BAD_REQUEST)
 
-        queryset = RptFoundationKPI.objects.filter(foundation_id=foundation_id)
-
         school_ids = request.query_params.getlist('school_ids') or request.query_params.getlist('school_ids[]')
         school_id = request.query_params.get('school_id')
         if school_id:
             school_ids = [school_id]
         elif len(school_ids) == 1 and ',' in school_ids[0]:
             school_ids = school_ids[0].split(',')
-        if school_ids:
-            queryset = queryset.filter(school_id__in=school_ids)
 
         from_date = request.query_params.get('from')
-        if from_date:
-            queryset = queryset.filter(period_start__gte=from_date)
-
         to_date = request.query_params.get('to')
-        if to_date:
-            queryset = queryset.filter(period_end__lte=to_date)
+
+        queryset = filter_foundation_kpis(foundation_id, school_ids=school_ids, from_date=from_date, to_date=to_date)
 
         serializer = FoundationKPISerializer(queryset, many=True)
 
@@ -288,7 +283,6 @@ class CampusComparisonView(views.APIView):
         foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
         if not foundation_id:
             return Response({"detail": "Konteks Yayasan tidak ditemukan."}, status=status.HTTP_400_BAD_REQUEST)
-
         try:
             foundation = Foundation.objects.get(id=foundation_id)
         except Foundation.DoesNotExist:
@@ -696,4 +690,51 @@ class CampusComparisonView(views.APIView):
         )
         response['Content-Disposition'] = 'attachment; filename="perbandingan_kampus.xlsx"'
         return response
+
+class FoundationDashboardExportView(views.APIView):
+    """POST /foundation/exports — enqueue a PDF/XLSX export of the Foundation
+    dashboard (FND-014, RPT-002/003, spec/03 §6)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'school_config.read'
+
+    def post(self, request):
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        if not foundation_id:
+            return Response({"detail": "Konteks Yayasan tidak ditemukan."}, status=status.HTTP_400_BAD_REQUEST)
+
+        export_format = (request.data.get('format') or '').upper()
+        if export_format not in (ExportJob.FORMAT_PDF, ExportJob.FORMAT_XLSX):
+            return Response(
+                {"detail": "Format harus PDF atau XLSX."}, status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        report = request.data.get('report') or REPORT_KEY_FOUNDATION_DASHBOARD
+        if report != REPORT_KEY_FOUNDATION_DASHBOARD:
+            return Response({"detail": f"Laporan '{report}' tidak dikenali."}, status=status.HTTP_400_BAD_REQUEST)
+
+        job = create_export_job(
+            report_key=report,
+            export_format=export_format,
+            filters=request.data.get('filters') or {},
+            foundation_id=foundation_id,
+            requested_by=str(request.user.id),
+            requested_by_name=getattr(request.user, 'full_name', '') or '',
+        )
+        return Response({'job_id': job.id}, status=status.HTTP_202_ACCEPTED)
+
+
+class FoundationDashboardExportStatusView(views.APIView):
+    """GET /foundation/exports/:job_id — poll an export job's status and, once
+    COMPLETED, its 24h-expiring signed download link (RPT-002)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'school_config.read'
+
+    def get(self, request, job_id):
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        if not foundation_id:
+            return Response({"detail": "Konteks Yayasan tidak ditemukan."}, status=status.HTTP_400_BAD_REQUEST)
+        result = get_export_job_status(job_id, foundation_id=foundation_id)
+        if result is None:
+            return Response({"detail": "Export tidak ditemukan."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(result)
 

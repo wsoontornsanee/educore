@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 
 from apps.core.idempotency import IdempotentViewMixin
 from apps.core.pagination import StandardCursorPagination
+from apps.core.services import build_signed_download
 from apps.identity.permissions import HasRequiredPermission
 from apps.identity.models import School, Staff, Student
 from educore.middleware.tenancy import get_current_foundation_id
@@ -842,6 +843,7 @@ class ReportCardViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewse
         'generate': 'grades.write', 'approve': 'school_config.write',
         'publish': 'school_config.write', 'revise': 'grades.write',
         'content': 'grades.write', 'suggest_narratives': 'grades.read',
+        'download': 'grades.read',
     }
 
     def get_queryset(self):
@@ -920,6 +922,14 @@ class ReportCardViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewse
         except ReportCardStateError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(self.get_serializer(updated).data)
+
+    @action(detail=True, methods=['get'], url_path='download')
+    def download(self, request, pk=None):
+        """Signed-GET download URL for the published report card's PDF."""
+        report_card = self.get_object()
+        if not report_card.pdf_key:
+            return Response({'error': _("Belum ada dokumen rapor untuk diunduh.")}, status=status.HTTP_404_NOT_FOUND)
+        return Response(build_signed_download(report_card.pdf_key))
 
     @action(detail=True, methods=['get'], url_path='suggest-narratives')
     def suggest_narratives(self, request, pk=None):

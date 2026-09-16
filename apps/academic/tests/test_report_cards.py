@@ -224,6 +224,42 @@ class ReportCardViewsTests(TestCase):
         self.assertEqual(res_student_view.status_code, 200)
         self.assertTrue(res_student_view.json()['visible'])
 
+    def test_download_before_publish_returns_404(self):
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+        generate_report_cards(self.fx['class_group'], self.fx['term'])
+        rc = ReportCard.objects.get(student=self.fx['student'], term=self.fx['term'])
+        res = self.client.get(f'/api/v1/academic/report-cards/{rc.id}/download/')
+        self.assertEqual(res.status_code, 404)
+
+    def test_download_after_publish_returns_signed_url(self):
+        self.mock_gcs_client.return_value.bucket.return_value.blob.return_value.generate_signed_url.return_value = (
+            'https://signed.example/rapor.pdf'
+        )
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+        generate_report_cards(self.fx['class_group'], self.fx['term'])
+        rc = ReportCard.objects.get(student=self.fx['student'], term=self.fx['term'])
+        approve_report_card(rc)
+        publish_report_card(rc)
+
+        res = self.client.get(f'/api/v1/academic/report-cards/{rc.id}/download/')
+
+        self.assertEqual(res.status_code, 200, res.content)
+        self.assertEqual(res.json()['download_url'], 'https://signed.example/rapor.pdf')
+        self.assertIn('expires_at', res.json())
+
+    def test_download_cross_tenant_returns_404(self):
+        generate_report_cards(self.fx['class_group'], self.fx['term'])
+        rc = ReportCard.objects.get(student=self.fx['student'], term=self.fx['term'])
+
+        fx_b = build_academic_fixture(foundation_name="Yayasan Rapor B")
+        RoleAssignment.all_tenants.create(
+            foundation_id=fx_b['foundation'].id, user=fx_b['teacher_user'], role='school_admin',
+            scope_type=RoleAssignment.SCOPE_SCHOOL, scope_id=fx_b['school'].id,
+        )
+        self.client.force_authenticate(user=fx_b['teacher_user'])
+        res = self.client.get(f'/api/v1/academic/report-cards/{rc.id}/download/')
+        self.assertEqual(res.status_code, 404)
+
     def test_arrears_policy_toggle_via_api(self):
         self.client.force_authenticate(user=self.fx['teacher_user'])
         res_get = self.client.get(f'/api/v1/academic/schools/{self.fx["school"].id}/report-card-policy/')
