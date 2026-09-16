@@ -154,6 +154,49 @@ class HomeworkSubmissionSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'foundation_id', 'submitted_at', 'status', 'graded_by', 'graded_at', 'created_at', 'updated_at']
 
 
+class HomeworkGradingQueueItemSerializer(serializers.ModelSerializer):
+    """TCH-014: Enriched submission item for homework grading queue."""
+    homework_title = serializers.CharField(source='homework.title', read_only=True)
+    homework_due_at = serializers.DateTimeField(source='homework.due_at', read_only=True)
+    class_subject_id = serializers.UUIDField(source='homework.class_subject_id', read_only=True)
+    class_subject_name = serializers.SerializerMethodField()
+    student_nis = serializers.CharField(source='student.nis', read_only=True)
+    student_name = serializers.SerializerMethodField()
+    score = serializers.DecimalField(max_digits=6, decimal_places=2, coerce_to_string=True, allow_null=True, required=False)
+    graded_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = HomeworkSubmission
+        fields = [
+            'id', 'foundation_id', 'homework', 'homework_title', 'homework_due_at',
+            'class_subject_id', 'class_subject_name', 'student', 'student_nis', 'student_name',
+            'submitted_at', 'files', 'text', 'status', 'score', 'feedback',
+            'graded_by', 'graded_by_name', 'graded_at', 'created_at', 'updated_at',
+        ]
+        read_only_fields = fields
+
+    def get_class_subject_name(self, obj):
+        cs = obj.homework.class_subject if obj.homework else None
+        if not cs:
+            return ''
+        subj = cs.subject.name if getattr(cs, 'subject', None) else ''
+        cg = cs.class_group.name if getattr(cs, 'class_group', None) else ''
+        return f"{subj} - {cg}".strip(' -')
+
+    def get_student_name(self, obj):
+        if not obj.student:
+            return ''
+        person = getattr(obj.student, 'person', None)
+        if person and getattr(person, 'full_name', None):
+            return person.full_name
+        return getattr(obj.student, 'full_name', '') or getattr(obj.student, 'nis', '')
+
+    def get_graded_by_name(self, obj):
+        if obj.graded_by:
+            return getattr(obj.graded_by, 'full_name', None) or getattr(obj.graded_by, 'phone_e164', '')
+        return None
+
+
 class HomeworkSubmitSerializer(serializers.Serializer):
     text = serializers.CharField(required=False, allow_blank=True, default='')
     files = serializers.ListField(child=serializers.DictField(), required=False, default=list)

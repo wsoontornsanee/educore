@@ -1,0 +1,485 @@
+{% load l10n %}
+{% comment %}
+Component: Homework Grading Queue (spec/09 §3 TCH-014, spec/17)
+Usage: {% include "components/grading_queue.html" with queue=queue_items homework=homework %}
+Parameters:
+  - queue: List of HomeworkSubmission objects or dicts (id, student, homework, submitted_at, files, text, status, score, feedback)
+  - homework: Optional Homework instance or dict for context header
+  - class_subject: Optional ClassSubject instance or dict
+{% endcomment %}
+<div id="homework-grading-queue"
+     class="grading-queue-container"
+     style="border: 1px solid var(--color-line); background-color: var(--color-surface); border-radius: 0px; font-family: var(--font-sans);"
+     data-total-count="{{ queue|length }}">
+
+  <!-- Top Bar: Title & Keyboard Shortcuts Hint -->
+  <div class="queue-top-bar"
+       style="display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--color-line); background-color: var(--color-surface-alt); flex-wrap: wrap; gap: 8px;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <span class="badge" style="background-color: var(--color-ink-900); color: #FFFFFF; font-family: var(--font-mono); font-size: 11px; padding: 4px 8px; border-radius: 0px; font-weight: 600;">
+        ANTREAN PENILAIAN
+      </span>
+      <h2 class="text-h3" style="margin: 0; font-size: 16px; font-weight: 700; color: var(--color-ink-900);">
+        {% if homework %}{{ homework.title }}{% else %}Penilaian Tugas{% endif %}
+      </h2>
+      {% if class_subject %}
+        <span class="text-body-sm text-ink-500 font-mono">
+          ({{ class_subject.subject.name }} - {{ class_subject.class_group.name }})
+        </span>
+      {% endif %}
+    </div>
+
+    <!-- Queue Progress Indicator -->
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <span id="queue-counter-display" class="font-mono text-sm font-semibold" style="color: var(--color-ink-700);">
+        {% if queue %}
+          Pengajuan <span id="queue-current-num">1</span> dari <span id="queue-total-num">{{ queue|length }}</span>
+        {% else %}
+          0 Antrean
+        {% endif %}
+      </span>
+      <div style="display: flex; gap: 4px;">
+        <button type="button"
+                id="btn-queue-prev"
+                onclick="window.GradingQueue && window.GradingQueue.prev()"
+                title="Pengajuan Sebelumnya (Shortcut: [ )"
+                class="btn btn-secondary"
+                style="padding: 4px 10px; font-size: 12px; border-radius: 0px; border: 1px solid var(--color-line); background: var(--color-surface); cursor: pointer;"
+                disabled>
+          &larr; [ Sebelumnya
+        </button>
+        <button type="button"
+                id="btn-queue-next"
+                onclick="window.GradingQueue && window.GradingQueue.next()"
+                title="Pengajuan Berikutnya (Shortcut: ] )"
+                class="btn btn-secondary"
+                style="padding: 4px 10px; font-size: 12px; border-radius: 0px; border: 1px solid var(--color-line); background: var(--color-surface); cursor: pointer;"
+                {% if queue|length <= 1 %}disabled{% endif %}>
+          Berikutnya ] &rarr;
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Empty Queue State -->
+  <div id="queue-empty-state"
+       style="padding: 48px 24px; text-align: center; {% if queue %}display: none;{% else %}display: block;{% endif %}">
+    <div style="width: 56px; height: 56px; margin: 0 auto 16px; background-color: var(--color-success-bg, #E6F4EA); color: var(--color-success); display: flex; align-items: center; justify-content: center; border: 1px solid var(--color-success); border-radius: 0px;">
+      <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+    </div>
+    <h3 class="text-h3 font-display" style="margin: 0 0 8px; color: var(--color-ink-900); font-size: 18px; font-weight: 700;">
+      Semua Pengajuan Telah Dinilai
+    </h3>
+    <p class="text-body-sm text-ink-500" style="margin: 0; max-width: 440px; margin: 0 auto;">
+      Tidak ada pengajuan tugas tertunda yang membutuhkan penilaian saat ini.
+    </p>
+  </div>
+
+  <!-- Submission Cards -->
+  <div id="queue-cards-wrapper" style="{% if not queue %}display: none;{% endif %}">
+    {% for item in queue %}
+      <div id="queue-card-{{ forloop.counter0 }}"
+           class="queue-card-item"
+           data-index="{{ forloop.counter0 }}"
+           data-submission-id="{{ item.id }}"
+           data-grade-url="/api/v1/academic/homework-submissions/{{ item.id }}/grade/"
+           data-return-url="/api/v1/academic/homework-submissions/{{ item.id }}/return/"
+           style="{% if not forloop.first %}display: none;{% endif %} padding: 24px;">
+
+        <!-- Student & Submission Meta Banner -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 16px; margin-bottom: 20px; border-bottom: 1px solid var(--color-line); flex-wrap: wrap; gap: 12px;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+              <span class="font-mono text-xs text-ink-500 font-semibold" style="background: var(--color-surface-alt); padding: 2px 6px; border: 1px solid var(--color-line);">
+                NIS: {% firstof item.student_nis item.student.nis '—' %}
+              </span>
+              <h3 style="margin: 0; font-size: 18px; font-weight: 700; color: var(--color-ink-900);">
+                {% firstof item.student_name item.student.person.full_name item.student.name item.student_name 'Siswa' %}
+              </h3>
+            </div>
+            <div class="text-body-sm text-ink-500">
+              Tugas: <strong>{% firstof item.homework_title item.homework.title 'Tugas' %}</strong>
+              {% if item.class_subject_name %}
+                &bull; <span class="font-mono">{{ item.class_subject_name }}</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <div style="text-align: right;">
+            {% if item.status == 'LATE' %}
+              <span class="badge" style="background-color: #FEF3C7; color: #B45309; border: 1px solid #F59E0B; padding: 4px 8px; font-size: 11px; font-weight: 700; border-radius: 0px;">
+                TERLAMBAT
+              </span>
+            {% elif item.status == 'GRADED' %}
+              <span class="badge" style="background-color: #D1FAE5; color: #065F46; border: 1px solid #10B981; padding: 4px 8px; font-size: 11px; font-weight: 700; border-radius: 0px;">
+                DINILAI ({{ item.score }})
+              </span>
+            {% else %}
+              <span class="badge" style="background-color: #DBEAFE; color: #1E40AF; border: 1px solid #3B82F6; padding: 4px 8px; font-size: 11px; font-weight: 700; border-radius: 0px;">
+                TERKUMPUL
+              </span>
+            {% endif %}
+            <div class="text-body-sm text-ink-500 font-mono" style="margin-top: 4px;">
+              Dikumpulkan: {{ item.submitted_at|date:"d M Y, H:i" }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Submission Content Layout: 2 Columns on Desktop -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; margin-bottom: 24px;">
+
+          <!-- Left Column: Student Answer Content -->
+          <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div>
+              <label class="text-label text-ink-700" style="display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 8px;">
+                Jawaban / Catatan Siswa
+              </label>
+              <div style="border: 1px solid var(--color-line); background: var(--color-surface-alt); padding: 14px; min-height: 110px; font-size: 14px; color: var(--color-ink-900); white-space: pre-wrap; line-height: 1.5;">
+                {% if item.text %}
+                  {{ item.text }}
+                {% else %}
+                  <span class="text-ink-400 font-italic">(Tidak ada teks jawaban tertulis)</span>
+                {% endif %}
+              </div>
+            </div>
+
+            <!-- Attached Files -->
+            <div>
+              <label class="text-label text-ink-700" style="display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 8px;">
+                Berkas Lampiran ({% if item.files %}{{ item.files|length }}{% else %}0{% endif %})
+              </label>
+              {% if item.files %}
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                  {% for file in item.files %}
+                    <div style="display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--color-line); background: var(--color-surface); padding: 8px 12px; border-radius: 0px;">
+                      <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
+                        <span style="font-size: 11px; font-family: var(--font-mono); font-weight: 700; padding: 2px 6px; background: var(--color-surface-alt); border: 1px solid var(--color-line);">
+                          FILE
+                        </span>
+                        <span class="font-mono text-sm text-ink-900" style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
+                          {{ file.filename }}
+                        </span>
+                        {% if file.size %}
+                          <span class="text-ink-400 font-mono text-xs">({{ file.size|filesizeformat }})</span>
+                        {% endif %}
+                      </div>
+                      <a href="{{ file.key }}" target="_blank" rel="noopener noreferrer"
+                         style="color: var(--color-info); text-decoration: none; font-size: 13px; font-weight: 600; white-space: nowrap; margin-left: 12px;">
+                        Buka &rarr;
+                      </a>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div style="border: 1px dashed var(--color-line); padding: 12px; text-align: center; color: var(--color-ink-400); font-size: 13px;">
+                  Tidak ada berkas yang dilampirkan.
+                </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Right Column: Teacher Grading Form -->
+          <div style="border: 1px solid var(--color-line); background: var(--color-surface-alt); padding: 20px; display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px;">
+                <label for="input-score-{{ forloop.counter0 }}" style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--color-ink-900);">
+                  Nilai Siswa (Skala 0 - 100)
+                </label>
+                <span class="text-ink-400 font-mono text-xs">Maksimal 100</span>
+              </div>
+              <input type="number"
+                     id="input-score-{{ forloop.counter0 }}"
+                     name="score"
+                     min="0"
+                     max="100"
+                     step="0.01"
+                     value="{% if item.score is not None %}{{ item.score }}{% endif %}"
+                     placeholder="0.00"
+                     class="input-queue-score font-mono"
+                     style="width: 100%; font-size: 24px; font-weight: 700; padding: 10px 14px; border: 2px solid var(--color-line); border-radius: 0px; background: var(--color-surface); color: var(--color-ink-900); margin-bottom: 16px; box-sizing: border-box;" />
+
+              <label for="input-feedback-{{ forloop.counter0 }}" style="display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--color-ink-900); margin-bottom: 8px;">
+                Umpan Balik / Catatan Guru
+              </label>
+              <textarea id="input-feedback-{{ forloop.counter0 }}"
+                        name="feedback"
+                        rows="4"
+                        placeholder="Tuliskan masukan atau evaluasi untuk siswa ini..."
+                        style="width: 100%; font-size: 14px; font-family: var(--font-sans); padding: 10px 12px; border: 1px solid var(--color-line); border-radius: 0px; background: var(--color-surface); color: var(--color-ink-900); resize: vertical; box-sizing: border-box; margin-bottom: 8px;">{{ item.feedback|default:'' }}</textarea>
+            </div>
+
+            <!-- Action Buttons for Current Card -->
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 16px;">
+              <div style="display: flex; gap: 8px;">
+                <button type="button"
+                        onclick="window.GradingQueue && window.GradingQueue.submitGrade({{ forloop.counter0 }})"
+                        class="btn-save-grade"
+                        style="flex: 2; padding: 10px 16px; background-color: var(--color-brand, #C8102E); color: #FFFFFF; border: none; border-radius: 0px; font-weight: 700; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                  <span>Simpan & Lanjut</span>
+                  <span style="font-size: 10px; opacity: 0.8; font-family: var(--font-mono);">(Ctrl+Enter)</span>
+                </button>
+
+                <button type="button"
+                        onclick="window.GradingQueue && window.GradingQueue.returnForRevision({{ forloop.counter0 }})"
+                        class="btn-return-revision"
+                        title="Kembalikan pengajuan untuk perbaikan (Shortcut: Alt+R)"
+                        style="flex: 1; padding: 10px 12px; background-color: transparent; color: var(--color-warning, #B56A00); border: 1px solid var(--color-warning, #B56A00); border-radius: 0px; font-weight: 600; font-size: 12px; cursor: pointer;">
+                  Kembalikan
+                </button>
+              </div>
+
+              <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 4px;">
+                <button type="button"
+                        onclick="window.GradingQueue && window.GradingQueue.skip({{ forloop.counter0 }})"
+                        style="background: none; border: none; color: var(--color-ink-500); font-size: 12px; cursor: pointer; text-decoration: underline; padding: 0;">
+                  Lewati tanpa simpan
+                </button>
+                <span id="queue-save-status-{{ forloop.counter0 }}" class="font-mono text-xs text-ink-500" style="min-height: 16px;"></span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    {% endfor %}
+  </div>
+
+  <!-- Bottom Bar: Keyboard Shortcuts Guide (TCH-014) -->
+  <div class="queue-bottom-bar"
+       style="display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; border-top: 1px solid var(--color-line); background-color: var(--color-surface-alt); font-size: 12px; color: var(--color-ink-500); flex-wrap: wrap; gap: 8px;">
+    <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+      <span><strong>[ / ]</strong> : Pengajuan Sebelumnya / Berikutnya</span>
+      <span><strong>Ctrl+Enter</strong> : Simpan & Lanjut</span>
+      <span><strong>Alt+R</strong> : Kembalikan Revisi</span>
+    </div>
+    <div class="font-mono text-xs">
+      EduCore Teacher Suite &bull; TCH-014
+    </div>
+  </div>
+
+</div>
+
+<!-- Client Controller Script for Keyboard Navigation & Instant Progression -->
+<script>
+(function() {
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+
+  const container = document.getElementById('homework-grading-queue');
+  if (!container) return;
+
+  const total = parseInt(container.getAttribute('data-total-count') || '0', 10);
+  let currentIndex = 0;
+
+  function updateView() {
+    const cards = container.querySelectorAll('.queue-card-item');
+    if (!cards || cards.length === 0) {
+      document.getElementById('queue-empty-state').style.display = 'block';
+      document.getElementById('queue-cards-wrapper').style.display = 'none';
+      document.getElementById('btn-queue-prev').disabled = true;
+      document.getElementById('btn-queue-next').disabled = true;
+      document.getElementById('queue-counter-display').textContent = 'Semua Selesai';
+      return;
+    }
+
+    if (currentIndex >= cards.length) {
+      currentIndex = cards.length - 1;
+    }
+    if (currentIndex < 0) {
+      currentIndex = 0;
+    }
+
+    cards.forEach((card, idx) => {
+      card.style.display = (idx === currentIndex) ? 'block' : 'none';
+    });
+
+    const currentNumEl = document.getElementById('queue-current-num');
+    const totalNumEl = document.getElementById('queue-total-num');
+    if (currentNumEl) currentNumEl.textContent = currentIndex + 1;
+    if (totalNumEl) totalNumEl.textContent = cards.length;
+
+    const btnPrev = document.getElementById('btn-queue-prev');
+    const btnNext = document.getElementById('btn-queue-next');
+    if (btnPrev) btnPrev.disabled = (currentIndex === 0);
+    if (btnNext) btnNext.disabled = (currentIndex >= cards.length - 1);
+
+    // Auto focus score input on active card
+    const activeScoreInput = document.getElementById('input-score-' + currentIndex);
+    if (activeScoreInput) {
+      setTimeout(() => activeScoreInput.focus(), 50);
+    }
+  }
+
+  window.GradingQueue = {
+    prev: function() {
+      if (currentIndex > 0) {
+        currentIndex--;
+        updateView();
+      }
+    },
+    next: function() {
+      const cards = container.querySelectorAll('.queue-card-item');
+      if (currentIndex < cards.length - 1) {
+        currentIndex++;
+        updateView();
+      }
+    },
+    skip: function(index) {
+      this.next();
+    },
+    submitGrade: function(index) {
+      const card = document.getElementById('queue-card-' + index);
+      if (!card) return;
+      const scoreInput = document.getElementById('input-score-' + index);
+      const feedbackInput = document.getElementById('input-feedback-' + index);
+      const statusEl = document.getElementById('queue-save-status-' + index);
+
+      const scoreVal = scoreInput ? scoreInput.value.trim() : '';
+      const feedbackVal = feedbackInput ? feedbackInput.value.trim() : '';
+      const gradeUrl = card.getAttribute('data-grade-url');
+
+      if (statusEl) {
+        statusEl.textContent = 'Menyimpan...';
+        statusEl.style.color = 'var(--color-ink-500)';
+      }
+
+      fetch(gradeUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken') || ''
+        },
+        body: JSON.stringify({
+          score: scoreVal !== '' ? parseFloat(scoreVal) : null,
+          feedback: feedbackVal
+        })
+      })
+      .then(resp => {
+        if (!resp.ok) {
+          return resp.json().then(d => { throw new Error(d.error || 'Gagal menyimpan nilai'); });
+        }
+        return resp.json();
+      })
+      .then(data => {
+        if (statusEl) {
+          statusEl.textContent = 'Tersimpan ✓';
+          statusEl.style.color = 'var(--color-success)';
+        }
+        // Advance to next without returning to a list (TCH-014)
+        setTimeout(() => {
+          window.GradingQueue.next();
+        }, 300);
+      })
+      .catch(err => {
+        if (statusEl) {
+          statusEl.textContent = 'Gagal: ' + err.message;
+          statusEl.style.color = 'var(--color-danger, #C8102E)';
+        }
+      });
+    },
+    returnForRevision: function(index) {
+      const card = document.getElementById('queue-card-' + index);
+      if (!card) return;
+      const feedbackInput = document.getElementById('input-feedback-' + index);
+      const statusEl = document.getElementById('queue-save-status-' + index);
+      const feedbackVal = feedbackInput ? feedbackInput.value.trim() : '';
+      const returnUrl = card.getAttribute('data-return-url');
+
+      if (!feedbackVal) {
+        alert('Mohon tuliskan instruksi perbaikan pada kolom catatan guru sebelum mengembalikan pengajuan.');
+        if (feedbackInput) feedbackInput.focus();
+        return;
+      }
+
+      if (statusEl) {
+        statusEl.textContent = 'Mengembalikan...';
+        statusEl.style.color = 'var(--color-ink-500)';
+      }
+
+      fetch(returnUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken') || ''
+        },
+        body: JSON.stringify({
+          feedback: feedbackVal
+        })
+      })
+      .then(resp => {
+        if (!resp.ok) {
+          return resp.json().then(d => { throw new Error(d.error || 'Gagal mengembalikan pengajuan'); });
+        }
+        return resp.json();
+      })
+      .then(data => {
+        if (statusEl) {
+          statusEl.textContent = 'Dikembalikan ke siswa ✓';
+          statusEl.style.color = 'var(--color-warning)';
+        }
+        setTimeout(() => {
+          window.GradingQueue.next();
+        }, 300);
+      })
+      .catch(err => {
+        if (statusEl) {
+          statusEl.textContent = 'Gagal: ' + err.message;
+          statusEl.style.color = 'var(--color-danger, #C8102E)';
+        }
+      });
+    }
+  };
+
+  // Keyboard shortcut listener (TCH-014)
+  document.addEventListener('keydown', function(e) {
+    // Only process if grading queue is on page
+    if (!document.getElementById('homework-grading-queue')) return;
+
+    // Ctrl+Enter or Cmd+Enter: Submit score & advance
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      window.GradingQueue.submitGrade(currentIndex);
+      return;
+    }
+
+    // Alt+R: Return for revision
+    if (e.altKey && (e.key === 'r' || e.key === 'R')) {
+      e.preventDefault();
+      window.GradingQueue.returnForRevision(currentIndex);
+      return;
+    }
+
+    // [ or Alt+ArrowLeft: Prev
+    if ((e.key === '[' && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) || (e.altKey && e.key === 'ArrowLeft')) {
+      e.preventDefault();
+      window.GradingQueue.prev();
+      return;
+    }
+
+    // ] or Alt+ArrowRight: Next
+    if ((e.key === ']' && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) || (e.altKey && e.key === 'ArrowRight')) {
+      e.preventDefault();
+      window.GradingQueue.next();
+      return;
+    }
+  });
+
+  // Initial setup
+  updateView();
+})();
+</script>

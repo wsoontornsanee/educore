@@ -25,6 +25,7 @@ from apps.academic.models import (
     ExamQuestionType,
     Homework,
     HomeworkSubmission,
+    HomeworkSubmissionStatus,
     LearningObjective,
     LessonPlan,
     ReportCard,
@@ -53,6 +54,7 @@ from apps.academic.serializers import (
     GradeEssaySerializer,
     HomeworkFileUploadSerializer,
     HomeworkGradeSerializer,
+    HomeworkGradingQueueItemSerializer,
     HomeworkReturnSerializer,
     HomeworkSerializer,
     HomeworkSubmissionSerializer,
@@ -387,7 +389,50 @@ class HomeworkViewSet(TenantScopedModelViewSet):
         'remind': 'grades.write', 'completion': 'grades.read',
         'remind_status': 'grades.read',
         'upload_file': 'grades.write',
+        'grading_queue': 'grades.read',
+        'homework_grading_queue': 'grades.read',
     }
+
+    @action(detail=False, methods=['get'], url_path='grading-queue')
+    def grading_queue(self, request):
+        """TCH-014: Aggregated cross-homework grading queue."""
+        class_subject_id = request.query_params.get('class_subject_id')
+        homework_id = request.query_params.get('homework_id')
+        include_graded = request.query_params.get('include_graded', '').lower() in ('1', 'true')
+
+        qs = HomeworkSubmission.objects.filter(deleted_at__isnull=True)
+        if class_subject_id:
+            qs = qs.filter(homework__class_subject_id=class_subject_id)
+        if homework_id:
+            qs = qs.filter(homework_id=homework_id)
+        if not include_graded:
+            qs = qs.filter(status__in=[HomeworkSubmissionStatus.SUBMITTED, HomeworkSubmissionStatus.LATE])
+
+        qs = qs.select_related(
+            'homework', 'homework__class_subject', 'homework__class_subject__subject',
+            'homework__class_subject__class_group', 'student', 'student__person', 'graded_by'
+        ).order_by('submitted_at')
+
+        serializer = HomeworkGradingQueueItemSerializer(qs, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get'], url_path='grading-queue')
+    def homework_grading_queue(self, request, pk=None):
+        """TCH-014: Grading queue for a specific homework assignment."""
+        homework = self.get_object()
+        include_graded = request.query_params.get('include_graded', '').lower() in ('1', 'true')
+
+        qs = HomeworkSubmission.objects.filter(homework=homework, deleted_at__isnull=True)
+        if not include_graded:
+            qs = qs.filter(status__in=[HomeworkSubmissionStatus.SUBMITTED, HomeworkSubmissionStatus.LATE])
+
+        qs = qs.select_related(
+            'homework', 'homework__class_subject', 'homework__class_subject__subject',
+            'homework__class_subject__class_group', 'student', 'student__person', 'graded_by'
+        ).order_by('submitted_at')
+
+        serializer = HomeworkGradingQueueItemSerializer(qs, many=True)
+        return Response(serializer.data)
 
     @action(detail=True, methods=['post'], url_path='upload-file', parser_classes=[MultiPartParser])
     def upload_file(self, request, pk=None):
