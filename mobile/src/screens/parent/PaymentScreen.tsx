@@ -56,10 +56,12 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ invoiceIds, onDone
           const refreshed = await fetchPaymentIntent(created.id);
           setIntent(refreshed);
           if (refreshed.status === 'SETTLED' || refreshed.status === 'PAID') {
-            if (pollRef.current) {
-              clearInterval(pollRef.current);
-              pollRef.current = null;
-            }
+            // Guard against two in-flight ticks both observing a terminal status:
+            // only the first to see pollRef.current still set may clear it and
+            // call onDone(); a losing tick sees it already null and bails out.
+            if (!pollRef.current) return;
+            clearInterval(pollRef.current);
+            pollRef.current = null;
             onDone();
           }
         } catch {
@@ -141,7 +143,13 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ invoiceIds, onDone
         ) : (
           <>
             <Text style={styles.cardTitle}>Bayar dengan QRIS</Text>
-            <Text style={styles.instructionBody}>Pindai kode QRIS pada aplikasi e-wallet atau mobile banking Anda.</Text>
+            <Text style={styles.qrisLabel}>Kode QRIS</Text>
+            <Text style={styles.qrisPayload} selectable>{intent.qris_payload}</Text>
+            <Text style={styles.instructionBody}>
+              1. Buka aplikasi e-wallet atau mobile banking Anda.{'\n'}
+              2. Pilih menu Bayar/Scan QRIS.{'\n'}
+              3. Jika tidak dapat memindai langsung, salin kode di atas dan tempelkan pada kolom kode QRIS di aplikasi Anda.
+            </Text>
           </>
         )}
         <Text style={styles.countdown}>
@@ -177,6 +185,12 @@ const styles = StyleSheet.create({
   instructionCard: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, padding: spacing.lg, marginBottom: spacing.base },
   cardTitle: { fontSize: typography.fontSize.base, fontWeight: typography.fontWeight.bold, color: colors.heading, marginBottom: spacing.sm },
   vaNumber: { fontSize: typography.fontSize.xl, fontWeight: typography.fontWeight.bold, color: colors.primary, letterSpacing: 1, marginBottom: spacing.sm },
+  qrisLabel: { fontSize: typography.fontSize.xs, color: colors.muted, marginBottom: spacing.xs },
+  qrisPayload: {
+    fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.bold, color: colors.primary,
+    fontFamily: 'monospace', backgroundColor: colors.surfaceAlt, borderRadius: radius.button,
+    padding: spacing.sm, marginBottom: spacing.sm,
+  },
   instructionBody: { fontSize: typography.fontSize.sm, color: colors.body, lineHeight: 20 },
   countdown: { fontSize: typography.fontSize.sm, color: colors.offline, fontWeight: typography.fontWeight.bold, marginTop: spacing.base },
   waitingNote: { fontSize: typography.fontSize.xs, color: colors.muted, textAlign: 'center' },
