@@ -183,6 +183,7 @@ def create_discount_with_approval_check(
     status = DiscountStatus.PENDING_APPROVAL if needs_approval else DiscountStatus.APPROVED
     approved_by = None if needs_approval else (user if user and getattr(user, 'id', None) else None)
     approved_at = None if needs_approval else timezone.now()
+    actor_id = str(user.id) if user and getattr(user, 'id', None) else ''
 
     discount = Discount.objects.create(
         foundation_id=foundation_id,
@@ -196,9 +197,9 @@ def create_discount_with_approval_check(
         status=status,
         approved_by=approved_by,
         approved_at=approved_at,
+        created_by=actor_id,
     )
 
-    actor_id = str(user.id) if user and getattr(user, 'id', None) else ''
     audit(
         action='finance.discount.created',
         entity_type='Discount',
@@ -223,6 +224,8 @@ def approve_discount(discount: Discount, user: Any) -> Discount:
     """Approve a pending discount request (FIN-007, FND-007)."""
     if discount.status == DiscountStatus.APPROVED:
         return discount
+    if discount.status != DiscountStatus.PENDING_APPROVAL:
+        raise ValidationError(_("Hanya permohonan diskon dengan status PENDING_APPROVAL yang dapat disetujui."))
 
     from apps.identity.rbac import is_foundation_admin
     if not is_foundation_admin(user, discount.foundation_id):
