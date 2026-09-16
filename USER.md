@@ -10,7 +10,7 @@
 
 ## 2. Working Agreements & Mandatory SOP
 1. **Destructive Operations Guardrail:** Do not perform any `DELETE`, `TRUNCATE`, `DROP`, or destructive command without an explicit `WHERE` clause and explicit user confirmation.
-2. **Development Lifecycle:** Always follow: **Plan -> Dev -> Test -> PR -> Wait for PR merged and deploy instruction**.
+2. **Development Lifecycle:** Always follow: **Plan -> Dev -> Test -> PR (fetch latest main & ensure PR is mergeable) -> Wait for PR merged and deploy instruction**.
 3. **Notion Task Protocol:**
    - At **Plan** stage, create a Notion task in database "Astra Educore" (`3dc347a6-6594-8077-98be-d83d694d6f10`) including the implementation plan in the body, with status `In progress`.
    - For **all open items, deferred tasks, and slice non-goals** (blocked on decisions, out-of-repo client scopes, optional/MAY features), log them as Notion tasks with status `Todo` and actionable context so they are never dropped.
