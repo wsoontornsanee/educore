@@ -1,4 +1,8 @@
 """Views for Foundation portal and School management (spec/02 §7, spec/03 §5)."""
+import datetime
+from decimal import Decimal
+from django.db.models import Avg, Sum
+from django.utils import timezone
 from rest_framework import generics, status, views, viewsets
 from rest_framework.response import Response
 from apps.core.services import audit
@@ -7,6 +11,13 @@ from apps.identity.permissions import HasRequiredPermission
 from educore.middleware.tenancy import get_current_foundation_id
 from .models import RptFoundationKPI
 from .serializers import FoundationKPISerializer, FoundationSettingsSerializer, SchoolSerializer
+
+FOUNDATION_KPI_STALE_AFTER_SECONDS = 15 * 60  # FND-006
+
+FOUNDATION_KPI_SUM_FIELDS = [
+    'billed', 'collected', 'outstanding', 'ar_0_30', 'ar_31_60', 'ar_61_90',
+    'ar_90_plus', 'campus_spend', 'active_students',
+]
 
 class SchoolViewSet(viewsets.ModelViewSet):
     """CRUD API for schools under the authenticated user's foundation (spec/02 §7).
@@ -116,8 +127,9 @@ class FoundationSettingsView(generics.RetrieveUpdateAPIView):
 
 class FoundationKPIView(views.APIView):
     """Dashboard KPIs for the Foundation portal (spec/03 §4, §5).
-    
-    Reads from rpt_foundation_kpis rollup table (FND-005).
+
+    Reads from rpt_foundation_kpis rollup table (FND-005). Never queries
+    transactional tables directly.
     """
     permission_classes = [HasRequiredPermission]
     required_permission = 'school_config.read'
@@ -129,9 +141,14 @@ class FoundationKPIView(views.APIView):
 
         queryset = RptFoundationKPI.objects.filter(foundation_id=foundation_id)
 
+        school_ids = request.query_params.getlist('school_ids') or request.query_params.getlist('school_ids[]')
         school_id = request.query_params.get('school_id')
         if school_id:
-            queryset = queryset.filter(school_id=school_id)
+            school_ids = [school_id]
+        elif len(school_ids) == 1 and ',' in school_ids[0]:
+            school_ids = school_ids[0].split(',')
+        if school_ids:
+            queryset = queryset.filter(school_id__in=school_ids)
 
         from_date = request.query_params.get('from')
         if from_date:
@@ -142,4 +159,74 @@ class FoundationKPIView(views.APIView):
             queryset = queryset.filter(period_end__lte=to_date)
 
         serializer = FoundationKPISerializer(queryset, many=True)
-        return Response(serializer.data)
+
+        computed_ats = [row.computed_at for row in queryset if row.computed_at]
+        latest_computed_at = max(computed_ats) if computed_ats else None
+        seconds_since_refresh = (timezone.now() - latest_computed_at).total_seconds() if latest_computed_at else None
+        freshness = {
+            'computed_at': latest_computed_at.isoformat() if latest_computed_at else None,
+            'seconds_since_refresh': int(seconds_since_refresh) if seconds_since_refresh is not None else None,
+            'stale': seconds_since_refresh is None or seconds_since_refresh > FOUNDATION_KPI_STALE_AFTER_SECONDS,
+        }
+
+        compare = None
+        if request.query_params.get('compare') == 'prev_period' and from_date and to_date:
+            compare = self._compare_prev_period(foundation_id, school_ids, from_date, to_date, queryset)
+
+        return Response({'results': serializer.data, 'freshness': freshness, 'compare': compare})
+
+    def _compare_prev_period(self, foundation_id, school_ids, from_date, to_date, current_queryset):
+        """FND-003: absolute + percentage delta against the immediately preceding,
+        equal-length period. Skipped (returns None from the caller) unless both
+        `from` and `to` are given -- there is no well-defined "previous period"
+        for an unbounded window.
+        """
+        from_dt = datetime.date.fromisoformat(str(from_date))
+        to_dt = datetime.date.fromisoformat(str(to_date))
+
+        is_whole_calendar_month = from_dt.day == 1 and to_dt == (
+            (from_dt.replace(day=28) + datetime.timedelta(days=4)).replace(day=1) - datetime.timedelta(days=1)
+        )
+        if is_whole_calendar_month:
+            # "current month" style query -> compare to the previous whole calendar month.
+            prior_to = from_dt - datetime.timedelta(days=1)
+            prior_from = prior_to.replace(day=1)
+        else:
+            # Arbitrary custom range -> compare to the immediately preceding, equal-length window.
+            duration = (to_dt - from_dt).days + 1
+            prior_to = from_dt - datetime.timedelta(days=1)
+            prior_from = prior_to - datetime.timedelta(days=duration - 1)
+
+        prior_queryset = RptFoundationKPI.objects.filter(
+            foundation_id=foundation_id, period_start__gte=prior_from, period_end__lte=prior_to,
+        )
+        if school_ids:
+            prior_queryset = prior_queryset.filter(school_id__in=school_ids)
+
+        current_totals = current_queryset.aggregate(
+            **{field: Sum(field) for field in FOUNDATION_KPI_SUM_FIELDS},
+            avg_attendance_pct=Avg('avg_attendance_pct'),
+        )
+        prior_totals = prior_queryset.aggregate(
+            **{field: Sum(field) for field in FOUNDATION_KPI_SUM_FIELDS},
+            avg_attendance_pct=Avg('avg_attendance_pct'),
+        )
+
+        delta = {}
+        delta_pct = {}
+        for field in FOUNDATION_KPI_SUM_FIELDS + ['avg_attendance_pct']:
+            current_value = Decimal(str(current_totals.get(field) or '0.00'))
+            prior_value = Decimal(str(prior_totals.get(field) or '0.00'))
+            delta[field] = str(current_value - prior_value)
+            delta_pct[field] = (
+                str(((current_value - prior_value) / prior_value * Decimal('100')).quantize(Decimal('0.01')))
+                if prior_value else None
+            )
+
+        return {
+            'prior_period': {'from': str(prior_from), 'to': str(prior_to)},
+            'current': {k: str(v or Decimal('0.00')) for k, v in current_totals.items()},
+            'prior': {k: str(v or Decimal('0.00')) for k, v in prior_totals.items()},
+            'delta': delta,
+            'delta_pct': delta_pct,
+        }
