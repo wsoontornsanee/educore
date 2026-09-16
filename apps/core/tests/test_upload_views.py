@@ -38,7 +38,7 @@ class InitiateUploadViewTests(TestCase):
         # any foundation context (ARC-002).
         self.assertTrue(StoredFile.all_tenants.filter(id=body['id']).exists())
 
-    def test_unknown_purpose_returns_400(self):
+    def test_unknown_purpose_returns_403(self):
         # An unregistered purpose has no entry in PURPOSE_RULES, so
         # HasRequiredPermission cannot resolve a required_permission and
         # fails closed (IAM-010) rather than leaking a distinguishable 400
@@ -50,6 +50,14 @@ class InitiateUploadViewTests(TestCase):
             'content_type': 'application/pdf', 'size': 10,
         }, format='json')
         self.assertEqual(res.status_code, 403)
+
+    def test_non_dict_body_does_not_500(self):
+        # A JSON array body has no .get('purpose'), so get_required_permission
+        # must not raise AttributeError — it should resolve to None and let
+        # HasRequiredPermission fail closed (403), not surface a 500.
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+        res = self.client.post('/api/v1/files/uploads/', [1, 2], format='json')
+        self.assertNotEqual(res.status_code, 500)
 
     def test_unauthenticated_rejected(self):
         res = self.client.post('/api/v1/files/uploads/', {
