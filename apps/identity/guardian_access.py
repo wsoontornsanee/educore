@@ -15,6 +15,7 @@ STAFF_ROLES = {
     RoleAssignment.ROLE_FINANCE_OFFICER,
     RoleAssignment.ROLE_TEACHER,
     RoleAssignment.ROLE_COUNSELLOR,
+    RoleAssignment.ROLE_CANTEEN_OPERATOR,
 }
 
 
@@ -101,7 +102,7 @@ def can_guardian_access_student(
         return True
 
     # Resolve student's school
-    student = Student.objects.filter(
+    student = Student.all_tenants.filter(
         id=student_id,
         foundation_id=foundation_id,
         deleted_at__isnull=True,

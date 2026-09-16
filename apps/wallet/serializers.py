@@ -199,3 +199,36 @@ class RefundMarkPaidSerializer(serializers.Serializer):
 
 class RefundMarkDonatedSerializer(serializers.Serializer):
     donation_consent = serializers.BooleanField()
+
+
+class StudentNutritionSummaryItemSerializer(serializers.Serializer):
+    sku = serializers.CharField()
+    name = serializers.CharField()
+    qty = serializers.IntegerField()
+    unit_price = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    calories = serializers.IntegerField()
+    sugar_g = serializers.DecimalField(max_digits=10, decimal_places=2, coerce_to_string=True)
+    allergens = serializers.ListField(child=serializers.CharField())
+    is_healthy = serializers.BooleanField()
+    occurred_at = serializers.DateTimeField()
+
+
+class DailyNutritionSummarySerializer(serializers.Serializer):
+    date = serializers.DateField()
+    total_calories = serializers.IntegerField()
+    total_sugar_g = serializers.DecimalField(max_digits=10, decimal_places=2, coerce_to_string=True)
+    items_count = serializers.IntegerField()
+    healthy_count = serializers.IntegerField()
+
+
+class StudentNutritionSummarySerializer(serializers.Serializer):
+    student_id = serializers.IntegerField()
+    from_date = serializers.DateField()
+    to_date = serializers.DateField()
+    total_calories = serializers.IntegerField()
+    total_sugar_g = serializers.DecimalField(max_digits=10, decimal_places=2, coerce_to_string=True)
+    total_items = serializers.IntegerField()
+    healthy_items_count = serializers.IntegerField()
+    allergens = serializers.ListField(child=serializers.CharField())
+    daily_breakdown = DailyNutritionSummarySerializer(many=True)
+    items = StudentNutritionSummaryItemSerializer(many=True)
