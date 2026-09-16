@@ -13,6 +13,9 @@ Pillow>=10.4.0
 openpyxl>=3.1.5
 weasyprint>=62.3
 
+# File storage (ARC-026/ARC-030)
+google-cloud-storage>=2.18,<3.0
+
 # Utilities & Security
 requests>=2.32.3
 cryptography>=43.0.1

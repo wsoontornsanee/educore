@@ -160,6 +160,16 @@ STATICFILES_DIRS = [BASE_DIR / 'frontend' / 'static'] if (BASE_DIR / 'frontend' 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# GCS file storage (ARC-026/ARC-030: every uploaded object is a core.StoredFile row,
+# uploaded client-direct-to-GCS via signed URL, never written to server disk).
+# GCS_CREDENTIALS_PATH points at a service-account JSON kept OUTSIDE the repo (.env,
+# gitignored) — never commit that file. GCS_PATH_PREFIX namespaces objects per
+# environment within the one shared bucket; overridden to 'PRD' in production.py so
+# local + staging both default to 'STG' here without repeating the env-detection logic.
+GCS_BUCKET_NAME = os.environ.get('GCS_BUCKET_NAME', 'educore-e46aa.firebasestorage.app')
+GCS_CREDENTIALS_PATH = os.environ.get('GCS_CREDENTIALS_PATH', '')
+GCS_PATH_PREFIX = 'STG'
+
 # Custom User Model & Authentication (spec/02 §2, §3)
 AUTH_USER_MODEL = 'identity.User'
 

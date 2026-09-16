@@ -20,3 +20,6 @@ if SECRET_KEY == 'django-insecure-educore-dev-key-change-in-production':
 
 # spec/01 §7, ARC-013: production has exactly one dedicated cron host.
 EDUCORE_CRON_HOST_ENFORCED = True
+
+# GCS objects live under /PRD/ in production, vs. /STG/ for local + staging (base.py).
+GCS_PATH_PREFIX = 'PRD'

@@ -36,6 +36,10 @@ ENV/
 .env
 .env.local
 .env.*.local
+*-firebase-adminsdk-*.json
+*serviceaccount*.json
+*service-account*.json
+gcs-credentials*.json
 
 # Django
 *.log
