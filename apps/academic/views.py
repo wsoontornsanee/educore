@@ -284,6 +284,8 @@ class AssessmentViewSet(TenantScopedModelViewSet):
                         'current_version': e.current_version,
                         'current_feedback': e.current_feedback,
                         'current_descriptor': e.current_descriptor,
+                        'current_graded_by': e.current_graded_by,
+                        'current_graded_at': e.current_graded_at,
                     },
                 }, status=status.HTTP_409_CONFLICT)
             results.append(AssessmentScoreSerializer(record).data)
@@ -913,6 +915,7 @@ class GradebookView(APIView):
                     'student_id': s.id,
                     'score': str(score_map[(a.id, s.id)].score) if (a.id, s.id) in score_map and score_map[(a.id, s.id)].score is not None else None,
                     'descriptor': score_map[(a.id, s.id)].descriptor if (a.id, s.id) in score_map else '',
+                    'version': score_map[(a.id, s.id)].version if (a.id, s.id) in score_map else 0,
                 }
                 for a in assessments for s in students
             ],
