@@ -260,6 +260,9 @@ def render_template_message(
         elif template_key == 'emergency.alert':
             body_fmt = "PERINGATAN DARURAT: {message}. Hubungi pihak sekolah segera."
             subj_fmt = "PERINGATAN DARURAT SEKOLAH"
+        elif template_key == 'finance.refund_executed':
+            body_fmt = "Pengembalian dana sebesar {currency} {amount} untuk pembayaran {payment_reference} telah berhasil diproses (Ref: {payout_reference})."
+            subj_fmt = "Pengembalian Dana Berhasil"
         else:
             body_fmt = "Pemberitahuan sekolah: {message}"
             subj_fmt = "Pemberitahuan EduCore"

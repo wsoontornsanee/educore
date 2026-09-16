@@ -973,3 +973,102 @@ class PaymentDiscrepancy(TenantModel):
             f"Discrepancy [{self.discrepancy_type}] ext={self.external_id} "
             f"gateway={self.currency} {self.gateway_amount} ({self.resolution})"
         )
+
+
+class RefundStatus(models.TextChoices):
+    PENDING_APPROVAL = 'PENDING_APPROVAL', _('Menunggu Persetujuan (Pending Approval)')
+    APPROVED = 'APPROVED', _('Disetujui (Approved)')
+    REJECTED = 'REJECTED', _('Ditolak (Rejected)')
+    EXECUTED = 'EXECUTED', _('Berhasil Dikirim (Executed)')
+    CANCELLED = 'CANCELLED', _('Dibatalkan (Cancelled)')
+
+
+class Refund(TenantModel):
+    """Refund request, approval, and execution tracking (spec/06 §2, §7, FIN-020, FIN-032..FIN-034)."""
+    payment = models.ForeignKey(
+        Payment,
+        on_delete=models.PROTECT,
+        related_name='refunds',
+        help_text=_("The settled payment being refunded"),
+    )
+    school = models.ForeignKey(
+        School,
+        on_delete=models.PROTECT,
+        related_name='refunds',
+    )
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.PROTECT,
+        related_name='refunds',
+    )
+    amount = MoneyField(default=Decimal('0.00'), help_text=_("Nominal pengembalian dana"))
+    currency = models.CharField(max_length=3, default='IDR')
+    reason = models.TextField(help_text=_("Alasan pengembalian dana"))
+
+    destination_bank_name = models.CharField(max_length=64, help_text=_("Nama bank penerima (e.g. BCA, MANDIRI)"))
+    destination_account_number = models.CharField(max_length=64, help_text=_("Nomor rekening tujuan"))
+    destination_account_holder = models.CharField(max_length=128, help_text=_("Nama pemilik rekening tujuan"))
+
+    status = models.CharField(
+        max_length=32,
+        choices=RefundStatus.choices,
+        default=RefundStatus.PENDING_APPROVAL,
+        db_index=True,
+    )
+    requested_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name='requested_refunds',
+    )
+    approved_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='approved_refunds',
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True, default='')
+
+    payout_reference = models.CharField(
+        max_length=128,
+        blank=True,
+        default='',
+        help_text=_("Gateway payout ID atau referensi transfer bank"),
+    )
+    payout_proof_file = models.CharField(
+        max_length=512,
+        blank=True,
+        default='',
+        help_text=_("File path bukti transfer pengembalian dana"),
+    )
+    executed_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='executed_refunds',
+    )
+    executed_at = models.DateTimeField(null=True, blank=True)
+
+    journal = models.ForeignKey(
+        'LedgerJournal',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='refunds',
+        help_text=_("Compensating double-entry ledger journal (FIN-020)"),
+    )
+
+    class Meta:
+        db_table = 'refunds'
+        indexes = [
+            models.Index(fields=['foundation_id', 'school', 'status']),
+            models.Index(fields=['foundation_id', 'payment']),
+            models.Index(fields=['foundation_id', 'student']),
+            models.Index(fields=['foundation_id', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"Refund #{self.id} for Payment #{self.payment_id}: {self.currency} {self.amount} ({self.status})"
+
