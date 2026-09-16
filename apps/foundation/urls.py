@@ -5,6 +5,7 @@ from .views import (
     CampusComparisonView,
     FoundationDashboardExportStatusView,
     FoundationDashboardExportView,
+    FoundationEnrolmentView,
     FoundationKPIView,
     FoundationSettingsView,
     SchoolViewSet,
@@ -17,6 +18,7 @@ urlpatterns = [
     path('foundation/settings', FoundationSettingsView.as_view(), name='foundation-settings'),
     path('foundation/kpis', FoundationKPIView.as_view(), name='foundation-kpis'),
     path('foundation/schools/compare', CampusComparisonView.as_view(), name='foundation-campus-compare'),
+    path('foundation/enrolment', FoundationEnrolmentView.as_view(), name='foundation-enrolment'),
     path('foundation/exports', FoundationDashboardExportView.as_view(), name='foundation-exports'),
     path('foundation/exports/<int:job_id>', FoundationDashboardExportStatusView.as_view(), name='foundation-export-status'),
 ] + router.urls

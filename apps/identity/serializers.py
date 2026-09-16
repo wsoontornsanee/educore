@@ -204,6 +204,7 @@ class StudentSerializer(serializers.ModelSerializer):
             'nisn',
             'photo_key',
             'status',
+            'target_grade_level',
             'created_at',
             'updated_at',
         ]
@@ -222,6 +223,7 @@ class StudentCreateSerializer(serializers.Serializer):
     nis = serializers.CharField(max_length=32)
     nisn = serializers.CharField(max_length=10, required=False, allow_blank=True, allow_null=True)
     photo_key = serializers.CharField(max_length=255, required=False, allow_blank=True, default='')
+    target_grade_level = serializers.IntegerField(required=False, allow_null=True)
 
     # Person PII
     full_name = serializers.CharField(max_length=128)

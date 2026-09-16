@@ -376,6 +376,12 @@ class Student(TenantModel):
         db_index=True,
         help_text="Current enrollment status (IAM-019)"
     )
+    target_grade_level = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Target entry grade level (e.g. 1, 7, 10) for prospective students"
+    )
 
     class Meta:
         db_table = 'students'
@@ -383,6 +389,7 @@ class Student(TenantModel):
         verbose_name_plural = 'Daftar Siswa'
         indexes = [
             models.Index(fields=['foundation_id', 'school_id', 'status']),
+            models.Index(fields=['foundation_id', 'school_id', 'target_grade_level']),
             models.Index(fields=['foundation_id', 'nis']),
             models.Index(fields=['foundation_id', 'nisn']),
         ]
@@ -395,6 +402,14 @@ class Student(TenantModel):
 
     def __str__(self):
         return f"{self.person.full_name} (NIS: {self.nis} - {self.status})"
+
+    @property
+    def effective_grade_level(self):
+        """Resolve current grade level: active ClassEnrollment grade_level if enrolled, else target_grade_level."""
+        active_enrollment = self.class_enrollments.filter(is_active=True).select_related('class_group').first()
+        if active_enrollment and active_enrollment.class_group:
+            return active_enrollment.class_group.grade_level
+        return self.target_grade_level
 
     def transition_status(self, new_status: str, actor_id: str = None, reason: str = ''):
         """Execute a validated lifecycle state transition (IAM-019) and record domain event."""
