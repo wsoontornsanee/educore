@@ -110,7 +110,10 @@ class IdempotentViewMixin:
 
     def finalize_response(self, request, response, *args, **kwargs):
         if getattr(self, '_cached_idempotent_response', None) is not None:
-            return self._cached_idempotent_response
+            cached = self._cached_idempotent_response
+            if isinstance(cached, Response):
+                return super().finalize_response(request, cached, *args, **kwargs)
+            return cached
 
         final_response = super().finalize_response(request, response, *args, **kwargs)
 
