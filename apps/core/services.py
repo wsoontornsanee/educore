@@ -1,6 +1,10 @@
 """Core service helpers for auditing, asynchronous task enqueueing, and domain events."""
+import base64
 import hashlib
 import logging
+
+from google.cloud.exceptions import NotFound
+
 from django.conf import settings
 from django.utils import timezone
 from educore.middleware.tenancy import get_current_foundation_id
@@ -145,15 +149,25 @@ def confirm_upload(stored_file_id, actor=None):
     """Two-phase commit, phase 2: verify the object landed in GCS and record
     its real (server-verified) size/checksum."""
     stored_file = StoredFile.objects.get(id=stored_file_id)
-    metadata = storage.get_blob_metadata(stored_file.key)
+    try:
+        metadata = storage.get_blob_metadata(stored_file.key)
+    except NotFound:
+        raise InvalidUploadError("UPLOAD_NOT_FOUND: the object has not been uploaded to GCS yet.")
+
+    rules = PURPOSE_RULES.get(stored_file.purpose)
+    if rules and metadata['size'] > rules['max_size']:
+        raise InvalidUploadError("FILE_TOO_LARGE: uploaded object exceeds the limit for its purpose.")
+
+    checksum_hex = base64.b64decode(metadata['md5_hash']).hex() if metadata['md5_hash'] else ''
+
     stored_file.size = metadata['size']
-    stored_file.checksum = metadata['md5_hash'] or ''
+    stored_file.checksum = checksum_hex
     stored_file.confirmed_at = timezone.now()
     stored_file.save(update_fields=['size', 'checksum', 'confirmed_at', 'updated_at'])
     return stored_file
 
 
-def write_generated_file(purpose, filename, data, content_type, foundation_id=None):
+def write_generated_file(purpose, filename, data, content_type, foundation_id=None, uploaded_by=None, school_id=None):
     """For server-generated files (PDFs): write bytes directly to GCS and
     create an already-confirmed StoredFile row in one step — no two-phase
     commit needed since the server itself performed the write."""
@@ -165,11 +179,13 @@ def write_generated_file(purpose, filename, data, content_type, foundation_id=No
 
     return StoredFile.objects.create(
         foundation_id=foundation_id,
+        school_id=school_id,
         bucket=settings.GCS_BUCKET_NAME,
         key=key,
         purpose=purpose,
         content_type=content_type,
         size=len(data),
-        checksum=hashlib.md5(data).hexdigest(),
+        checksum=hashlib.md5(data, usedforsecurity=False).hexdigest(),
         confirmed_at=timezone.now(),
+        uploaded_by=uploaded_by or '',
     )

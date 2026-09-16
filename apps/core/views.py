@@ -5,6 +5,9 @@ from rest_framework.views import APIView
 from apps.core.models import StoredFile
 from apps.core.serializers import InitiateUploadSerializer, StoredFileSerializer
 from apps.core.services import PURPOSE_RULES, InvalidUploadError, confirm_upload, initiate_upload
+# apps.identity is a platform/auth app (like apps.core itself), not a "business
+# app" in the sense of the apps/core constraint that forbids depending on
+# domain apps like apps.academic/apps.wallet — this import is intentional.
 from apps.identity.permissions import HasRequiredPermission
 from educore.middleware.audit import get_current_actor
 from educore.middleware.tenancy import get_current_foundation_id
@@ -15,7 +18,7 @@ class InitiateUploadView(APIView):
     permission_classes = [HasRequiredPermission]
 
     def get_required_permission(self):
-        purpose = self.request.data.get('purpose')
+        purpose = self.request.data.get('purpose') if hasattr(self.request.data, 'get') else None
         rules = PURPOSE_RULES.get(purpose)
         return rules['required_permission'] if rules else None
 
@@ -28,7 +31,8 @@ class InitiateUploadView(APIView):
 
         try:
             stored_file, upload_url = initiate_upload(
-                foundation_id=get_current_foundation_id(), uploaded_by=uploaded_by,
+                foundation_id=get_current_foundation_id() or getattr(request.user, 'foundation_id', None),
+                uploaded_by=uploaded_by,
                 **payload.validated_data,
             )
         except InvalidUploadError as e:
@@ -58,5 +62,8 @@ class ConfirmUploadView(APIView):
         except StoredFile.DoesNotExist:
             raise PermissionDenied("Akses ditolak.")
 
-        confirmed = confirm_upload(stored_file.id)
+        try:
+            confirmed = confirm_upload(stored_file.id)
+        except InvalidUploadError as e:
+            return Response({'error': str(e)}, status=400)
         return Response(StoredFileSerializer(confirmed).data, status=200)

@@ -187,7 +187,7 @@ class StoredFile(TenantModel):
     purpose = models.CharField(max_length=64, db_index=True)
     content_type = models.CharField(max_length=128)
     size = models.BigIntegerField(blank=True, null=True)
-    checksum = models.CharField(max_length=64, blank=True, default='')
+    checksum = models.CharField(max_length=64, blank=True, default='')  # stored as a hex digest (e.g. md5 hexdigest)
     uploaded_by = models.CharField(max_length=64, blank=True, default='')
     confirmed_at = models.DateTimeField(blank=True, null=True)
 
