@@ -177,6 +177,20 @@ class WriteGeneratedFileTests(TestCase):
         self.assertEqual(mock_blob.upload_from_string.call_count, 2)
 
 
+class BuildSignedDownloadTests(TestCase):
+    @patch('apps.core.storage.generate_download_url')
+    def test_returns_url_and_expiry(self, mock_generate_download_url):
+        from apps.core.services import build_signed_download
+
+        mock_generate_download_url.return_value = 'https://signed.example/get'
+
+        result = build_signed_download('STG/report_card_pdf/5_v1.pdf')
+
+        mock_generate_download_url.assert_called_once_with('STG/report_card_pdf/5_v1.pdf', 600)
+        self.assertEqual(result['download_url'], 'https://signed.example/get')
+        self.assertIn('expires_at', result)
+
+
 class PurposeRulesDriftTests(TestCase):
     """Guards apps.core.services.PURPOSE_RULES['homework_submission'] against
     silently drifting from apps.academic.models' independently-declared

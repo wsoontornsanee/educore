@@ -125,3 +125,31 @@ class SettlementViewsTests(TestCase):
         self.client.force_authenticate(user=fx_b['finance_user'])
         res = self.client.get(f'/api/v1/merchants/{self.merchant.id}/sales/')
         self.assertEqual(res.status_code, 404)
+
+    def test_download_statement_returns_signed_url(self):
+        self.mock_gcs_client.return_value.bucket.return_value.blob.return_value.generate_signed_url.return_value = (
+            'https://signed.example/statement.pdf'
+        )
+        self.client.force_authenticate(user=self.fx['finance_user'])
+        res_run = self.client.post(f'/api/v1/merchants/{self.merchant.id}/settlements/run/', {
+            'period_start': self.today.isoformat(), 'period_end': self.today.isoformat(),
+        }, format='json')
+        settlement_id = res_run.json()['id']
+
+        res = self.client.get(f'/api/v1/settlements/{settlement_id}/download/')
+
+        self.assertEqual(res.status_code, 200, res.content)
+        self.assertEqual(res.json()['download_url'], 'https://signed.example/statement.pdf')
+        self.assertIn('expires_at', res.json())
+
+    def test_download_statement_cross_tenant_returns_404(self):
+        self.client.force_authenticate(user=self.fx['finance_user'])
+        res_run = self.client.post(f'/api/v1/merchants/{self.merchant.id}/settlements/run/', {
+            'period_start': self.today.isoformat(), 'period_end': self.today.isoformat(),
+        }, format='json')
+        settlement_id = res_run.json()['id']
+
+        fx_b = build_wallet_fixture(foundation_name="Yayasan Settlement Download B")
+        self.client.force_authenticate(user=fx_b['finance_user'])
+        res = self.client.get(f'/api/v1/settlements/{settlement_id}/download/')
+        self.assertEqual(res.status_code, 404)
