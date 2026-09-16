@@ -348,17 +348,21 @@ class RefundServiceTests(TestCase):
         self.assertEqual(rejected.status, RefundStatus.REJECTED)
         self.assertEqual(rejected.rejection_reason, 'Dokumen tidak lengkap')
 
-        # 3. Create another pending and approve it
-        refund2 = request_refund(
+        # 3. Create another pending and verify approve without reason fails (FND-008)
+        refund_for_approve = request_refund(
             payment=self.payment,
             amount=Decimal('1200000.00'),
-            reason="Pengajuan pengembalian dana revisi",
+            reason="Pengajuan pengembalian dana untuk persetujuan",
             destination_bank_name="BCA",
             destination_account_number="123",
             destination_account_holder="Ayah Budi",
             requested_by=self.finance_user,
         )
-        approved = approve_refund(refund2, user=self.foundation_admin, decision='APPROVE')
+        with self.assertRaises(RefundValidationError):
+            approve_refund(refund_for_approve, user=self.foundation_admin, decision='APPROVE', reason='')
+
+        # 4. Approve with valid reason succeeds
+        approved = approve_refund(refund_for_approve, user=self.foundation_admin, decision='APPROVE', reason='Disetujui sesuai bukti')
         self.assertEqual(approved.status, RefundStatus.APPROVED)
         self.assertEqual(approved.approved_by, self.foundation_admin)
         self.assertIsNotNone(approved.approved_at)
@@ -594,6 +598,7 @@ class RefundAPITests(TestCase):
             # 2. Approve refund request
             approve_resp = self.client.post(f'/api/v1/finance/refunds/{refund_id}/approve/', {
                 'decision': 'APPROVE',
+                'reason': 'Disetujui untuk diproses',
             })
             # Since requester was superuser/admin, it was already APPROVED, approve returns 400 (InvalidRefundState) or if pending approves
             # Let's check status

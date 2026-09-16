@@ -320,10 +320,11 @@ class DiscountViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='approve')
     def approve(self, request, pk=None):
-        """Approve a pending discount request (FIN-007)."""
+        """Approve a pending discount request (FIN-007, FND-008)."""
         discount = self.get_object()
+        reason = request.data.get('reason', '')
         try:
-            approved = approve_discount(discount, request.user)
+            approved = approve_discount(discount, request.user, reason=reason)
             serializer = self.get_serializer(approved)
             return Response(serializer.data)
         except PermissionDenied as pe:

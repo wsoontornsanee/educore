@@ -144,9 +144,17 @@ class FoundationApprovalsInboxTests(APITestCase):
     def test_decide_approve_discount(self):
         self.client.force_authenticate(user=self.admin)
         with tenant_context(self.foundation.id):
-            response = self.client.post(
+            # Missing reason on APPROVE must return 400 (FND-008)
+            missing_reason_response = self.client.post(
                 f'/api/v1/foundation/approvals/discount:{self.pending_discount.id}/decide',
                 data={'decision': 'APPROVE'}, format='json',
+            )
+            self.assertEqual(missing_reason_response.status_code, status.HTTP_400_BAD_REQUEST)
+
+            # Valid APPROVE with reason
+            response = self.client.post(
+                f'/api/v1/foundation/approvals/discount:{self.pending_discount.id}/decide',
+                data={'decision': 'APPROVE', 'reason': 'Memenuhi syarat prestasi akademik'}, format='json',
             )
             self.assertEqual(response.status_code, status.HTTP_200_OK)
             self.assertEqual(response.data['status'], DiscountStatus.APPROVED)
@@ -170,7 +178,7 @@ class FoundationApprovalsInboxTests(APITestCase):
 
             approve_response = self.client.post(
                 f'/api/v1/foundation/approvals/discount:{self.pending_discount.id}/decide',
-                data={'decision': 'APPROVE'}, format='json',
+                data={'decision': 'APPROVE', 'reason': 'Coba setujui kembali'}, format='json',
             )
             self.assertEqual(approve_response.status_code, status.HTTP_400_BAD_REQUEST)
         self.pending_discount.refresh_from_db()
@@ -184,7 +192,7 @@ class FoundationApprovalsInboxTests(APITestCase):
         with tenant_context(self.foundation.id):
             response = self.client.post(
                 f'/api/v1/foundation/approvals/discount:{self.pending_waiver.id}/decide',
-                data={'decision': 'APPROVE'}, format='json',
+                data={'decision': 'APPROVE', 'reason': 'Valid'}, format='json',
             )
             self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
@@ -207,9 +215,17 @@ class FoundationApprovalsInboxTests(APITestCase):
     def test_decide_approve_refund(self):
         self.client.force_authenticate(user=self.admin)
         with tenant_context(self.foundation.id):
-            response = self.client.post(
+            # Missing reason on APPROVE must return 400 (FND-008)
+            missing_reason_response = self.client.post(
                 f'/api/v1/foundation/approvals/refund:{self.pending_refund.id}/decide',
                 data={'decision': 'APPROVE'}, format='json',
+            )
+            self.assertEqual(missing_reason_response.status_code, status.HTTP_400_BAD_REQUEST)
+
+            # Valid APPROVE with reason
+            response = self.client.post(
+                f'/api/v1/foundation/approvals/refund:{self.pending_refund.id}/decide',
+                data={'decision': 'APPROVE', 'reason': 'Bukti transfer valid dan disetujui'}, format='json',
             )
             self.assertEqual(response.status_code, status.HTTP_200_OK)
             self.assertEqual(response.data['status'], RefundStatus.APPROVED)
@@ -221,7 +237,7 @@ class FoundationApprovalsInboxTests(APITestCase):
         with tenant_context(self.foundation.id):
             response = self.client.post(
                 f'/api/v1/foundation/approvals/discount:{self.pending_discount.id}/decide',
-                data={'decision': 'APPROVE'}, format='json',
+                data={'decision': 'APPROVE', 'reason': 'Disetujui'}, format='json',
             )
             self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -234,7 +250,7 @@ class FoundationApprovalsInboxTests(APITestCase):
         with tenant_context(self.foundation.id):
             response = self.client.post(
                 f'/api/v1/foundation/approvals/discount:{self.pending_discount.id}/decide',
-                data={'decision': 'APPROVE'}, format='json',
+                data={'decision': 'APPROVE', 'reason': 'Disetujui'}, format='json',
             )
             self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 

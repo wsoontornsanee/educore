@@ -220,8 +220,8 @@ def create_discount_with_approval_check(
 
 
 @transaction.atomic
-def approve_discount(discount: Discount, user: Any) -> Discount:
-    """Approve a pending discount request (FIN-007, FND-007)."""
+def approve_discount(discount: Discount, user: Any, reason: str = '') -> Discount:
+    """Approve a pending discount request (FIN-007, FND-007, FND-008)."""
     if discount.status == DiscountStatus.APPROVED:
         return discount
     if discount.status != DiscountStatus.PENDING_APPROVAL:
@@ -230,6 +230,9 @@ def approve_discount(discount: Discount, user: Any) -> Discount:
     from apps.identity.rbac import is_foundation_admin
     if not is_foundation_admin(user, discount.foundation_id):
         raise PermissionDenied(_("Persetujuan diskon atau keringanan biaya memerlukan wewenang Admin Yayasan (FIN-007, FND-007)."))
+
+    if not reason or not reason.strip():
+        raise ValidationError(_("Alasan persetujuan diskon wajib diisi."))
 
     discount.status = DiscountStatus.APPROVED
     discount.approved_by = user if user and getattr(user, 'id', None) else None
@@ -243,7 +246,7 @@ def approve_discount(discount: Discount, user: Any) -> Discount:
         actor_id=str(user.id) if user and getattr(user, 'id', None) else '',
         foundation_id=discount.foundation_id,
         school_id=discount.student.school_id,
-        diff={'status': DiscountStatus.APPROVED}
+        diff={'status': DiscountStatus.APPROVED, 'reason': reason.strip()}
     )
 
     if discount.type == DiscountType.FIXED:

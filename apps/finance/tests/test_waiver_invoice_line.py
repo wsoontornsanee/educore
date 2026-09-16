@@ -115,7 +115,7 @@ class WaiverInvoiceLineTests(TestCase):
     def test_approving_waiver_marks_invoice_line_waived(self):
         with tenant_context(self.foundation.id):
             disc = self._create_waiver(Decimal('1000000.00'))
-            approve_discount(disc, user=self.admin_user)
+            approve_discount(disc, user=self.admin_user, reason="Disetujui keringanan penuh")
 
             self.line.refresh_from_db()
             self.invoice.refresh_from_db()
@@ -129,7 +129,7 @@ class WaiverInvoiceLineTests(TestCase):
     def test_approving_partial_waiver_reduces_line_without_fully_waiving_balance(self):
         with tenant_context(self.foundation.id):
             disc = self._create_waiver(Decimal('400000.00'))
-            approve_discount(disc, user=self.admin_user)
+            approve_discount(disc, user=self.admin_user, reason="Disetujui keringanan parsial")
 
             self.line.refresh_from_db()
             self.invoice.refresh_from_db()
@@ -151,7 +151,7 @@ class WaiverInvoiceLineTests(TestCase):
                 valid_from=datetime.date(2026, 7, 1),
                 status=DiscountStatus.PENDING_APPROVAL,
             )
-            approve_discount(disc, user=self.admin_user)
+            approve_discount(disc, user=self.admin_user, reason="Disetujui diskon prestasi")
 
             self.line.refresh_from_db()
             self.invoice.refresh_from_db()
@@ -179,7 +179,7 @@ class WaiverInvoiceLineTests(TestCase):
                 valid_from=datetime.date(2026, 7, 1),
                 status=DiscountStatus.PENDING_APPROVAL,
             )
-            approve_discount(disc, user=self.admin_user)
+            approve_discount(disc, user=self.admin_user, reason="Disetujui keringanan uang gedung")
 
             self.line.refresh_from_db()
             self.invoice.refresh_from_db()
@@ -222,7 +222,7 @@ class WaiverInvoiceLineTests(TestCase):
             )
 
             disc = self._create_waiver(Decimal('1000000.00'))
-            approve_discount(disc, user=self.admin_user)
+            approve_discount(disc, user=self.admin_user, reason="Disetujui keringanan penuh")
 
             later_line.refresh_from_db()
             self.assertTrue(later_line.waived)
@@ -230,7 +230,7 @@ class WaiverInvoiceLineTests(TestCase):
     def test_approving_waiver_posts_discount_expense_ledger_journal(self):
         with tenant_context(self.foundation.id):
             disc = self._create_waiver(Decimal('1000000.00'))
-            approve_discount(disc, user=self.admin_user)
+            approve_discount(disc, user=self.admin_user, reason="Disetujui keringanan jurnal")
 
             entries = LedgerEntry.objects.filter(ref_type='WAIVER', ref_id=str(self.invoice.id))
             self.assertEqual(entries.count(), 2)
@@ -242,7 +242,7 @@ class WaiverInvoiceLineTests(TestCase):
     def test_partial_waiver_does_not_mark_line_fully_waived_and_leaves_it_eligible(self):
         with tenant_context(self.foundation.id):
             disc1 = self._create_waiver(Decimal('300000.00'))
-            approve_discount(disc1, user=self.admin_user)
+            approve_discount(disc1, user=self.admin_user, reason="Disetujui keringanan pertama")
             self.line.refresh_from_db()
             self.assertFalse(self.line.waived)
             self.assertEqual(self.line.subtotal, Decimal('700000.00'))
@@ -251,7 +251,7 @@ class WaiverInvoiceLineTests(TestCase):
             # same still-open line rather than being blocked by a stale
             # "already touched" flag.
             disc2 = self._create_waiver(Decimal('700000.00'))
-            approve_discount(disc2, user=self.admin_user)
+            approve_discount(disc2, user=self.admin_user, reason="Disetujui keringanan kedua")
             self.line.refresh_from_db()
             self.assertTrue(self.line.waived)
             self.assertEqual(self.line.subtotal, Decimal('0.00'))
@@ -288,7 +288,7 @@ class WaiverInvoiceLineTests(TestCase):
             )
 
             disc = self._create_waiver(Decimal('1000000.00'))
-            approve_discount(disc, user=self.admin_user)
+            approve_discount(disc, user=self.admin_user, reason="Disetujui periode awal")
 
             self.line.refresh_from_db()
             later_invoice.refresh_from_db()
@@ -307,7 +307,7 @@ class WaiverInvoiceLineTests(TestCase):
                 valid_from=datetime.date(2026, 11, 1),
                 status=DiscountStatus.PENDING_APPROVAL,
             )
-            approve_discount(disc, user=self.admin_user)
+            approve_discount(disc, user=self.admin_user, reason="Disetujui keringanan terjadwal")
 
             self.line.refresh_from_db()
             self.invoice.refresh_from_db()
