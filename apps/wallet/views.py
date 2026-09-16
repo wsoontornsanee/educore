@@ -1,3 +1,7 @@
+from datetime import datetime
+from decimal import Decimal
+
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
@@ -41,6 +45,7 @@ from apps.wallet.serializers import (
     RefundMarkDonatedSerializer,
     RefundMarkPaidSerializer,
     SpendRuleSerializer,
+    StudentNutritionSummarySerializer,
     WalletAutoTopupConfigSerializer,
     WalletAutoTopupConfigUpdateSerializer,
     TopupIntentCreateSerializer,
@@ -656,3 +661,141 @@ class WalletRefundMarkDonatedView(WalletRefundActionView):
 
         refund_request.refresh_from_db()
         return Response({'id': refund_request.id, 'status': refund_request.status})
+
+
+class StudentNutritionSummaryView(APIView):
+    """GET /api/v1/students/:id/nutrition-summary?from&to (spec/07 §8, WAL-024)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'student_records.read'
+
+    def get(self, request, student_id):
+        foundation_id = get_current_foundation_id()
+        student = _get_student_or_404(student_id, foundation_id, user=request.user)
+        if not student:
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        from_str = request.query_params.get('from')
+        to_str = request.query_params.get('to')
+        today = timezone.localdate()
+
+        try:
+            from_date = datetime.strptime(from_str, '%Y-%m-%d').date() if from_str else today
+            to_date = datetime.strptime(to_str, '%Y-%m-%d').date() if to_str else today
+        except ValueError:
+            return Response(
+                {'error': _("Format tanggal tidak valid. Gunakan format YYYY-MM-DD.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if from_date > to_date:
+            return Response(
+                {'error': _("Parameter 'from' tidak boleh melebihi 'to'.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        transactions = POSTransaction.objects.filter(
+            foundation_id=foundation_id,
+            student_id=student.id,
+            status=POSTransactionStatus.COMPLETED,
+            occurred_at__date__gte=from_date,
+            occurred_at__date__lte=to_date,
+        ).order_by('occurred_at')
+
+        skus = set()
+        for tx in transactions:
+            for item in (tx.items or []):
+                if isinstance(item, dict) and item.get('sku'):
+                    skus.add(item.get('sku'))
+
+        products = Product.objects.filter(foundation_id=foundation_id, sku__in=skus)
+        product_map = {p.sku: p for p in products}
+
+        total_calories = 0
+        total_sugar_g = Decimal('0.00')
+        total_items = 0
+        healthy_items_count = 0
+        allergens_set = set()
+        daily_map = {}
+        items_list = []
+
+        for tx in transactions:
+            tx_date = tx.occurred_at.date()
+            if tx_date not in daily_map:
+                daily_map[tx_date] = {
+                    'date': tx_date,
+                    'total_calories': 0,
+                    'total_sugar_g': Decimal('0.00'),
+                    'items_count': 0,
+                    'healthy_count': 0,
+                }
+
+            for item in (tx.items or []):
+                if not isinstance(item, dict):
+                    continue
+                sku = item.get('sku', '')
+                name = item.get('name', sku)
+                qty = int(item.get('qty') or 1)
+                unit_price = item.get('unit_price', '0.00')
+                prod = product_map.get(sku)
+
+                item_nutr = item.get('nutrition') or (prod.nutrition if prod else {}) or {}
+                item_allergens = item.get('allergens') or (prod.allergens if prod else []) or []
+                if isinstance(item_allergens, str):
+                    item_allergens = [item_allergens]
+
+                cal_per_unit = int(item_nutr.get('calories') or 0)
+                sugar_per_unit = Decimal(str(item_nutr.get('sugar_g') or 0))
+                is_healthy = bool(
+                    item.get('is_healthy')
+                    or item_nutr.get('is_healthy')
+                    or (prod.nutrition.get('is_healthy') if prod and isinstance(prod.nutrition, dict) else False)
+                    or (prod and 'healthy' in (prod.category or '').lower())
+                )
+
+                line_cals = cal_per_unit * qty
+                line_sugar = sugar_per_unit * qty
+
+                total_calories += line_cals
+                total_sugar_g += line_sugar
+                total_items += qty
+                if is_healthy:
+                    healthy_items_count += qty
+
+                for a in item_allergens:
+                    if a:
+                        allergens_set.add(str(a).strip().lower())
+
+                daily_map[tx_date]['total_calories'] += line_cals
+                daily_map[tx_date]['total_sugar_g'] += line_sugar
+                daily_map[tx_date]['items_count'] += qty
+                if is_healthy:
+                    daily_map[tx_date]['healthy_count'] += qty
+
+                items_list.append({
+                    'sku': sku,
+                    'name': name,
+                    'qty': qty,
+                    'unit_price': unit_price,
+                    'calories': line_cals,
+                    'sugar_g': line_sugar,
+                    'allergens': item_allergens,
+                    'is_healthy': is_healthy,
+                    'occurred_at': tx.occurred_at,
+                })
+
+        daily_breakdown = sorted(daily_map.values(), key=lambda d: d['date'])
+
+        data = {
+            'student_id': student.id,
+            'from_date': from_date,
+            'to_date': to_date,
+            'total_calories': total_calories,
+            'total_sugar_g': total_sugar_g,
+            'total_items': total_items,
+            'healthy_items_count': healthy_items_count,
+            'allergens': sorted(list(allergens_set)),
+            'daily_breakdown': daily_breakdown,
+            'items': items_list,
+        }
+        serializer = StudentNutritionSummarySerializer(data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
