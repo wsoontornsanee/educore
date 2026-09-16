@@ -70,3 +70,26 @@ class OtpRequestEndpointTests(TestCase):
         # Verify generic message is returned and raw input is NOT echoed
         self.assertIn('Format nomor telepon tidak valid', error_msg)
         self.assertNotIn('not-a-phone', error_msg)
+
+    def test_request_otp_throttle_message_is_not_format_error(self):
+        """Test that throttle error returns actual throttle message, not generic format error."""
+        # Make 3 successful OTP requests to trigger throttle on the 4th
+        for _ in range(3):
+            self.client.post(
+                '/api/v1/auth/otp/request/',
+                {'phone_e164': '+6281234567892'},
+                format='json',
+            )
+        # 4th request should be throttled
+        response = self.client.post(
+            '/api/v1/auth/otp/request/',
+            {'phone_e164': '+6281234567892'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('error', response.data)
+        error_msg = response.data['error']
+        # Verify we get the real throttle message (contains "Batas pengiriman")
+        self.assertIn('Batas pengiriman', error_msg)
+        # Verify we DON'T get the generic format error message
+        self.assertNotIn('Format nomor telepon tidak valid', error_msg)

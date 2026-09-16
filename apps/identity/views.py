@@ -16,7 +16,7 @@ from .serializers import (
     OtpRequestSerializer,
     OtpVerifySerializer,
 )
-from .services import request_phone_otp, verify_phone_otp
+from .services import request_phone_otp, verify_phone_otp, normalize_phone_e164
 
 class EduCoreTokenObtainPairView(TokenObtainPairView):
     """Custom JWT token obtain view supporting dual phone/email identifier login (IAM-001)."""
@@ -519,10 +519,20 @@ class RequestOtpView(views.APIView):
         except DRFValidationError:
             return Response({'error': 'Nomor HP wajib diisi.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        phone = serializer.validated_data['phone_e164']
+
+        # Validate phone format first (may embed raw input in error message)
         try:
-            challenge, _raw_code = request_phone_otp(serializer.validated_data['phone_e164'])
+            normalize_phone_e164(phone)
         except DjangoValidationError:
-            # Return generic message without echoing raw input (for phone format validation)
+            # Return generic message without echoing raw input
             return Response({'error': 'Format nomor telepon tidak valid. Gunakan format Indonesia (+62... atau 08...).'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Phone format is valid; now attempt OTP request (may fail due to throttle, which is safe to echo)
+        try:
+            challenge, _raw_code = request_phone_otp(phone)
+        except DjangoValidationError as exc:
+            # At this point, any ValidationError must be throttling (format already validated above)
+            return Response({'error': exc.messages[0]}, status=status.HTTP_400_BAD_REQUEST)
         return Response({'challenge_id': challenge.id}, status=status.HTTP_201_CREATED)
 
