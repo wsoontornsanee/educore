@@ -7,6 +7,7 @@ from apps.finance.views import (
     DiscountViewSet,
     FeePlanViewSet,
     FeeTypeViewSet,
+    FiscalPeriodViewSet,
     InvoiceViewSet,
     InvoiceWriteOffRequestViewSet,
     LedgerJournalViewSet,
@@ -36,6 +37,8 @@ router.register(r'payment-intents', PaymentIntentViewSet, basename='payment-inte
 router.register(r'payments', PaymentViewSet, basename='payments')
 router.register(r'write-offs', InvoiceWriteOffRequestViewSet, basename='write-offs')
 router.register(r'ledger/journals', LedgerJournalViewSet, basename='ledger-journals')
+router.register(r'periods', FiscalPeriodViewSet, basename='fiscal-periods')
+
 
 urlpatterns = [
     path('ar-aging/', ArAgingView.as_view(), name='ar-aging'),
