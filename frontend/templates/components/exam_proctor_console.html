@@ -1,0 +1,666 @@
+{% load l10n %}
+{% comment %}
+Component: Teacher/Proctor Live Monitoring Console (spec/04 §6 ACD-024, spec/17 §6.3, §7.3, docs/frontend-plan.md M5)
+Usage: {% include "components/exam_proctor_console.html" with exam=exam proctor_data=proctor_data csrf_token=csrf_token %}
+{% endcomment %}
+
+<div id="proctor-console-app"
+     class="proctor-console-workspace"
+     data-exam-id="{{ exam.id }}"
+     style="display: flex; flex-direction: column; gap: 20px; width: 100%; font-family: var(--font-body, 'IBM Plex Sans', sans-serif); color: var(--color-ink-900, #111827);">
+
+  <!-- Top Action & Meta Header -->
+  <header class="proctor-header card"
+          style="display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; background-color: var(--color-surface, #FFFFFF); border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; flex-wrap: wrap; gap: 16px;">
+    
+    <div>
+      <div class="text-label text-ink-500" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; color: #6B7280;">
+        Konsol Pengawas Ujian · {{ exam.class_subject.class_group.name|default:exam.class_subject.class_group }}
+      </div>
+      <h1 class="font-display" style="font-size: 1.35rem; font-weight: 800; margin: 0; color: #111827;">
+        {{ exam.title }}
+        <span class="text-body-sm font-mono" style="font-size: 0.85rem; font-weight: normal; color: #6B7280; margin-left: 8px;">
+          ({{ exam.duration_min }} Menit · {{ exam.questions.count|default:0 }} Soal)
+        </span>
+      </h1>
+    </div>
+
+    <!-- Polling Controls & Last Sync Status -->
+    <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+      
+      <!-- Auto-refresh status pill -->
+      <div id="sync-status-pill"
+           class="inline-flex items-center text-body-sm font-mono"
+           style="gap: 8px; padding: 6px 14px; background-color: var(--color-surface-alt, #F9FAFB); border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; font-size: 0.8rem;">
+        <span id="sync-indicator-dot"
+              style="display: inline-block; width: 8px; height: 8px; border-radius: 0px; background-color: #10B981; transition: background-color 200ms ease;"></span>
+        <span id="sync-status-text" style="color: #374151;">Sinkron aktif</span>
+        <span id="last-sync-time" style="color: #9CA3AF; margin-left: 4px;">--:--:--</span>
+      </div>
+
+      <!-- Auto-refresh toggle button -->
+      <button id="btn-toggle-polling"
+              type="button"
+              class="font-display"
+              style="background-color: #FFFFFF; color: #374151; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; padding: 8px 16px; font-weight: 600; font-size: 0.825rem; cursor: pointer; transition: all 150ms ease;">
+        Jeda Sinkron
+      </button>
+
+      <!-- Manual refresh button -->
+      <button id="btn-manual-refresh"
+              type="button"
+              class="font-display"
+              style="background-color: #111827; color: #FFFFFF; border: none; border-radius: 0px; padding: 8px 18px; font-weight: 700; font-size: 0.825rem; cursor: pointer; transition: background-color 150ms ease;">
+        Segarkan Data ⟳
+      </button>
+
+    </div>
+  </header>
+
+  <!-- KPI Summary Stat Cards (spec/17 §7.3) -->
+  <div class="proctor-kpis"
+       style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
+    
+    <!-- Card 1: Total Peserta -->
+    <div class="kpi-card card"
+         style="background-color: var(--color-surface, #FFFFFF); border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; padding: 16px 20px;">
+      <span style="font-size: 0.775rem; text-transform: uppercase; letter-spacing: 0.05em; color: #6B7280; font-weight: 600;">
+        Total Peserta
+      </span>
+      <div id="kpi-total"
+           class="font-display"
+           style="font-size: 1.85rem; font-weight: 800; color: #111827; margin-top: 4px;">
+        {{ proctor_data.summary.total_students|default:0 }}
+      </div>
+      <span style="font-size: 0.75rem; color: #9CA3AF;">Terdaftar dalam rombel</span>
+    </div>
+
+    <!-- Card 2: Sedang Mengerjakan -->
+    <div class="kpi-card card"
+         style="background-color: var(--color-surface, #FFFFFF); border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; padding: 16px 20px;">
+      <span style="font-size: 0.775rem; text-transform: uppercase; letter-spacing: 0.05em; color: #2563EB; font-weight: 600;">
+        Sedang Mengerjakan
+      </span>
+      <div id="kpi-in-progress"
+           class="font-display"
+           style="font-size: 1.85rem; font-weight: 800; color: #2563EB; margin-top: 4px;">
+        {{ proctor_data.summary.in_progress|default:0 }}
+      </div>
+      <span style="font-size: 0.75rem; color: #9CA3AF;">Sesi aktif berlangsung</span>
+    </div>
+
+    <!-- Card 3: Terkumpul -->
+    <div class="kpi-card card"
+         style="background-color: var(--color-surface, #FFFFFF); border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; padding: 16px 20px;">
+      <span style="font-size: 0.775rem; text-transform: uppercase; letter-spacing: 0.05em; color: #059669; font-weight: 600;">
+        Terkumpul
+      </span>
+      <div id="kpi-submitted"
+           class="font-display"
+           style="font-size: 1.85rem; font-weight: 800; color: #059669; margin-top: 4px;">
+        {{ proctor_data.summary.submitted|default:0 }}
+      </div>
+      <span style="font-size: 0.75rem; color: #9CA3AF;">Selesai atau auto-submit</span>
+    </div>
+
+    <!-- Card 4: Perlu Perhatian (High Focus Loss >= 3) -->
+    <div class="kpi-card card"
+         style="background-color: #FEF2F2; border: 1px solid #FECACA; border-radius: 0px; padding: 16px 20px;">
+      <span style="font-size: 0.775rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-brand-600, #C8102E); font-weight: 600;">
+        Perlu Perhatian
+      </span>
+      <div id="kpi-flagged"
+           class="font-display"
+           style="font-size: 1.85rem; font-weight: 800; color: var(--color-brand-600, #C8102E); margin-top: 4px;">
+        {{ proctor_data.summary.flagged_focus_loss|default:0 }}
+      </div>
+      <span style="font-size: 0.75rem; color: #991B1B;">Kehilangan fokus ≥ 3 kali</span>
+    </div>
+
+  </div>
+
+  <!-- Filter & Search Toolbar -->
+  <div class="proctor-toolbar card"
+       style="display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; background-color: var(--color-surface, #FFFFFF); border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; flex-wrap: wrap; gap: 12px;">
+    
+    <!-- Filter Tabs -->
+    <div class="filter-tabs" style="display: flex; gap: 8px; flex-wrap: wrap;">
+      <button type="button"
+              class="filter-tab active font-display"
+              data-filter="ALL"
+              style="background-color: #111827; color: #FFFFFF; border: none; border-radius: 0px; padding: 6px 14px; font-weight: 600; font-size: 0.8rem; cursor: pointer;">
+        Semua (<span id="count-filter-all">0</span>)
+      </button>
+      <button type="button"
+              class="filter-tab font-display"
+              data-filter="IN_PROGRESS"
+              style="background-color: #F3F4F6; color: #374151; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; padding: 6px 14px; font-weight: 600; font-size: 0.8rem; cursor: pointer;">
+        Sedang Mengerjakan (<span id="count-filter-progress">0</span>)
+      </button>
+      <button type="button"
+              class="filter-tab font-display"
+              data-filter="FLAGGED"
+              style="background-color: #F3F4F6; color: #374151; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; padding: 6px 14px; font-weight: 600; font-size: 0.8rem; cursor: pointer;">
+        Perlu Perhatian (<span id="count-filter-flagged">0</span>)
+      </button>
+      <button type="button"
+              class="filter-tab font-display"
+              data-filter="SUBMITTED"
+              style="background-color: #F3F4F6; color: #374151; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; padding: 6px 14px; font-weight: 600; font-size: 0.8rem; cursor: pointer;">
+        Terkumpul (<span id="count-filter-submitted">0</span>)
+      </button>
+    </div>
+
+    <!-- Search Box -->
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <input id="proctor-search-input"
+             type="text"
+             placeholder="Cari Nama / NIS siswa..."
+             style="padding: 6px 12px; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; font-family: 'IBM Plex Sans', sans-serif; font-size: 0.825rem; width: 220px;">
+    </div>
+
+  </div>
+
+  <!-- 6-Column Live Grid Table (spec/17 §6.3, institutional square table) -->
+  <div class="proctor-table-wrapper card"
+       style="background-color: var(--color-surface, #FFFFFF); border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; overflow-x: auto;">
+    
+    <table id="proctor-grid-table"
+           style="width: 100%; border-collapse: collapse; min-width: 900px; font-size: 0.875rem;"
+           role="grid"
+           aria-label="Tabel Pemantauan Pengawas Ujian">
+      
+      <!-- Table Header -->
+      <thead style="background-color: var(--color-surface-alt, #F9FAFB); border-bottom: 2px solid var(--color-line, #E5E7EB);">
+        <tr>
+          <!-- Col 1: Siswa -->
+          <th class="font-display"
+              style="padding: 12px 16px; text-align: left; font-weight: 700; color: #374151; width: 240px;">
+            Siswa (NIS & Nama)
+          </th>
+          <!-- Col 2: Status -->
+          <th class="font-display"
+              style="padding: 12px 16px; text-align: left; font-weight: 700; color: #374151; width: 140px;">
+            Status
+          </th>
+          <!-- Col 3: Progres Soal -->
+          <th class="font-display"
+              style="padding: 12px 16px; text-align: left; font-weight: 700; color: #374151; width: 200px;">
+            Progres Soal
+          </th>
+          <!-- Col 4: Kehilangan Fokus -->
+          <th class="font-display"
+              style="padding: 12px 16px; text-align: center; font-weight: 700; color: #374151; width: 130px;">
+            Kehilangan Fokus
+          </th>
+          <!-- Col 5: Aktivitas & Waktu -->
+          <th class="font-display"
+              style="padding: 12px 16px; text-align: left; font-weight: 700; color: #374151; width: 180px;">
+            Aktivitas Terakhir
+          </th>
+          <!-- Col 6: Aksi -->
+          <th class="font-display"
+              style="padding: 12px 16px; text-align: right; font-weight: 700; color: #374151; width: 140px;">
+            Aksi
+          </th>
+        </tr>
+      </thead>
+
+      <!-- Table Body: Rows populated dynamically or server-rendered -->
+      <tbody id="proctor-table-body">
+        {% for s in proctor_data.students %}
+          <tr class="proctor-row"
+              data-student-id="{{ s.student_id }}"
+              data-attempt-id="{{ s.attempt_id|default:'' }}"
+              data-status="{{ s.status }}"
+              data-flagged="{% if s.needs_attention %}true{% else %}false{% endif %}"
+              style="border-bottom: 1px solid var(--color-line, #E5E7EB); {% if s.needs_attention %}background-color: #FFFBFB;{% endif %} transition: background-color 100ms ease;">
+            
+            <!-- Col 1: Siswa -->
+            <td style="padding: 12px 16px;">
+              <div class="font-mono text-ink-500" style="font-size: 0.75rem; color: #6B7280;">{{ s.nis }}</div>
+              <div class="student-name font-display" style="font-weight: 700; color: #111827; font-size: 0.9rem;">
+                {{ s.student_name }}
+              </div>
+            </td>
+
+            <!-- Col 2: Status Badge -->
+            <td style="padding: 12px 16px;">
+              {% if s.status == 'IN_PROGRESS' %}
+                <span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background-color: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 0px; font-size: 0.75rem; font-weight: 600; color: #1D4ED8;">
+                  <span style="width: 6px; height: 6px; background-color: #2563EB; border-radius: 0px;"></span>
+                  Mengerjakan
+                </span>
+              {% elif s.status == 'SUBMITTED' %}
+                <span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background-color: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 0px; font-size: 0.75rem; font-weight: 600; color: #047857;">
+                  <span style="width: 6px; height: 6px; background-color: #059669; border-radius: 0px;"></span>
+                  Terkumpul
+                </span>
+              {% elif s.status == 'AUTO_SUBMITTED' %}
+                <span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background-color: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 0px; font-size: 0.75rem; font-weight: 600; color: #4B5563;">
+                  <span style="width: 6px; height: 6px; background-color: #6B7280; border-radius: 0px;"></span>
+                  Auto-Submit
+                </span>
+              {% else %}
+                <span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 0px; font-size: 0.75rem; font-weight: 600; color: #9CA3AF;">
+                  Belum Mulai
+                </span>
+              {% endif %}
+            </td>
+
+            <!-- Col 3: Progres Soal -->
+            <td style="padding: 12px 16px;">
+              <div style="display: flex; justify-content: space-between; font-size: 0.75rem; font-family: 'IBM Plex Mono', monospace; margin-bottom: 4px; color: #4B5563;">
+                <span>{{ s.answered_count }}/{{ s.total_questions }} Soal</span>
+                <span style="font-weight: 600;">{{ s.progress_pct }}%</span>
+              </div>
+              <div style="width: 100%; height: 6px; background-color: #E5E7EB; border-radius: 0px; overflow: hidden;">
+                <div style="width: {{ s.progress_pct }}%; height: 100%; background-color: {% if s.status == 'IN_PROGRESS' %}#2563EB{% elif s.status == 'SUBMITTED' %}#059669{% else %}#9CA3AF{% endif %}; transition: width 300ms ease;"></div>
+              </div>
+            </td>
+
+            <!-- Col 4: Kehilangan Fokus -->
+            <td style="padding: 12px 16px; text-align: center;">
+              {% if s.focus_loss_count > 0 %}
+                <span class="font-mono"
+                      style="display: inline-block; padding: 2px 8px; border-radius: 0px; font-size: 0.8rem; font-weight: 700; {% if s.needs_attention %}background-color: #FEE2E2; color: #991B1B; border: 1px solid #F87171;{% else %}background-color: #FEF3C7; color: #92400E; border: 1px solid #FCD34D;{% endif %}">
+                  {{ s.focus_loss_count }}x
+                </span>
+              {% else %}
+                <span class="font-mono" style="color: #9CA3AF; font-size: 0.8rem;">0</span>
+              {% endif %}
+            </td>
+
+            <!-- Col 5: Aktivitas Terakhir & Sisa Waktu -->
+            <td style="padding: 12px 16px;">
+              <div class="font-mono" style="font-size: 0.775rem; color: #374151;">
+                {% if s.last_saved_at %}
+                  Tersimpan: {{ s.last_saved_at|date:"H:i:s" }}
+                {% else %}
+                  <span style="color: #9CA3AF;">-</span>
+                {% endif %}
+              </div>
+              {% if s.remaining_seconds is not None and s.status == 'IN_PROGRESS' %}
+                <div class="font-mono" style="font-size: 0.75rem; color: #2563EB; margin-top: 2px;">
+                  Sisa: {{ s.remaining_seconds }}d
+                </div>
+              {% endif %}
+            </td>
+
+            <!-- Col 6: Aksi -->
+            <td style="padding: 12px 16px; text-align: right;">
+              {% if s.status == 'IN_PROGRESS' and s.attempt_id %}
+                <button type="button"
+                        class="btn-force-submit font-display"
+                        data-attempt-id="{{ s.attempt_id }}"
+                        data-student-name="{{ s.student_name }}"
+                        style="background-color: #FFFFFF; color: var(--color-brand-600, #C8102E); border: 1px solid var(--color-brand-600, #C8102E); border-radius: 0px; padding: 4px 10px; font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: all 120ms ease;">
+                  Paksa Kumpulkan
+                </button>
+              {% elif s.status == 'SUBMITTED' or s.status == 'AUTO_SUBMITTED' %}
+                <span class="font-mono" style="font-size: 0.75rem; color: #059669;">Selesai</span>
+              {% else %}
+                <span class="font-mono" style="font-size: 0.75rem; color: #9CA3AF;">-</span>
+              {% endif %}
+            </td>
+
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="6" style="padding: 32px; text-align: center; color: #6B7280;" class="text-body">
+              Belum ada data siswa untuk ujian ini.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+  </div>
+
+  <!-- Force Submit Confirmation Dialog -->
+  <div id="force-submit-modal"
+       style="display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(0, 0, 0, 0.6); align-items: center; justify-content: center; padding: 16px;">
+    <div style="max-width: 440px; width: 100%; background: #FFFFFF; border: 2px solid var(--color-brand-600, #C8102E); border-radius: 0px; padding: 24px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);">
+      <h3 class="font-display" style="font-size: 1.15rem; font-weight: 800; color: var(--color-brand-600, #C8102E); margin-top: 0; margin-bottom: 8px;">
+        Paksa Pengumpulan Ujian?
+      </h3>
+      <p style="font-size: 0.875rem; color: #374151; line-height: 1.5; margin-bottom: 16px;">
+        Apakah Anda yakin ingin menghentikan dan mengumpulkan lembar ujian milik siswa <strong id="force-submit-target-name">-</strong>? Jawaban terakhir yang tersimpan akan difinalisasi.
+      </p>
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button type="button"
+                onclick="document.getElementById('force-submit-modal').style.display='none'"
+                style="background: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 0px; padding: 8px 14px; font-weight: 600; font-size: 0.825rem; cursor: pointer;">
+          Batal
+        </button>
+        <button id="btn-confirm-force-submit"
+                type="button"
+                style="background: var(--color-brand-600, #C8102E); color: #FFFFFF; border: none; border-radius: 0px; padding: 8px 16px; font-weight: 700; font-size: 0.825rem; cursor: pointer;">
+          Ya, Paksa Kumpulkan
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Client-Side Engine: Dynamic Polling, Filtering, Force-Submit Action -->
+<script>
+(function() {
+  const container = document.getElementById('proctor-console-app');
+  if (!container) return;
+
+  const examId = container.dataset.examId;
+  let isPollingActive = true;
+  let pollingInterval = null;
+  let activeFilter = 'ALL';
+  let searchQuery = '';
+  let pendingForceAttemptId = null;
+
+  function getCsrfToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token }}';
+  }
+
+  // Polling Toggle
+  const btnToggle = document.getElementById('btn-toggle-polling');
+  const syncDot = document.getElementById('sync-indicator-dot');
+  const syncText = document.getElementById('sync-status-text');
+  const lastSyncDisplay = document.getElementById('last-sync-time');
+
+  function setPollingState(active) {
+    isPollingActive = active;
+    if (active) {
+      btnToggle.textContent = 'Jeda Sinkron';
+      syncDot.style.backgroundColor = '#10B981';
+      syncText.textContent = 'Sinkron aktif';
+      startPolling();
+    } else {
+      btnToggle.textContent = 'Lanjutkan Sinkron';
+      syncDot.style.backgroundColor = '#9CA3AF';
+      syncText.textContent = 'Dijeda';
+      stopPolling();
+    }
+  }
+
+  if (btnToggle) {
+    btnToggle.addEventListener('click', function() {
+      setPollingState(!isPollingActive);
+    });
+  }
+
+  const btnManual = document.getElementById('btn-manual-refresh');
+  if (btnManual) {
+    btnManual.addEventListener('click', function() {
+      fetchProctorData();
+    });
+  }
+
+  // Polling Worker
+  function startPolling() {
+    stopPolling();
+    pollingInterval = setInterval(fetchProctorData, 8000); // 8-second poll
+  }
+
+  function stopPolling() {
+    if (pollingInterval) clearInterval(pollingInterval);
+    pollingInterval = null;
+  }
+
+  function updateSyncTime() {
+    if (lastSyncDisplay) {
+      const now = new Date();
+      lastSyncDisplay.textContent = now.toTimeString().split(' ')[0];
+    }
+  }
+
+  function fetchProctorData() {
+    syncDot.style.backgroundColor = '#F59E0B'; // Amber while fetching
+    fetch(`/api/v1/academic/exams/${examId}/proctor/`, {
+      headers: { 'X-CSRFToken': getCsrfToken() }
+    })
+    .then(res => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    })
+    .then(data => {
+      syncDot.style.backgroundColor = '#10B981';
+      updateSyncTime();
+      renderProctorView(data);
+    })
+    .catch(err => {
+      console.warn('Proctor poll error:', err);
+      syncDot.style.backgroundColor = '#EF4444';
+    });
+  }
+
+  // Render Engine
+  function renderProctorView(data) {
+    if (!data) return;
+
+    // 1. Update KPIs
+    if (data.summary) {
+      const s = data.summary;
+      const kTotal = document.getElementById('kpi-total');
+      const kProg = document.getElementById('kpi-in-progress');
+      const kSub = document.getElementById('kpi-submitted');
+      const kFlag = document.getElementById('kpi-flagged');
+
+      if (kTotal) kTotal.textContent = s.total_students;
+      if (kProg) kProg.textContent = s.in_progress;
+      if (kSub) kSub.textContent = s.submitted;
+      if (kFlag) kFlag.textContent = s.flagged_focus_loss;
+
+      // Filter tab counts
+      const cAll = document.getElementById('count-filter-all');
+      const cProg = document.getElementById('count-filter-progress');
+      const cFlag = document.getElementById('count-filter-flagged');
+      const cSub = document.getElementById('count-filter-submitted');
+
+      if (cAll) cAll.textContent = s.total_students;
+      if (cProg) cProg.textContent = s.in_progress;
+      if (cFlag) cFlag.textContent = s.flagged_focus_loss;
+      if (cSub) cSub.textContent = s.submitted;
+    }
+
+    // 2. Update Table Rows
+    const tbody = document.getElementById('proctor-table-body');
+    if (!tbody || !data.students) return;
+
+    let html = '';
+    data.students.forEach(s => {
+      const isVisible = checkRowVisibility(s);
+      const displayStyle = isVisible ? '' : 'display: none;';
+      const bgStyle = s.needs_attention ? 'background-color: #FFFBFB;' : '';
+
+      let statusBadge = '';
+      if (s.status === 'IN_PROGRESS') {
+        statusBadge = `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background-color: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 0px; font-size: 0.75rem; font-weight: 600; color: #1D4ED8;">
+          <span style="width: 6px; height: 6px; background-color: #2563EB; border-radius: 0px;"></span> Mengerjakan
+        </span>`;
+      } else if (s.status === 'SUBMITTED') {
+        statusBadge = `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background-color: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 0px; font-size: 0.75rem; font-weight: 600; color: #047857;">
+          <span style="width: 6px; height: 6px; background-color: #059669; border-radius: 0px;"></span> Terkumpul
+        </span>`;
+      } else if (s.status === 'AUTO_SUBMITTED') {
+        statusBadge = `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background-color: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 0px; font-size: 0.75rem; font-weight: 600; color: #4B5563;">
+          <span style="width: 6px; height: 6px; background-color: #6B7280; border-radius: 0px;"></span> Auto-Submit
+        </span>`;
+      } else {
+        statusBadge = `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 0px; font-size: 0.75rem; font-weight: 600; color: #9CA3AF;">Belum Mulai</span>`;
+      }
+
+      let focusBadge = '';
+      if (s.focus_loss_count > 0) {
+        const badgeColor = s.needs_attention ? 'background-color: #FEE2E2; color: #991B1B; border: 1px solid #F87171;' : 'background-color: #FEF3C7; color: #92400E; border: 1px solid #FCD34D;';
+        focusBadge = `<span class="font-mono" style="display: inline-block; padding: 2px 8px; border-radius: 0px; font-size: 0.8rem; font-weight: 700; ${badgeColor}">${s.focus_loss_count}x</span>`;
+      } else {
+        focusBadge = `<span class="font-mono" style="color: #9CA3AF; font-size: 0.8rem;">0</span>`;
+      }
+
+      let lastSavedStr = '-';
+      if (s.last_saved_at) {
+        const d = new Date(s.last_saved_at);
+        lastSavedStr = d.toTimeString().split(' ')[0];
+      }
+
+      let actionCol = '';
+      if (s.status === 'IN_PROGRESS' && s.attempt_id) {
+        actionCol = `<button type="button" class="btn-force-submit font-display" data-attempt-id="${s.attempt_id}" data-student-name="${s.student_name}" style="background-color: #FFFFFF; color: var(--color-brand-600, #C8102E); border: 1px solid var(--color-brand-600, #C8102E); border-radius: 0px; padding: 4px 10px; font-size: 0.75rem; font-weight: 700; cursor: pointer;">Paksa Kumpulkan</button>`;
+      } else if (s.status === 'SUBMITTED' || s.status === 'AUTO_SUBMITTED') {
+        actionCol = `<span class="font-mono" style="font-size: 0.75rem; color: #059669;">Selesai</span>`;
+      } else {
+        actionCol = `<span class="font-mono" style="font-size: 0.75rem; color: #9CA3AF;">-</span>`;
+      }
+
+      const barColor = (s.status === 'IN_PROGRESS') ? '#2563EB' : ((s.status === 'SUBMITTED') ? '#059669' : '#9CA3AF');
+
+      html += `
+        <tr class="proctor-row"
+            data-student-id="${s.student_id}"
+            data-attempt-id="${s.attempt_id || ''}"
+            data-status="${s.status}"
+            data-flagged="${s.needs_attention ? 'true' : 'false'}"
+            data-student-name="${s.student_name}"
+            data-nis="${s.nis}"
+            style="border-bottom: 1px solid var(--color-line, #E5E7EB); ${bgStyle} ${displayStyle}">
+          <td style="padding: 12px 16px;">
+            <div class="font-mono text-ink-500" style="font-size: 0.75rem; color: #6B7280;">${s.nis}</div>
+            <div class="student-name font-display" style="font-weight: 700; color: #111827; font-size: 0.9rem;">${s.student_name}</div>
+          </td>
+          <td style="padding: 12px 16px;">${statusBadge}</td>
+          <td style="padding: 12px 16px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; font-family: 'IBM Plex Mono', monospace; margin-bottom: 4px; color: #4B5563;">
+              <span>${s.answered_count}/${s.total_questions} Soal</span>
+              <span style="font-weight: 600;">${s.progress_pct}%</span>
+            </div>
+            <div style="width: 100%; height: 6px; background-color: #E5E7EB; border-radius: 0px; overflow: hidden;">
+              <div style="width: ${s.progress_pct}%; height: 100%; background-color: ${barColor}; transition: width 300ms ease;"></div>
+            </div>
+          </td>
+          <td style="padding: 12px 16px; text-align: center;">${focusBadge}</td>
+          <td style="padding: 12px 16px;">
+            <div class="font-mono" style="font-size: 0.775rem; color: #374151;">Tersimpan: ${lastSavedStr}</div>
+            ${(s.remaining_seconds !== null && s.status === 'IN_PROGRESS') ? `<div class="font-mono" style="font-size: 0.75rem; color: #2563EB; margin-top: 2px;">Sisa: ${s.remaining_seconds}d</div>` : ''}
+          </td>
+          <td style="padding: 12px 16px; text-align: right;">${actionCol}</td>
+        </tr>
+      `;
+    });
+
+    tbody.innerHTML = html;
+    bindForceSubmitButtons();
+  }
+
+  // Filtering & Search
+  function checkRowVisibility(s) {
+    // Filter check
+    if (activeFilter === 'IN_PROGRESS' && s.status !== 'IN_PROGRESS') return false;
+    if (activeFilter === 'SUBMITTED' && s.status !== 'SUBMITTED' && s.status !== 'AUTO_SUBMITTED') return false;
+    if (activeFilter === 'FLAGGED' && !s.needs_attention) return false;
+
+    // Search query check
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const matchName = (s.student_name || '').toLowerCase().includes(q);
+      const matchNis = (s.nis || '').toLowerCase().includes(q);
+      if (!matchName && !matchNis) return false;
+    }
+
+    return true;
+  }
+
+  document.querySelectorAll('.filter-tab').forEach(tab => {
+    tab.addEventListener('click', function() {
+      document.querySelectorAll('.filter-tab').forEach(t => {
+        t.style.backgroundColor = '#F3F4F6';
+        t.style.color = '#374151';
+        t.style.border = '1px solid var(--color-line, #E5E7EB)';
+      });
+      this.style.backgroundColor = '#111827';
+      this.style.color = '#FFFFFF';
+      this.style.border = 'none';
+
+      activeFilter = this.dataset.filter;
+      applyFilters();
+    });
+  });
+
+  const searchInput = document.getElementById('proctor-search-input');
+  if (searchInput) {
+    searchInput.addEventListener('input', function() {
+      searchQuery = this.value.trim();
+      applyFilters();
+    });
+  }
+
+  function applyFilters() {
+    document.querySelectorAll('.proctor-row').forEach(row => {
+      const status = row.dataset.status;
+      const flagged = row.dataset.flagged === 'true';
+      const name = (row.dataset.studentName || row.querySelector('.student-name')?.textContent || '').toLowerCase();
+      const nis = (row.dataset.nis || row.querySelector('.font-mono')?.textContent || '').toLowerCase();
+
+      let visible = true;
+      if (activeFilter === 'IN_PROGRESS' && status !== 'IN_PROGRESS') visible = false;
+      if (activeFilter === 'SUBMITTED' && status !== 'SUBMITTED' && status !== 'AUTO_SUBMITTED') visible = false;
+      if (activeFilter === 'FLAGGED' && !flagged) visible = false;
+
+      if (searchQuery && visible) {
+        const q = searchQuery.toLowerCase();
+        if (!name.includes(q) && !nis.includes(q)) visible = false;
+      }
+
+      row.style.display = visible ? '' : 'none';
+    });
+  }
+
+  // Force Submit Modal & Action
+  const forceModal = document.getElementById('force-submit-modal');
+  const targetNameEl = document.getElementById('force-submit-target-name');
+  const btnConfirmForce = document.getElementById('btn-confirm-force-submit');
+
+  function bindForceSubmitButtons() {
+    document.querySelectorAll('.btn-force-submit').forEach(btn => {
+      btn.addEventListener('click', function() {
+        pendingForceAttemptId = this.dataset.attemptId;
+        if (targetNameEl) targetNameEl.textContent = this.dataset.studentName || 'siswa';
+        if (forceModal) forceModal.style.display = 'flex';
+      });
+    });
+  }
+
+  if (btnConfirmForce) {
+    btnConfirmForce.addEventListener('click', function() {
+      if (!pendingForceAttemptId) return;
+      btnConfirmForce.disabled = true;
+      btnConfirmForce.textContent = 'Memproses...';
+
+      fetch(`/api/v1/academic/exam-attempts/${pendingForceAttemptId}/submit/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCsrfToken(),
+        }
+      })
+      .then(res => res.json())
+      .then(() => {
+        if (forceModal) forceModal.style.display = 'none';
+        btnConfirmForce.disabled = false;
+        btnConfirmForce.textContent = 'Ya, Paksa Kumpulkan';
+        fetchProctorData();
+      })
+      .catch(err => {
+        console.error('Force submit failed:', err);
+        alert('Gagal memproses pengumpulan paksa.');
+        btnConfirmForce.disabled = false;
+        btnConfirmForce.textContent = 'Ya, Paksa Kumpulkan';
+      });
+    });
+  }
+
+  // Initialize
+  bindForceSubmitButtons();
+  updateSyncTime();
+  startPolling();
+})();
+</script>

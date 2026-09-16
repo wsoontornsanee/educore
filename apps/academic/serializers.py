@@ -373,3 +373,43 @@ class PeriodGridSlotInputSerializer(serializers.Serializer):
 
 class PeriodGridSetSerializer(serializers.Serializer):
     periods = PeriodGridSlotInputSerializer(many=True)
+
+
+class ExamProctorStudentSerializer(serializers.Serializer):
+    student_id = serializers.IntegerField()
+    student_name = serializers.CharField()
+    nis = serializers.CharField()
+    attempt_id = serializers.IntegerField(allow_null=True)
+    status = serializers.CharField()
+    answered_count = serializers.IntegerField()
+    total_questions = serializers.IntegerField()
+    progress_pct = serializers.IntegerField()
+    focus_loss_count = serializers.IntegerField()
+    last_saved_at = serializers.DateTimeField(allow_null=True)
+    remaining_seconds = serializers.IntegerField(allow_null=True)
+    needs_attention = serializers.BooleanField()
+
+
+class ExamProctorSummarySerializer(serializers.Serializer):
+    total_students = serializers.IntegerField()
+    in_progress = serializers.IntegerField()
+    submitted = serializers.IntegerField()
+    not_started = serializers.IntegerField()
+    flagged_focus_loss = serializers.IntegerField()
+
+
+class ExamProctorHeaderSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    title = serializers.CharField()
+    duration_min = serializers.IntegerField()
+    window_start = serializers.DateTimeField()
+    window_end = serializers.DateTimeField()
+    total_questions = serializers.IntegerField()
+    is_active = serializers.BooleanField()
+
+
+class ExamProctorResponseSerializer(serializers.Serializer):
+    exam = ExamProctorHeaderSerializer()
+    summary = ExamProctorSummarySerializer()
+    students = ExamProctorStudentSerializer(many=True)
+

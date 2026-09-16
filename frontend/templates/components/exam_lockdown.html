@@ -1,0 +1,781 @@
+{% load l10n %}
+{% comment %}
+Component: Student Exam Lockdown Client (spec/04 §6 ACD-021..026, spec/17 §6.3, §7.3, docs/frontend-plan.md M5)
+Usage: {% include "components/exam_lockdown.html" with exam=exam attempt=attempt questions=questions remaining_seconds=remaining_seconds csrf_token=csrf_token %}
+{% endcomment %}
+
+<div id="exam-lockdown-app"
+     class="exam-lockdown-workspace"
+     data-attempt-id="{{ attempt.id }}"
+     data-exam-id="{{ exam.id }}"
+     data-remaining-seconds="{{ remaining_seconds|default:0 }}"
+     data-one-question="{{ exam.settings.one_question_at_a_time|default:'false' }}"
+     data-block-back="{{ exam.settings.block_back_navigation|default:'false' }}"
+     data-fullscreen-lock="{{ exam.settings.full_screen_lock|default:'true' }}"
+     style="display: flex; flex-direction: column; min-height: 100vh; background-color: var(--color-surface-alt, #F9FAFB); font-family: var(--font-body, 'IBM Plex Sans', sans-serif); color: var(--color-ink-900, #111827);">
+
+  <!-- Lockdown Fullscreen Prompt Modal (Visible if fullscreen lock required and not yet entered) -->
+  <div id="fullscreen-overlay"
+       style="display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(17, 24, 39, 0.95); color: #FFFFFF; flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center;">
+    <div style="max-width: 520px; background: #1F2937; border: 2px solid var(--color-brand-600, #C8102E); border-radius: 0px; padding: 32px 24px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
+      <div style="width: 48px; height: 48px; background: rgba(200, 16, 46, 0.2); border: 1px solid var(--color-brand-600, #C8102E); display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+        <span style="color: var(--color-brand-600, #C8102E); font-size: 24px; font-weight: bold;">⛨</span>
+      </div>
+      <h2 class="font-display" style="font-size: 1.5rem; font-weight: 800; margin-bottom: 8px; color: #FFFFFF;">
+        Mode Layar Penuh Diwajibkan
+      </h2>
+      <p style="font-size: 0.925rem; color: #9CA3AF; line-height: 1.5; margin-bottom: 24px;">
+        Ujian ini berada dalam pengawasan integritas lockdown. Untuk memulai dan melanjutkan ujian, Anda harus masuk ke mode layar penuh. Keluar dari layar penuh atau berpindah aplikasi akan dicatat sebagai kehilangan fokus.
+      </p>
+      <button id="btn-enter-fullscreen"
+              type="button"
+              class="btn-primary font-display"
+              style="background-color: var(--color-brand-600, #C8102E); color: #FFFFFF; border: none; border-radius: 0px; padding: 12px 28px; font-weight: 700; font-size: 1rem; cursor: pointer; letter-spacing: 0.02em; transition: background-color 150ms;">
+        Masuk Layar Penuh & Mulai Ujian
+      </button>
+    </div>
+  </div>
+
+  <!-- Focus Loss Alert Toast / Banner (ACD-024: recorded and shown to teacher, never auto-punished) -->
+  <div id="focus-loss-alert"
+       role="alert"
+       aria-live="assertive"
+       style="display: none; position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 9000; width: 90%; max-width: 640px; background-color: #FEF2F2; border: 2px solid var(--color-brand-600, #C8102E); border-radius: 0px; padding: 14px 20px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
+    <div style="display: flex; align-items: flex-start; gap: 12px;">
+      <span style="color: var(--color-brand-600, #C8102E); font-size: 1.25rem; line-height: 1;">⚠</span>
+      <div style="flex: 1;">
+        <strong style="color: var(--color-brand-600, #C8102E); font-size: 0.925rem; display: block; margin-bottom: 2px;">
+          Peringatan: Kehilangan Fokus Terdeteksi (<span id="focus-loss-incident-count">0</span>x)
+        </strong>
+        <p style="margin: 0; font-size: 0.825rem; color: #7F1D1D; line-height: 1.4;">
+          Aplikasi mencatat perpindahan jendela/layar. Insiden ini terekam di konsol pengawas ujian. Harap tetap berada pada jendela ujian hingga selesai.
+        </p>
+      </div>
+      <button type="button"
+              onclick="document.getElementById('focus-loss-alert').style.display='none'"
+              style="background: transparent; border: none; font-size: 1.1rem; color: #991B1B; cursor: pointer; padding: 0 4px;"
+              aria-label="Tutup Peringatan">
+        ✕
+      </button>
+    </div>
+  </div>
+
+  <!-- Top Sticky Header: Exam Info, Timer Countdown, Focus Incident Badge, Autosave Pill -->
+  <header class="exam-header card"
+          style="position: sticky; top: 0; z-index: 100; display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; background-color: var(--color-surface, #FFFFFF); border-bottom: 2px solid var(--color-line, #E5E7EB); border-radius: 0px; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05); flex-wrap: wrap; gap: 12px;">
+    
+    <!-- Title & Exam Subject -->
+    <div style="display: flex; flex-direction: column;">
+      <span class="text-label text-ink-500" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #6B7280;">
+        {{ exam.class_subject.subject.name|default:exam.class_subject.subject }} · {{ exam.class_subject.class_group.name|default:exam.class_subject.class_group }}
+      </span>
+      <h1 class="font-display" style="font-size: 1.15rem; font-weight: 800; margin: 2px 0 0 0; color: #111827;">
+        {{ exam.title }}
+      </h1>
+    </div>
+
+    <!-- Center & Right Controls: Autosave Indicator, Countdown Timer, Submit Button -->
+    <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+      
+      <!-- Autosave Status Indicator (ACD-021) -->
+      <div id="exam-autosave-status"
+           class="inline-flex items-center text-body-sm font-mono"
+           style="gap: 6px; padding: 4px 10px; background-color: var(--color-surface-alt, #F9FAFB); border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; font-size: 0.775rem;">
+        <span id="autosave-dot"
+              style="display: inline-block; width: 8px; height: 8px; border-radius: 0px; background-color: #10B981; transition: background-color 200ms ease;"></span>
+        <span id="autosave-text" style="color: #4B5563;">Tersimpan</span>
+      </div>
+
+      <!-- Focus Loss Incident Pill -->
+      <div id="focus-loss-indicator"
+           style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background-color: #FEF2F2; border: 1px solid #FECACA; border-radius: 0px; font-size: 0.775rem; font-family: 'IBM Plex Mono', monospace; color: #991B1B;">
+        <span>Fokus:</span>
+        <span id="focus-loss-count-badge" style="font-weight: 600;">{{ attempt.focus_loss_count|default:0 }}</span>
+      </div>
+
+      <!-- Server-Synchronized Countdown Timer (ACD-022) -->
+      <div id="exam-timer-box"
+           style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; background-color: #111827; color: #FFFFFF; border-radius: 0px; font-family: 'IBM Plex Mono', monospace; font-size: 1rem; font-weight: 700; border: 1px solid #374151;">
+        <span style="color: #9CA3AF; font-size: 0.8rem;">SISA WAKTU</span>
+        <span id="timer-display">00:00:00</span>
+      </div>
+
+      <!-- Submit Exam Button -->
+      <button id="btn-submit-exam"
+              type="button"
+              class="font-display"
+              style="background-color: var(--color-brand-600, #C8102E); color: #FFFFFF; border: none; border-radius: 0px; padding: 8px 18px; font-weight: 700; font-size: 0.875rem; cursor: pointer; transition: background-color 150ms;">
+        Kumpulkan Ujian
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Exam Content Area: Question Palette Sidebar + Active Question Form -->
+  <div class="exam-body"
+       style="display: flex; flex: 1; gap: 24px; padding: 20px 24px; max-width: 1400px; width: 100%; margin: 0 auto; box-sizing: border-box;">
+
+    <!-- Left Column: Question Palette (spec/17 §6.3, 0px grid buttons) -->
+    <aside class="question-palette-sidebar card"
+           style="width: 280px; flex-shrink: 0; background-color: var(--color-surface, #FFFFFF); border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; padding: 16px; height: fit-content;">
+      
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--color-line, #E5E7EB); padding-bottom: 8px;">
+        <h2 class="font-display" style="font-size: 0.925rem; font-weight: 700; margin: 0; text-transform: uppercase; letter-spacing: 0.03em;">
+          Daftar Soal
+        </h2>
+        <span id="palette-progress" class="font-mono" style="font-size: 0.775rem; color: #6B7280;">
+          <span id="answered-counter">0</span>/{{ questions|length }} Terjawab
+        </span>
+      </div>
+
+      <!-- Palette Grid (4 columns) -->
+      <div id="palette-grid"
+           style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;"
+           role="navigation"
+           aria-label="Navigasi Nomor Soal">
+        {% for q in questions %}
+          <button type="button"
+                  id="palette-btn-{{ forloop.counter0 }}"
+                  class="palette-btn font-mono"
+                  data-index="{{ forloop.counter0 }}"
+                  data-question-id="{{ q.id }}"
+                  style="aspect-ratio: 1; border: 1px solid var(--color-line, #E5E7EB); background-color: #FFFFFF; color: #374151; font-weight: 600; font-size: 0.875rem; cursor: pointer; border-radius: 0px; display: flex; align-items: center; justify-content: center; transition: all 150ms ease;">
+            {{ forloop.counter }}
+          </button>
+        {% endfor %}
+      </div>
+
+      <!-- Legend -->
+      <div style="margin-top: 20px; border-top: 1px solid var(--color-line, #E5E7EB); padding-top: 12px; display: flex; flex-direction: column; gap: 6px; font-size: 0.75rem; color: #6B7280;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="width: 12px; height: 12px; background: #10B981; border: 1px solid #059669; border-radius: 0px;"></span>
+          <span>Sudah Terjawab</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="width: 12px; height: 12px; background: #FFFFFF; border: 2px solid var(--color-brand-600, #C8102E); border-radius: 0px;"></span>
+          <span>Sedang Dibuka</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="width: 12px; height: 12px; background: #FFFFFF; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px;"></span>
+          <span>Belum Dijawab</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Right Column: Active Question Workspace -->
+    <main class="question-workspace card"
+          style="flex: 1; background-color: var(--color-surface, #FFFFFF); border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; padding: 24px 32px; display: flex; flex-direction: column; justify-content: space-between;">
+      
+      <!-- Questions Container (Single Question Mode displays active only) -->
+      <div id="questions-viewport">
+        {% for q in questions %}
+          <div id="question-card-{{ forloop.counter0 }}"
+               class="question-card"
+               data-index="{{ forloop.counter0 }}"
+               data-question-id="{{ q.id }}"
+               data-question-type="{{ q.type }}"
+               style="{% if not forloop.first %}display: none;{% endif %}">
+            
+            <!-- Question Meta Header -->
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-line, #E5E7EB); padding-bottom: 12px; margin-bottom: 20px;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="font-display" style="font-weight: 800; font-size: 1.15rem; color: var(--color-brand-600, #C8102E);">
+                  Soal No. {{ forloop.counter }}
+                </span>
+                <span style="background-color: var(--color-surface-alt, #F9FAFB); border: 1px solid var(--color-line, #E5E7EB); padding: 2px 8px; font-size: 0.75rem; font-family: 'IBM Plex Mono', monospace; border-radius: 0px; color: #4B5563;">
+                  {{ q.get_type_display|default:q.type }}
+                </span>
+              </div>
+              <span class="font-mono" style="font-size: 0.825rem; color: #6B7280;">
+                Bobot: {{ q.points }} Poin
+              </span>
+            </div>
+
+            <!-- Question Body / Prompt -->
+            <div class="question-body text-body"
+                 style="font-size: 1rem; line-height: 1.6; color: #1F2937; margin-bottom: 24px; white-space: pre-line;">
+              {{ q.body }}
+            </div>
+
+            <!-- Question Options Input Forms by Type -->
+            <div class="question-inputs" style="margin-bottom: 32px;">
+              
+              <!-- MCQ (Single Choice) -->
+              {% if q.type == 'MCQ' %}
+                <div class="options-list" style="display: flex; flex-direction: column; gap: 10px;">
+                  {% for opt in q.options %}
+                    <label class="option-item"
+                           style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; cursor: pointer; transition: all 120ms ease; background: #FFFFFF;">
+                      <input type="radio"
+                             name="question_{{ q.id }}"
+                             value="{{ opt.key }}"
+                             class="exam-input-field"
+                             data-question-id="{{ q.id }}"
+                             style="margin-top: 4px; accent-color: var(--color-brand-600, #C8102E); width: 16px; height: 16px;">
+                      <span class="font-mono" style="font-weight: 700; min-width: 24px; color: #4B5563;">{{ opt.key }}.</span>
+                      <span style="flex: 1; font-size: 0.95rem;">{{ opt.text }}</span>
+                    </label>
+                  {% endfor %}
+                </div>
+
+              <!-- MULTI (Multiple Choice) -->
+              {% elif q.type == 'MULTI' %}
+                <div class="options-list" style="display: flex; flex-direction: column; gap: 10px;">
+                  {% for opt in q.options %}
+                    <label class="option-item"
+                           style="display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; cursor: pointer; transition: all 120ms ease; background: #FFFFFF;">
+                      <input type="checkbox"
+                             name="question_{{ q.id }}"
+                             value="{{ opt.key }}"
+                             class="exam-input-field"
+                             data-question-id="{{ q.id }}"
+                             style="margin-top: 4px; accent-color: var(--color-brand-600, #C8102E); width: 16px; height: 16px; border-radius: 0px;">
+                      <span class="font-mono" style="font-weight: 700; min-width: 24px; color: #4B5563;">{{ opt.key }}.</span>
+                      <span style="flex: 1; font-size: 0.95rem;">{{ opt.text }}</span>
+                    </label>
+                  {% endfor %}
+                </div>
+
+              <!-- TRUE_FALSE -->
+              {% elif q.type == 'TRUE_FALSE' %}
+                <div class="options-list" style="display: flex; gap: 16px;">
+                  <label class="option-item"
+                         style="flex: 1; display: flex; align-items: center; gap: 12px; padding: 14px 20px; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; cursor: pointer; background: #FFFFFF;">
+                    <input type="radio"
+                           name="question_{{ q.id }}"
+                           value="TRUE"
+                           class="exam-input-field"
+                           data-question-id="{{ q.id }}"
+                           style="accent-color: var(--color-brand-600, #C8102E); width: 18px; height: 18px;">
+                    <span class="font-display" style="font-weight: 700; font-size: 1rem; color: #065F46;">BENAR</span>
+                  </label>
+                  <label class="option-item"
+                         style="flex: 1; display: flex; align-items: center; gap: 12px; padding: 14px 20px; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; cursor: pointer; background: #FFFFFF;">
+                    <input type="radio"
+                           name="question_{{ q.id }}"
+                           value="FALSE"
+                           class="exam-input-field"
+                           data-question-id="{{ q.id }}"
+                           style="accent-color: var(--color-brand-600, #C8102E); width: 18px; height: 18px;">
+                    <span class="font-display" style="font-weight: 700; font-size: 1rem; color: #991B1B;">SALAH</span>
+                  </label>
+                </div>
+
+              <!-- SHORT (Short Answer) -->
+              {% elif q.type == 'SHORT' %}
+                <div>
+                  <input type="text"
+                         id="input-q-{{ q.id }}"
+                         class="exam-input-field"
+                         data-question-id="{{ q.id }}"
+                         placeholder="Tuliskan jawaban singkat Anda di sini..."
+                         style="width: 100%; padding: 12px 16px; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; font-family: 'IBM Plex Sans', sans-serif; font-size: 0.95rem; box-sizing: border-box;">
+                </div>
+
+              <!-- ESSAY -->
+              {% elif q.type == 'ESSAY' %}
+                <div>
+                  <textarea id="input-q-{{ q.id }}"
+                            class="exam-input-field"
+                            data-question-id="{{ q.id }}"
+                            rows="6"
+                            placeholder="Uraikan jawaban esai Anda secara lengkap..."
+                            style="width: 100%; padding: 12px 16px; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; font-family: 'IBM Plex Sans', sans-serif; font-size: 0.95rem; line-height: 1.5; resize: vertical; box-sizing: border-box;"></textarea>
+                </div>
+
+              <!-- MATCHING (Key-Value) -->
+              {% elif q.type == 'MATCHING' %}
+                <div class="matching-container" style="display: flex; flex-direction: column; gap: 12px;">
+                  {% for item in q.options %}
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 14px; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; background: #FFFFFF;">
+                      <span style="flex: 1; font-size: 0.925rem; font-weight: 500;">{{ item.left }}</span>
+                      <span style="color: #9CA3AF;">➔</span>
+                      <select class="exam-matching-select exam-input-field"
+                              data-question-id="{{ q.id }}"
+                              data-match-key="{{ item.left }}"
+                              style="flex: 1; padding: 8px 12px; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; background: #FFFFFF; font-family: 'IBM Plex Sans', sans-serif;">
+                        <option value="">-- Pilih Pasangan --</option>
+                        {% for choice in item.choices %}
+                          <option value="{{ choice }}">{{ choice }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% endif %}
+
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <!-- Navigation Footer: Previous / Next Buttons -->
+      <div class="navigation-footer"
+           style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--color-line, #E5E7EB); padding-top: 16px; margin-top: 24px;">
+        
+        <!-- Previous Question (Disabled if block_back_navigation is active) -->
+        <button id="btn-prev-question"
+                type="button"
+                class="font-display"
+                style="background-color: var(--color-surface-alt, #F3F4F6); color: #374151; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; padding: 10px 20px; font-weight: 600; font-size: 0.875rem; cursor: pointer; transition: all 120ms ease;">
+          ← Soal Sebelumnya
+        </button>
+
+        <span id="question-progress-indicator" class="font-mono" style="font-size: 0.825rem; color: #6B7280;">
+          Soal <span id="current-q-num">1</span> dari {{ questions|length }}
+        </span>
+
+        <!-- Next Question -->
+        <button id="btn-next-question"
+                type="button"
+                class="font-display"
+                style="background-color: #111827; color: #FFFFFF; border: none; border-radius: 0px; padding: 10px 24px; font-weight: 600; font-size: 0.875rem; cursor: pointer; transition: background-color 120ms ease;">
+          Soal Selanjutnya →
+        </button>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Submission Confirmation Modal -->
+  <div id="submit-confirm-modal"
+       style="display: none; position: fixed; inset: 0; z-index: 9500; background: rgba(0, 0, 0, 0.6); align-items: center; justify-content: center; padding: 16px;">
+    <div style="max-width: 480px; width: 100%; background: #FFFFFF; border: 2px solid var(--color-line, #E5E7EB); border-radius: 0px; padding: 24px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);">
+      <h3 class="font-display" style="font-size: 1.25rem; font-weight: 800; margin-top: 0; margin-bottom: 8px; color: #111827;">
+        Konfirmasi Pengumpulan Ujian
+      </h3>
+      <p style="font-size: 0.925rem; color: #4B5563; line-height: 1.5; margin-bottom: 16px;">
+        Anda telah menjawab <strong id="modal-answered-count">0</strong> dari <strong>{{ questions|length }}</strong> soal. Apakah Anda yakin ingin mengumpulkan lembar jawaban sekarang? Tindakan ini bersifat final.
+      </p>
+      <div style="display: flex; justify-content: flex-end; gap: 12px;">
+        <button type="button"
+                onclick="document.getElementById('submit-confirm-modal').style.display='none'"
+                style="background: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 0px; padding: 8px 16px; font-weight: 600; font-size: 0.875rem; cursor: pointer;">
+          Kembali Mengerjakan
+        </button>
+        <button id="btn-confirm-final-submit"
+                type="button"
+                style="background: var(--color-brand-600, #C8102E); color: #FFFFFF; border: none; border-radius: 0px; padding: 8px 20px; font-weight: 700; font-size: 0.875rem; cursor: pointer;">
+          Ya, Kumpulkan Sekarang
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Time Expired Modal -->
+  <div id="time-expired-modal"
+       style="display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(0, 0, 0, 0.85); align-items: center; justify-content: center; padding: 16px;">
+    <div style="max-width: 460px; width: 100%; background: #FFFFFF; border: 2px solid var(--color-brand-600, #C8102E); border-radius: 0px; padding: 28px; text-align: center;">
+      <h3 class="font-display" style="font-size: 1.35rem; font-weight: 800; color: var(--color-brand-600, #C8102E); margin-top: 0; margin-bottom: 8px;">
+        Waktu Ujian Telah Habis
+      </h3>
+      <p style="font-size: 0.925rem; color: #4B5563; line-height: 1.5; margin-bottom: 20px;">
+        Batas waktu pengerjaan telah tercapai. Seluruh jawaban Anda yang telah tersimpan sedang dikumpulkan secara otomatis ke server.
+      </p>
+      <div id="submitting-spinner" style="font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; color: #6B7280;">
+        Memproses pengumpulan...
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Client-Side Engine: Fullscreen, Focus Tracking, Idempotent Autosave, Palette Sync, Timer -->
+<script>
+(function() {
+  const container = document.getElementById('exam-lockdown-app');
+  if (!container) return;
+
+  const attemptId = container.dataset.attemptId;
+  const examId = container.dataset.examId;
+  let remainingSeconds = parseInt(container.dataset.remainingSeconds, 10) || 0;
+  const isOneQuestion = container.dataset.oneQuestion === 'true' || container.dataset.oneQuestion === 'True';
+  const isBlockBack = container.dataset.blockBack === 'true' || container.dataset.blockBack === 'True';
+  const isFullscreenLock = container.dataset.fullscreenLock === 'true' || container.dataset.fullscreenLock === 'True';
+
+  const totalQuestions = {{ questions|length }};
+  let currentIndex = 0;
+  let focusLossCount = parseInt(document.getElementById('focus-loss-count-badge')?.textContent || '0', 10);
+  const answersState = {};
+  let isDirty = false;
+  let autosaveTimer = null;
+  let isSubmitting = false;
+
+  function getCsrfToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token }}';
+  }
+
+  // 1. Fullscreen Lockdown Management
+  const fullscreenOverlay = document.getElementById('fullscreen-overlay');
+  const btnEnterFullscreen = document.getElementById('btn-enter-fullscreen');
+
+  function checkFullscreen() {
+    if (!isFullscreenLock) return;
+    const inFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    if (!inFullscreen) {
+      if (fullscreenOverlay) fullscreenOverlay.style.display = 'flex';
+    } else {
+      if (fullscreenOverlay) fullscreenOverlay.style.display = 'none';
+    }
+  }
+
+  if (btnEnterFullscreen) {
+    btnEnterFullscreen.addEventListener('click', function() {
+      const docEl = document.documentElement;
+      if (docEl.requestFullscreen) {
+        docEl.requestFullscreen().catch(err => console.warn(err));
+      } else if (docEl.webkitRequestFullscreen) {
+        docEl.webkitRequestFullscreen();
+      }
+      if (fullscreenOverlay) fullscreenOverlay.style.display = 'none';
+    });
+  }
+
+  document.addEventListener('fullscreenchange', function() {
+    if (!document.fullscreenElement && isFullscreenLock && !isSubmitting) {
+      handleFocusLoss('fullscreen_exit');
+      checkFullscreen();
+    }
+  });
+
+  // 2. Focus Loss Detection (ACD-024)
+  function handleFocusLoss(reason) {
+    if (isSubmitting) return;
+    focusLossCount++;
+    const badge = document.getElementById('focus-loss-count-badge');
+    const alertCount = document.getElementById('focus-loss-incident-count');
+    const alertBox = document.getElementById('focus-loss-alert');
+
+    if (badge) badge.textContent = focusLossCount;
+    if (alertCount) alertCount.textContent = focusLossCount;
+    if (alertBox) {
+      alertBox.style.display = 'block';
+      setTimeout(() => { if (alertBox) alertBox.style.display = 'none'; }, 8000);
+    }
+
+    // Report focus loss to backend API
+    fetch(`/api/v1/academic/exam-attempts/${attemptId}/focus-loss/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCsrfToken(),
+      },
+      body: JSON.stringify({ reason: reason || 'blur' })
+    }).catch(err => console.warn('Focus loss report failed:', err));
+  }
+
+  window.addEventListener('blur', function() { handleFocusLoss('window_blur'); });
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'hidden') {
+      handleFocusLoss('visibility_hidden');
+    }
+  });
+
+  // 3. Countdown Timer (ACD-022)
+  const timerDisplay = document.getElementById('timer-display');
+  function formatTime(seconds) {
+    if (seconds <= 0) return '00:00:00';
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return [
+      hrs.toString().padStart(2, '0'),
+      mins.toString().padStart(2, '0'),
+      secs.toString().padStart(2, '0')
+    ].join(':');
+  }
+
+  function updateTimerDisplay() {
+    if (timerDisplay) {
+      timerDisplay.textContent = formatTime(remainingSeconds);
+      if (remainingSeconds < 300) {
+        timerDisplay.style.color = '#EF4444';
+      }
+    }
+  }
+
+  updateTimerDisplay();
+
+  const clockInterval = setInterval(function() {
+    if (remainingSeconds > 0) {
+      remainingSeconds--;
+      updateTimerDisplay();
+    } else {
+      clearInterval(clockInterval);
+      handleTimeExpired();
+    }
+  }, 1000);
+
+  // Periodic Timer Resync with Server every 30s
+  setInterval(function() {
+    if (isSubmitting || remainingSeconds <= 0) return;
+    fetch(`/api/v1/academic/exam-attempts/${attemptId}/`, {
+      headers: { 'X-CSRFToken': getCsrfToken() }
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data && typeof data.remaining_seconds === 'number') {
+        remainingSeconds = data.remaining_seconds;
+        updateTimerDisplay();
+      }
+    })
+    .catch(() => {});
+  }, 30000);
+
+  // 4. Autosave & Idempotency Engine (ACD-021)
+  function setAutosaveStatus(state, msg) {
+    const dot = document.getElementById('autosave-dot');
+    const text = document.getElementById('autosave-text');
+    if (!dot || !text) return;
+
+    if (state === 'saving') {
+      dot.style.backgroundColor = '#F59E0B';
+      text.textContent = 'Menyimpan...';
+    } else if (state === 'saved') {
+      dot.style.backgroundColor = '#10B981';
+      text.textContent = msg || 'Tersimpan';
+    } else if (state === 'error') {
+      dot.style.backgroundColor = '#EF4444';
+      text.textContent = 'Gagal menyimpan';
+    }
+  }
+
+  function saveCurrentAnswer(qid, answerVal) {
+    setAutosaveStatus('saving');
+    const idempotencyKey = `exam_autosave:${attemptId}:${qid}:${Date.now()}`;
+
+    fetch(`/api/v1/academic/exam-attempts/${attemptId}/answers/`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCsrfToken(),
+        'Idempotency-Key': idempotencyKey,
+      },
+      body: JSON.stringify({
+        question_id: qid,
+        answer: answerVal
+      })
+    })
+    .then(res => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    })
+    .then(data => {
+      setAutosaveStatus('saved');
+      if (data && typeof data.remaining_seconds === 'number') {
+        remainingSeconds = data.remaining_seconds;
+        updateTimerDisplay();
+      }
+      markPaletteAnswered(qid, true);
+    })
+    .catch(err => {
+      console.warn('Autosave error:', err);
+      setAutosaveStatus('error');
+    });
+  }
+
+  // Answer change listener on inputs
+  document.querySelectorAll('.exam-input-field').forEach(function(input) {
+    input.addEventListener('change', function() {
+      const qid = parseInt(this.dataset.questionId, 10);
+      const card = document.querySelector(`.question-card[data-question-id="${qid}"]`);
+      if (!card) return;
+
+      const qtype = card.dataset.questionType;
+      let answerVal = null;
+
+      if (qtype === 'MCQ' || qtype === 'TRUE_FALSE') {
+        const checked = card.querySelector(`input[name="question_${qid}"]:checked`);
+        answerVal = checked ? checked.value : '';
+      } else if (qtype === 'MULTI') {
+        const checkedBoxes = card.querySelectorAll(`input[name="question_${qid}"]:checked`);
+        answerVal = Array.from(checkedBoxes).map(cb => cb.value);
+      } else if (qtype === 'SHORT' || qtype === 'ESSAY') {
+        answerVal = this.value;
+      } else if (qtype === 'MATCHING') {
+        const matches = {};
+        card.querySelectorAll('.exam-matching-select').forEach(sel => {
+          if (sel.value) matches[sel.dataset.matchKey] = sel.value;
+        });
+        answerVal = matches;
+      }
+
+      answersState[qid] = answerVal;
+      isDirty = true;
+      saveCurrentAnswer(qid, answerVal);
+    });
+  });
+
+  // Background Periodic Autosave Interval (every 20s if modified)
+  autosaveTimer = setInterval(function() {
+    if (isDirty) {
+      isDirty = false;
+      const activeCard = document.getElementById(`question-card-${currentIndex}`);
+      if (activeCard) {
+        const qid = parseInt(activeCard.dataset.questionId, 10);
+        if (answersState[qid] !== undefined) {
+          saveCurrentAnswer(qid, answersState[qid]);
+        }
+      }
+    }
+  }, 20000);
+
+  // 5. Question Palette & Navigation
+  function updatePaletteActive() {
+    document.querySelectorAll('.palette-btn').forEach((btn, idx) => {
+      if (idx === currentIndex) {
+        btn.style.border = '2px solid var(--color-brand-600, #C8102E)';
+        btn.style.outline = '1px solid var(--color-brand-600, #C8102E)';
+      } else {
+        btn.style.outline = 'none';
+        const qid = parseInt(btn.dataset.questionId, 10);
+        if (answersState[qid]) {
+          btn.style.border = '1px solid #059669';
+        } else {
+          btn.style.border = '1px solid var(--color-line, #E5E7EB)';
+        }
+      }
+    });
+  }
+
+  function markPaletteAnswered(qid, isAnswered) {
+    const btn = document.querySelector(`.palette-btn[data-question-id="${qid}"]`);
+    if (btn) {
+      if (isAnswered) {
+        btn.style.backgroundColor = '#10B981';
+        btn.style.color = '#FFFFFF';
+      } else {
+        btn.style.backgroundColor = '#FFFFFF';
+        btn.style.color = '#374151';
+      }
+    }
+    const count = Object.keys(answersState).filter(k => {
+      const v = answersState[k];
+      return v !== null && v !== '' && (!Array.isArray(v) || v.length > 0) && (typeof v !== 'object' || Object.keys(v).length > 0);
+    }).length;
+    const answeredCounter = document.getElementById('answered-counter');
+    if (answeredCounter) answeredCounter.textContent = count;
+  }
+
+  function showQuestion(idx) {
+    if (idx < 0 || idx >= totalQuestions) return;
+    
+    if (isBlockBack && idx < currentIndex) {
+      alert('Navigasi kembali ke soal sebelumnya dinonaktifkan pada ujian ini.');
+      return;
+    }
+
+    currentIndex = idx;
+    document.querySelectorAll('.question-card').forEach((card, cIdx) => {
+      card.style.display = (cIdx === currentIndex) ? 'block' : 'none';
+    });
+
+    const currentNumDisplay = document.getElementById('current-q-num');
+    if (currentNumDisplay) currentNumDisplay.textContent = currentIndex + 1;
+
+    const btnPrev = document.getElementById('btn-prev-question');
+    if (btnPrev) {
+      if (currentIndex === 0 || isBlockBack) {
+        btnPrev.disabled = true;
+        btnPrev.style.opacity = '0.4';
+        btnPrev.style.cursor = 'not-allowed';
+      } else {
+        btnPrev.disabled = false;
+        btnPrev.style.opacity = '1';
+        btnPrev.style.cursor = 'pointer';
+      }
+    }
+
+    const btnNext = document.getElementById('btn-next-question');
+    if (btnNext) {
+      if (currentIndex === totalQuestions - 1) {
+        btnNext.textContent = 'Kumpulkan Ujian';
+      } else {
+        btnNext.textContent = 'Soal Selanjutnya →';
+      }
+    }
+
+    updatePaletteActive();
+  }
+
+  document.querySelectorAll('.palette-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const targetIdx = parseInt(this.dataset.index, 10);
+      showQuestion(targetIdx);
+    });
+  });
+
+  const btnPrev = document.getElementById('btn-prev-question');
+  if (btnPrev) {
+    btnPrev.addEventListener('click', function() {
+      if (currentIndex > 0) showQuestion(currentIndex - 1);
+    });
+  }
+
+  const btnNext = document.getElementById('btn-next-question');
+  if (btnNext) {
+    btnNext.addEventListener('click', function() {
+      if (currentIndex < totalQuestions - 1) {
+        showQuestion(currentIndex + 1);
+      } else {
+        openSubmitConfirmModal();
+      }
+    });
+  }
+
+  // 6. Final Submission Modal & Action
+  const btnSubmitExam = document.getElementById('btn-submit-exam');
+  const submitModal = document.getElementById('submit-confirm-modal');
+  const btnConfirmFinal = document.getElementById('btn-confirm-final-submit');
+
+  function openSubmitConfirmModal() {
+    const answeredCount = Object.keys(answersState).length;
+    const modalCount = document.getElementById('modal-answered-count');
+    if (modalCount) modalCount.textContent = answeredCount;
+    if (submitModal) submitModal.style.display = 'flex';
+  }
+
+  if (btnSubmitExam) btnSubmitExam.addEventListener('click', openSubmitConfirmModal);
+
+  function executeFinalSubmit(isAuto) {
+    if (isSubmitting) return;
+    isSubmitting = true;
+    clearInterval(clockInterval);
+    clearInterval(autosaveTimer);
+
+    fetch(`/api/v1/academic/exam-attempts/${attemptId}/submit/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCsrfToken(),
+      }
+    })
+    .then(res => res.json())
+    .then(data => {
+      alert('Ujian Anda berhasil dikumpulkan! Terima kasih.');
+      window.location.href = `/academic/exams/`;
+    })
+    .catch(err => {
+      console.error('Submit error:', err);
+      alert('Terjadi kesalahan saat mengumpulkan ujian. Hubungi pengawas.');
+      isSubmitting = false;
+    });
+  }
+
+  if (btnConfirmFinal) {
+    btnConfirmFinal.addEventListener('click', function() {
+      if (submitModal) submitModal.style.display = 'none';
+      executeFinalSubmit(false);
+    });
+  }
+
+  function handleTimeExpired() {
+    const expiredModal = document.getElementById('time-expired-modal');
+    if (expiredModal) expiredModal.style.display = 'flex';
+    executeFinalSubmit(true);
+  }
+
+  // Initialize
+  showQuestion(0);
+  checkFullscreen();
+})();
+</script>
