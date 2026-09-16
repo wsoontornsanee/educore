@@ -5,6 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 import { fetchAttendanceForChild } from '../../services/parentAttendance';
 import { cacheGet, cacheSet } from '../../services/storage';
+import { attendanceStatusLabel } from '../../constants/attendance';
 import { StaleOfflineBanner } from '../../components/StaleOfflineBanner';
 import { colors, radius, spacing, typography } from '../../theme/tokens';
 import type { AttendanceDayItem, ChildSummary } from '../../types';
@@ -79,7 +80,7 @@ export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ 
             <View style={styles.rowText}>
               <Text style={styles.rowDate}>{item.date}</Text>
               <Text style={styles.rowStatus}>
-                {item.status}{item.first_in_at ? ` — Tiba ${item.first_in_at}` : ''}
+                {attendanceStatusLabel(item.status)}{item.first_in_at ? ` — Tiba ${item.first_in_at}` : ''}
               </Text>
             </View>
           </View>

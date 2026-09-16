@@ -6,7 +6,7 @@ export async function createPaymentIntent(
   method: 'VA' | 'QRIS',
   bank?: string
 ): Promise<PaymentIntentItem> {
-  const response = await apiClient.post<PaymentIntentItem>('/payment-intents/', {
+  const response = await apiClient.post<PaymentIntentItem>('/finance/payment-intents/', {
     invoice_ids: invoiceIds,
     method,
     ...(bank ? { bank } : {}),
@@ -15,6 +15,6 @@ export async function createPaymentIntent(
 }
 
 export async function fetchPaymentIntent(id: number): Promise<PaymentIntentItem> {
-  const response = await apiClient.get<PaymentIntentItem>(`/payment-intents/${id}/`);
+  const response = await apiClient.get<PaymentIntentItem>(`/finance/payment-intents/${id}/`);
   return response.data;
 }

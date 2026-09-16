@@ -19,19 +19,34 @@ interface ParentShellProps {
 
 export const ParentShell: React.FC<ParentShellProps> = ({ activeTab, onTabChange, onLogout, children }) => {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [allChildren, setAllChildren] = useState<ChildSummary[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      const kids = await fetchChildren();
-      setAllChildren(kids);
-      const lastId = await getLastChildId();
-      const initial = kids.find((k) => k.student_id === lastId) ?? kids[0] ?? null;
-      setSelectedId(initial ? initial.student_id : null);
-      setLoading(false);
+      setLoading(true);
+      setLoadError(false);
+      try {
+        const kids = await fetchChildren();
+        const lastId = await getLastChildId();
+        if (cancelled) return;
+        setAllChildren(kids);
+        const initial = kids.find((k) => k.student_id === lastId) ?? kids[0] ?? null;
+        setSelectedId(initial ? initial.student_id : null);
+      } catch {
+        // Network error, 403, expired session… anything here previously left the
+        // guardian staring at a spinner forever with no way out.
+        if (cancelled) return;
+        setLoadError(true);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
-  }, []);
+    return () => { cancelled = true; };
+  }, [reloadToken]);
 
   const handleSelectChild = async (id: number) => {
     setSelectedId(id);
@@ -59,11 +74,31 @@ export const ParentShell: React.FC<ParentShellProps> = ({ activeTab, onTabChange
     );
   }
 
+  if (loadError) {
+    return (
+      <SafeAreaView style={styles.center}>
+        <Text style={styles.emptyText}>
+          Gagal memuat data anak. Periksa koneksi Anda lalu coba lagi.
+        </Text>
+        <TouchableOpacity
+          onPress={() => setReloadToken((t) => t + 1)}
+          style={styles.retryButton}
+          accessibilityRole="button"
+        >
+          <Text style={styles.retryText}>Coba lagi</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onLogout} style={styles.logoutLink} accessibilityRole="button">
+          <Text style={styles.logoutText}>Keluar</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
   if (!selectedChild) {
     return (
       <SafeAreaView style={styles.center}>
         <Text style={styles.emptyText}>Tidak ada data anak terhubung.</Text>
-        <TouchableOpacity onPress={onLogout} style={styles.logoutLink}>
+        <TouchableOpacity onPress={onLogout} style={styles.logoutLink} accessibilityRole="button">
           <Text style={styles.logoutText}>Keluar</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -115,17 +150,28 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surface },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.surface, padding: spacing.xl },
   emptyText: { fontSize: typography.fontSize.base, color: colors.muted, textAlign: 'center', marginBottom: spacing.lg },
-  logoutLink: { padding: spacing.sm },
-  logoutText: { color: colors.primary, fontWeight: typography.fontWeight.bold },
+  // PAR-016: every interactive element is at least 44dp tall.
+  logoutLink: { paddingVertical: spacing.md, paddingHorizontal: spacing.base, minHeight: 44, justifyContent: 'center' },
+  logoutText: { color: colors.primary, fontWeight: typography.fontWeight.bold, lineHeight: typography.lineHeight.base },
+  retryButton: {
+    minHeight: 44, justifyContent: 'center', alignItems: 'center',
+    paddingVertical: spacing.md, paddingHorizontal: spacing.xl,
+    backgroundColor: colors.primary, borderRadius: radius.button, marginBottom: spacing.sm,
+  },
+  retryText: { color: colors.white, fontWeight: typography.fontWeight.bold, lineHeight: typography.lineHeight.base },
   childSwitcher: { backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.border },
   childSwitcherContent: { paddingHorizontal: spacing.base, paddingVertical: spacing.sm },
-  childChip: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderWidth: 1, borderColor: colors.borderDark, borderRadius: radius.badge, marginRight: spacing.sm },
+  // PAR-016: chip is a primary control (child switcher) — keep it >= 44dp tall.
+  childChip: {
+    paddingHorizontal: spacing.base, paddingVertical: spacing.md, minHeight: 44, justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.borderDark, borderRadius: radius.badge, marginRight: spacing.sm,
+  },
   childChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   childChipText: { fontSize: typography.fontSize.sm, color: colors.body, fontWeight: typography.fontWeight.medium },
   childChipTextActive: { color: colors.white },
   content: { flex: 1 },
   tabBar: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.white },
-  tabItem: { flex: 1, paddingVertical: spacing.md, alignItems: 'center' },
+  tabItem: { flex: 1, paddingVertical: spacing.md, minHeight: 44, justifyContent: 'center', alignItems: 'center' },
   tabLabel: { fontSize: typography.fontSize.sm, color: colors.muted, fontWeight: typography.fontWeight.medium },
   tabLabelActive: { color: colors.primary, fontWeight: typography.fontWeight.bold },
 });

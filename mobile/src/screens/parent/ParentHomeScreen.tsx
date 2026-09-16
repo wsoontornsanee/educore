@@ -6,6 +6,8 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-nat
 import { fetchAttendanceForChild } from '../../services/parentAttendance';
 import { fetchInvoicesForChild } from '../../services/invoices';
 import { cacheGet, cacheSet } from '../../services/storage';
+import { todayWib } from '../../services/localDate';
+import { attendanceStatusLabel } from '../../constants/attendance';
 import { StaleOfflineBanner } from '../../components/StaleOfflineBanner';
 import { colors, radius, spacing, typography } from '../../theme/tokens';
 import type { AttendanceDayItem, ChildSummary, InvoiceItem } from '../../types';
@@ -13,15 +15,6 @@ import type { AttendanceDayItem, ChildSummary, InvoiceItem } from '../../types';
 interface ParentHomeScreenProps {
   child: ChildSummary;
 }
-
-const STATUS_LABEL: Record<string, string> = {
-  HADIR: 'Sudah di sekolah',
-  TERLAMBAT: 'Sudah di sekolah (Terlambat)',
-  SAKIT: 'Sakit',
-  IZIN: 'Izin',
-  ALPA: 'Tidak hadir',
-  DISPEN: 'Dispensasi',
-};
 
 export const ParentHomeScreen: React.FC<ParentHomeScreenProps> = ({ child }) => {
   const [loading, setLoading] = useState(true);
@@ -42,9 +35,14 @@ export const ParentHomeScreen: React.FC<ParentHomeScreenProps> = ({ child }) => 
           child.financial_responsible ? fetchInvoicesForChild(child.student_id) : Promise.resolve([]),
         ]);
         if (cancelled) return;
-        const todayStr = new Date().toISOString().split('T')[0];
+        // Must be the WIB calendar date, not the UTC one (see services/localDate).
+        const todayStr = todayWib();
         const todayRow = attendance.find((a) => a.date === todayStr) ?? null;
-        const outstanding = invoices.filter((inv) => Number(inv.balance_due) > 0);
+        // Nearest due date first — the API orders by -created_at, which is not
+        // the same thing (matches ParentInvoicesScreen's ordering).
+        const outstanding = invoices
+          .filter((inv) => Number(inv.balance_due) > 0)
+          .sort((a, b) => a.due_date.localeCompare(b.due_date));
         setToday(todayRow);
         setOutstandingInvoices(outstanding);
         setOffline(false);
@@ -74,7 +72,7 @@ export const ParentHomeScreen: React.FC<ParentHomeScreenProps> = ({ child }) => 
     );
   }
 
-  const statusLabel = today ? STATUS_LABEL[today.status] ?? today.status : 'Belum tiba';
+  const statusLabel = attendanceStatusLabel(today?.status);
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>

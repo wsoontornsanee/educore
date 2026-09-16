@@ -223,7 +223,12 @@ const styles = StyleSheet.create({
   brandTitle: { fontSize: typography.fontSize.xs, fontWeight: typography.fontWeight.bold, color: colors.primary, letterSpacing: 2 },
   portalTitle: { fontSize: typography.fontSize.xxl, fontWeight: typography.fontWeight.bold, color: colors.heading, marginTop: 4 },
   roleToggle: { flexDirection: 'row', marginBottom: spacing.base, borderWidth: 1, borderColor: colors.borderDark },
-  roleTab: { flex: 1, paddingVertical: spacing.sm, alignItems: 'center', backgroundColor: colors.white },
+  // PAR-016: spacing.sm (8) + 18px line height gave a ~34dp target. spacing.md
+  // per side plus an explicit floor keeps it at or above the 44dp minimum.
+  roleTab: {
+    flex: 1, paddingVertical: spacing.md, minHeight: 44,
+    justifyContent: 'center', alignItems: 'center', backgroundColor: colors.white,
+  },
   roleTabActive: { backgroundColor: colors.primary },
   roleTabText: { fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.bold, color: colors.body },
   roleTabTextActive: { color: colors.white },

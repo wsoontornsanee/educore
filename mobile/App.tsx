@@ -5,6 +5,8 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, SafeAreaView, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { checkAuth, logout } from './src/services/auth';
+import { todayWib } from './src/services/localDate';
+import { isParent } from './src/services/roleRouting';
 import { initQueueDb } from './src/services/offlineQueue';
 import {
   deactivatePushTokenAsync,
@@ -22,8 +24,6 @@ import { ParentInvoicesScreen } from './src/screens/parent/ParentInvoicesScreen'
 import { colors } from './src/theme/tokens';
 import { StudentRosterItem, TimetableSlotItem, UserProfile } from './src/types';
 
-const isParent = (user: UserProfile | null) => !!user?.roles?.some((r) => r.role === 'parent');
-
 export default function App() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
@@ -31,7 +31,7 @@ export default function App() {
   const [subModalSlot, setSubModalSlot] = useState<TimetableSlotItem | null>(null);
   const [parentTab, setParentTab] = useState<ParentTab>('HOME');
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = todayWib();
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -115,7 +115,9 @@ export default function App() {
             ) : parentTab === 'ATTENDANCE' ? (
               <ParentAttendanceScreen child={selectedChild} />
             ) : (
-              <ParentInvoicesScreen child={selectedChild} />
+              // Keyed on the child so switching children mid-payment remounts the
+              // screen instead of leaving the previous child's VA/amount on screen.
+              <ParentInvoicesScreen key={selectedChild.student_id} child={selectedChild} />
             )
           }
         </ParentShell>

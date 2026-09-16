@@ -16,13 +16,34 @@ interface PaymentScreenProps {
 
 const POLL_INTERVAL_MS = 3000;
 
+// Terminal states of finance.PaymentIntentStatus. PENDING is the only non-terminal
+// one, so polling must stop on any of these three.
+const SUCCESS_STATUS = 'COMPLETED';
+const UNPAID_TERMINAL_MESSAGE: Record<string, string> = {
+  EXPIRED: 'Waktu pembayaran telah habis. Silakan ulangi dari daftar tagihan.',
+  CANCELLED: 'Pembayaran dibatalkan. Silakan ulangi dari daftar tagihan.',
+};
+
 export const PaymentScreen: React.FC<PaymentScreenProps> = ({ invoiceIds, onDone }) => {
   const [method, setMethod] = useState<'VA' | 'QRIS' | null>(null);
   const [intent, setIntent] = useState<PaymentIntentItem | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [terminalMsg, setTerminalMsg] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPolling = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
+
+  const handleBack = () => {
+    stopPolling();
+    onDone();
+  };
 
   useEffect(() => {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
@@ -48,6 +69,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ invoiceIds, onDone
     setIntent(null);
     setLoading(true);
     setErrorMsg(null);
+    setTerminalMsg(null);
     try {
       const created = await createPaymentIntent(invoiceIds, chosen);
       setIntent(created);
@@ -55,7 +77,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ invoiceIds, onDone
         try {
           const refreshed = await fetchPaymentIntent(created.id);
           setIntent(refreshed);
-          if (refreshed.status === 'SETTLED' || refreshed.status === 'PAID') {
+          if (refreshed.status === SUCCESS_STATUS) {
             // Guard against two in-flight ticks both observing a terminal status:
             // only the first to see pollRef.current still set may clear it and
             // call onDone(); a losing tick sees it already null and bails out.
@@ -63,6 +85,13 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ invoiceIds, onDone
             clearInterval(pollRef.current);
             pollRef.current = null;
             onDone();
+          } else if (UNPAID_TERMINAL_MESSAGE[refreshed.status]) {
+            // EXPIRED / CANCELLED are terminal too: stop polling and let the
+            // guardian go back instead of spinning forever.
+            if (!pollRef.current) return;
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+            setTerminalMsg(UNPAID_TERMINAL_MESSAGE[refreshed.status]);
           }
         } catch {
           // Network hiccup during polling — keep trying on the next tick.
@@ -85,8 +114,19 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ invoiceIds, onDone
         <TouchableOpacity style={styles.methodButton} onPress={() => handleChooseMethod('QRIS')}>
           <Text style={styles.methodButtonText}>QRIS</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={onDone} style={styles.cancelLink}>
+        <TouchableOpacity onPress={handleBack} style={styles.cancelLink}>
           <Text style={styles.cancelText}>Batal</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (terminalMsg) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorText}>{terminalMsg}</Text>
+        <TouchableOpacity onPress={handleBack} style={styles.cancelLink}>
+          <Text style={styles.cancelText}>Kembali ke daftar tagihan</Text>
         </TouchableOpacity>
       </View>
     );
@@ -158,6 +198,12 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ invoiceIds, onDone
       </View>
 
       <Text style={styles.waitingNote}>Menunggu konfirmasi pembayaran otomatis…</Text>
+
+      {/* Escape hatch: the poll may never settle (VA paid later, network down),
+          so the guardian must always be able to leave this screen. */}
+      <TouchableOpacity onPress={handleBack} style={styles.backButton} accessibilityRole="button">
+        <Text style={styles.backButtonText}>Kembali ke daftar tagihan</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 };
@@ -172,8 +218,16 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md, alignItems: 'center', marginBottom: spacing.sm,
   },
   methodButtonText: { color: colors.white, fontWeight: typography.fontWeight.bold },
-  cancelLink: { marginTop: spacing.base },
-  cancelText: { color: colors.muted, fontSize: typography.fontSize.sm },
+  // PAR-016: >= 44dp tappable height (12 + 12 padding + ~20 line height).
+  cancelLink: { marginTop: spacing.base, paddingVertical: spacing.md, paddingHorizontal: spacing.base, minHeight: 44, justifyContent: 'center' },
+  cancelText: { color: colors.muted, fontSize: typography.fontSize.sm, lineHeight: typography.lineHeight.base },
+  backButton: {
+    marginTop: spacing.base, paddingVertical: spacing.md, minHeight: 44,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.borderDark, borderRadius: radius.button,
+    backgroundColor: colors.white,
+  },
+  backButtonText: { color: colors.body, fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.bold, lineHeight: typography.lineHeight.base },
   errorText: { color: colors.alpa, fontSize: typography.fontSize.sm, textAlign: 'center' },
   summaryCard: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.border, borderRadius: radius.card, padding: spacing.lg, marginBottom: spacing.base },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.xs },

@@ -39,7 +39,7 @@ describe('Parent data services', () => {
   it('fetchInvoicesForChild filters by student_id', async () => {
     const original = apiClient.get;
     apiClient.get = (async (path: string) => {
-      assert.strictEqual(path, '/invoices/?student_id=7');
+      assert.strictEqual(path, '/finance/invoices/?student_id=7');
       return { data: { results: [] }, status: 200, headers: {} };
     }) as any;
     try {
@@ -53,7 +53,7 @@ describe('Parent data services', () => {
   it('createPaymentIntent posts invoice_ids and method', async () => {
     const original = apiClient.post;
     apiClient.post = (async (path: string, body: any) => {
-      assert.strictEqual(path, '/payment-intents/');
+      assert.strictEqual(path, '/finance/payment-intents/');
       assert.deepStrictEqual(body.invoice_ids, [5]);
       assert.strictEqual(body.method, 'QRIS');
       return { data: { id: 99, status: 'PENDING' }, status: 201, headers: {} };
@@ -69,7 +69,7 @@ describe('Parent data services', () => {
   it('fetchPaymentIntent gets by id', async () => {
     const original = apiClient.get;
     apiClient.get = (async (path: string) => {
-      assert.strictEqual(path, '/payment-intents/99/');
+      assert.strictEqual(path, '/finance/payment-intents/99/');
       return { data: { id: 99, status: 'SETTLED' }, status: 200, headers: {} };
     }) as any;
     try {
