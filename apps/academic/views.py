@@ -485,7 +485,9 @@ class HomeworkViewSet(TenantScopedModelViewSet):
         payload = HomeworkFileUploadSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
         try:
-            file_meta = store_homework_submission_file(homework, payload.validated_data['file'])
+            file_meta = store_homework_submission_file(
+                homework, payload.validated_data['file'], uploaded_by=str(request.user.pk),
+            )
         except InvalidSubmissionFilesError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(file_meta, status=status.HTTP_201_CREATED)

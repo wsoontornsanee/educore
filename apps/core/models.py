@@ -172,3 +172,30 @@ class IdempotencyRecord(models.Model):
 
     def __str__(self):
         return f"Idempotency {self.key} for {self.endpoint}"
+
+class StoredFile(TenantModel):
+    """Catalog of every object uploaded to GCS — no domain model references a
+    raw path string; every reference is a StoredFile row (ARC-026, ARC-030).
+
+    school_id is a plain BigIntegerField (not an FK), following the same
+    pattern as AuditEvent — a StoredFile can outlive the school-scoped row
+    that referenced it.
+    """
+    school_id = models.BigIntegerField(blank=True, null=True, db_index=True)
+    bucket = models.CharField(max_length=255)
+    key = models.CharField(max_length=500, unique=True)
+    purpose = models.CharField(max_length=64, db_index=True)
+    content_type = models.CharField(max_length=128)
+    size = models.BigIntegerField(blank=True, null=True)
+    checksum = models.CharField(max_length=64, blank=True, default='')  # stored as a hex digest (e.g. md5 hexdigest)
+    uploaded_by = models.CharField(max_length=64, blank=True, default='')
+    confirmed_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        db_table = 'stored_files'
+        indexes = [
+            models.Index(fields=['purpose', 'deleted_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.purpose}:{self.key}"

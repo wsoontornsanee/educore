@@ -1,6 +1,9 @@
 import datetime
 from decimal import Decimal
-from django.test import TestCase
+from pathlib import Path
+from unittest import mock
+from django.conf import settings
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -404,22 +407,28 @@ class HomeworkFileUploadTests(TestCase):
         self.fx = build_academic_fixture()
         self.homework = make_homework(self.fx, due_delta_hours=48)
 
-    def test_valid_pdf_upload_stored_on_disk(self):
-        from django.conf import settings
+    @override_settings(GCS_PATH_PREFIX='STG')
+    @mock.patch('apps.core.storage._client')
+    def test_valid_pdf_upload_written_to_gcs(self, mock_client):
         from django.core.files.uploadedfile import SimpleUploadedFile
-        from pathlib import Path
+
+        mock_blob = mock.MagicMock()
+        mock_client.return_value.bucket.return_value.blob.return_value = mock_blob
 
         upload = SimpleUploadedFile('tugas.pdf', b'%PDF-1.4 fake content', content_type='application/pdf')
-        meta = store_homework_submission_file(self.homework, upload)
+        meta = store_homework_submission_file(self.homework, upload, uploaded_by='77')
 
         self.assertEqual(meta['filename'], 'tugas.pdf')
         self.assertEqual(meta['content_type'], 'application/pdf')
-        self.assertTrue(meta['key'].startswith(f'homework_submissions/{self.homework.id}/'))
+        self.assertTrue(meta['key'].startswith(f'STG/homework_submission/'))
+        mock_blob.upload_from_string.assert_called_once_with(b'%PDF-1.4 fake content', content_type='application/pdf')
+        self.assertFalse((Path(settings.MEDIA_ROOT) / meta['key']).exists())
 
-        stored_path = Path(settings.MEDIA_ROOT) / meta['key']
-        self.assertTrue(stored_path.exists())
-        self.assertEqual(stored_path.read_bytes(), b'%PDF-1.4 fake content')
-        stored_path.unlink()
+        from apps.core.models import StoredFile
+        stored = StoredFile.objects.get(key=meta['key'])
+        self.assertEqual(stored.purpose, 'homework_submission')
+        self.assertIsNotNone(stored.confirmed_at)
+        self.assertEqual(stored.uploaded_by, '77')
 
     def test_oversized_file_rejected(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
@@ -438,7 +447,8 @@ class HomeworkFileUploadTests(TestCase):
         with self.assertRaises(InvalidSubmissionFilesError):
             store_homework_submission_file(self.homework, upload)
 
-    def test_returned_key_round_trips_through_submit_homework(self):
+    @mock.patch('apps.core.storage._client')
+    def test_returned_key_round_trips_through_submit_homework(self, mock_client):
         from django.core.files.uploadedfile import SimpleUploadedFile
 
         upload = SimpleUploadedFile('tugas.pdf', b'%PDF-1.4 fake content', content_type='application/pdf')
@@ -458,7 +468,8 @@ class HomeworkFileUploadViewTests(TestCase):
         )
         self.homework = make_homework(self.fx, due_delta_hours=48)
 
-    def test_upload_file_via_api(self):
+    @mock.patch('apps.core.storage._client')
+    def test_upload_file_via_api(self, mock_client):
         from django.core.files.uploadedfile import SimpleUploadedFile
 
         self.client.force_authenticate(user=self.fx['teacher_user'])
@@ -467,9 +478,18 @@ class HomeworkFileUploadViewTests(TestCase):
             f'/api/v1/academic/homework/{self.homework.id}/upload-file/', {'file': upload}, format='multipart',
         )
         self.assertEqual(res.status_code, 201, res.content)
+
+        from apps.core.models import StoredFile
+        # Use all_tenants: the request's TenancyMiddleware clears the
+        # thread-local foundation context once client.post() returns, and
+        # the tenant-scoped default manager fail-closes to none() outside
+        # any foundation context (ARC-002).
+        stored = StoredFile.all_tenants.get(key=res.json()['key'])
+        self.assertEqual(stored.uploaded_by, str(self.fx['teacher_user'].pk))
         self.assertEqual(res.json()['filename'], 'tugas.pdf')
 
-    def test_cross_tenant_upload_returns_404(self):
+    @mock.patch('apps.core.storage._client')
+    def test_cross_tenant_upload_returns_404(self, mock_client):
         from django.core.files.uploadedfile import SimpleUploadedFile
 
         fx_b = build_academic_fixture(foundation_name="Yayasan Upload B")

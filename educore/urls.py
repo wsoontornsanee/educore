@@ -7,6 +7,7 @@ urlpatterns = [
     # Base API route: /api/v1/ per spec/01 §8.1
     path('api/v1/', include('apps.identity.urls')),
     path('api/v1/', include('apps.foundation.urls')),
+    path('api/v1/files/', include('apps.core.urls')),
     path('api/v1/', include('apps.hardware.urls')),
     path('api/v1/', include('apps.attendance.urls')),
     path('api/v1/', include('apps.notifications.urls')),

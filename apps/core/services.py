@@ -1,9 +1,16 @@
 """Core service helpers for auditing, asynchronous task enqueueing, and domain events."""
+import base64
+import hashlib
 import logging
+
+from google.cloud.exceptions import NotFound
+
+from django.conf import settings
 from django.utils import timezone
 from educore.middleware.tenancy import get_current_foundation_id
 from educore.middleware.audit import get_current_actor, get_current_ip
-from .models import AuditEvent, DomainEvent, TaskQueue
+from .models import AuditEvent, DomainEvent, StoredFile, TaskQueue
+from . import storage
 
 logger = logging.getLogger(__name__)
 
@@ -86,4 +93,99 @@ def record_domain_event(name, payload=None, foundation_id=None):
         foundation_id=foundation_id,
         name=name,
         payload=payload or {},
+    )
+
+
+class InvalidUploadError(ValueError):
+    """Raised when an upload request violates its purpose's rules."""
+
+
+# Rules per upload purpose. Size/content-type values for 'homework_submission'
+# mirror apps.academic.models.ALLOWED_SUBMISSION_CONTENT_TYPES /
+# MAX_SUBMISSION_FILE_SIZE — duplicated here (not imported) because apps/core
+# must not depend on business apps.
+PURPOSE_RULES = {
+    'homework_submission': {
+        'max_size': 20 * 1024 * 1024,
+        'allowed_content_types': {
+            'application/pdf', 'image/jpeg', 'image/png',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        },
+        'required_permission': 'grades.write',
+    },
+}
+
+
+def initiate_upload(purpose, filename, content_type, size, foundation_id=None, school_id=None, uploaded_by=None):
+    """Two-phase commit, phase 1: validate, create a pending StoredFile, and
+    return a signed PUT URL for the client to upload directly to GCS."""
+    rules = PURPOSE_RULES.get(purpose)
+    if rules is None:
+        raise InvalidUploadError(f"UNKNOWN_PURPOSE: '{purpose}' is not a registered upload purpose.")
+    if size > rules['max_size']:
+        raise InvalidUploadError(f"FILE_TOO_LARGE: '{filename}' exceeds the limit for purpose '{purpose}'.")
+    if content_type not in rules['allowed_content_types']:
+        raise InvalidUploadError(f"UNSUPPORTED_FILE_TYPE: '{content_type}' is not accepted for purpose '{purpose}'.")
+
+    if foundation_id is None:
+        foundation_id = get_current_foundation_id()
+
+    key = storage.build_object_key(purpose, filename)
+    stored_file = StoredFile.objects.create(
+        foundation_id=foundation_id,
+        school_id=school_id,
+        bucket=settings.GCS_BUCKET_NAME,
+        key=key,
+        purpose=purpose,
+        content_type=content_type,
+        size=size,
+        uploaded_by=uploaded_by or '',
+    )
+    upload_url = storage.generate_upload_url(key, content_type)
+    return stored_file, upload_url
+
+
+def confirm_upload(stored_file_id, actor=None):
+    """Two-phase commit, phase 2: verify the object landed in GCS and record
+    its real (server-verified) size/checksum."""
+    stored_file = StoredFile.objects.get(id=stored_file_id)
+    try:
+        metadata = storage.get_blob_metadata(stored_file.key)
+    except NotFound:
+        raise InvalidUploadError("UPLOAD_NOT_FOUND: the object has not been uploaded to GCS yet.")
+
+    rules = PURPOSE_RULES.get(stored_file.purpose)
+    if rules and metadata['size'] > rules['max_size']:
+        raise InvalidUploadError("FILE_TOO_LARGE: uploaded object exceeds the limit for its purpose.")
+
+    checksum_hex = base64.b64decode(metadata['md5_hash']).hex() if metadata['md5_hash'] else ''
+
+    stored_file.size = metadata['size']
+    stored_file.checksum = checksum_hex
+    stored_file.confirmed_at = timezone.now()
+    stored_file.save(update_fields=['size', 'checksum', 'confirmed_at', 'updated_at'])
+    return stored_file
+
+
+def write_generated_file(purpose, filename, data, content_type, foundation_id=None, uploaded_by=None, school_id=None):
+    """For server-generated files (PDFs): write bytes directly to GCS and
+    create an already-confirmed StoredFile row in one step — no two-phase
+    commit needed since the server itself performed the write."""
+    if foundation_id is None:
+        foundation_id = get_current_foundation_id()
+
+    key = storage.build_object_key(purpose, filename)
+    storage.upload_bytes(key, data, content_type)
+
+    return StoredFile.objects.create(
+        foundation_id=foundation_id,
+        school_id=school_id,
+        bucket=settings.GCS_BUCKET_NAME,
+        key=key,
+        purpose=purpose,
+        content_type=content_type,
+        size=len(data),
+        checksum=hashlib.md5(data, usedforsecurity=False).hexdigest(),
+        confirmed_at=timezone.now(),
+        uploaded_by=uploaded_by or '',
     )

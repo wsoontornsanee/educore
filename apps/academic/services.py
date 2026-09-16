@@ -6,16 +6,13 @@ from datetime import timedelta
 import csv
 import io
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
-from pathlib import Path
-from uuid import uuid4
 
-from django.conf import settings
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 logger = logging.getLogger(__name__)
 
-from apps.core.services import audit
+from apps.core.services import audit, write_generated_file
 from apps.identity.models import Foundation, RoleAssignment, Staff, Student
 from apps.academic.models import (
     ALLOWED_SUBMISSION_CONTENT_TYPES,
@@ -571,15 +568,14 @@ def validate_submission_files(files) -> None:
             raise InvalidSubmissionFilesError(f"UNSUPPORTED_FILE_TYPE: '{content_type}' is not accepted.")
 
 
-def store_homework_submission_file(homework: Homework, uploaded_file) -> dict:
+def store_homework_submission_file(homework: Homework, uploaded_file, uploaded_by=None) -> dict:
     """ACD-027: validate and persist one uploaded homework attachment, returning the
     {key, filename, size, content_type} dict submit_homework's `files` list expects.
 
     Reuses validate_submission_files (wrapped as a one-item list) rather than
-    duplicating its size/content-type rules. Written directly to MEDIA_ROOT via
-    pathlib, matching the existing raw-filesystem convention (render_report_card_pdf,
-    generate_settlement_statement_pdf) — no Django storage abstraction is used
-    anywhere else in this codebase.
+    duplicating its size/content-type rules. Written directly to GCS via
+    core.write_generated_file, catalogued as a core.StoredFile row (ARC-026,
+    ARC-030) — no raw filesystem write.
     """
     file_meta = {
         'filename': uploaded_file.name,
@@ -588,16 +584,15 @@ def store_homework_submission_file(homework: Homework, uploaded_file) -> dict:
     }
     validate_submission_files([file_meta])
 
-    output_dir = Path(settings.MEDIA_ROOT) / 'homework_submissions' / str(homework.id)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    key = f"homework_submissions/{homework.id}/{uuid4().hex}_{uploaded_file.name}"
-    with open(Path(settings.MEDIA_ROOT) / key, 'wb') as out:
-        for chunk in uploaded_file.chunks():
-            out.write(chunk)
+    data = b''.join(uploaded_file.chunks())
+    stored_file = write_generated_file(
+        purpose='homework_submission', filename=uploaded_file.name,
+        data=data, content_type=uploaded_file.content_type,
+        foundation_id=homework.foundation_id, uploaded_by=uploaded_by,
+    )
 
     return {
-        'key': key,
+        'key': stored_file.key,
         'filename': uploaded_file.name,
         'size': uploaded_file.size,
         'content_type': uploaded_file.content_type,
@@ -1752,21 +1747,28 @@ table {{ border-collapse: collapse; width: 100%; }}
 
 def render_report_card_pdf(report_card: ReportCard) -> str:
     """Render and persist the report card document. Falls back to HTML if weasyprint's
-    native libraries are unavailable in this environment (see memory/01_PROJECT.md)."""
+    native libraries are unavailable in this environment (see memory/01_PROJECT.md).
+    Written to GCS via core.write_generated_file, catalogued as a core.StoredFile
+    row (ARC-026, ARC-030) — no raw filesystem write.
+    """
     html_content = render_report_card_html(report_card)
-    output_dir = Path(settings.MEDIA_ROOT) / 'report_cards'
-    output_dir.mkdir(parents=True, exist_ok=True)
 
     try:
         from weasyprint import HTML
-        key = f"report_cards/{report_card.id}_v{report_card.version}.pdf"
-        HTML(string=html_content).write_pdf(str(Path(settings.MEDIA_ROOT) / key))
+        filename = f"{report_card.id}_v{report_card.version}.pdf"
+        data = HTML(string=html_content).write_pdf()
+        content_type = 'application/pdf'
     except Exception:
         logger.warning("weasyprint unavailable, falling back to HTML rapor output", exc_info=True)
-        key = f"report_cards/{report_card.id}_v{report_card.version}.html"
-        (Path(settings.MEDIA_ROOT) / key).write_text(html_content, encoding='utf-8')
+        filename = f"{report_card.id}_v{report_card.version}.html"
+        data = html_content.encode('utf-8')
+        content_type = 'text/html'
 
-    return key
+    stored_file = write_generated_file(
+        purpose='report_card_pdf', filename=filename, data=data,
+        content_type=content_type, foundation_id=report_card.foundation_id,
+    )
+    return stored_file.key
 
 
 def publish_report_card(report_card: ReportCard, actor=None) -> ReportCard:

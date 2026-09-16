@@ -1,5 +1,6 @@
 import datetime
 from decimal import Decimal
+from unittest import mock
 from django.test import TestCase
 from rest_framework.test import APIClient
 
@@ -80,6 +81,9 @@ class GenerateReportCardsTests(TestCase):
 
 class ReportCardStateMachineTests(TestCase):
     def setUp(self):
+        patcher = mock.patch('apps.core.storage._client')
+        self.mock_gcs_client = patcher.start()
+        self.addCleanup(patcher.stop)
         self.fx = build_academic_fixture()
         enroll_and_grade(self.fx)
         generate_report_cards(self.fx['class_group'], self.fx['term'])
@@ -113,6 +117,9 @@ class ReportCardStateMachineTests(TestCase):
 
 class ArrearsGateTests(TestCase):
     def setUp(self):
+        patcher = mock.patch('apps.core.storage._client')
+        self.mock_gcs_client = patcher.start()
+        self.addCleanup(patcher.stop)
         self.fx = build_academic_fixture()
         enroll_and_grade(self.fx)
         generate_report_cards(self.fx['class_group'], self.fx['term'])
@@ -170,6 +177,9 @@ class ArrearsGateTests(TestCase):
 
 class ReportCardViewsTests(TestCase):
     def setUp(self):
+        patcher = mock.patch('apps.core.storage._client')
+        self.mock_gcs_client = patcher.start()
+        self.addCleanup(patcher.stop)
         self.client = APIClient()
         self.fx = build_academic_fixture()
         enroll_and_grade(self.fx)
@@ -235,6 +245,9 @@ class GetCurriculumPhaseTests(TestCase):
 
 class SetReportCardContentTests(TestCase):
     def setUp(self):
+        patcher = mock.patch('apps.core.storage._client')
+        self.mock_gcs_client = patcher.start()
+        self.addCleanup(patcher.stop)
         self.fx = build_academic_fixture()
         enroll_and_grade(self.fx)
         generate_report_cards(self.fx['class_group'], self.fx['term'])
@@ -335,6 +348,9 @@ class RenderReportCardHtmlTests(TestCase):
 
 class ReportCardContentViewTests(TestCase):
     def setUp(self):
+        patcher = mock.patch('apps.core.storage._client')
+        self.mock_gcs_client = patcher.start()
+        self.addCleanup(patcher.stop)
         self.client = APIClient()
         self.fx = build_academic_fixture()
         enroll_and_grade(self.fx)

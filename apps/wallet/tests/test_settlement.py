@@ -1,5 +1,7 @@
 import datetime
 from decimal import Decimal
+from unittest import mock
+
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -26,6 +28,9 @@ class RunSettlementTests(TestCase):
         self.wallet = get_or_create_wallet(self.fx['student'])
         topup_wallet(self.wallet, Decimal('100000'), 'CASH', 'seed-1')
         self.today = timezone.localdate()
+        patcher = mock.patch('apps.core.storage._client')
+        self.mock_gcs_client = patcher.start()
+        self.addCleanup(patcher.stop)
 
     def _checkout(self, client_id, qty=1):
         return process_pos_transaction(
@@ -80,6 +85,9 @@ class SettlementViewsTests(TestCase):
         self.wallet = get_or_create_wallet(self.fx['student'])
         topup_wallet(self.wallet, Decimal('100000'), 'CASH', 'seed-1')
         self.today = timezone.localdate()
+        patcher = mock.patch('apps.core.storage._client')
+        self.mock_gcs_client = patcher.start()
+        self.addCleanup(patcher.stop)
         process_pos_transaction(
             self.terminal, self.fx['student'],
             [{'sku': self.product.sku, 'name': self.product.name, 'qty': 1, 'unit_price': '15000.00'}],

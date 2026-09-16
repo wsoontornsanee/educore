@@ -45,3 +45,21 @@ def generate_download_url(key: str, expires_seconds: int = 600) -> str:
     bucket = _client().bucket(settings.GCS_BUCKET_NAME)
     blob = bucket.blob(key)
     return blob.generate_signed_url(version='v4', expiration=expires_seconds, method='GET')
+
+
+def upload_bytes(key: str, data: bytes, content_type: str) -> None:
+    """Write bytes directly to GCS. Used for server-generated files (PDFs) —
+    the server already has the bytes, so no signed-upload round trip is needed.
+    """
+    bucket = _client().bucket(settings.GCS_BUCKET_NAME)
+    blob = bucket.blob(key)
+    blob.upload_from_string(data, content_type=content_type)
+
+
+def get_blob_metadata(key: str) -> dict:
+    """Fetch real (server-verified) size/content-type/checksum for a
+    previously client-uploaded object, used by confirm_upload."""
+    bucket = _client().bucket(settings.GCS_BUCKET_NAME)
+    blob = bucket.blob(key)
+    blob.reload()
+    return {'size': blob.size, 'content_type': blob.content_type, 'md5_hash': blob.md5_hash}

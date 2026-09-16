@@ -49,19 +49,27 @@ asset, no JS tooling exists.**
   = True` in DRF settings — every API money value is already a JSON string, safe
   to hand straight to `Intl.NumberFormat` / manual IDR grouping. No client-side
   decimal math needed.
-- File storage — **gap**: spec `ARC-026`/`ARC-030` (`specs/01-platform-architecture.md:181,185`)
-  requires every uploaded object to be a `core.StoredFile` row, uploaded
-  client-to-GCS via signed URL, never touching server disk. **No `StoredFile`
-  model, no signed-URL endpoint, and no GCS client exist anywhere in `apps/`.**
-  The one file-upload path in scope for these six items,
+- File storage — **gap**: labels `ARC-026`/`ARC-030` do not exist anywhere in
+  `spec/` — the earlier citation to `specs/01-platform-architecture.md:181,185`
+  was fabricated (that path doesn't exist; the real
+  `spec/01-platform-architecture.md:181-185` covers §8.1 idempotency, not file
+  storage). No spec file mentions `StoredFile`, GCS, or a "never touch server
+  disk" rule. Treat this as an engineering-driven gap, not a spec violation.
+  A GCS client **does** exist —
+  [apps/core/storage.py](../apps/core/storage.py) already has
+  `build_object_key` / `generate_upload_url` / `generate_download_url` (signed
+  v4 PUT/GET), wired to `GCS_BUCKET_NAME` / `GCS_PATH_PREFIX` in
+  [educore/settings/base.py:163-171](../educore/settings/base.py) — but there is
+  still no `core.StoredFile` model and no upload/confirm endpoint calling that
+  helper. The one file-upload path in scope for these six items,
   `HomeworkViewSet.upload_file` → `store_homework_submission_file`
   ([apps/academic/services.py:542](../apps/academic/services.py)), writes
   straight to `MEDIA_ROOT` via `pathlib` — the docstring says so itself,
   citing it as the existing convention. None of the six backlog items need
   file upload directly, so this is out of scope here, but it blocks anything
-  that does (submissions with attachments) and contradicts the spec /
-  README's "never written to server disk" rule. **Logging as a separate
-  Notion Open Item, not fixing in this plan.**
+  that does (submissions with attachments). **Logged as a separate Notion Open
+  Item ([ARC-026/ARC-030 StoredFile gap](https://app.notion.com/p/3dd347a6659481d8970fc6291e52ad7b)),
+  build proceeding there — not fixed in this plan.**
 - Idempotency — **gap**: `apps.core.models.IdempotencyRecord`
   ([apps/core/models.py:161](../apps/core/models.py)) exists as a table but is
   referenced nowhere outside its own migration — no middleware or DRF mixin
