@@ -8,6 +8,7 @@ from apps.finance.models import (
     Discount,
     FeePlan,
     FeeType,
+    FiscalPeriod,
     Invoice,
     InvoiceInstallment,
     InvoiceLine,
@@ -559,4 +560,46 @@ class InvoiceWriteOffRequestCreateSerializer(serializers.Serializer):
 
 class InvoiceWriteOffResolveSerializer(serializers.Serializer):
     notes = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class FiscalPeriodSerializer(serializers.ModelSerializer):
+    total_debit = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    total_credit = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    closed_by_name = serializers.CharField(source='closed_by.full_name', read_only=True, default=None)
+    reopened_by_name = serializers.CharField(source='reopened_by.full_name', read_only=True, default=None)
+
+    class Meta:
+        model = FiscalPeriod
+        fields = [
+            'id',
+            'school',
+            'period',
+            'status',
+            'closed_at',
+            'closed_by',
+            'closed_by_name',
+            'reopened_at',
+            'reopened_by',
+            'reopened_by_name',
+            'total_journals',
+            'total_debit',
+            'total_credit',
+            'closing_notes',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = fields
+
+
+class FiscalPeriodCloseActionSerializer(serializers.Serializer):
+    school_id = serializers.IntegerField(required=True)
+    period = serializers.CharField(required=False, allow_blank=True, default='')
+    notes = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class FiscalPeriodReopenActionSerializer(serializers.Serializer):
+    school_id = serializers.IntegerField(required=True)
+    period = serializers.CharField(required=False, allow_blank=True, default='')
+    reason = serializers.CharField(required=True, min_length=3)
+
 

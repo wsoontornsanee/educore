@@ -90,13 +90,20 @@ def post_ledger_journal(
     entries: list[dict],
     currency: str = 'IDR',
     occurred_at=None,
+    allow_next_period_routing: bool = False,
 ) -> LedgerJournal:
     """
     Persist a double-entry general ledger journal header and entries (FIN-021, CUR-020).
     Strictly asserts sum(debits) == sum(credits) to 0.00.
+    Enforces fiscal period lock (FIN-025): if period is closed, raises PeriodClosedError
+    unless allow_next_period_routing=True, in which case occurred_at is forwarded
+    to the next open period.
     """
     if occurred_at is None:
         occurred_at = timezone.now()
+
+    from apps.finance.services.period_close import get_effective_posting_datetime
+    occurred_at = get_effective_posting_datetime(school, occurred_at, allow_routing=allow_next_period_routing)
 
     if not entries:
         raise UnbalancedLedgerError("Cannot post an empty journal.")

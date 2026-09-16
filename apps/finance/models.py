@@ -549,6 +549,43 @@ class LedgerEntry(TenantModel):
         return f"Entry {self.account_code} ({self.account_name}): Dr {self.debit} / Cr {self.credit} {self.currency}"
 
 
+class FiscalPeriodStatus(models.TextChoices):
+    OPEN = 'OPEN', _('Terbuka')
+    CLOSED = 'CLOSED', _('Ditutup')
+
+
+class FiscalPeriod(TenantModel):
+    """Monthly fiscal period tracking and ledger locking (spec/06 §5, §8, FIN-025)."""
+    school = models.ForeignKey(School, on_delete=models.PROTECT, related_name='fiscal_periods')
+    period = models.CharField(max_length=7, db_index=True, help_text=_("Format YYYY-MM, e.g. 2026-08"))
+    status = models.CharField(max_length=16, choices=FiscalPeriodStatus.choices, default=FiscalPeriodStatus.OPEN, db_index=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    closed_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.PROTECT, related_name='closed_fiscal_periods')
+    reopened_at = models.DateTimeField(null=True, blank=True)
+    reopened_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.PROTECT, related_name='reopened_fiscal_periods')
+    total_journals = models.PositiveIntegerField(default=0)
+    total_debit = MoneyField(default=Decimal('0.00'))
+    total_credit = MoneyField(default=Decimal('0.00'))
+    closing_notes = models.TextField(blank=True, default='')
+    active_uniq_marker = soft_delete_uniqueness_marker()
+
+    class Meta:
+        db_table = 'finance_fiscal_periods'
+        indexes = [
+            models.Index(fields=['foundation_id', 'school', 'period']),
+            models.Index(fields=['foundation_id', 'status']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'school', 'period', 'active_uniq_marker'],
+                name='unique_school_fiscal_period',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.school.name} - Period {self.period} ({self.status})"
+
+
 class SchoolQrisConfig(TenantModel):
     """A school's own static QRIS code (spec/06 §4 FIN-010) — the kind printed or
     exported directly from the school's bank, not a per-transaction dynamic gateway

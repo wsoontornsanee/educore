@@ -16,6 +16,8 @@ from apps.finance.models import (
     DiscountStatus,
     FeePlan,
     FeeType,
+    FiscalPeriod,
+    FiscalPeriodStatus,
     Invoice,
     InvoiceInstallment,
     InvoiceLine,
@@ -43,6 +45,9 @@ from apps.finance.serializers import (
     DiscountSerializer,
     FeePlanSerializer,
     FeeTypeSerializer,
+    FiscalPeriodCloseActionSerializer,
+    FiscalPeriodReopenActionSerializer,
+    FiscalPeriodSerializer,
     InvoiceInstallmentSerializer,
     InvoiceSerializer,
     InvoiceWriteOffRequestCreateSerializer,
@@ -74,10 +79,13 @@ from apps.finance.services import (
     InstallmentPlanAlreadyExistsError,
     InvalidInstallmentError,
     InvalidProofFileError,
+    PeriodClosedError,
+    PeriodCloseValidationError,
     approve_discount,
     approve_invoice_write_off,
     cancel_installment_plan,
     cancel_invoice,
+    close_fiscal_period,
     create_discount_with_approval_check,
     create_installment_plan,
     calculate_convenience_fee,
@@ -87,6 +95,7 @@ from apps.finance.services import (
     get_effective_convenience_fee_policy,
     get_school_arrears_policy,
     get_school_qris_config,
+    reopen_fiscal_period,
     reject_invoice_write_off,
     request_invoice_write_off,
     set_bank_sftp_config,
@@ -1274,3 +1283,160 @@ class ReconciliationBankStatementUploadView(APIView):
         if 'error' in result:
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
         return Response(result)
+
+
+class FiscalPeriodViewSet(viewsets.ReadOnlyModelViewSet):
+    """Monthly fiscal period close and ledger locking (spec/06 §5, §8, FIN-025)."""
+    serializer_class = FiscalPeriodSerializer
+    pagination_class = StandardCursorPagination
+    permission_classes = [HasRequiredPermission]
+    action_permissions = {
+        'list': 'finance.invoice.read',
+        'retrieve': 'finance.invoice.read',
+        'close': 'finance.invoice.write',
+        'close_by_period': 'finance.invoice.write',
+        'close_detail': 'finance.invoice.write',
+        'reopen': 'finance.invoice.write',
+        'reopen_by_period': 'finance.invoice.write',
+        'reopen_detail': 'finance.invoice.write',
+    }
+
+    def get_queryset(self):
+        foundation_id = get_current_foundation_id()
+        if not foundation_id:
+            return FiscalPeriod.objects.none()
+        qs = FiscalPeriod.objects.filter(
+            foundation_id=foundation_id,
+            deleted_at__isnull=True,
+        ).select_related('school', 'closed_by', 'reopened_by').order_by('-period')
+
+        school_id = self.request.query_params.get('school_id')
+        if school_id:
+            qs = qs.filter(school_id=school_id)
+
+        period = self.request.query_params.get('period')
+        if period:
+            qs = qs.filter(period=period)
+
+        status_param = self.request.query_params.get('status')
+        if status_param:
+            qs = qs.filter(status=status_param)
+
+        return qs
+
+    @action(detail=False, methods=['post'], url_path='close')
+    def close(self, request):
+        """Close a fiscal period via POST body {school_id, period, notes}."""
+        return self._do_close(request, period_param=None)
+
+    @action(detail=False, methods=['post'], url_path=r'(?P<period>\d{4}-\d{2})/close')
+    def close_by_period(self, request, period=None):
+        """Close a fiscal period via URL path /periods/<period>/close/."""
+        return self._do_close(request, period_param=period)
+
+    @action(detail=True, methods=['post'], url_path='close')
+    def close_detail(self, request, pk=None):
+        """Close an existing fiscal period record by ID."""
+        period_obj = self.get_object()
+        notes = request.data.get('notes', '') if isinstance(request.data, dict) else ''
+        try:
+            with tenant_context(period_obj.foundation_id):
+                closed = close_fiscal_period(
+                    school=period_obj.school,
+                    period=period_obj.period,
+                    closed_by=request.user,
+                    notes=notes,
+                )
+            return Response(self.get_serializer(closed).data, status=status.HTTP_200_OK)
+        except (PeriodCloseValidationError, ValueError) as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    def _do_close(self, request, period_param=None):
+        foundation_id = get_current_foundation_id()
+        serializer = FiscalPeriodCloseActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        target_period = period_param or data.get('period')
+        if not target_period:
+            return Response(
+                {'error': _("Parameter periode wajib diisi (format YYYY-MM).")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        school_id = data.get('school_id')
+        school = School.objects.filter(id=school_id, foundation_id=foundation_id).first()
+        if not school:
+            return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            with tenant_context(foundation_id):
+                fiscal_period = close_fiscal_period(
+                    school=school,
+                    period=target_period,
+                    closed_by=request.user,
+                    notes=data.get('notes', ''),
+                )
+            return Response(self.get_serializer(fiscal_period).data, status=status.HTTP_200_OK)
+        except (PeriodCloseValidationError, ValueError) as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'], url_path='reopen')
+    def reopen(self, request):
+        """Reopen a fiscal period via POST body {school_id, period, reason}."""
+        return self._do_reopen(request, period_param=None)
+
+    @action(detail=False, methods=['post'], url_path=r'(?P<period>\d{4}-\d{2})/reopen')
+    def reopen_by_period(self, request, period=None):
+        """Reopen a fiscal period via URL path /periods/<period>/reopen/."""
+        return self._do_reopen(request, period_param=period)
+
+    @action(detail=True, methods=['post'], url_path='reopen')
+    def reopen_detail(self, request, pk=None):
+        """Reopen an existing fiscal period record by ID."""
+        period_obj = self.get_object()
+        reason = request.data.get('reason', '') if isinstance(request.data, dict) else ''
+        if not reason or not reason.strip():
+            return Response({'error': _("Alasan pembukaan kembali wajib diisi.")}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            with tenant_context(period_obj.foundation_id):
+                reopened = reopen_fiscal_period(
+                    school=period_obj.school,
+                    period=period_obj.period,
+                    reopened_by=request.user,
+                    reason=reason,
+                )
+            return Response(self.get_serializer(reopened).data, status=status.HTTP_200_OK)
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    def _do_reopen(self, request, period_param=None):
+        foundation_id = get_current_foundation_id()
+        serializer = FiscalPeriodReopenActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        target_period = period_param or data.get('period')
+        if not target_period:
+            return Response(
+                {'error': _("Parameter periode wajib diisi (format YYYY-MM).")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        school_id = data.get('school_id')
+        school = School.objects.filter(id=school_id, foundation_id=foundation_id).first()
+        if not school:
+            return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            with tenant_context(foundation_id):
+                fiscal_period = reopen_fiscal_period(
+                    school=school,
+                    period=target_period,
+                    reopened_by=request.user,
+                    reason=data.get('reason', ''),
+                )
+            return Response(self.get_serializer(fiscal_period).data, status=status.HTTP_200_OK)
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+

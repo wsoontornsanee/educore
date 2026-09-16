@@ -322,9 +322,10 @@ def process_intent(intent_id: int) -> bool:
                     q_start = pref.quiet_hours_start
                     q_end = pref.quiet_hours_end
 
-            now_local_time = now.time()
+            now_local = timezone.localtime(now)
+            now_local_time = now_local.time()
             if is_in_quiet_hours(now_local_time, q_start, q_end):
-                next_allowed = calculate_next_quiet_hours_end(now, q_end)
+                next_allowed = calculate_next_quiet_hours_end(now_local, q_end)
                 logger.info(f"Intent #{intent.id} inside quiet hours ({q_start}-{q_end}). Deferring to {next_allowed}.")
                 intent.scheduled_for = next_allowed
                 intent.save(update_fields=['scheduled_for', 'updated_at'])
