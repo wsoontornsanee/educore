@@ -15,6 +15,8 @@ import { LoginScreen } from './src/screens/LoginScreen';
 import { AgendaScreen } from './src/screens/AgendaScreen';
 import { RollCallScreen } from './src/screens/RollCallScreen';
 import { SubstitutionModal } from './src/screens/SubstitutionModal';
+import { POSKioskScreen } from './src/screens/POSKioskScreen';
+import { initPosQueueDb } from './src/services/posOfflineQueue';
 import { colors } from './src/theme/tokens';
 import { StudentRosterItem, TimetableSlotItem, UserProfile } from './src/types';
 
@@ -23,12 +25,15 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [activeSlot, setActiveSlot] = useState<TimetableSlotItem | null>(null);
   const [subModalSlot, setSubModalSlot] = useState<TimetableSlotItem | null>(null);
+  const [posMode, setPosMode] = useState(false);
 
+  const isCanteenOperator = currentUser?.roles?.some((r) => r.role === 'canteen_operator');
   const todayStr = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
     const bootstrap = async () => {
       await initQueueDb();
+      await initPosQueueDb();
       const authState = await checkAuth();
       if (authState.authenticated && authState.user) {
         setCurrentUser(authState.user);
@@ -100,6 +105,16 @@ export default function App() {
       <StatusBar style="dark" />
       {!currentUser ? (
         <LoginScreen onLoginSuccess={handleLoginSuccess} />
+      ) : isCanteenOperator || posMode ? (
+        <POSKioskScreen
+          onBack={() => {
+            if (posMode) {
+              setPosMode(false);
+            } else {
+              handleLogout();
+            }
+          }}
+        />
       ) : activeSlot ? (
         <RollCallScreen
           slot={activeSlot}
