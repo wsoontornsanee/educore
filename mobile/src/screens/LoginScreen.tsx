@@ -28,63 +28,71 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const [challengeId, setChallengeId] = useState<number | null>(null);
   const [code, setCode] = useState('');
 
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Per-flow loading/error state — kept separate so an in-flight request in one
+  // flow can't leak its loading/error state into the other flow's UI after a
+  // tab switch (e.g. tapping "KIRIM KODE OTP" then switching to GURU).
+  const [guruLoading, setGuruLoading] = useState(false);
+  const [guruError, setGuruError] = useState<string | null>(null);
+  const [waliLoading, setWaliLoading] = useState(false);
+  const [waliError, setWaliError] = useState<string | null>(null);
+
+  const loading = role === 'GURU' ? guruLoading : waliLoading;
+  const errorMsg = role === 'GURU' ? guruError : waliError;
 
   const handleGuruSubmit = async () => {
     if (!identifier.trim() || !password) {
-      setErrorMsg('Nomor HP / Email dan password wajib diisi.');
+      setGuruError('Nomor HP / Email dan password wajib diisi.');
       return;
     }
-    setLoading(true);
-    setErrorMsg(null);
+    setGuruLoading(true);
+    setGuruError(null);
     try {
       const result = await login(identifier.trim(), password);
       onLoginSuccess(result.user);
     } catch (err: any) {
-      setErrorMsg(
+      setGuruError(
         err?.response?.data?.non_field_errors?.[0] ||
         err?.response?.data?.error ||
         err?.response?.data?.detail ||
         'Kredensial tidak valid atau akun terkunci. Periksa kembali data Anda.'
       );
     } finally {
-      setLoading(false);
+      setGuruLoading(false);
     }
   };
 
   const handleRequestOtp = async () => {
     if (!phone.trim()) {
-      setErrorMsg('Nomor HP wajib diisi.');
+      setWaliError('Nomor HP wajib diisi.');
       return;
     }
-    setLoading(true);
-    setErrorMsg(null);
+    setWaliLoading(true);
+    setWaliError(null);
     try {
       const result = await requestOtp(phone.trim());
       setChallengeId(result.challenge_id);
       setWaliStep('CODE');
     } catch (err: any) {
-      setErrorMsg(err?.response?.data?.error || 'Gagal mengirim kode OTP.');
+      setWaliError(err?.response?.data?.error || 'Gagal mengirim kode OTP.');
     } finally {
-      setLoading(false);
+      setWaliLoading(false);
     }
   };
 
   const handleVerifyOtp = async () => {
     if (!challengeId || code.length !== 6) {
-      setErrorMsg('Masukkan 6 digit kode OTP.');
+      setWaliError('Masukkan 6 digit kode OTP.');
       return;
     }
-    setLoading(true);
-    setErrorMsg(null);
+    setWaliLoading(true);
+    setWaliError(null);
     try {
       const result = await verifyOtp(challengeId, code);
       onLoginSuccess(result.user);
     } catch (err: any) {
-      setErrorMsg(err?.response?.data?.error || 'Kode OTP salah atau kedaluwarsa.');
+      setWaliError(err?.response?.data?.error || 'Kode OTP salah atau kedaluwarsa.');
     } finally {
-      setLoading(false);
+      setWaliLoading(false);
     }
   };
 
@@ -103,13 +111,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           <View style={styles.roleToggle}>
             <TouchableOpacity
               style={[styles.roleTab, role === 'GURU' && styles.roleTabActive]}
-              onPress={() => { setRole('GURU'); setErrorMsg(null); }}
+              onPress={() => { setRole('GURU'); setGuruError(null); }}
             >
               <Text style={[styles.roleTabText, role === 'GURU' && styles.roleTabTextActive]}>GURU</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.roleTab, role === 'WALI' && styles.roleTabActive]}
-              onPress={() => { setRole('WALI'); setErrorMsg(null); }}
+              onPress={() => { setRole('WALI'); setWaliError(null); }}
             >
               <Text style={[styles.roleTabText, role === 'WALI' && styles.roleTabTextActive]}>WALI MURID</Text>
             </TouchableOpacity>
