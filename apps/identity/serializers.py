@@ -362,5 +362,10 @@ class EduCoreTokenRefreshSerializer(TokenRefreshSerializer):
         return data
 
 
+class OtpRequestSerializer(serializers.Serializer):
+    phone_e164 = serializers.CharField()
 
 
+class OtpVerifySerializer(serializers.Serializer):
+    challenge_id = serializers.IntegerField()
+    code = serializers.CharField(max_length=6, min_length=6)

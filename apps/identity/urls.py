@@ -6,6 +6,7 @@ from .views import (
     EduCoreTokenObtainPairView,
     EduCoreTokenRefreshView,
     FoundationEntitlementViewSet,
+    RequestOtpView,
     StaffViewSet,
     StudentViewSet,
 )
@@ -18,6 +19,7 @@ router.register('students', StudentViewSet, basename='student')
 urlpatterns = [
     path('auth/token/', EduCoreTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('auth/token/refresh/', EduCoreTokenRefreshView.as_view(), name='token_refresh'),
+    path('auth/otp/request/', RequestOtpView.as_view(), name='otp-request'),
     path('me', CurrentUserView.as_view(), name='current-user'),
 ] + router.urls
 

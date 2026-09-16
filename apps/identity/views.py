@@ -1,4 +1,5 @@
 """API views for Identity, User Profile, and Entitlements (spec/02 §6, §7)."""
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import permissions, status, views, viewsets
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
@@ -11,7 +12,10 @@ from .serializers import (
     EduCoreTokenRefreshSerializer,
     FoundationEntitlementSerializer,
     UserProfileSerializer,
+    OtpRequestSerializer,
+    OtpVerifySerializer,
 )
+from .services import request_phone_otp, verify_phone_otp
 
 class EduCoreTokenObtainPairView(TokenObtainPairView):
     """Custom JWT token obtain view supporting dual phone/email identifier login (IAM-001)."""
@@ -503,4 +507,16 @@ class StudentViewSet(viewsets.ModelViewSet):
         return Response(result, status=status.HTTP_200_OK if dry_run else status.HTTP_201_CREATED)
 
 
+class RequestOtpView(views.APIView):
+    """POST /api/v1/auth/otp/request/ — guardian OTP login, step 1 (PAR-001, IAM-002)."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = OtpRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            challenge, _raw_code = request_phone_otp(serializer.validated_data['phone_e164'])
+        except DjangoValidationError as exc:
+            return Response({'error': exc.messages[0]}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'challenge_id': challenge.id}, status=status.HTTP_201_CREATED)
 
