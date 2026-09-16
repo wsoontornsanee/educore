@@ -1,18 +1,29 @@
 """Services for the Foundation portal: KPI filtering shared by the live
-dashboard view and its exports (spec/03 §4/§5, FND-014, RPT-002/003)."""
+dashboard view and its exports (spec/03 §4/§5, FND-014, RPT-002/003), plus the
+Audit Explorer's filtering and CSV export (spec/03 §2/§5, FND-010)."""
+import csv
 import io
 import logging
+from datetime import datetime as dt_datetime, time as dt_time, timedelta
 
-from apps.core.models import ExportJob
-from apps.core.services import register_export_notifier, register_export_renderer
+from apps.core.models import AuditEvent, ExportJob
+from apps.core.services import (
+    register_export_formats,
+    register_export_notifier,
+    register_export_permission,
+    register_export_renderer,
+)
 from apps.identity.models import School
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 
 from .models import RptFoundationKPI
 
 logger = logging.getLogger(__name__)
 
 REPORT_KEY_FOUNDATION_DASHBOARD = 'foundation_dashboard'
+REPORT_KEY_FOUNDATION_AUDIT = 'foundation_audit'
+AUDIT_EXPORT_MAX_ROWS = 100_000  # FND-010: CSV export capped at 100k rows
 
 
 def filter_foundation_kpis(foundation_id, school_ids=None, from_date=None, to_date=None):
@@ -70,11 +81,13 @@ def _header_lines(job: ExportJob):
     ]
 
 
-def _xlsx_safe(value):
+def _formula_safe(value):
     """Defuse Excel/Sheets formula injection: a cell value starting with
     =, +, -, or @ is otherwise interpreted as a formula by the spreadsheet
-    app that opens the file. The only untrusted input reaching XLSX cells is
-    the requester-supplied `filters` dict, via the header block below."""
+    app that opens the file. Applied to every requester-influenced cell in
+    both the XLSX dashboard export (the `filters` header block) and the CSV
+    audit export (actor_id/entity_id/diff, which can carry free-text values
+    from elsewhere in the system)."""
     text = str(value)
     if text and text[0] in ('=', '+', '-', '@'):
         return "'" + text
@@ -90,7 +103,7 @@ def _render_xlsx(job: ExportJob) -> bytes:
     ws.title = "Dasbor Yayasan"
 
     for label, value in _header_lines(job):
-        ws.append([label, _xlsx_safe(value)])
+        ws.append([label, _formula_safe(value)])
     ws.append([])
     ws.append([label for _key, label in _KPI_COLUMNS])
     for row in rows:
@@ -168,6 +181,9 @@ def render_foundation_dashboard_export(job: ExportJob):
     except Exception:
         logger.warning("weasyprint unavailable, falling back to HTML foundation dashboard export", exc_info=True)
         return html_content.encode('utf-8'), 'text/html', f'foundation_dashboard_{job.id}.html'
+
+
+register_export_formats(REPORT_KEY_FOUNDATION_DASHBOARD, {ExportJob.FORMAT_PDF, ExportJob.FORMAT_XLSX})
 
 
 @register_export_notifier(REPORT_KEY_FOUNDATION_DASHBOARD)
@@ -513,3 +529,88 @@ def get_foundation_enrolment_pipeline(
             group_by=group_by,
         )
 
+
+def _day_start(date_value):
+    """Parse a date (or 'YYYY-MM-DD' string) into an aware start-of-day datetime
+    in the current timezone. Filtering `timestamp` (a DateTimeField) against a
+    plain datetime range — instead of `timestamp__date=...`, which wraps the
+    indexed column in a DATE() cast — keeps the (foundation_id, timestamp)
+    index usable as a range scan. Returns None if the value can't be parsed."""
+    if isinstance(date_value, str):
+        date_value = parse_date(date_value)
+    if not date_value:
+        return None
+    return timezone.make_aware(dt_datetime.combine(date_value, dt_time.min))
+
+
+def filter_foundation_audit_events(
+    foundation_id, actor=None, school_id=None, module=None, action=None,
+    entity_type=None, entity_id=None, from_date=None, to_date=None,
+):
+    """FND-010 Audit Explorer filter, shared by the live cursor-paginated list
+    view and the CSV export renderer below. `module` matches the leading
+    `module.` segment of AuditEvent.action (e.g. 'finance.invoice.issue')."""
+    queryset = AuditEvent.objects.filter(foundation_id=foundation_id)
+    if actor:
+        queryset = queryset.filter(actor_id=actor)
+    if school_id:
+        queryset = queryset.filter(school_id=school_id)
+    if module:
+        queryset = queryset.filter(action__startswith=f'{module}.')
+    if action:
+        queryset = queryset.filter(action=action)
+    if entity_type:
+        queryset = queryset.filter(entity_type=entity_type)
+    if entity_id:
+        queryset = queryset.filter(entity_id=entity_id)
+    start = _day_start(from_date) if from_date else None
+    if start:
+        queryset = queryset.filter(timestamp__gte=start)
+    end = _day_start(to_date) if to_date else None
+    if end:
+        queryset = queryset.filter(timestamp__lt=end + timedelta(days=1))
+    return queryset.order_by('-timestamp')
+
+
+_AUDIT_CSV_COLUMNS = [
+    ('id', 'ID'),
+    ('timestamp', 'Waktu'),
+    ('actor_id', 'Aktor'),
+    ('role', 'Peran'),
+    ('school_id', 'Sekolah'),
+    ('ip_address', 'Alamat IP'),
+    ('action', 'Aksi'),
+    ('entity_type', 'Tipe Entitas'),
+    ('entity_id', 'ID Entitas'),
+    ('diff', 'Perubahan'),
+]
+
+
+@register_export_renderer(REPORT_KEY_FOUNDATION_AUDIT)
+def render_foundation_audit_export(job: ExportJob):
+    """Renders the Audit Explorer CSV export (FND-010). Capped at
+    AUDIT_EXPORT_MAX_ROWS regardless of how many rows match the filter."""
+    filters = job.filters or {}
+    queryset = filter_foundation_audit_events(
+        foundation_id=job.foundation_id,
+        actor=filters.get('actor'),
+        school_id=filters.get('school'),
+        module=filters.get('module'),
+        action=filters.get('action'),
+        entity_type=filters.get('entity_type'),
+        entity_id=filters.get('entity_id'),
+        from_date=filters.get('from'),
+        to_date=filters.get('to'),
+    )[:AUDIT_EXPORT_MAX_ROWS]
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow([label for _key, label in _AUDIT_CSV_COLUMNS])
+    for row in queryset:
+        writer.writerow([_formula_safe(getattr(row, key)) for key, _label in _AUDIT_CSV_COLUMNS])
+
+    return buffer.getvalue().encode('utf-8-sig'), 'text/csv', f'foundation_audit_{job.id}.csv'
+
+
+register_export_formats(REPORT_KEY_FOUNDATION_AUDIT, {ExportJob.FORMAT_CSV})
+register_export_permission(REPORT_KEY_FOUNDATION_AUDIT, 'audit_log.read')

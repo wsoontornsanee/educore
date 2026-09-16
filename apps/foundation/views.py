@@ -3,20 +3,40 @@ import csv
 import datetime
 from decimal import Decimal
 import io
+from django.core.exceptions import PermissionDenied
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Avg, Max, Sum
 from django.http import HttpResponse
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from rest_framework import generics, status, views, viewsets
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from apps.core.models import ExportJob
-from apps.core.services import audit, create_export_job, get_export_job_status
+from apps.core.pagination import AuditEventCursorPagination
+from apps.core.services import (
+    audit,
+    create_export_job,
+    get_export_allowed_formats,
+    get_export_job_status,
+    get_export_permission,
+    get_export_renderer,
+)
 from apps.identity.models import Foundation, School
 from apps.identity.permissions import HasRequiredPermission
 from educore.middleware.tenancy import get_current_foundation_id
+from .approvals import (
+    ApprovalNotFoundError,
+    APPROVAL_TYPES,
+    decide_foundation_approval,
+    InvalidApprovalIdError,
+    list_foundation_approvals,
+)
 from .models import RptFoundationKPI
 from .serializers import (
+    AuditEventSerializer,
     CampusComparisonSchoolSerializer,
     CampusComparisonSummarySerializer,
     FoundationKPISerializer,
@@ -25,6 +45,7 @@ from .serializers import (
 )
 from .services import (
     REPORT_KEY_FOUNDATION_DASHBOARD,
+    filter_foundation_audit_events,
     filter_foundation_kpis,
     get_foundation_enrolment_pipeline,
 )
@@ -695,11 +716,20 @@ class CampusComparisonView(views.APIView):
         response['Content-Disposition'] = 'attachment; filename="perbandingan_kampus.xlsx"'
         return response
 
-class FoundationDashboardExportView(views.APIView):
-    """POST /foundation/exports — enqueue a PDF/XLSX export of the Foundation
-    dashboard (FND-014, RPT-002/003, spec/03 §6)."""
+class FoundationExportView(views.APIView):
+    """POST /foundation/exports — enqueue a PDF/XLSX/CSV export of any
+    registered Foundation portal report (FND-014, RPT-002/003, FND-010,
+    spec/03 §6). `report` defaults to the dashboard for backward compatibility;
+    any other value must be a report_key with a registered export renderer.
+    The required permission varies by report (see register_export_permission);
+    a report with no registered override falls back to 'school_config.read'."""
     permission_classes = [HasRequiredPermission]
-    required_permission = 'school_config.read'
+
+    def get_required_permission(self) -> str:
+        report = self.request.data.get('report') or REPORT_KEY_FOUNDATION_DASHBOARD
+        if not isinstance(report, str):
+            report = REPORT_KEY_FOUNDATION_DASHBOARD
+        return get_export_permission(report, default='school_config.read')
 
     def post(self, request):
         foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
@@ -707,14 +737,21 @@ class FoundationDashboardExportView(views.APIView):
             return Response({"detail": "Konteks Yayasan tidak ditemukan."}, status=status.HTTP_400_BAD_REQUEST)
 
         export_format = (request.data.get('format') or '').upper()
-        if export_format not in (ExportJob.FORMAT_PDF, ExportJob.FORMAT_XLSX):
+        if export_format not in (ExportJob.FORMAT_PDF, ExportJob.FORMAT_XLSX, ExportJob.FORMAT_CSV):
             return Response(
-                {"detail": "Format harus PDF atau XLSX."}, status=status.HTTP_400_BAD_REQUEST,
+                {"detail": "Format harus PDF, XLSX, atau CSV."}, status=status.HTTP_400_BAD_REQUEST,
             )
 
         report = request.data.get('report') or REPORT_KEY_FOUNDATION_DASHBOARD
-        if report != REPORT_KEY_FOUNDATION_DASHBOARD:
+        if not isinstance(report, str) or not get_export_renderer(report):
             return Response({"detail": f"Laporan '{report}' tidak dikenali."}, status=status.HTTP_400_BAD_REQUEST)
+
+        allowed_formats = get_export_allowed_formats(report)
+        if allowed_formats is not None and export_format not in allowed_formats:
+            return Response(
+                {"detail": f"Format '{export_format}' tidak didukung untuk laporan '{report}'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         job = create_export_job(
             report_key=report,
@@ -727,7 +764,7 @@ class FoundationDashboardExportView(views.APIView):
         return Response({'job_id': job.id}, status=status.HTTP_202_ACCEPTED)
 
 
-class FoundationDashboardExportStatusView(views.APIView):
+class FoundationExportStatusView(views.APIView):
     """GET /foundation/exports/:job_id — poll an export job's status and, once
     COMPLETED, its 24h-expiring signed download link (RPT-002)."""
     permission_classes = [HasRequiredPermission]
@@ -741,6 +778,114 @@ class FoundationDashboardExportStatusView(views.APIView):
         if result is None:
             return Response({"detail": "Export tidak ditemukan."}, status=status.HTTP_404_NOT_FOUND)
         return Response(result)
+
+
+class FoundationAuditEventView(generics.ListAPIView):
+    """GET /foundation/audit — cursor-paginated, filterable Audit Explorer
+    over core.AuditEvent (FND-010, spec/03 §2/§5). Filters: actor, school,
+    module (action-prefix), action (exact), entity_type, entity_id, from, to."""
+    serializer_class = AuditEventSerializer
+    pagination_class = AuditEventCursorPagination
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'audit_log.read'
+
+    def list(self, request, *args, **kwargs):
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        if not foundation_id:
+            return Response({"detail": "Konteks Yayasan tidak ditemukan."}, status=status.HTTP_400_BAD_REQUEST)
+        return super().list(request, *args, **kwargs)
+
+    def get_queryset(self):
+        foundation_id = get_current_foundation_id() or getattr(self.request.user, 'foundation_id', None)
+        params = self.request.query_params
+
+        school_id = params.get('school')
+        if school_id is not None:
+            try:
+                school_id = int(school_id)
+            except ValueError:
+                raise ValidationError({"school": "Harus berupa angka."})
+
+        for field in ('from', 'to'):
+            value = params.get(field)
+            if value and not parse_date(value):
+                raise ValidationError({field: "Format tanggal tidak valid (YYYY-MM-DD)."})
+
+        return filter_foundation_audit_events(
+            foundation_id,
+            actor=params.get('actor'),
+            school_id=school_id,
+            module=params.get('module'),
+            action=params.get('action'),
+            entity_type=params.get('entity_type'),
+            entity_id=params.get('entity_id'),
+            from_date=params.get('from'),
+            to_date=params.get('to'),
+        )
+
+
+class FoundationApprovalsInboxView(views.APIView):
+    """GET /foundation/approvals?status=pending&type=discount|waiver|refund|payroll
+    — unified governance inbox across discount, waiver, and refund approvals
+    (FND-007/008/009, spec/03 §2/§5). See apps/foundation/approvals.py's
+    module docstring for the discount-vs-waiver labeling rule and why
+    payroll always returns empty."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'school_config.read'
+
+    def get(self, request):
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        if not foundation_id:
+            return Response({"detail": "Konteks Yayasan tidak ditemukan."}, status=status.HTTP_400_BAD_REQUEST)
+
+        approval_type = request.query_params.get('type')
+        if approval_type and approval_type not in APPROVAL_TYPES:
+            return Response(
+                {"detail": f"Tipe '{approval_type}' tidak dikenali. Pilihan: {', '.join(APPROVAL_TYPES)}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        items = list_foundation_approvals(
+            foundation_id, status=request.query_params.get('status'), approval_type=approval_type,
+        )
+        return Response({'results': items})
+
+
+class FoundationApprovalDecideView(views.APIView):
+    """POST /foundation/approvals/:id/decide {decision: APPROVE|REJECT, reason}
+    (FND-008/009). `:id` is the composite id from the inbox list (e.g.
+    'discount:42'). Delegates to the existing per-domain approve/reject
+    service functions, which independently enforce foundation-admin-only
+    authorization regardless of this view's own RBAC permission. Gated by
+    'finance.invoice.write' (matching DiscountViewSet.approve/reject) rather
+    than the inbox list's broader 'school_config.read', since this is the
+    same money-moving mutation as the per-domain endpoints it wraps."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'finance.invoice.write'
+
+    def post(self, request, approval_id):
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        if not foundation_id:
+            return Response({"detail": "Konteks Yayasan tidak ditemukan."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            result = decide_foundation_approval(
+                approval_id,
+                foundation_id=foundation_id,
+                user=request.user,
+                decision=request.data.get('decision'),
+                reason=request.data.get('reason', ''),
+            )
+            return Response(result)
+        except ApprovalNotFoundError:
+            return Response({"detail": "Persetujuan tidak ditemukan."}, status=status.HTTP_404_NOT_FOUND)
+        except InvalidApprovalIdError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except PermissionDenied as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_403_FORBIDDEN)
+        except (DjangoValidationError, ValueError) as exc:
+            detail = exc.messages[0] if hasattr(exc, 'messages') else str(exc)
+            return Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class FoundationEnrolmentView(views.APIView):
@@ -1058,5 +1203,4 @@ class FoundationEnrolmentView(views.APIView):
         )
         response['Content-Disposition'] = 'attachment; filename="pipa_pendaftaran_yayasan.xlsx"'
         return response
-
 

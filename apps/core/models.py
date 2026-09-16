@@ -67,6 +67,7 @@ class AuditEvent(models.Model):
         indexes = [
             models.Index(fields=['foundation_id', 'timestamp']),
             models.Index(fields=['entity_type', 'entity_id']),
+            models.Index(fields=['foundation_id', 'action']),  # FND-010: module/action filter
         ]
 
     def __str__(self):
@@ -221,7 +222,8 @@ class ExportJob(TenantModel):
 
     FORMAT_PDF = 'PDF'
     FORMAT_XLSX = 'XLSX'
-    FORMAT_CHOICES = [(FORMAT_PDF, 'PDF'), (FORMAT_XLSX, 'XLSX')]
+    FORMAT_CSV = 'CSV'
+    FORMAT_CHOICES = [(FORMAT_PDF, 'PDF'), (FORMAT_XLSX, 'XLSX'), (FORMAT_CSV, 'CSV')]
 
     report_key = models.CharField(max_length=64, db_index=True, help_text="Registered export-renderer key, e.g. 'foundation_dashboard'")
     format = models.CharField(max_length=16, choices=FORMAT_CHOICES)

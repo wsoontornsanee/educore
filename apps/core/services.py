@@ -62,6 +62,29 @@ def register_export_notifier(report_key):
 def get_export_notifier(report_key):
     return _EXPORT_NOTIFIERS.get(report_key)
 
+_EXPORT_FORMATS = {}
+_EXPORT_PERMISSIONS = {}
+
+def register_export_formats(report_key, formats):
+    """Restrict which ExportJob.FORMAT_* values a report_key accepts (e.g. a CSV-only
+    audit export must reject a PDF request instead of silently rendering CSV anyway).
+    A report_key with no registration accepts any format registered on ExportJob."""
+    _EXPORT_FORMATS[report_key] = set(formats)
+
+def get_export_allowed_formats(report_key):
+    """Returns the registered format set for report_key, or None if unregistered
+    (caller should then accept any of ExportJob.FORMAT_CHOICES)."""
+    return _EXPORT_FORMATS.get(report_key)
+
+def register_export_permission(report_key, permission_key):
+    """Register the RBAC permission key required to enqueue an export of report_key,
+    when it differs from the export endpoint's own default (e.g. an audit-trail
+    export needs 'audit_log.read', not the generic 'school_config.read')."""
+    _EXPORT_PERMISSIONS[report_key] = permission_key
+
+def get_export_permission(report_key, default):
+    return _EXPORT_PERMISSIONS.get(report_key, default)
+
 def audit(action, entity_type, entity_id, actor_id=None, role='', foundation_id=None, school_id=None, ip_address=None, diff=None):
     """Write an explicit, immutable audit event (ARC-008, spec/01 §8.5).
     
