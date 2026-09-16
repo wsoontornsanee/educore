@@ -730,19 +730,113 @@ def return_homework_submission(submission: HomeworkSubmission, feedback: str, ac
 
 
 def get_homework_completion(homework: Homework) -> dict:
-    """ACD-030: class completion counts for a homework assignment."""
-    total = ClassEnrollment.objects.filter(
-        class_group=homework.class_subject.class_group,
-        is_active=True,
-        deleted_at__isnull=True,
-    ).count()
-    submitted_student_ids = set(
-        HomeworkSubmission.objects.filter(homework=homework, deleted_at__isnull=True).values_list('student_id', flat=True)
+    """ACD-030: 4-segment class completion counts and percentages (graded, submitted, late, missing)."""
+    enrolled_student_ids = set(
+        ClassEnrollment.objects.filter(
+            class_group=homework.class_subject.class_group,
+            is_active=True,
+            deleted_at__isnull=True,
+        ).values_list('student_id', flat=True)
     )
+    total = len(enrolled_student_ids)
+
+    submissions = HomeworkSubmission.objects.filter(
+        homework=homework,
+        student_id__in=enrolled_student_ids,
+        deleted_at__isnull=True,
+    )
+
+    graded = 0
+    submitted = 0
+    late = 0
+    accounted_student_ids = set()
+
+    for sub in submissions:
+        accounted_student_ids.add(sub.student_id)
+        if sub.status == HomeworkSubmissionStatus.GRADED or sub.score is not None:
+            graded += 1
+        elif sub.status == HomeworkSubmissionStatus.LATE or (sub.submitted_at and sub.submitted_at > homework.due_at):
+            late += 1
+        else:
+            submitted += 1
+
+    missing = max(total - len(accounted_student_ids), 0)
+
+    if total > 0:
+        graded_pct = round((graded / total) * 100, 1)
+        submitted_pct = round((submitted / total) * 100, 1)
+        late_pct = round((late / total) * 100, 1)
+        missing_pct = round((missing / total) * 100, 1)
+    else:
+        graded_pct = submitted_pct = late_pct = missing_pct = 0.0
+
     return {
         'total': total,
-        'submitted': len(submitted_student_ids),
-        'not_started': max(total - len(submitted_student_ids), 0),
+        'graded': graded,
+        'submitted': submitted,
+        'late': late,
+        'missing': missing,
+        'not_started': missing,  # backward compatibility
+        'percentages': {
+            'graded': graded_pct,
+            'submitted': submitted_pct,
+            'late': late_pct,
+            'missing': missing_pct,
+        },
+    }
+
+
+def get_homework_remind_status(homework: Homework) -> dict:
+    """Retrieve recipient delivery receipts for the most recent homework reminder run."""
+    from apps.notifications.models import NotificationIntent
+
+    intents = NotificationIntent.objects.filter(
+        foundation_id=homework.foundation_id,
+        dedupe_key__startswith=f"homework_reminder:{homework.id}:",
+    ).order_by('-created_at')
+
+    if not intents.exists():
+        return {
+            'homework_id': homework.id,
+            'last_reminded_at': homework.last_reminded_at,
+            'recipient_count': 0,
+            'recipients': [],
+        }
+
+    latest_created_at = intents.first().created_at
+    recent_intents = intents.filter(
+        created_at__gte=latest_created_at - timedelta(minutes=2)
+    ).prefetch_related('deliveries')
+
+    recipients = []
+    for intent in recent_intents:
+        deliveries_data = [
+            {
+                'channel': d.channel,
+                'provider': d.provider,
+                'status': d.status,
+                'sent_at': d.sent_at,
+                'delivered_at': d.delivered_at,
+                'error_code': d.error_code,
+                'error_message': d.error_message,
+            }
+            for d in intent.deliveries.all()
+        ]
+        recipients.append({
+            'intent_id': intent.id,
+            'recipient_name': intent.recipient_name,
+            'recipient_phone': intent.recipient_phone,
+            'recipient_email': intent.recipient_email,
+            'status': intent.status,
+            'sent_at': intent.sent_at,
+            'deliveries': deliveries_data,
+        })
+
+    return {
+        'homework_id': homework.id,
+        'last_reminded_at': homework.last_reminded_at,
+        'recipient_count': len(recipients),
+        'recipients': recipients,
     }
 
 
@@ -800,9 +894,9 @@ def remind_unsubmitted(homework: Homework) -> dict:
                 },
                 school_id=homework.class_subject.class_group.school_id,
                 recipient_user=guardian.user,
-                recipient_phone=getattr(guardian.user, 'phone_e164', ''),
-                recipient_email=getattr(guardian.user, 'email', ''),
-                recipient_name=guardian.person.full_name if guardian.person else '',
+                recipient_phone=getattr(guardian.user, 'phone_e164', '') or '',
+                recipient_email=getattr(guardian.user, 'email', '') or '',
+                recipient_name=(guardian.person.full_name if guardian.person else '') or '',
                 # Keyed by reminder date, not a fixed key: the NEXT legitimate reminder
                 # (12h+ later per the rate limit above) must not be deduped by this one.
                 dedupe_key=f"homework_reminder:{homework.id}:{guardian.id}:{now.date()}",

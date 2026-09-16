@@ -168,11 +168,19 @@ class CompletionAndReminderTests(TestCase):
 
     def test_completion_counts(self):
         result = get_homework_completion(self.hw)
-        self.assertEqual(result, {'total': 1, 'submitted': 0, 'not_started': 1})
+        self.assertEqual(result['total'], 1)
+        self.assertEqual(result['submitted'], 0)
+        self.assertEqual(result['not_started'], 1)
+        self.assertEqual(result['missing'], 1)
+        self.assertEqual(result['graded'], 0)
+        self.assertEqual(result['late'], 0)
 
         submit_homework(self.hw, self.fx['student'])
         result = get_homework_completion(self.hw)
-        self.assertEqual(result, {'total': 1, 'submitted': 1, 'not_started': 0})
+        self.assertEqual(result['total'], 1)
+        self.assertEqual(result['submitted'], 1)
+        self.assertEqual(result['not_started'], 0)
+        self.assertEqual(result['missing'], 0)
 
     def test_reminder_rate_limited(self):
         result = remind_unsubmitted(self.hw)
@@ -223,7 +231,9 @@ class HomeworkViewsTests(TestCase):
         self.assertEqual(len(res_list.json()), 1)
 
         res_completion = self.client.get(f'/api/v1/academic/homework/{hw_id}/completion/')
-        self.assertEqual(res_completion.json(), {'total': 1, 'submitted': 1, 'not_started': 0})
+        self.assertEqual(res_completion.json()['total'], 1)
+        self.assertEqual(res_completion.json()['submitted'], 1)
+        self.assertEqual(res_completion.json()['not_started'], 0)
 
     def test_remind_rate_limited_returns_429(self):
         hw = make_homework(self.fx, due_delta_hours=24)

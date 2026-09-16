@@ -100,6 +100,7 @@ from apps.academic.services import (
     generate_report_cards,
     preview_bulk_score_import,
     get_homework_completion,
+    get_homework_remind_status,
     get_expected_periods_for_school,
     get_or_create_broadcast_policy,
     get_or_create_report_card_policy,
@@ -382,6 +383,7 @@ class HomeworkViewSet(TenantScopedModelViewSet):
         'partial_update': 'grades.write', 'destroy': 'grades.write',
         'submissions': 'grades.read',
         'remind': 'grades.write', 'completion': 'grades.read',
+        'remind_status': 'grades.read',
         'upload_file': 'grades.write',
     }
 
@@ -446,6 +448,11 @@ class HomeworkViewSet(TenantScopedModelViewSet):
     def completion(self, request, pk=None):
         homework = self.get_object()
         return Response(get_homework_completion(homework))
+
+    @action(detail=True, methods=['get'], url_path='remind-status')
+    def remind_status(self, request, pk=None):
+        homework = self.get_object()
+        return Response(get_homework_remind_status(homework))
 
 
 class HomeworkSubmissionViewSet(TenantScopedModelViewSet):
