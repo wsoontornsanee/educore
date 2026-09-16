@@ -1,0 +1,378 @@
+{% load l10n %}
+{% comment %}
+Component: Parent Nutrition & Daily Intake Analytics Dashboard (spec/07 WAL-024, spec/08 PAR-003, PAR-010, spec/17 §7.4)
+Usage: {% include "components/parent_nutrition_dashboard.html" with student=student summary=summary linked_students=linked_students period=period %}
+Parameters:
+  - student: Student model instance or dict (id, full_name, nis, nisn, class_group)
+  - summary: dict from StudentNutritionSummarySerializer (total_calories, total_sugar_g, total_items, healthy_items_count, allergens, daily_breakdown, items, from_date, to_date)
+  - linked_students: optional list of sibling students for child switcher (PAR-003)
+  - period: 'TODAY' | 'WEEK' | 'MONTH' (default 'WEEK')
+{% endcomment %}
+
+<div id="parent-nutrition-dashboard"
+     class="nutrition-dashboard-container"
+     style="display: flex; flex-direction: column; gap: 20px; width: 100%; max-width: 960px; margin: 0 auto; font-family: var(--font-body, 'IBM Plex Sans', sans-serif); color: var(--color-ink-900, #16110F);">
+
+  <!-- Dashboard Top Header Bar -->
+  <header class="card nutrition-header"
+          style="background-color: var(--color-surface, #FFFFFF); border: 1px solid var(--color-line, #E5DDD9); border-radius: 0px; padding: 20px 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+      <div>
+        <span class="text-label" style="font-family: var(--font-mono, 'IBM Plex Mono', monospace); font-size: 0.75rem; font-weight: 700; color: var(--color-ink-500, #6B615C); letter-spacing: 0.05em; text-transform: uppercase;">
+          PORTAL ORANG TUA · KANTIN & KESEHATAN SISWA
+        </span>
+        <h1 class="text-h1" style="font-family: var(--font-display, 'Plus Jakarta Sans', sans-serif); font-size: 1.5rem; font-weight: 700; margin: 4px 0 0 0; color: var(--color-ink-900, #16110F);">
+          Nutrisi & Asupan Harian
+        </h1>
+        <div style="font-size: 0.875rem; color: var(--color-ink-500, #6B615C); margin-top: 4px;">
+          Pantau asupan gizi, kalori harian, konsumsi gula, dan deteksi alergen dari transaksi kantin sekolah.
+        </div>
+      </div>
+
+      <!-- Freshness / Stale State Indicator (spec/17 §8.1) -->
+      <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
+        <div id="nutrition-network-status"
+             style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background-color: var(--color-surface-alt, #F7F4F2); border: 1px solid var(--color-line, #E5DDD9); border-radius: 0px; font-family: var(--font-mono, monospace); font-size: 0.75rem; font-weight: 600;">
+          <span style="width: 8px; height: 8px; background-color: var(--color-success, #0E7A4F); display: inline-block;"></span>
+          <span>Online</span>
+        </div>
+        <span id="nutrition-last-updated"
+              style="font-size: 0.75rem; font-family: var(--font-mono, monospace); color: var(--color-ink-500, #6B615C);">
+          Diperbarui: Baru saja
+        </span>
+      </div>
+    </div>
+
+    <!-- Child Switcher (spec/08 PAR-003) -->
+    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--color-line, #E5DDD9); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="width: 40px; height: 40px; background-color: #FFF5F6; border: 1px solid #C8102E; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #C8102E; border-radius: 0px; font-size: 1rem;">
+          {{ student.full_name|slice:":2"|upper|default:"SW" }}
+        </div>
+        <div>
+          <div style="font-weight: 700; font-size: 1rem; color: var(--color-ink-900, #16110F);">
+            {{ student.full_name|default:"Nama Siswa" }}
+          </div>
+          <div style="font-size: 0.75rem; color: var(--color-ink-500, #6B615C);">
+            NISN: <span style="font-family: var(--font-mono, monospace);">{{ student.nisn|default:student.nis|default:"-" }}</span>
+            {% if student.class_group %} • {{ student.class_group.name }}{% endif %}
+          </div>
+        </div>
+      </div>
+
+      {% if linked_students and linked_students|length > 1 %}
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <label for="child-selector" style="font-size: 0.8rem; font-weight: 600; color: var(--color-ink-700, #3A302C);">
+            Ganti Anak:
+          </label>
+          <select id="child-selector"
+                  onchange="window.location.search = '?student_id=' + this.value + '&period={{ period|default:'WEEK' }}'"
+                  style="padding: 6px 12px; border: 1px solid var(--color-line, #E5DDD9); background: #FFFFFF; font-size: 0.875rem; border-radius: 0px; font-weight: 500; cursor: pointer;">
+            {% for s in linked_students %}
+              <option value="{{ s.id }}" {% if s.id == student.id %}selected{% endif %}>
+                {{ s.full_name }} ({{ s.nisn }})
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      {% endif %}
+    </div>
+  </header>
+
+  <!-- Period Filter Bar (Hari Ini, 7 Hari Terakhir, 30 Hari Terakhir) -->
+  <nav class="period-filter-nav"
+       style="display: flex; gap: 8px; background-color: var(--color-surface, #FFFFFF); padding: 12px 16px; border: 1px solid var(--color-line, #E5DDD9); border-radius: 0px;"
+       aria-label="Filter Periode Analisis">
+    <button type="button"
+            onclick="ParentNutrition.setPeriod('TODAY')"
+            id="period-tab-today"
+            style="flex: 1; padding: 10px 16px; font-size: 0.875rem; font-weight: 600; border: 1px solid {% if period == 'TODAY' %}#C8102E{% else %}var(--color-line, #E5DDD9){% endif %}; background-color: {% if period == 'TODAY' %}#C8102E{% else %}var(--color-surface-alt, #F7F4F2){% endif %}; color: {% if period == 'TODAY' %}#FFFFFF{% else %}var(--color-ink-700, #3A302C){% endif %}; border-radius: 0px; cursor: pointer;">
+      Hari Ini
+    </button>
+    <button type="button"
+            onclick="ParentNutrition.setPeriod('WEEK')"
+            id="period-tab-week"
+            style="flex: 1; padding: 10px 16px; font-size: 0.875rem; font-weight: 600; border: 1px solid {% if not period or period == 'WEEK' %}#C8102E{% else %}var(--color-line, #E5DDD9){% endif %}; background-color: {% if not period or period == 'WEEK' %}#C8102E{% else %}var(--color-surface-alt, #F7F4F2){% endif %}; color: {% if not period or period == 'WEEK' %}#FFFFFF{% else %}var(--color-ink-700, #3A302C){% endif %}; border-radius: 0px; cursor: pointer;">
+      7 Hari Terakhir
+    </button>
+    <button type="button"
+            onclick="ParentNutrition.setPeriod('MONTH')"
+            id="period-tab-month"
+            style="flex: 1; padding: 10px 16px; font-size: 0.875rem; font-weight: 600; border: 1px solid {% if period == 'MONTH' %}#C8102E{% else %}var(--color-line, #E5DDD9){% endif %}; background-color: {% if period == 'MONTH' %}#C8102E{% else %}var(--color-surface-alt, #F7F4F2){% endif %}; color: {% if period == 'MONTH' %}#FFFFFF{% else %}var(--color-ink-700, #3A302C){% endif %}; border-radius: 0px; cursor: pointer;">
+      30 Hari Terakhir
+    </button>
+  </nav>
+
+  <!-- Offline Warning Banner (spec/17 §8.1) -->
+  <div id="nutrition-offline-banner"
+       style="display: none; background-color: #FEF3C7; border: 1px solid #D97706; padding: 12px 16px; border-radius: 0px; align-items: center; justify-content: space-between; gap: 12px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span style="font-size: 1.25rem;">⚠️</span>
+      <div>
+        <strong style="color: #B56A00; font-size: 0.875rem;">Mode Data Tersimpan (Luring)</strong>
+        <div style="font-size: 0.75rem; color: #16110F;">
+          Koneksi internet terputus. Menampilkan data ringkasan nutrisi tersimpan terakhir.
+        </div>
+      </div>
+    </div>
+    <button type="button"
+            onclick="ParentNutrition.refreshData()"
+            style="background: #FFFFFF; border: 1px solid #D97706; color: #B56A00; font-weight: 700; padding: 6px 14px; font-size: 0.8rem; cursor: pointer; border-radius: 0px;">
+      Segarkan
+    </button>
+  </div>
+
+  <!-- State Container: Error Alert -->
+  <div id="nutrition-error-card"
+       style="display: none; background-color: #FCE9E7; border: 1px solid #B3261E; padding: 16px 20px; border-radius: 0px;"
+       role="alert">
+    <strong style="color: #B3261E; font-size: 1rem;">Gagal Memuat Analisis Nutrisi</strong>
+    <p id="nutrition-error-message" style="margin: 6px 0 12px 0; font-size: 0.875rem; color: #16110F;">
+      Terjadi kendala saat mengambil data nutrisi siswa.
+    </p>
+    <button type="button"
+            onclick="ParentNutrition.refreshData()"
+            style="background: #C8102E; color: #FFFFFF; border: none; font-weight: 700; padding: 6px 16px; font-size: 0.875rem; cursor: pointer; border-radius: 0px;">
+      Coba Lagi
+    </button>
+  </div>
+
+  <!-- State Container: Empty State (spec/17 §8.1) -->
+  {% if not summary or summary.total_items == 0 %}
+    <div id="nutrition-empty-card"
+         class="card"
+         style="background-color: var(--color-surface, #FFFFFF); border: 1px solid var(--color-line, #E5DDD9); padding: 48px 24px; text-align: center; border-radius: 0px;">
+      <div style="font-size: 3rem; margin-bottom: 12px;">🥗</div>
+      <h3 style="font-family: var(--font-display, sans-serif); font-size: 1.25rem; font-weight: 700; margin: 0 0 8px 0; color: var(--color-ink-900, #16110F);">
+        Belum Ada Riwayat Konsumsi Kantin
+      </h3>
+      <p style="font-size: 0.875rem; color: var(--color-ink-500, #6B615C); max-width: 480px; margin: 0 auto 20px auto; line-height: 1.5;">
+        Tidak ada transaksi pembelian makanan atau minuman oleh siswa pada periode 
+        <strong>{{ summary.from_date|default:"terpilih" }}</strong> hingga <strong>{{ summary.to_date|default:"sekarang" }}</strong>.
+      </p>
+      <button type="button"
+              onclick="ParentNutrition.setPeriod('MONTH')"
+              style="padding: 8px 20px; background-color: var(--color-surface-alt, #F7F4F2); border: 1px solid var(--color-line, #E5DDD9); font-weight: 600; font-size: 0.875rem; cursor: pointer; border-radius: 0px; color: var(--color-ink-900, #16110F);">
+        Lihat Riwayat 30 Hari Terakhir
+      </button>
+    </div>
+  {% else %}
+    <!-- Main Analytics Body -->
+    <div id="nutrition-content-body" style="display: flex; flex-direction: column; gap: 20px;">
+      
+      <!-- 4 Hero KPI Cards (2x2 or 4x1 responsive) -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px;">
+        
+        <!-- Card 1: Total Kalori -->
+        <div class="card" style="background-color: var(--color-surface, #FFFFFF); border: 1px solid var(--color-line, #E5DDD9); padding: 16px 20px; border-radius: 0px;">
+          <div style="font-family: var(--font-mono, monospace); font-size: 0.75rem; font-weight: 700; color: var(--color-ink-500, #6B615C); letter-spacing: 0.05em; text-transform: uppercase;">
+            TOTAL KALORI
+          </div>
+          <div style="font-family: var(--font-mono, monospace); font-size: 1.75rem; font-weight: 700; color: var(--color-ink-900, #16110F); margin: 6px 0 2px 0;">
+            {{ summary.total_calories|default:0 }} <span style="font-size: 0.875rem; font-weight: 500; color: var(--color-ink-500, #6B615C);">kkal</span>
+          </div>
+          <div style="font-size: 0.75rem; color: var(--color-ink-500, #6B615C);">
+            {{ summary.daily_breakdown|length }} hari aktif konsumsi
+          </div>
+        </div>
+
+        <!-- Card 2: Asupan Gula -->
+        <div class="card" style="background-color: var(--color-surface, #FFFFFF); border: 1px solid var(--color-line, #E5DDD9); padding: 16px 20px; border-radius: 0px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-family: var(--font-mono, monospace); font-size: 0.75rem; font-weight: 700; color: var(--color-ink-500, #6B615C); letter-spacing: 0.05em; text-transform: uppercase;">
+              ASUPAN GULA
+            </span>
+            <span class="badge" style="padding: 2px 6px; font-size: 0.7rem; font-weight: 700; background-color: #E6F4EE; color: #0E7A4F; border-radius: 0px;">
+              TERPANTAU
+            </span>
+          </div>
+          <div style="font-family: var(--font-mono, monospace); font-size: 1.75rem; font-weight: 700; color: var(--color-ink-900, #16110F); margin: 6px 0 2px 0;">
+            {{ summary.total_sugar_g|default:"0.00" }} <span style="font-size: 0.875rem; font-weight: 500; color: var(--color-ink-500, #6B615C);">gram</span>
+          </div>
+          <div style="font-size: 0.75rem; color: var(--color-ink-500, #6B615C);">
+            Anjuran Kemenkes: maks. 25 g/hari
+          </div>
+        </div>
+
+        <!-- Card 3: Pilihan Sehat -->
+        <div class="card" style="background-color: var(--color-surface, #FFFFFF); border: 1px solid var(--color-line, #E5DDD9); padding: 16px 20px; border-radius: 0px;">
+          <div style="font-family: var(--font-mono, monospace); font-size: 0.75rem; font-weight: 700; color: var(--color-ink-500, #6B615C); letter-spacing: 0.05em; text-transform: uppercase;">
+            PILIHAN SEHAT
+          </div>
+          <div style="font-family: var(--font-mono, monospace); font-size: 1.75rem; font-weight: 700; color: #0E7A4F; margin: 6px 0 2px 0;">
+            {{ summary.healthy_items_count|default:0 }} <span style="font-size: 0.875rem; font-weight: 500; color: var(--color-ink-500, #6B615C);">/ {{ summary.total_items }} item</span>
+          </div>
+          <div style="font-size: 0.75rem; color: var(--color-ink-500, #6B615C);">
+            Makanan & minuman berkategori sehat
+          </div>
+        </div>
+
+        <!-- Card 4: Alergen Terdeteksi -->
+        <div class="card" style="background-color: var(--color-surface, #FFFFFF); border: 1px solid var(--color-line, #E5DDD9); padding: 16px 20px; border-radius: 0px;">
+          <div style="font-family: var(--font-mono, monospace); font-size: 0.75rem; font-weight: 700; color: var(--color-ink-500, #6B615C); letter-spacing: 0.05em; text-transform: uppercase;">
+            ALERGEN TERDETEKSI
+          </div>
+          <div style="font-family: var(--font-mono, monospace); font-size: 1.75rem; font-weight: 700; color: {% if summary.allergens %}#B3261E{% else %}#0E7A4F{% endif %}; margin: 6px 0 2px 0;">
+            {% if summary.allergens %}
+              {{ summary.allergens|length }} Jenis
+            {% else %}
+              Nihil
+            {% endif %}
+          </div>
+          <div style="font-size: 0.75rem; color: var(--color-ink-500, #6B615C);">
+            {% if summary.allergens %}
+              {{ summary.allergens|join:", " }}
+            {% else %}
+              Aman dari alergen terdaftar
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Allergen Warning Card (If Present) -->
+      {% if summary.allergens %}
+        <div class="card allergen-alert-panel"
+             style="background-color: #FFF5F6; border: 1px solid #F8C4CC; border-left: 4px solid #C8102E; padding: 16px 20px; border-radius: 0px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+            <span style="font-size: 1.2rem;">⚠️</span>
+            <h4 style="font-size: 1rem; font-weight: 700; color: #B3261E; margin: 0;">
+              Peringatan Kandungan Alergen pada Makanan Siswa
+            </h4>
+          </div>
+          <p style="font-size: 0.875rem; color: var(--color-ink-900, #16110F); margin: 0 0 10px 0; line-height: 1.4;">
+            Siswa mengonsumsi produk kantin yang mengandung bahan-bahan berikut pada periode ini. Pastikan siswa tidak memiliki riwayat hipersensitivitas atau alergi:
+          </p>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            {% for a in summary.allergens %}
+              <span style="background: #FFFFFF; border: 1px solid #B3261E; color: #B3261E; padding: 3px 10px; font-size: 0.8rem; font-weight: 600; font-family: var(--font-mono, monospace); border-radius: 0px;">
+                • {{ a|upper }}
+              </span>
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
+
+      <!-- Visual Daily Intake Trend Bar Chart -->
+      <div class="card" style="background-color: var(--color-surface, #FFFFFF); border: 1px solid var(--color-line, #E5DDD9); padding: 20px 24px; border-radius: 0px;">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
+          <div>
+            <h3 style="font-size: 1.125rem; font-weight: 700; margin: 0; color: var(--color-ink-900, #16110F);">
+              Tren Kalori Harian
+            </h3>
+            <span style="font-size: 0.75rem; color: var(--color-ink-500, #6B615C);">
+              Grafik asupan kalori (kkal) per tanggal konsumsi
+            </span>
+          </div>
+          <span style="font-family: var(--font-mono, monospace); font-size: 0.75rem; color: var(--color-ink-500, #6B615C);">
+            Periode: {{ summary.from_date }} s/d {{ summary.to_date }}
+          </span>
+        </div>
+
+        <!-- CSS/HTML Bar Chart -->
+        <div style="display: flex; align-items: flex-end; gap: 12px; height: 160px; padding-top: 20px; border-bottom: 1px solid var(--color-line, #E5DDD9); padding-bottom: 8px;">
+          {% for day in summary.daily_breakdown %}
+            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end;">
+              <span style="font-family: var(--font-mono, monospace); font-size: 0.75rem; font-weight: 600; color: var(--color-ink-700, #3A302C); margin-bottom: 4px;">
+                {{ day.total_calories }}
+              </span>
+              <div style="width: 100%; max-width: 48px; height: 80%; background-color: var(--color-surface-alt, #F7F4F2); display: flex; flex-direction: column; justify-content: flex-end;">
+                <div style="width: 100%; height: {% widthratio day.total_calories 1000 100 %}%; min-height: 8px; max-height: 100%; background-color: #C8102E;"></div>
+              </div>
+              <span style="font-family: var(--font-mono, monospace); font-size: 0.75rem; color: var(--color-ink-500, #6B615C); margin-top: 6px;">
+                {{ day.date|slice:"5:" }}
+              </span>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Itemized Consumption History Table -->
+      <div class="card" style="background-color: var(--color-surface, #FFFFFF); border: 1px solid var(--color-line, #E5DDD9); padding: 20px 24px; border-radius: 0px;">
+        <div style="margin-bottom: 16px;">
+          <h3 style="font-size: 1.125rem; font-weight: 700; margin: 0; color: var(--color-ink-900, #16110F);">
+            Riwayat Asupan Terperinci
+          </h3>
+          <span style="font-size: 0.75rem; color: var(--color-ink-500, #6B615C);">
+            Daftar transaksi dan kandungan nutrisi per makanan/minuman
+          </span>
+        </div>
+
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem; text-align: left;">
+            <thead>
+              <tr style="border-bottom: 2px solid var(--color-line, #E5DDD9); font-family: var(--font-mono, monospace); font-size: 0.75rem; color: var(--color-ink-500, #6B615C); text-transform: uppercase;">
+                <th style="padding: 10px 12px;">Waktu</th>
+                <th style="padding: 10px 12px;">Menu Makanan / Minuman</th>
+                <th style="padding: 10px 12px; text-align: right;">Jumlah</th>
+                <th style="padding: 10px 12px; text-align: right;">Harga</th>
+                <th style="padding: 10px 12px; text-align: right;">Kalori</th>
+                <th style="padding: 10px 12px; text-align: right;">Gula (g)</th>
+                <th style="padding: 10px 12px;">Alergen</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in summary.items %}
+                <tr style="border-bottom: 1px solid var(--color-line, #E5DDD9);">
+                  <td style="padding: 12px; font-family: var(--font-mono, monospace); font-size: 0.8rem; color: var(--color-ink-500, #6B615C); white-space: nowrap;">
+                    {{ item.occurred_at|date:"d M Y H:i"|default:item.occurred_at }}
+                  </td>
+                  <td style="padding: 12px;">
+                    <div style="font-weight: 600; color: var(--color-ink-900, #16110F);">
+                      {{ item.name }}
+                      {% if item.is_healthy %}
+                        <span style="display: inline-block; background-color: #E6F4EE; color: #0E7A4F; font-size: 0.65rem; font-weight: 700; padding: 1px 6px; margin-left: 6px; border-radius: 0px;">
+                          SEHAT
+                        </span>
+                      {% endif %}
+                    </div>
+                    <span style="font-family: var(--font-mono, monospace); font-size: 0.7rem; color: var(--color-ink-500, #6B615C);">
+                      SKU: {{ item.sku }}
+                    </span>
+                  </td>
+                  <td style="padding: 12px; text-align: right; font-family: var(--font-mono, monospace); font-weight: 600;">
+                    {{ item.qty }}x
+                  </td>
+                  <td style="padding: 12px; text-align: right; font-family: var(--font-mono, monospace);">
+                    Rp {{ item.unit_price|stringformat:"s" }}
+                  </td>
+                  <td style="padding: 12px; text-align: right; font-family: var(--font-mono, monospace); font-weight: 600;">
+                    {{ item.calories }} kkal
+                  </td>
+                  <td style="padding: 12px; text-align: right; font-family: var(--font-mono, monospace);">
+                    {{ item.sugar_g }} g
+                  </td>
+                  <td style="padding: 12px;">
+                    {% if item.allergens %}
+                      <span style="color: #B3261E; font-size: 0.75rem; font-weight: 600;">
+                        {{ item.allergens|join:", " }}
+                      </span>
+                    {% else %}
+                      <span style="color: var(--color-ink-500, #6B615C); font-size: 0.75rem;">-</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</div>
+
+<script>
+  /**
+   * Client-side controller for Parent Nutrition Dashboard.
+   */
+  const ParentNutrition = {
+    setPeriod: function(period) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('period', period);
+      window.location.href = url.toString();
+    },
+
+    refreshData: function() {
+      window.location.reload();
+    }
+  };
+</script>
