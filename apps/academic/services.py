@@ -58,12 +58,23 @@ class ScoreConflictError(ValueError):
     Carries the CURRENT record's state so a caller can render a merge prompt without a
     second round trip.
     """
-    def __init__(self, message, current_score=None, current_version=None, current_feedback='', current_descriptor=''):
+    def __init__(
+        self,
+        message,
+        current_score=None,
+        current_version=None,
+        current_feedback='',
+        current_descriptor='',
+        current_graded_by=None,
+        current_graded_at=None,
+    ):
         super().__init__(message)
         self.current_score = current_score
         self.current_version = current_version
         self.current_feedback = current_feedback
         self.current_descriptor = current_descriptor
+        self.current_graded_by = current_graded_by
+        self.current_graded_at = current_graded_at
 
 
 class ReasonRequiredError(ValueError):
@@ -189,12 +200,23 @@ def set_assessment_score(
     existing = AssessmentScore.objects.filter(assessment=assessment, student=student).first()
 
     if existing is not None and expected_version is not None and existing.version != expected_version:
+        graded_by_name = None
+        if existing.graded_by:
+            graded_by_name = getattr(existing.graded_by, 'full_name', '') or str(existing.graded_by)
+        graded_at_str = None
+        if existing.graded_at:
+            graded_at_str = existing.graded_at.isoformat()
+        elif hasattr(existing, 'updated_at') and existing.updated_at:
+            graded_at_str = existing.updated_at.isoformat()
+
         raise ScoreConflictError(
             f"SCORE_CONFLICT: expected version {expected_version}, but the score is now at version {existing.version}.",
             current_score=existing.score,
             current_version=existing.version,
             current_feedback=existing.feedback,
             current_descriptor=existing.descriptor,
+            current_graded_by=graded_by_name,
+            current_graded_at=graded_at_str,
         )
 
     old_value = str(existing.score) if existing else None
