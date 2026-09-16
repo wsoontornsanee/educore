@@ -8,7 +8,7 @@
 
 ---
 
-- **Current Step:** [Open Item] Foundation Campus Comparison Endpoint (FND-004) [DONE - Awaiting PR merge].
+- **Current Step:** [Open Item] Foundation Campus Comparison Endpoint (FND-004) [DONE - PR #89 merged].
 - **Preceding Step:** Frontend Mobile Track — React Native Setup, Offline Queue & Push Integration [DONE - PR #85 merged].
 - **Target Milestone:** P0 Pilot Core [DONE] (M0–M5) -> P1 Classroom [DONE] (M6–M9) -> P2 Campus Economy (M10–M13): canteen wallet + POS [wallet core started], kiosks, face recognition, campus life (`spec/00 §6`).
   - *M0 (Step 0) [DONE]:* Django project skeleton, `core` app (`TenantModel`, `MoneyField`, `AuditEvent`, `DomainEvent`, `TaskQueue`, `JobRun`, `drain_tasks`, advisory locks, crontab).
@@ -187,6 +187,7 @@
 | `TASK-M4` | Frontend M4 — Teacher Mobile Agenda Surface & Substitution Workflow (ACD-019, TCH-001..003, TCH-015) | Built substitution workflow with accept/decline actions, decline reason validation, `SUBSTITUTE_DECLINED` notification intent, exclusion of DECLINED substitutions from effective teacher and substitute agenda, `DevicePushToken` model & `/api/v1/me/push-tokens/` CRUD, and responsive mobile agenda template (`teacher_agenda.html`) (`spec/09`, `spec/17`, `ACD-019`). | Completed (PR #81) |
 | `TASK-M5` | Frontend M5 — Exam Lockdown Client & Proctor Console (ACD-024, ACD-021..026) | Built `GET /api/v1/academic/exams/:id/proctor/` live monitoring endpoint, integrated `IdempotentViewMixin` on `ExamAttemptViewSet` for network-safe autosave with `Idempotency-Key` headers, built student lockdown screen (`exam_lockdown.html`) with fullscreen enforcement, non-punitive focus loss tracking, <=20s autosave, server time resync, and question palette, built proctor console dashboard (`exam_proctor_console.html`) with 6-column live grid, polling refresh toggle, and summary stat cards, and created comprehensive test suite (`test_exam_lockdown_proctor.py`) asserting tenancy isolation, metrics correctness, idempotency, and focus-loss tracking (`spec/04 §6`, `spec/17`, `ACD-021..026`). | Completed (PR #82) |
 | `TASK-M-MOBILE` | Frontend Mobile Track — React Native Setup, Offline Queue & Push Integration | React Native Expo setup, dual-auth JWT backend + storage, SQLite offline queue with FIFO sync replay to `/api/v1/period-attendance/sync/`, agenda and roll call screens with gate exceptions, substitution modal, and push notifications (`spec/09`, `spec/17`, `ACD-019`, `TCH-001..004`). | Completed (PR #85) |
+| `TASK-FND-004` | Foundation Campus Comparison Endpoint | Server-side rollup aggregation (`rpt_foundation_kpis`), ranking/sorting by any KPI metric, 25-school capacity, <=15m freshness check, multi-currency reporting, and CSV/XLSX export streaming with audit header banners (`spec/03 §2, §5`, `FND-004`, `FND-005`, `FND-005b`, `FND-006`, `FND-014`). PR: [#89](https://github.com/wsoontornsanee/educore/pull/89) | Completed (PR #89) |
 
 
 ---
