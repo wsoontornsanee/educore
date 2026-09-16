@@ -476,15 +476,20 @@ class InitiateUploadViewTests(TestCase):
         self.assertEqual(res.status_code, 201, res.content)
         body = res.json()
         self.assertEqual(body['upload_url'], 'https://signed.example/put')
-        self.assertTrue(StoredFile.objects.filter(id=body['id']).exists())
+        self.assertTrue(StoredFile.all_tenants.filter(id=body['id']).exists())
 
-    def test_unknown_purpose_returns_400(self):
+    def test_unknown_purpose_returns_403(self):
+        # HasRequiredPermission (IAM-010, fail-closed) denies before the view body ever
+        # runs a purpose against PURPOSE_RULES — get_required_permission() can't resolve
+        # a permission string for an unregistered purpose, so this is 403, not 400.
+        # Corrected 2026-09-16 after Task 4 implementation surfaced the conflict; ruling:
+        # keep fail-closed (403), do not weaken the permission gate to reach a 400.
         self.client.force_authenticate(user=self.fx['teacher_user'])
         res = self.client.post('/api/v1/files/uploads/', {
             'purpose': 'not_a_real_purpose', 'filename': 'x.pdf',
             'content_type': 'application/pdf', 'size': 10,
         }, format='json')
-        self.assertEqual(res.status_code, 400)
+        self.assertEqual(res.status_code, 403)
 
     def test_unauthenticated_rejected(self):
         res = self.client.post('/api/v1/files/uploads/', {
