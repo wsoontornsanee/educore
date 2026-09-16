@@ -198,3 +198,49 @@ export interface POSSpendRuleCheckResult {
   allowed: boolean;
   reason?: string;
 }
+
+export interface NutritionItem {
+  sku: string;
+  name: string;
+  qty: number;
+  unit_price: string;
+  calories: number;
+  sugar_g: string;
+  allergens: string[];
+  is_healthy: boolean;
+  occurred_at: string;
+}
+
+export interface DailyNutritionBreakdown {
+  date: string;
+  total_calories: number;
+  total_sugar_g: string;
+  items_count: number;
+  healthy_count: number;
+}
+
+export interface StudentNutritionSummary {
+  student_id: number;
+  from_date: string;
+  to_date: string;
+  total_calories: number;
+  total_sugar_g: string;
+  total_items: number;
+  healthy_items_count: number;
+  allergens: string[];
+  daily_breakdown: DailyNutritionBreakdown[];
+  items: NutritionItem[];
+}
+
+export type NutritionPeriodFilter = 'TODAY' | 'WEEK' | 'MONTH';
+
+export interface LinkedStudentProfile {
+  id: number;
+  full_name: string;
+  nis: string;
+  nisn: string;
+  class_name?: string;
+  school_name?: string;
+  photo_url?: string | null;
+}
+

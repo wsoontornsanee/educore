@@ -176,3 +176,6 @@ export const apiClient = {
   patch: <T = any>(path: string, body?: any, options?: RequestOptions) => request<T>('PATCH', path, body, options),
   delete: <T = any>(path: string, options?: RequestOptions) => request<T>('DELETE', path, undefined, options),
 };
+
+export const api = apiClient;
+
