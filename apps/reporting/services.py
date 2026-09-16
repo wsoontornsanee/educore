@@ -366,6 +366,145 @@ def refresh_daily_finance(scope: str, since=None) -> dict:
     return {'rows_written': rows_written, 'start_date': str(start_date), 'scope': scope}
 
 
+def refresh_foundation_kpis(scope: str, since=None) -> dict:
+    """spec/03 §4, spec/15 §2: rebuild rpt_foundation_kpis, one row per school per
+    month plus one foundation-wide aggregate row (school=None) per month.
+
+    Sourced entirely from the other already-refreshed rpt_* tables (FND-005: never
+    live transactional joins) — rpt_daily_finance, rpt_ar_aging, rpt_active_students,
+    rpt_daily_attendance, rpt_wallet_activity. rpt_ar_aging keeps one snapshot per
+    as_of day rather than a period range, so the most recent as_of on or before the
+    period's end is used. Currency is hardcoded 'IDR' throughout, matching every
+    upstream rpt_* refresher's current single-currency simplification (FND-005b
+    multi-currency consolidation is tracked separately — no FxRate service exists).
+
+    scope='dashboard': current month only (matches the 5-minute incremental cadence
+    of its source tables). scope='full': current + previous month, same backfill
+    depth as refresh_active_students. `since` overrides to a specific month
+    (normalized to the 1st), mainly for tests.
+
+    A single advisory-locked cron process is the only writer (refresh_reporting),
+    so update_or_create's own get-then-write is sufficient here without a DB-level
+    uniqueness constraint on the nullable school_id column.
+    """
+    from apps.foundation.models import RptFoundationKPI
+    from apps.identity.models import Foundation
+
+    now = timezone.now()
+    today = now.date()
+    current_month = today.replace(day=1)
+
+    if since is not None:
+        target_months = [since.replace(day=1)]
+    elif scope == 'dashboard':
+        target_months = [current_month]
+    else:
+        previous_month = (current_month - timedelta(days=1)).replace(day=1)
+        target_months = [current_month, previous_month]
+
+    rows_written = 0
+    for foundation in Foundation.objects.all():
+        for month in target_months:
+            month_end = (month.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+            period_end = min(month_end, today)
+
+            as_of = RptArAging.all_tenants.filter(
+                foundation_id=foundation.id, as_of__lte=period_end,
+            ).order_by('-as_of').values_list('as_of', flat=True).first()
+
+            totals = {
+                'billed': Decimal('0.00'), 'collected': Decimal('0.00'), 'outstanding': Decimal('0.00'),
+                'ar_0_30': Decimal('0.00'), 'ar_31_60': Decimal('0.00'), 'ar_61_90': Decimal('0.00'),
+                'ar_90_plus': Decimal('0.00'), 'campus_spend': Decimal('0.00'), 'active_students': 0,
+                'present_like': 0, 'attendance_marks': 0,
+            }
+
+            for school in School.all_tenants.filter(foundation_id=foundation.id, deleted_at__isnull=True):
+                finance = RptDailyFinance.all_tenants.filter(
+                    foundation_id=foundation.id, school=school, date__gte=month, date__lte=period_end,
+                ).aggregate(billed=Sum('billed'), collected=Sum('collected'))
+                billed = finance['billed'] or Decimal('0.00')
+                collected = finance['collected'] or Decimal('0.00')
+                outstanding = RptDailyFinance.all_tenants.filter(
+                    foundation_id=foundation.id, school=school, date__lte=period_end,
+                ).order_by('-date').values_list('outstanding', flat=True).first() or Decimal('0.00')
+
+                ar_buckets = {'0_30': Decimal('0.00'), '31_60': Decimal('0.00'), '61_90': Decimal('0.00'), '90_PLUS': Decimal('0.00')}
+                if as_of is not None:
+                    for bucket, amount in RptArAging.all_tenants.filter(
+                        foundation_id=foundation.id, school=school, as_of=as_of,
+                    ).values_list('bucket').annotate(total=Sum('amount')).values_list('bucket', 'total'):
+                        if bucket in ar_buckets:
+                            ar_buckets[bucket] = amount
+
+                campus_spend = RptWalletActivity.all_tenants.filter(
+                    foundation_id=foundation.id, school=school, date__gte=month, date__lte=period_end,
+                ).aggregate(total=Sum('purchases'))['total'] or Decimal('0.00')
+
+                active_students = RptActiveStudent.all_tenants.filter(
+                    foundation_id=foundation.id, school=school, month=month,
+                ).values_list('active_count', flat=True).first() or 0
+
+                present_like = 0
+                attendance_marks = 0
+                for present, late, sick, permitted, absent in RptDailyAttendance.all_tenants.filter(
+                    foundation_id=foundation.id, school=school, date__gte=month, date__lte=period_end,
+                ).values_list('present', 'late', 'sick', 'permitted', 'absent'):
+                    present_like += present + late
+                    attendance_marks += present + late + sick + permitted + absent
+                avg_attendance_pct = (
+                    (Decimal(present_like) / Decimal(attendance_marks)) * Decimal('100')
+                ).quantize(Decimal('0.01')) if attendance_marks else Decimal('0.00')
+
+                RptFoundationKPI.objects.update_or_create(
+                    foundation_id=foundation.id, school_id=school.id,
+                    period_start=month, period_end=month_end,
+                    defaults={
+                        'billed': billed, 'collected': collected, 'outstanding': outstanding,
+                        'ar_0_30': ar_buckets['0_30'], 'ar_31_60': ar_buckets['31_60'],
+                        'ar_61_90': ar_buckets['61_90'], 'ar_90_plus': ar_buckets['90_PLUS'],
+                        'campus_spend': campus_spend, 'active_students': active_students,
+                        'avg_attendance_pct': avg_attendance_pct,
+                        'currency': 'IDR', 'reporting_currency': foundation.reporting_currency,
+                        'fx_rate_date': None,
+                    },
+                )
+                rows_written += 1
+
+                totals['billed'] += billed
+                totals['collected'] += collected
+                totals['outstanding'] += outstanding
+                totals['ar_0_30'] += ar_buckets['0_30']
+                totals['ar_31_60'] += ar_buckets['31_60']
+                totals['ar_61_90'] += ar_buckets['61_90']
+                totals['ar_90_plus'] += ar_buckets['90_PLUS']
+                totals['campus_spend'] += campus_spend
+                totals['active_students'] += active_students
+                totals['present_like'] += present_like
+                totals['attendance_marks'] += attendance_marks
+
+            agg_avg_attendance = (
+                (Decimal(totals['present_like']) / Decimal(totals['attendance_marks'])) * Decimal('100')
+            ).quantize(Decimal('0.01')) if totals['attendance_marks'] else Decimal('0.00')
+
+            RptFoundationKPI.objects.update_or_create(
+                foundation_id=foundation.id, school_id=None,
+                period_start=month, period_end=month_end,
+                defaults={
+                    'billed': totals['billed'], 'collected': totals['collected'], 'outstanding': totals['outstanding'],
+                    'ar_0_30': totals['ar_0_30'], 'ar_31_60': totals['ar_31_60'],
+                    'ar_61_90': totals['ar_61_90'], 'ar_90_plus': totals['ar_90_plus'],
+                    'campus_spend': totals['campus_spend'], 'active_students': totals['active_students'],
+                    'avg_attendance_pct': agg_avg_attendance,
+                    'currency': foundation.reporting_currency, 'reporting_currency': foundation.reporting_currency,
+                    'fx_rate_date': None,
+                },
+            )
+            rows_written += 1
+
+    return {'rows_written': rows_written, 'scope': scope}
+
+
 def refresh_ar_aging(scope: str, since=None) -> dict:
     """spec/15 §2: rebuild rpt_ar_aging(school_id, student_id, as_of, bucket, currency, amount).
     Rolls up outstanding open invoices per student per aging bucket as of today.

@@ -1,6 +1,7 @@
 """Tests for Foundation settings and KPI dashboard views (spec/03 §4, §5)."""
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 from apps.foundation.models import RptFoundationKPI
@@ -84,10 +85,56 @@ class FoundationKPIAndSettingsTests(APITestCase):
         with tenant_context(self.foundation.id):
             response = self.client.get('/api/v1/foundation/kpis')
             self.assertEqual(response.status_code, status.HTTP_200_OK)
-            self.assertEqual(len(response.data), 1)
-            row = response.data[0]
+            results = response.data['results']
+            self.assertEqual(len(results), 1)
+            row = results[0]
             self.assertEqual(row['billed'], "50000000.00")
             self.assertEqual(row['collected'], "42500000.00")
             self.assertEqual(row['collection_rate_pct'], "85.00")
             self.assertEqual(row['active_students'], 450)
             self.assertEqual(row['avg_attendance_pct'], "96.50")
+
+    def test_foundation_kpis_freshness_flag(self):
+        """FND-006: freshness must be surfaced and flagged stale beyond 15 minutes."""
+        self.client.force_authenticate(user=self.admin)
+
+        with tenant_context(self.foundation.id):
+            response = self.client.get('/api/v1/foundation/kpis')
+            freshness = response.data['freshness']
+            self.assertIsNotNone(freshness['computed_at'])
+            self.assertFalse(freshness['stale'])
+
+            # RptFoundationKPI.computed_at is auto_now=True, so .save() would
+            # overwrite it back to "now" -- use a queryset update to bypass that.
+            RptFoundationKPI.objects.filter(pk=self.kpi.pk).update(computed_at=timezone.now() - timedelta(minutes=30))
+
+            response = self.client.get('/api/v1/foundation/kpis')
+            self.assertTrue(response.data['freshness']['stale'])
+
+    def test_foundation_kpis_compare_prev_period(self):
+        """FND-003: compare=prev_period returns absolute + percentage delta."""
+        self.client.force_authenticate(user=self.admin)
+
+        RptFoundationKPI.objects.create(
+            foundation_id=self.foundation.id,
+            school_id=self.school.id,
+            period_start=date(2026, 8, 1),
+            period_end=date(2026, 8, 31),
+            billed=Decimal('40000000.00'),
+            collected=Decimal('30000000.00'),
+            active_students=400,
+            avg_attendance_pct=Decimal('95.00'),
+            currency='IDR',
+            reporting_currency='IDR',
+        )
+
+        with tenant_context(self.foundation.id):
+            response = self.client.get(
+                '/api/v1/foundation/kpis?from=2026-09-01&to=2026-09-30&compare=prev_period'
+            )
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            compare = response.data['compare']
+            self.assertIsNotNone(compare)
+            self.assertEqual(compare['prior_period'], {'from': '2026-08-01', 'to': '2026-08-31'})
+            self.assertEqual(compare['delta']['billed'], '10000000.00')
+            self.assertEqual(compare['delta_pct']['billed'], '25.00')
