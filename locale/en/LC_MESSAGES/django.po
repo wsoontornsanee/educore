@@ -1,0 +1,45 @@
+# English translations for EduCore.
+# Copyright (C) 2026 EduCore
+msgid ""
+msgstr ""
+"Project-Id-Version: EduCore 1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-16 11:00+0700\n"
+"PO-Revision-Date: 2026-09-16 11:00+0700\n"
+"Last-Translator: EduCore Team\n"
+"Language-Team: English\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Hadir"
+msgstr "Present"
+
+msgid "Terlambat"
+msgstr "Late"
+
+msgid "Sakit"
+msgstr "Sick"
+
+msgid "Izin"
+msgstr "Excused"
+
+msgid "Alpa"
+msgstr "Absent (Unexcused)"
+
+msgid "Lunas"
+msgstr "Paid"
+
+msgid "Jatuh Tempo"
+msgstr "Overdue"
+
+msgid "Tagihan"
+msgstr "Invoice"
+
+msgid "Rapor"
+msgstr "Report Card"
+
+msgid "Nilai"
+msgstr "Grade"
