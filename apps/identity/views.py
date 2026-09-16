@@ -4,10 +4,12 @@ from rest_framework import permissions, status, views, viewsets
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.tokens import RefreshToken
 from apps.core.services import audit
 from educore.middleware.tenancy import get_current_foundation_id
-from .models import FoundationEntitlement
+from .models import FoundationEntitlement, RoleAssignment, User as UserModel
 from .permissions import IsFoundationAdmin
+from .rbac import assign_role
 from .serializers import (
     EduCoreTokenObtainPairSerializer,
     EduCoreTokenRefreshSerializer,
@@ -535,4 +537,54 @@ class RequestOtpView(views.APIView):
             # At this point, any ValidationError must be throttling (format already validated above)
             return Response({'error': exc.messages[0]}, status=status.HTTP_400_BAD_REQUEST)
         return Response({'challenge_id': challenge.id}, status=status.HTTP_201_CREATED)
+
+
+class VerifyOtpView(views.APIView):
+    """POST /api/v1/auth/otp/verify/ — guardian OTP login, step 2 (PAR-001, IAM-003)."""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = OtpVerifySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        ok, message = verify_phone_otp(data['challenge_id'], data['code'])
+        if not ok:
+            return Response({'error': message}, status=status.HTTP_400_BAD_REQUEST)
+
+        from .models import OTPChallenge
+        challenge = OTPChallenge.objects.get(id=data['challenge_id'])
+        user = UserModel.all_tenants.filter(phone_e164=challenge.phone_e164).first()
+        if not user:
+            return Response(
+                {'error': 'Nomor HP ini belum terdaftar sebagai wali murid.', 'code': 'GUARDIAN_NOT_REGISTERED'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        assign_role(
+            user=user,
+            role=RoleAssignment.ROLE_PARENT,
+            scope_type=RoleAssignment.SCOPE_FOUNDATION,
+            scope_id=user.foundation_id,
+            foundation_id=user.foundation_id,
+        )
+
+        refresh = RefreshToken.for_user(user)
+        roles = list(
+            RoleAssignment.all_tenants.filter(
+                foundation_id=user.foundation_id, user=user, deleted_at__isnull=True
+            ).values('id', 'role', 'scope_type', 'scope_id')
+        )
+        return Response({
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': {
+                'id': user.id,
+                'full_name': user.full_name,
+                'phone_e164': user.phone_e164,
+                'email': user.email,
+                'foundation_id': user.foundation_id,
+                'roles': roles,
+            },
+        }, status=status.HTTP_200_OK)
 
