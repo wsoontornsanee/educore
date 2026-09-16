@@ -305,6 +305,46 @@ def post_revenue_recognition_journal(
     )
 
 
+def post_waiver_journal(
+    invoice: Invoice,
+    amount: Decimal,
+    reason: str = "",
+) -> LedgerJournal:
+    """
+    FND-007 AC#2 / spec/06 §2: waiver approved → Dr Discount Expense / Cr AR.
+    Mirrors post_write_off_journal's Dr expense / Cr AR shape (FIN-031), using
+    AccountCode.DISCOUNT_EXPENSE (5200) since a waiver reduces the receivable
+    through a discount decision rather than a bad-debt write-off.
+    """
+    entries = [
+        {
+            'account_code': AccountCode.DISCOUNT_EXPENSE,
+            'account_name': 'Beban Potongan & Keringanan',
+            'debit': amount,
+            'credit': Decimal('0.00'),
+        },
+        {
+            'account_code': AccountCode.ACCOUNTS_RECEIVABLE,
+            'account_name': 'Piutang SPP & Biaya',
+            'debit': Decimal('0.00'),
+            'credit': amount,
+        },
+    ]
+    description = f"Keringanan Biaya (Waiver) Tagihan {invoice.number}"
+    if reason:
+        description += f": {reason}"
+
+    return post_ledger_journal(
+        school=invoice.school,
+        ref_type='WAIVER',
+        ref_id=invoice.id,
+        description=description,
+        entries=entries,
+        currency=invoice.currency,
+        occurred_at=timezone.now(),
+    )
+
+
 def post_write_off_journal(
     invoice: Invoice,
     amount: Decimal,

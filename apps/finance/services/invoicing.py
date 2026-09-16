@@ -246,7 +246,95 @@ def approve_discount(discount: Discount, user: Any) -> Discount:
         diff={'status': DiscountStatus.APPROVED}
     )
 
+    if discount.type == DiscountType.FIXED:
+        _apply_waiver_to_invoice_line(discount, user)
+
     return discount
+
+
+def _apply_waiver_to_invoice_line(discount: Discount, user: Any) -> None:
+    """Marks the invoice line a FIXED-type discount ("waiver") already
+    covers, waived, when one exists (spec/03 FND-007 AC#2: "Approving a
+    Rp 5,000,000 waiver marks the underlying invoice line WAIVED and emits
+    finance.waiver.approved").
+
+    Scope, matching the read-side waiver/discount split already established
+    in apps/foundation/approvals.py's _discount_approval_type: only a
+    FIXED-type Discount targets a specific existing line here. A discount
+    with no fee_type (applies to every fee type at generation time) has no
+    single "underlying invoice line" to point at, so it is left to apply at
+    the next invoice generation cycle via resolve_student_fee_schedule
+    instead of retroactively guessing which line(s) to touch.
+
+    No-op (no line waived, no event emitted) when the waiver was approved
+    before any matching invoice existed yet -- the discount still applies
+    forward through resolve_student_fee_schedule once one is generated, or
+    when the waiver's valid_from/valid_to window doesn't cover any open
+    invoice's period.
+
+    Called from within approve_discount's @transaction.atomic; the invoice
+    row is locked with select_for_update so a concurrent payment allocation
+    or a second waiver can't read a stale total/paid and clobber this one.
+    """
+    if not discount.fee_type_id:
+        return
+
+    period_filter = models.Q(invoice__period__gte=discount.valid_from.strftime('%Y-%m'))
+    if discount.valid_to:
+        period_filter &= models.Q(invoice__period__lte=discount.valid_to.strftime('%Y-%m'))
+
+    candidate = InvoiceLine.objects.filter(
+        foundation_id=discount.foundation_id,
+        invoice__student=discount.student,
+        invoice__status__in=[InvoiceStatus.DRAFT, InvoiceStatus.ISSUED, InvoiceStatus.PARTIALLY_PAID],
+        invoice__deleted_at__isnull=True,
+        fee_type_id=discount.fee_type_id,
+        subtotal__gt=Decimal('0.00'),
+        deleted_at__isnull=True,
+    ).filter(period_filter).order_by('invoice__period').first()
+    if not candidate:
+        return
+
+    # Re-fetch under a row lock: candidate's invoice/period selection above
+    # doesn't need to be repeated once locked, since nothing else waives
+    # lines (only payments and this same function mutate invoice.paid/total,
+    # both take out this lock).
+    with transaction.atomic():
+        line = InvoiceLine.objects.select_for_update().select_related('invoice').get(id=candidate.id)
+        invoice = Invoice.objects.select_for_update().get(id=line.invoice_id)
+
+        waive_amount = min(discount.value, line.subtotal)
+        if waive_amount <= Decimal('0.00'):
+            return
+
+        line.discount += waive_amount
+        line.subtotal = max(Decimal('0.00'), line.subtotal - waive_amount)
+        line.waived = line.subtotal <= Decimal('0.00')
+        line.save(update_fields=['waived', 'discount', 'subtotal', 'updated_at'])
+
+        invoice.discount += waive_amount
+        invoice.total = max(Decimal('0.00'), invoice.total - waive_amount)
+        if invoice.status != InvoiceStatus.DRAFT and invoice.paid >= invoice.total:
+            invoice.status = InvoiceStatus.PAID
+        invoice.save(update_fields=['discount', 'total', 'status', 'updated_at'])
+
+        from apps.finance.services.ledger import post_waiver_journal
+        journal = post_waiver_journal(invoice=invoice, amount=waive_amount, reason=discount.reason)
+
+        audit(
+            action='finance.waiver.approved',
+            entity_type='InvoiceLine',
+            entity_id=line.id,
+            actor_id=str(user.id) if user and getattr(user, 'id', None) else '',
+            foundation_id=discount.foundation_id,
+            school_id=invoice.school_id,
+            diff={
+                'discount_id': discount.id,
+                'invoice_id': invoice.id,
+                'waived_amount': str(waive_amount),
+                'journal_id': journal.id,
+            },
+        )
 
 
 @transaction.atomic

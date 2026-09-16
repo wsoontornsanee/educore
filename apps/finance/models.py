@@ -236,6 +236,7 @@ class InvoiceLine(TenantModel):
     discount = MoneyField(default=Decimal('0.00'), help_text=_("Discount deduction on this line"))
     subtotal = MoneyField(default=Decimal('0.00'), help_text=_("Net line total (amount - discount)"))
     currency = models.CharField(max_length=3, default='IDR')
+    waived = models.BooleanField(default=False, help_text=_("Set when a FIXED-type discount (waiver) is approved against this line (spec/03 FND-007 AC#2, spec/06 §2)"))
 
     class Meta:
         db_table = 'invoice_lines'
