@@ -8,7 +8,7 @@
 
 ---
 
-- **Current Step:** Awaiting next step / deployment instruction.
+- **Current Step:** [Open Item] Parent Nutrition & Daily Intake Analytics Dashboard UI (spec/07 WAL-024, spec/08 PAR-010) [Awaiting PR #98 merge].
 - **Preceding Step:** Step 11.1 — Cashless Canteen Wallet & Offline-First POS Kiosk (TASK-033) [DONE - PR #96 merged].
 - **Recent Completed Step:** Step 11.1 — Cashless Canteen Wallet & Offline-First POS Kiosk (TASK-033) [DONE - PR #96 merged].
 - **Target Milestone:** P0 Pilot Core [DONE] (M0–M5) -> P1 Classroom [DONE] (M6–M9) -> P2 Campus Economy (M10–M13): canteen wallet + POS [wallet core started], kiosks, face recognition, campus life (`spec/00 §6`).
@@ -191,6 +191,7 @@
 | `TASK-M-MOBILE` | Frontend Mobile Track — React Native Setup, Offline Queue & Push Integration | React Native Expo setup, dual-auth JWT backend + storage, SQLite offline queue with FIFO sync replay to `/api/v1/period-attendance/sync/`, agenda and roll call screens with gate exceptions, substitution modal, and push notifications (`spec/09`, `spec/17`, `ACD-019`, `TCH-001..004`). | Completed (PR #85) |
 | `TASK-FND-004` | Foundation Campus Comparison Endpoint | Server-side rollup aggregation (`rpt_foundation_kpis`), ranking/sorting by any KPI metric, 25-school capacity, <=15m freshness check, multi-currency reporting, and CSV/XLSX export streaming with audit header banners (`spec/03 §2, §5`, `FND-004`, `FND-005`, `FND-005b`, `FND-006`, `FND-014`). PR: [#89](https://github.com/wsoontornsanee/educore/pull/89) | Completed (PR #89) |
 | `TASK-033` | Step 11.1 — Cashless Canteen Wallet & Offline-First POS Kiosk | Canteen operator RBAC, student nutrition summary API (`WAL-024`), React Native tablet POS kiosk (`POSKioskScreen.tsx`), offline SQLite/IndexedDB queue sync (`WAL-015`, `WAL-016`), live spend-rule validations (`WAL-009`..`013`), and digital receipt (`WAL-020`) (`spec/07 §3-§8`, `spec/12`). PR: [#96](https://github.com/wsoontornsanee/educore/pull/96) | Completed (PR #96) |
+| `TASK-OPEN-NUTRITION` | Parent Nutrition & Daily Intake Analytics Dashboard UI | React Native mobile screen (`ParentNutritionDashboardScreen.tsx`) & web companion template (`parent_nutrition_dashboard.html`), multi-child switcher (`PAR-003`), period filter, 4 hero KPI cards (`UI-002`), daily calorie intake bar chart, allergen alerts, itemized purchase logs, 5 mandatory states (`spec/17 §8.1`), and offline caching (`PAR-015`) backed by `GET /api/v1/students/:id/nutrition-summary?from&to` (`WAL-024`). PR: [#98](https://github.com/wsoontornsanee/educore/pull/98) | Awaiting PR #98 merge |
 
 
 ---
