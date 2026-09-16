@@ -1,16 +1,14 @@
 import logging
 from datetime import timedelta
 from decimal import Decimal
-from pathlib import Path
 
-from django.conf import settings
 from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
-from apps.core.services import audit
+from apps.core.services import audit, write_generated_file
 from apps.wallet.models import (
     MerchantSettlement,
     WalletAutoTopupConfig,
@@ -628,23 +626,29 @@ def render_settlement_statement_html(settlement: MerchantSettlement) -> str:
 
 
 def generate_settlement_statement_pdf(settlement: MerchantSettlement) -> str:
-    """Falls back to HTML if weasyprint's native libraries are unavailable in this environment."""
+    """Falls back to HTML if weasyprint's native libraries are unavailable in
+    this environment. Written to GCS via core.write_generated_file, catalogued
+    as a core.StoredFile row (ARC-026, ARC-030) — no raw filesystem write."""
     html_content = render_settlement_statement_html(settlement)
-    output_dir = Path(settings.MEDIA_ROOT) / 'settlements'
-    output_dir.mkdir(parents=True, exist_ok=True)
 
     try:
         from weasyprint import HTML
-        key = f"settlements/{settlement.id}.pdf"
-        HTML(string=html_content).write_pdf(str(Path(settings.MEDIA_ROOT) / key))
+        filename = f"{settlement.id}.pdf"
+        data = HTML(string=html_content).write_pdf()
+        content_type = 'application/pdf'
     except Exception:
         logger.warning("weasyprint unavailable, falling back to HTML settlement statement", exc_info=True)
-        key = f"settlements/{settlement.id}.html"
-        (Path(settings.MEDIA_ROOT) / key).write_text(html_content)
+        filename = f"{settlement.id}.html"
+        data = html_content.encode('utf-8')
+        content_type = 'text/html'
 
-    settlement.statement_pdf_key = key
+    stored_file = write_generated_file(
+        purpose='settlement_statement', filename=filename, data=data,
+        content_type=content_type, foundation_id=settlement.foundation_id,
+    )
+    settlement.statement_pdf_key = stored_file.key
     settlement.save(update_fields=['statement_pdf_key', 'updated_at'])
-    return key
+    return stored_file.key
 
 
 def mark_settlement_paid(settlement: MerchantSettlement) -> MerchantSettlement:
