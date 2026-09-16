@@ -14,7 +14,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.attendance.models import AttendanceDay, AttendanceStatus
-from apps.finance.models import Invoice, InvoiceStatus, PaymentIntent
+from apps.finance.models import Invoice, InvoiceStatus, Payment, PaymentIntent, PaymentStatus
 from apps.identity.models import (
     Foundation,
     Guardian,
@@ -178,6 +178,19 @@ class ParentOtpEndToEndAccessTests(TestCase):
             currency='IDR',
             expires_at=timezone.now() + datetime.timedelta(hours=2),
         )
+        other_payment = Payment.all_tenants.create(
+            foundation_id=self.foundation.id,
+            school=self.school,
+            student=other_student,
+            invoice=other_invoice,
+            amount=Decimal('400000.00'),
+            currency='IDR',
+            method='VA',
+            channel='BCA_VA',
+            reference=f"PAY/{self.school.npsn}/2026/000902",
+            status=PaymentStatus.SETTLED,
+            receipt_number=f"RCP/{self.school.npsn}/2026/000902",
+        )
 
         self._login_via_otp(self.phone)
 
@@ -195,6 +208,22 @@ class ParentOtpEndToEndAccessTests(TestCase):
             format='json',
         )
         self.assertEqual(blocked.status_code, 404, blocked.data)
+
+        # PAR/FIN cross-family leak: GET /api/v1/finance/payments/ must not
+        # return another family's settled payments (amounts, receipt numbers).
+        payments_listed = self.client.get('/api/v1/finance/payments/')
+        self.assertEqual(payments_listed.status_code, 200, payments_listed.data)
+        payment_rows = payments_listed.data.get('results', payments_listed.data)
+        self.assertNotIn(
+            other_payment.id, [row['id'] for row in payment_rows],
+            "Guardian must not see another family's payments",
+        )
+
+        scoped_payments = self.client.get(
+            f'/api/v1/finance/payments/?student_id={other_student.id}'
+        )
+        self.assertEqual(scoped_payments.status_code, 200, scoped_payments.data)
+        self.assertEqual(len(scoped_payments.data.get('results', scoped_payments.data)), 0)
 
     def test_guardian_cannot_reach_invoice_write_endpoints(self):
         """finance.payment_intent.create must not leak into finance.invoice.write."""
