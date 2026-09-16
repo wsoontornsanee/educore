@@ -1,8 +1,8 @@
-﻿import datetime
+import datetime
 from decimal import Decimal
 from django.test import TestCase
 from django.utils import timezone
-from apps.identity.models import Foundation, Guardian, GuardianLink, Person, School, Student, User
+from apps.identity.models import Foundation, Guardian, GuardianLink, Person, RoleAssignment, School, Student, User
 from apps.finance.models import (
     Discount,
     DiscountStatus,
@@ -13,6 +13,7 @@ from apps.finance.models import (
 )
 from apps.finance.services import (
     approve_discount,
+    reject_discount,
     calculate_sibling_discount,
     create_discount_with_approval_check,
     get_student_child_order,
@@ -41,6 +42,13 @@ class DiscountsAndSiblingEngineTests(TestCase):
             phone_e164="+628123445566",
             email="admin@emas.sch.id",
             full_name="Admin Yayasan",
+        )
+        RoleAssignment.all_tenants.create(
+            user=self.admin_user,
+            foundation_id=self.foundation.id,
+            role=RoleAssignment.ROLE_FOUNDATION_ADMIN,
+            scope_type=RoleAssignment.SCOPE_FOUNDATION,
+            scope_id=self.foundation.id,
         )
         self.parent_person = Person.all_tenants.create(
             foundation_id=self.foundation.id,
@@ -204,3 +212,18 @@ class DiscountsAndSiblingEngineTests(TestCase):
             disc_high.refresh_from_db()
             self.assertEqual(disc_high.status, DiscountStatus.APPROVED)
             self.assertIsNotNone(disc_high.approved_at)
+
+            # 4. Reject high discount
+            disc_to_reject = create_discount_with_approval_check(
+                foundation_id=self.foundation.id,
+                student=self.child1,
+                type=DiscountType.FIXED,
+                value=Decimal('3000000.00'),
+                reason="Permohonan Keringanan Lain",
+                valid_from=datetime.date(2026, 7, 1),
+                user=self.admin_user,
+            )
+            self.assertEqual(disc_to_reject.status, DiscountStatus.PENDING_APPROVAL)
+            reject_discount(disc_to_reject, user=self.admin_user, reason="Tidak memenuhi kriteria yayasan")
+            disc_to_reject.refresh_from_db()
+            self.assertEqual(disc_to_reject.status, DiscountStatus.REJECTED)

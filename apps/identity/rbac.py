@@ -206,8 +206,27 @@ def has_permission(
     if not user.is_authenticated or not user.is_active or user.is_locked:
         return False
 
+    user_perms = get_user_permissions(user, foundation_id, school_id)
+    return permission_key in user_perms
+
+
+def is_foundation_admin(user: User, foundation_id: int) -> bool:
+    """Evaluate whether the user has active Foundation Admin authority (or is superuser).
+    
+    Required for approving threshold-gated actions like discounts, write-offs, and refunds
+    (spec/03 §3 FND-007, FND-008, spec/06 §6 FIN-031, spec/06 §7 FIN-032).
+    """
+    if not user or not user.is_authenticated or not user.is_active or user.is_locked:
+        return False
+
     if user.is_superuser:
         return True
 
-    user_perms = get_user_permissions(user, foundation_id, school_id)
-    return permission_key in user_perms
+    return RoleAssignment.all_tenants.filter(
+        foundation_id=foundation_id,
+        user=user,
+        role=ROLE_FOUNDATION_ADMIN,
+        scope_type=SCOPE_FOUNDATION,
+        scope_id=foundation_id,
+        deleted_at__isnull=True,
+    ).exists()

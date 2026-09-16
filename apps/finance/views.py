@@ -1,4 +1,5 @@
 from decimal import Decimal
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import permissions, status, viewsets
@@ -91,6 +92,7 @@ from apps.finance.services import (
     PeriodCloseValidationError,
     RefundValidationError,
     approve_discount,
+    reject_discount,
     approve_invoice_write_off,
     approve_refund,
     cancel_installment_plan,
@@ -277,6 +279,7 @@ class DiscountViewSet(viewsets.ModelViewSet):
         'partial_update': 'finance.invoice.write',
         'destroy': 'finance.invoice.write',
         'approve': 'finance.invoice.write',
+        'reject': 'finance.invoice.write',
     }
 
     def get_queryset(self):
@@ -319,9 +322,28 @@ class DiscountViewSet(viewsets.ModelViewSet):
     def approve(self, request, pk=None):
         """Approve a pending discount request (FIN-007)."""
         discount = self.get_object()
-        approved = approve_discount(discount, request.user)
-        serializer = self.get_serializer(approved)
-        return Response(serializer.data)
+        try:
+            approved = approve_discount(discount, request.user)
+            serializer = self.get_serializer(approved)
+            return Response(serializer.data)
+        except PermissionDenied as pe:
+            return Response({'error': str(pe)}, status=status.HTTP_403_FORBIDDEN)
+        except (ValueError, ValidationError) as ve:
+            return Response({'error': str(ve)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='reject')
+    def reject(self, request, pk=None):
+        """Reject a pending discount request (FIN-007)."""
+        discount = self.get_object()
+        reason = request.data.get('reason', '')
+        try:
+            rejected = reject_discount(discount, request.user, reason=reason)
+            serializer = self.get_serializer(rejected)
+            return Response(serializer.data)
+        except PermissionDenied as pe:
+            return Response({'error': str(pe)}, status=status.HTTP_403_FORBIDDEN)
+        except (ValueError, ValidationError) as ve:
+            return Response({'error': str(ve)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class SiblingDiscountPolicyViewSet(viewsets.ModelViewSet):
@@ -1044,6 +1066,8 @@ class InvoiceWriteOffRequestViewSet(viewsets.ModelViewSet):
                 notes=serializer.validated_data.get('notes', ''),
             )
             return Response(InvoiceWriteOffRequestSerializer(approved).data, status=status.HTTP_200_OK)
+        except PermissionDenied as pe:
+            return Response({'error': str(pe)}, status=status.HTTP_403_FORBIDDEN)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1060,6 +1084,8 @@ class InvoiceWriteOffRequestViewSet(viewsets.ModelViewSet):
                 notes=serializer.validated_data.get('notes', ''),
             )
             return Response(InvoiceWriteOffRequestSerializer(rejected).data, status=status.HTTP_200_OK)
+        except PermissionDenied as pe:
+            return Response({'error': str(pe)}, status=status.HTTP_403_FORBIDDEN)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1534,6 +1560,8 @@ class RefundViewSet(viewsets.ModelViewSet):
                     reason=data.get('reason', ''),
                 )
             return Response(self.get_serializer(updated).data, status=status.HTTP_200_OK)
+        except PermissionDenied as pe:
+            return Response({'error': str(pe)}, status=status.HTTP_403_FORBIDDEN)
         except (RefundValidationError, InvalidRefundStateError, ValueError) as exc:
             return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 

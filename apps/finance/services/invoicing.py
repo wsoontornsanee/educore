@@ -217,9 +217,13 @@ def create_discount_with_approval_check(
 
 @transaction.atomic
 def approve_discount(discount: Discount, user: Any) -> Discount:
-    """Approve a pending discount request (FIN-007)."""
+    """Approve a pending discount request (FIN-007, FND-007)."""
     if discount.status == DiscountStatus.APPROVED:
         return discount
+
+    from apps.identity.rbac import is_foundation_admin
+    if not is_foundation_admin(user, discount.foundation_id):
+        raise PermissionDenied(_("Persetujuan diskon atau keringanan biaya memerlukan wewenang Admin Yayasan (FIN-007, FND-007)."))
 
     discount.status = DiscountStatus.APPROVED
     discount.approved_by = user if user and getattr(user, 'id', None) else None
@@ -234,6 +238,35 @@ def approve_discount(discount: Discount, user: Any) -> Discount:
         foundation_id=discount.foundation_id,
         school_id=discount.student.school_id,
         diff={'status': DiscountStatus.APPROVED}
+    )
+
+    return discount
+
+
+@transaction.atomic
+def reject_discount(discount: Discount, user: Any, reason: str = '') -> Discount:
+    """Reject a pending discount request (FIN-007, FND-007, FND-008)."""
+    if discount.status != DiscountStatus.PENDING_APPROVAL:
+        raise ValidationError(_("Hanya permohonan diskon dengan status PENDING_APPROVAL yang dapat ditolak."))
+
+    from apps.identity.rbac import is_foundation_admin
+    if not is_foundation_admin(user, discount.foundation_id):
+        raise PermissionDenied(_("Penolakan permohonan diskon memerlukan wewenang Admin Yayasan (FIN-007, FND-007)."))
+
+    if not reason or not reason.strip():
+        raise ValidationError(_("Alasan penolakan diskon wajib diisi."))
+
+    discount.status = DiscountStatus.REJECTED
+    discount.save(update_fields=['status', 'updated_at'])
+
+    audit(
+        action='finance.discount.rejected',
+        entity_type='Discount',
+        entity_id=discount.id,
+        actor_id=str(user.id) if user and getattr(user, 'id', None) else '',
+        foundation_id=discount.foundation_id,
+        school_id=discount.student.school_id,
+        diff={'status': DiscountStatus.REJECTED, 'reason': reason.strip()}
     )
 
     return discount
@@ -732,15 +765,8 @@ def approve_invoice_write_off(
     if request_obj.status != InvoiceWriteOffStatus.PENDING:
         raise ValidationError(_("Permohonan penghapusbukuan sudah diproses sebelumnya."))
 
-    from apps.identity.models import RoleAssignment
-    is_foundation_auth = user.is_superuser or RoleAssignment.objects.filter(
-        user=user,
-        foundation_id=request_obj.foundation_id,
-        scope_type=RoleAssignment.SCOPE_FOUNDATION,
-        deleted_at__isnull=True,
-    ).exists()
-
-    if not is_foundation_auth:
+    from apps.identity.rbac import is_foundation_admin
+    if not is_foundation_admin(user, request_obj.foundation_id):
         raise PermissionDenied(_("Persetujuan penghapusbukuan piutang memerlukan wewenang Yayasan (FIN-031)."))
 
     invoice = request_obj.invoice
@@ -790,15 +816,8 @@ def reject_invoice_write_off(
     if request_obj.status != InvoiceWriteOffStatus.PENDING:
         raise ValidationError(_("Permohonan penghapusbukuan sudah diproses sebelumnya."))
 
-    from apps.identity.models import RoleAssignment
-    is_foundation_auth = user.is_superuser or RoleAssignment.objects.filter(
-        user=user,
-        foundation_id=request_obj.foundation_id,
-        scope_type=RoleAssignment.SCOPE_FOUNDATION,
-        deleted_at__isnull=True,
-    ).exists()
-
-    if not is_foundation_auth:
+    from apps.identity.rbac import is_foundation_admin
+    if not is_foundation_admin(user, request_obj.foundation_id):
         raise PermissionDenied(_("Penolakan penghapusbukuan piutang memerlukan wewenang Yayasan (FIN-031)."))
 
     rejection_note = notes or reason

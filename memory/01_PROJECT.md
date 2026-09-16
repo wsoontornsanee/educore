@@ -8,8 +8,8 @@
 
 ---
 
-- **Current Step:** TASK-029 (Step 8.2 — Financial Period Close & Ledger Locking, spec/06 FIN-025, FIN-025b, ARC-013) [In progress - PR #70 opened].
-- **Preceding Step:** TASK-073 (Guardian & Parent Mobile App Authorization Filtering, spec/02 IAM-014, spec/08 PAR-010, PAR-017) [DONE - PR #69 merged].
+- **Current Step:** [Open Item] Approval Flows Don't Verify the Approver's Role (self-approval gap) (spec/03 §3 FND-007, FND-008, spec/06 §6 FIN-031, spec/06 §7 FIN-032). Branch `feat/approval-role-verification`.
+- **Preceding Step:** TASK-030 (Step 8.3 — Financial Refunds & Overpayment Reversals, spec/06 FIN-020, FIN-032, FIN-033, FIN-034, FND-007) [DONE - PR #71 merged].
 - **Target Milestone:** P0 Pilot Core [DONE] (M0–M5) -> P1 Classroom [DONE] (M6–M9) -> P2 Campus Economy (M10–M13): canteen wallet + POS [wallet core started], kiosks, face recognition, campus life (`spec/00 §6`).
   - *M0 (Step 0) [DONE]:* Django project skeleton, `core` app (`TenantModel`, `MoneyField`, `AuditEvent`, `DomainEvent`, `TaskQueue`, `JobRun`, `drain_tasks`, advisory locks, crontab).
   - *M1 (Step 1) [DONE]:* Tenancy, auth, RBAC, feature entitlements, foundation portal, seed data (`identity`, `foundation`). Demo: Foundation admin logs in, sees two schools.
