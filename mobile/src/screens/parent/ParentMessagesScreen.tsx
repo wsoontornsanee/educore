@@ -1,11 +1,11 @@
 /**
- * Parent Messages: permission slips inbox for the selected child
- * (spec/08 §2 Messages tab, PAR-012, PAR-015, PAR-016, spec/17 §8.1).
+ * Parent Messages: unified inbox for school announcements (broadcasts) and
+ * permission slips (spec/08 §2 Messages tab, PAR-012, PAR-015, PAR-016).
  *
- * The school issues a consent request (field trip etc.); the guardian signs a
- * digital acknowledgement with a typed signature. The server records the
- * timestamp; the slip shows the guardian's own effective response. Signing is
- * disabled offline with an explanatory state (PAR-015).
+ * Segmented control: "Pengumuman" (broadcasts) | "Izin" (permission slips).
+ * Broadcasts are read-only; permission slips support digital signature.
+ * Offline degradation follows PAR-015: cached data shown with staleness stamp,
+ * write actions disabled.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -23,15 +23,17 @@ import {
   fetchStudentPermissionSlips,
   resolveSlipStatus,
 } from '../../services/permissionSlips.ts';
+import { fetchStudentBroadcasts } from '../../services/broadcasts.ts';
 import { StaleOfflineBanner } from '../../components/StaleOfflineBanner.tsx';
 import { colors, radius, spacing, typography } from '../../theme/tokens.ts';
-import type { ChildSummary, PermissionSlipItem, PermissionSlipResponse } from '../../types/index.ts';
+import type { BroadcastItem, ChildSummary, PermissionSlipItem, PermissionSlipResponse } from '../../types/index.ts';
 
 interface ParentMessagesScreenProps {
   child: ChildSummary;
 }
 
 type ScreenState = 'LOADING' | 'EMPTY' | 'READY' | 'ERROR';
+type MessagesTab = 'ANNOUNCEMENTS' | 'PERMISSION_SLIPS';
 
 const RESPONSE_CONFIG: Record<PermissionSlipResponse, { label: string; bg: string; text: string }> = {
   APPROVED: { label: 'Disetujui', bg: colors.hadirLight, text: colors.hadir },
@@ -39,8 +41,16 @@ const RESPONSE_CONFIG: Record<PermissionSlipResponse, { label: string; bg: strin
   PENDING: { label: 'Menunggu Tanda Tangan', bg: colors.izinLight, text: colors.izin },
 };
 
+const TAB_OPTIONS: { key: MessagesTab; label: string }[] = [
+  { key: 'ANNOUNCEMENTS', label: 'Pengumuman' },
+  { key: 'PERMISSION_SLIPS', label: 'Izin' },
+];
+
 export const ParentMessagesScreen: React.FC<ParentMessagesScreenProps> = ({ child }) => {
-  const [state, setState] = useState<ScreenState>('LOADING');
+  const [activeTab, setActiveTab] = useState<MessagesTab>('ANNOUNCEMENTS');
+  const [bcState, setBcState] = useState<ScreenState>('LOADING');
+  const [slipState, setSlipState] = useState<ScreenState>('LOADING');
+  const [broadcasts, setBroadcasts] = useState<BroadcastItem[]>([]);
   const [slips, setSlips] = useState<PermissionSlipItem[]>([]);
   const [offline, setOffline] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
@@ -51,24 +61,40 @@ export const ParentMessagesScreen: React.FC<ParentMessagesScreenProps> = ({ chil
   const [signError, setSignError] = useState<string | null>(null);
   const [signing, setSigning] = useState(false);
 
+  const loadBroadcasts = useCallback(async () => {
+    setBcState('LOADING');
+    try {
+      const result = await fetchStudentBroadcasts(child.student_id);
+      setBroadcasts(result.broadcasts);
+      setOffline(result.isOfflineCached);
+      setLastUpdated(result.lastUpdated);
+      setBcState(result.broadcasts.length === 0 ? 'EMPTY' : 'READY');
+    } catch {
+      setBroadcasts([]);
+      setOffline(true);
+      setBcState('ERROR');
+    }
+  }, [child.student_id]);
+
   const loadSlips = useCallback(async () => {
-    setState('LOADING');
+    setSlipState('LOADING');
     try {
       const result = await fetchStudentPermissionSlips(child.student_id);
       setSlips(result.slips);
       setOffline(result.isOfflineCached);
       setLastUpdated(result.lastUpdated);
-      setState(result.slips.length === 0 ? 'EMPTY' : 'READY');
+      setSlipState(result.slips.length === 0 ? 'EMPTY' : 'READY');
     } catch {
       setSlips([]);
       setOffline(true);
-      setState('ERROR');
+      setSlipState('ERROR');
     }
   }, [child.student_id]);
 
   useEffect(() => {
+    loadBroadcasts();
     loadSlips();
-  }, [loadSlips]);
+  }, [loadBroadcasts, loadSlips]);
 
   const openSignModal = (slip: PermissionSlipItem) => {
     setSignSlip(slip);
@@ -102,6 +128,21 @@ export const ParentMessagesScreen: React.FC<ParentMessagesScreenProps> = ({ chil
       setSigning(false);
     }
   };
+
+  const renderBroadcast = ({ item }: { item: BroadcastItem }) => (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle} accessibilityLabel={`Pengumuman: ${item.title}`}>
+        {item.title}
+      </Text>
+      <Text style={styles.cardBody}>{item.body}</Text>
+      <View style={styles.metaRow}>
+        <Text style={styles.cardMeta}>
+          {item.sender_name} &middot; {item.class_group_name}
+        </Text>
+        <Text style={styles.cardMeta}>{item.sent_at}</Text>
+      </View>
+    </View>
+  );
 
   const renderSlip = ({ item }: { item: PermissionSlipItem }) => {
     const status = resolveSlipStatus(item);
@@ -162,32 +203,70 @@ export const ParentMessagesScreen: React.FC<ParentMessagesScreenProps> = ({ chil
     );
   };
 
-  return (
-    <View style={styles.root}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Pesan &amp; Izin</Text>
-        <Text style={styles.headerSubtitle}>{child.full_name}</Text>
-      </View>
+  const renderTabContent = () => {
+    if (activeTab === 'ANNOUNCEMENTS') {
+      if (bcState === 'LOADING') {
+        return (
+          <View style={styles.centered} accessibilityLabel="Memuat">
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.centeredText}>Memuat pengumuman...</Text>
+          </View>
+        );
+      }
+      if (bcState === 'EMPTY') {
+        return (
+          <View style={styles.centered}>
+            <Text style={styles.emptyTitle}>Belum Ada Pengumuman</Text>
+            <Text style={styles.centeredText}>
+              Belum ada pengumuman dari sekolah untuk {child.full_name}.
+            </Text>
+          </View>
+        );
+      }
+      if (bcState === 'ERROR') {
+        return (
+          <View style={styles.centered}>
+            <Text style={styles.emptyTitle}>Gagal Memuat</Text>
+            <Text style={styles.centeredText}>
+              Tidak dapat memuat pengumuman. Periksa koneksi Anda lalu coba lagi.
+            </Text>
+            <TouchableOpacity style={styles.retryButton} onPress={loadBroadcasts} accessibilityRole="button">
+              <Text style={styles.actionButtonText}>Coba Lagi</Text>
+            </TouchableOpacity>
+          </View>
+        );
+      }
+      return (
+        <FlatList
+          data={broadcasts}
+          keyExtractor={(item) => `bc-${item.id}`}
+          renderItem={renderBroadcast}
+          contentContainerStyle={styles.list}
+        />
+      );
+    }
 
-      <StaleOfflineBanner isOffline={offline} lastSyncedAt={lastUpdated} />
-
-      {state === 'LOADING' && (
+    // PERMISSION_SLIPS tab
+    if (slipState === 'LOADING') {
+      return (
         <View style={styles.centered} accessibilityLabel="Memuat">
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.centeredText}>Memuat izin...</Text>
         </View>
-      )}
-
-      {state === 'EMPTY' && (
+      );
+    }
+    if (slipState === 'EMPTY') {
+      return (
         <View style={styles.centered}>
           <Text style={styles.emptyTitle}>Belum Ada Izin</Text>
           <Text style={styles.centeredText}>
             Belum ada permintaan izin dari sekolah untuk {child.full_name}.
           </Text>
         </View>
-      )}
-
-      {state === 'ERROR' && (
+      );
+    }
+    if (slipState === 'ERROR') {
+      return (
         <View style={styles.centered}>
           <Text style={styles.emptyTitle}>Gagal Memuat</Text>
           <Text style={styles.centeredText}>
@@ -197,16 +276,48 @@ export const ParentMessagesScreen: React.FC<ParentMessagesScreenProps> = ({ chil
             <Text style={styles.actionButtonText}>Coba Lagi</Text>
           </TouchableOpacity>
         </View>
-      )}
+      );
+    }
+    return (
+      <FlatList
+        data={slips}
+        keyExtractor={(item) => `slip-${item.id}`}
+        renderItem={renderSlip}
+        contentContainerStyle={styles.list}
+      />
+    );
+  };
 
-      {state === 'READY' && (
-        <FlatList
-          data={slips}
-          keyExtractor={(item) => String(item.id)}
-          renderItem={renderSlip}
-          contentContainerStyle={styles.list}
-        />
-      )}
+  return (
+    <View style={styles.root}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Pesan &amp; Izin</Text>
+        <Text style={styles.headerSubtitle}>{child.full_name}</Text>
+      </View>
+
+      {/* Segmented control */}
+      <View style={styles.segmentRow}>
+        {TAB_OPTIONS.map((tab) => {
+          const isActive = activeTab === tab.key;
+          return (
+            <TouchableOpacity
+              key={tab.key}
+              style={[styles.segmentTab, isActive && styles.segmentTabActive]}
+              onPress={() => setActiveTab(tab.key)}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: isActive }}
+              accessibilityLabel={tab.label}>
+              <Text style={[styles.segmentText, isActive && styles.segmentTextActive]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      <StaleOfflineBanner isOffline={offline} lastSyncedAt={lastUpdated} />
+
+      {renderTabContent()}
 
       <Modal visible={signSlip !== null} transparent animationType="slide" onRequestClose={() => setSignSlip(null)}>
         <View style={styles.modalOverlay}>
@@ -273,6 +384,24 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: typography.fontSize.xl, fontWeight: typography.fontWeight.bold, color: colors.heading },
   headerSubtitle: { fontSize: typography.fontSize.sm, color: colors.muted, marginTop: 2 },
+  segmentRow: {
+    flexDirection: 'row',
+    backgroundColor: colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  segmentTab: {
+    flex: 1,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  segmentTabActive: { borderBottomColor: colors.primary },
+  segmentText: { fontSize: typography.fontSize.sm, color: colors.muted, fontWeight: typography.fontWeight.medium },
+  segmentTextActive: { color: colors.primary, fontWeight: typography.fontWeight.bold },
   list: { padding: spacing.md, gap: spacing.md },
   card: {
     backgroundColor: colors.white,
@@ -286,6 +415,7 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: typography.fontSize.xs, fontWeight: typography.fontWeight.bold },
   cardBody: { fontSize: typography.fontSize.sm, color: colors.body, marginTop: spacing.sm, lineHeight: 20 },
   cardMeta: { fontSize: typography.fontSize.xs, color: colors.muted, marginTop: spacing.xs },
+  metaRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.xs },
   cardClosed: { fontSize: typography.fontSize.xs, color: colors.alpa, marginTop: spacing.xs, fontWeight: typography.fontWeight.medium },
   actionRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   actionButton: {

@@ -1720,6 +1720,36 @@ class StudentPermissionSlipView(APIView):
         return Response({'results': results})
 
 
+class StudentBroadcastView(APIView):
+    """GET /api/v1/academic/students/:student_id/broadcasts/
+    Guardian list of school announcements for the child's class groups
+    (spec/08 §2 Messages tab, IAM-014 guardian scoping)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'grades.read'
+
+    def get(self, request, student_id):
+        foundation_id = get_current_foundation_id()
+        student = Student.objects.filter(id=student_id, foundation_id=foundation_id).first()
+        if not student:
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.identity.guardian_access import can_guardian_access_student
+        if not can_guardian_access_student(request.user, student.id, foundation_id):
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        class_group_ids = ClassEnrollment.objects.filter(
+            student=student, is_active=True, foundation_id=foundation_id, deleted_at__isnull=True,
+        ).values_list('class_group_id', flat=True)
+
+        broadcasts = Broadcast.objects.filter(
+            class_group_id__in=class_group_ids, foundation_id=foundation_id, deleted_at__isnull=True,
+        ).select_related('sender__person', 'class_group').order_by('-sent_at')
+
+        from apps.academic.serializers import GuardianBroadcastSerializer
+        serializer = GuardianBroadcastSerializer(broadcasts, many=True)
+        return Response({'results': serializer.data})
+
+
 class PermissionSlipAcknowledgeView(APIView):
     """POST /api/v1/academic/permission-slips/:id/acknowledge/
     Guardian signs a digital acknowledgement with timestamp (PAR-012).

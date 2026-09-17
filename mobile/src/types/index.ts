@@ -595,3 +595,14 @@ export interface NotificationPrefItem {
   enabled: boolean;
 }
 
+// ── Broadcasts / Announcements (spec/08 §2 Messages tab) ─────────────
+
+export interface BroadcastItem {
+  id: number;
+  title: string;
+  body: string;
+  sent_at: string;          // ISO 8601
+  sender_name: string;
+  class_group_name: string;
+  class_group_id: number;
+}
