@@ -1,0 +1,121 @@
+{% extends "marketing/base.html" %}
+
+{% block title %}Partner &amp; Vendor API — EduCore{% endblock %}
+
+{% block content %}
+<section class="site-container" style="padding: 40px 0 0;">
+  <span class="site-eyebrow">Integrasi mitra &amp; vendor</span>
+  <h1 class="site-hero-title" style="font-size: 2.5rem;">Satu API untuk seluruh sistem operasi sekolah.</h1>
+  <p class="site-hero-lede" style="max-width: 60ch;">Baca data siswa, tagihan, kehadiran, dan penggajian dari EduCore — atau kirim hasil proses Anda kembali. REST, versi di path, kunci per yayasan, dan kontrak error yang stabil.</p>
+  <div class="site-cta-row">
+    <a href="mailto:demo@educore.id?subject=Kunci sandbox Partner API" class="btn btn-primary">Buat akun sandbox</a>
+  </div>
+</section>
+
+<div class="doc-callout site-container" style="margin: 24px auto 0;">
+  <span class="doc-callout-label">Sandbox</span>
+  Kunci berawalan <code>ak_test_</code> selalu menabrak data sintetis dan tidak pernah mengirim notifikasi ke orang tua. Gunakan itu untuk seluruh pengembangan.
+</div>
+
+<div class="site-container doc-layout">
+  <aside class="doc-toc">
+    <span class="doc-toc-eyebrow">Referensi</span>
+    <div class="text-h3" style="margin-bottom: 12px;">Partner API v1</div>
+    <ul>
+      <li><a href="#autentikasi">Autentikasi</a></li>
+      <li><a href="#versi">Versi &amp; deprekasi</a></li>
+      <li><a href="#konvensi">Konvensi</a></li>
+      <li><a href="#error">Error</a></li>
+      <li><a href="#webhook">Webhook &amp; polling</a></li>
+      <li><a href="#endpoint">Endpoint</a></li>
+      <li><a href="#batas">Batas laju</a></li>
+    </ul>
+    <div class="card" style="margin-top: 24px; padding: 16px;">
+      <div class="text-label" style="color: var(--color-ink-500); margin-bottom: 8px;">Base URL</div>
+      <code style="word-break: break-all;">https://api.educore.id/api/v1/</code>
+    </div>
+  </aside>
+
+  <div class="doc-content">
+    <h2 id="autentikasi">Autentikasi</h2>
+    <p>Setiap permintaan membawa key-id di header dan tanda tangan HMAC-SHA256 atas <code>timestamp + method + path + body</code>. Secret tidak pernah dikirim. Permintaan dengan timestamp lebih dari 300 detik ditolak.</p>
+    <pre>X-EduCore-Key-Id:    ak_live_7Qp2R9
+X-EduCore-Signature: t=1789632650,v1=9f...
+Idempotency-Key:     4f0a1b2c-...</pre>
+
+    <table>
+      <tr><th>Aturan</th><th>Ketentuan</th></tr>
+      <tr><td>Cakupan</td><td>Ditetapkan yayasan, per domain dan per sekolah. Tidak bisa diperluas oleh mitra.</td></tr>
+      <tr><td>Rotasi</td><td>Dua kunci aktif maksimal 30 hari. Kunci lama jadi read-only saat hari ke-23.</td></tr>
+      <tr><td>IP allow-list</td><td>Opsional per kunci, wajib untuk cakupan <code>payroll.write</code>.</td></tr>
+    </table>
+
+    <h2 id="versi">Versi &amp; deprekasi</h2>
+    <p>Versi ada di path, bukan header. Perubahan yang memutus kontrak selalu menjadi <code>/api/v2/</code> baru; penambahan field opsional bukan perubahan yang memutus. Versi lama hidup 12 bulan setelah pengganti keluar, dan mengirim header <code>Sunset</code> sejak hari pertama.</p>
+
+    <h2 id="konvensi">Konvensi</h2>
+    <table>
+      <tr><th>Aturan</th><th>Bentuk</th></tr>
+      <tr><td>Paginasi</td><td><code>?cursor=&amp;limit=</code> → <code>{results, next_cursor}</code></td></tr>
+      <tr><td>Uang</td><td><code>{"amount": "1500000.00", "currency": "IDR"}</code></td></tr>
+      <tr><td>Waktu</td><td>ISO 8601 UTC — <code>2026-09-17T02:14:00Z</code></td></tr>
+      <tr><td>Idempotensi</td><td><code>Idempotency-Key</code> — disimpan 7 hari</td></tr>
+    </table>
+    <p>Format uang adalah string dengan mata uang di level objek yang sama. Jangan pernah menjumlahkan lintas mata uang: endpoint agregat mengembalikan array total per mata uang, bukan satu angka.</p>
+
+    <h2 id="error">Error</h2>
+    <p>Semua error adalah RFC 9457 <code>application/problem+json</code>. Cabangkan logika pada <code>code</code> — string SCREAMING_SNAKE yang stabil — bukan pada prosa <code>detail</code>.</p>
+    <pre>{
+  "type":     "/errors/scope-denied",
+  "title":    "Scope not granted",
+  "status":   403,
+  "detail":   "Key lacks payroll.write",
+  "instance": "/api/v1/partner/_",
+  "code":     "SCOPE_DENIED"
+}</pre>
+    <table>
+      <tr><th>Status</th><th>Code</th></tr>
+      <tr><td>401</td><td><code>SIGNATURE_INVALID</code></td></tr>
+      <tr><td>403</td><td><code>SCOPE_DENIED</code></td></tr>
+      <tr><td>409</td><td><code>IDEMPOTENCY_MISMATCH</code></td></tr>
+      <tr><td>409</td><td><code>PAYROLL_RUN_LOCKED</code></td></tr>
+      <tr><td>422</td><td><code>CURRENCY_MISMATCH</code></td></tr>
+      <tr><td>429</td><td><code>RATE_LIMITED</code></td></tr>
+    </table>
+
+    <h2 id="webhook">Webhook &amp; polling</h2>
+    <p>Webhook adalah jalur utama. Daftarkan satu endpoint HTTPS per lingkungan, terima POST bertanda tangan sama seperti permintaan keluar, dan balas 2xx dalam 5 detik. Kegagalan dicoba ulang lima kali dengan jeda eksponensial hingga 6 jam; setelah itu kejadian tetap tersedia lewat polling.</p>
+    <table>
+      <tr><th>Kejadian</th><th>Dipicu saat</th></tr>
+      <tr><td><code>payroll.run.approved</code></td><td>Yayasan menyetujui payroll run — rincian siap ditarik</td></tr>
+      <tr><td><code>finance.payment.settled</code></td><td>Pembayaran VA/QRIS ter-settle dan teralokasi</td></tr>
+      <tr><td><code>roster.student.enrolled</code></td><td>Siswa aktif baru di sekolah dalam cakupan kunci</td></tr>
+      <tr><td><code>integration.key.rotated</code></td><td>Kunci dirotasi — 30 hari sebelum yang lama mati</td></tr>
+    </table>
+
+    <h2 id="endpoint">Endpoint</h2>
+    <table>
+      <tr><th>Metode &amp; jalur</th><th>Keterangan</th></tr>
+      <tr><td><code>GET /partner/foundations</code><br><span class="text-body-sm text-ink-500">roster.read</span></td><td>Yayasan yang memberi Anda akses</td></tr>
+      <tr><td><code>GET /partner/schools</code><br><span class="text-body-sm text-ink-500">roster.read</span></td><td>Sekolah dalam cakupan kunci</td></tr>
+      <tr><td><code>GET /partner/staff?school_id</code><br><span class="text-body-sm text-ink-500">roster.read</span></td><td>Staf aktif, kursor terpaginasi</td></tr>
+      <tr><td><code>GET /partner/payroll/runs?period</code><br><span class="text-body-sm text-ink-500">payroll.read</span></td><td>Payroll run beserta statusnya</td></tr>
+      <tr><td><code>GET /partner/payroll/runs/:id/lines</code><br><span class="text-body-sm text-ink-500">payroll.read</span></td><td>Rincian per staf — gross, potongan, net</td></tr>
+      <tr><td><code>POST /partner/payroll/runs/:id/acknowledge</code><br><span class="text-body-sm text-ink-500">payroll.write</span></td><td>Konfirmasi pencairan dari sisi Anda</td></tr>
+      <tr><td><code>GET /partner/invoices?status&amp;school_id</code><br><span class="text-body-sm text-ink-500">finance.read</span></td><td>Tagihan dan sisa terutang</td></tr>
+      <tr><td><code>GET /partner/attendance/daily?date</code><br><span class="text-body-sm text-ink-500">attendance.read</span></td><td>Rekap kehadiran harian per kelas</td></tr>
+      <tr><td><code>GET /partner/events?since=cursor</code><br><span class="text-body-sm text-ink-500">semua</span></td><td>Aliran kejadian — alternatif webhook</td></tr>
+      <tr><td><code>POST /partner/webhooks</code><br><span class="text-body-sm text-ink-500">semua</span></td><td>Daftarkan endpoint penerima</td></tr>
+    </table>
+
+    <h2 id="batas">Batas laju</h2>
+    <table>
+      <tr><th>Batas</th><th>Nilai</th></tr>
+      <tr><td>Permintaan per kunci</td><td>600 / menit</td></tr>
+      <tr><td>Baris maksimal per halaman kursor</td><td>200</td></tr>
+      <tr><td>Interval polling tercepat yang diizinkan</td><td>30 detik</td></tr>
+    </table>
+    <p>Melewati batas menghasilkan <code>429 RATE_LIMITED</code> dengan header <code>Retry-After</code>. Ekspor besar memakai endpoint job asinkron, bukan paginasi beruntun.</p>
+  </div>
+</div>
+{% endblock %}

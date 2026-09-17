@@ -20,4 +20,6 @@ urlpatterns = [
     path('api/v1/campus/', include('apps.campus.urls')),
     # Session-auth web (HTMX) pages — HTML responses, distinct from /api/v1/ JSON
     path('web/academic/', include('apps.academic.web_urls')),
+    # Public marketing website — no auth, no tenancy, root-mounted
+    path('', include('apps.marketing.urls')),
 ]

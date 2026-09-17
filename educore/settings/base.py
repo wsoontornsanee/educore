@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     'apps.reporting.apps.ReportingConfig',
     'apps.campus.apps.CampusConfig',
     'apps.compliance.apps.ComplianceConfig',
+    'apps.marketing.apps.MarketingConfig',
 ]
 
 MIDDLEWARE = [
