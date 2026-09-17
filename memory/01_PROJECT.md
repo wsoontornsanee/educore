@@ -9,8 +9,8 @@
 ---
 
 - **Current Step:** Awaiting next task instruction.
-- **Preceding Step:** [Open Item] Public Website: Landing Pages (Beranda, Unduh Aplikasi, Mitra & API) [DONE - PR #121 merged]. New `apps.marketing` app (no auth, no tenancy, root-mounted) renders 3 public pages from the same design handoff that produced `spec/18`: Beranda (home, static illustrative dashboard/stat mocks), Unduh aplikasi (3 app-download cards + 2 real QR codes), Mitra & API (spec/18's content as an HTML doc page). Reuses `frontend/static/css/app.css` design tokens; adds `frontend/static/css/site.css` for the landing-page-only layout.
-- **Recent Completed Step:** [Open Item] SSO: Web/Mobile Login Button Wiring [DONE - PR #119 merged], [Open Item] Partner/Vendor API: Implement Backend [DONE - PR #120 merged].
+- **Preceding Step:** [Open Item] SSO: Foundation-Admin Microsoft Tenant Settings UI [DONE - PR #122 merged]. `FoundationMicrosoftTenantSettingsView` mounted at `/web/auth/sso/microsoft-tenant/` (aliased `/web/foundation/settings/microsoft-tenant/`) with session auth + `is_foundation_admin` gate. HTMX fragment `_microsoft_tenant_settings.html` provides status badge (pinned vs fallback `common`), policy explanation, `tenant_id` input form with inline GUID/domain validation, and `core.AuditEvent` history table.
+- **Recent Completed Step:** [Open Item] Public Website: Landing Pages (Beranda, Unduh Aplikasi, Mitra & API) [DONE - PR #121 merged], [Open Item] Partner/Vendor API: Implement Backend [DONE - PR #120 merged].
 
 - **Target Milestone:** P0 Pilot Core [DONE] (M0–M5) -> P1 Classroom [DONE] (M6–M9) -> P2 Campus Economy (M10–M13): canteen wallet + POS [wallet core started], kiosks, face recognition, campus life (`spec/00 §6`).
   - *M0 (Step 0) [DONE]:* Django project skeleton, `core` app (`TenantModel`, `MoneyField`, `AuditEvent`, `DomainEvent`, `TaskQueue`, `JobRun`, `drain_tasks`, advisory locks, crontab).
