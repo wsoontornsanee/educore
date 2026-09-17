@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     'apps.wallet.apps.WalletConfig',
     'apps.reporting.apps.ReportingConfig',
     'apps.campus.apps.CampusConfig',
+    'apps.compliance.apps.ComplianceConfig',
 ]
 
 MIDDLEWARE = [

@@ -8,7 +8,7 @@
 
 ---
 
-- **Current Step:** Awaiting next task instruction.
+- **Current Step:** Step 13.1 — DAPODIK & EMIS Statutory Data Export Tooling (TASK-035) [in progress — awaiting PR merge].
 - **Preceding Step:** [Open Item] Parent App: Academic Tab (grades, homework, report cards, timetable) (PAR-010, ACD-013/014) [DONE - PR #101 merged].
 - **Recent Completed Step:** [Open Item] Parent App: Academic Tab (grades, homework, report cards, timetable) (PAR-010, ACD-013/014) [DONE - PR #101 merged].
 - **Target Milestone:** P0 Pilot Core [DONE] (M0–M5) -> P1 Classroom [DONE] (M6–M9) -> P2 Campus Economy (M10–M13): canteen wallet + POS [wallet core started], kiosks, face recognition, campus life (`spec/00 §6`).
