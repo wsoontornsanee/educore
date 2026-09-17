@@ -9,8 +9,8 @@
 ---
 
 - **Current Step:** Awaiting next task instruction.
-- **Preceding Step:** [Open Item] Teacher App: Substitution Review Modal Auto-Open via Fetch-by-Id [DONE - PR #116 merged].
-- **Recent Completed Step:** Step 14.1 — Third-Party SSO (Google Workspace / Microsoft 365) Integration (TASK-036) [DONE - PR #115 merged].
+- **Preceding Step:** [Open Item] SSO: Per-Foundation Microsoft Tenant Configuration [DONE - PR #117 merged]. `MicrosoftTenantConfig` (identity migration 0012) pins each foundation's Microsoft Entra tenant for SSO; `resolve_microsoft_tenant_id(foundation_id)` overrides the global `SOCIAL_AUTH_MICROSOFT_TENANT_ID` fallback; `social_login`/`social_link` resolve foundation context before token verification; foundation-admin API `GET/PUT/DELETE /api/v1/auth/sso/microsoft-tenant/` (audit-logged). Settings UI deferred: Notion Open Item `3de347a6-6594-8177-8166-dc0ebb101e95`.
+- **Recent Completed Step:** [Open Item] Teacher App: Substitution Review Modal Auto-Open via Fetch-by-Id [DONE - PR #116 merged].
 
 - **Target Milestone:** P0 Pilot Core [DONE] (M0–M5) -> P1 Classroom [DONE] (M6–M9) -> P2 Campus Economy (M10–M13): canteen wallet + POS [wallet core started], kiosks, face recognition, campus life (`spec/00 §6`).
   - *M0 (Step 0) [DONE]:* Django project skeleton, `core` app (`TenantModel`, `MoneyField`, `AuditEvent`, `DomainEvent`, `TaskQueue`, `JobRun`, `drain_tasks`, advisory locks, crontab).
