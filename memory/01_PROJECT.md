@@ -8,9 +8,9 @@
 
 ---
 
-- **Current Step:** [Open Item] Parent App: Absence Request with Photo Attachment (spec/05 ATT-002, spec/08 PAR-010, PAR-011, PAR-015) [PR #104 opened - awaiting merge approval].
-- **Preceding Step:** Step 13.1 — DAPODIK & EMIS Statutory Data Export Tooling (TASK-035) [DONE - PR #103 merged].
-- **Recent Completed Step:** Step 13.1 — DAPODIK & EMIS Statutory Data Export Tooling (TASK-035) [DONE - PR #103 merged].
+- **Current Step:** Awaiting next task instruction.
+- **Preceding Step:** [Open Item] Parent App: Absence Request with Photo Attachment (spec/05 ATT-002, spec/08 PAR-010, PAR-011, PAR-015) [DONE - PR #104 merged].
+- **Recent Completed Step:** [Open Item] Parent App: Absence Request with Photo Attachment (spec/05 ATT-002, spec/08 PAR-010, PAR-011, PAR-015) [DONE - PR #104 merged].
 - **Target Milestone:** P0 Pilot Core [DONE] (M0–M5) -> P1 Classroom [DONE] (M6–M9) -> P2 Campus Economy (M10–M13): canteen wallet + POS [wallet core started], kiosks, face recognition, campus life (`spec/00 §6`).
   - *M0 (Step 0) [DONE]:* Django project skeleton, `core` app (`TenantModel`, `MoneyField`, `AuditEvent`, `DomainEvent`, `TaskQueue`, `JobRun`, `drain_tasks`, advisory locks, crontab).
   - *M1 (Step 1) [DONE]:* Tenancy, auth, RBAC, feature entitlements, foundation portal, seed data (`identity`, `foundation`). Demo: Foundation admin logs in, sees two schools.
