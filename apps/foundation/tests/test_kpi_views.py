@@ -168,3 +168,11 @@ class FoundationKPIAndSettingsTests(APITestCase):
             self.assertEqual(compare['prior_period'], {'from': '2026-08-01', 'to': '2026-08-31'})
             self.assertEqual(compare['delta']['billed'], '10000000.00')
             self.assertEqual(compare['delta_pct']['billed'], '25.00')
+            # Money strings stay 2dp regardless of the scale the DB's SUM()
+            # returned (SQLite aggregates integral sums as bare integers);
+            # counts stay integers, percentages stay 2dp.
+            self.assertEqual(compare['current']['billed'], '50000000.00')
+            self.assertEqual(compare['prior']['billed'], '40000000.00')
+            self.assertEqual(compare['delta']['outstanding'], '7500000.00')
+            self.assertEqual(compare['delta']['active_students'], '50')
+            self.assertEqual(compare['delta']['avg_attendance_pct'], '1.50')
