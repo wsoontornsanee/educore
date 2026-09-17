@@ -117,14 +117,16 @@ def verify_google_token(id_token: str) -> dict:
         raise TokenVerificationError(f"Failed to fetch Google JWKS: {e}")
 
 
-def verify_microsoft_token(id_token: str) -> dict:
+def verify_microsoft_token(id_token: str, tenant_id: str | None = None) -> dict:
     """Verify a Microsoft 365 ID token and return its claims.
 
-    Uses the tenant-specific or common JWKS endpoint.
+    `tenant_id` pins verification to a specific Microsoft Entra tenant
+    (per-foundation config); when omitted, the global
+    SOCIAL_AUTH_MICROSOFT_TENANT_ID setting (default 'common') is used.
     Raises TokenVerificationError on failure.
     """
     client_id = settings.SOCIAL_AUTH_MICROSOFT_CLIENT_ID
-    tenant_id = settings.SOCIAL_AUTH_MICROSOFT_TENANT_ID
+    tenant_id = (tenant_id or '').strip() or settings.SOCIAL_AUTH_MICROSOFT_TENANT_ID
     if not client_id:
         raise TokenVerificationError("Microsoft SSO is not configured (MICROSOFT_OAUTH_CLIENT_ID is empty).")
 
@@ -148,6 +150,14 @@ def verify_microsoft_token(id_token: str) -> dict:
             issuer=issuer,
             options={'require': ['oid', 'email']},
         )
+        # Defense-in-depth for tenant pinning: the issuer check already pins the
+        # tenant, and the `tid` directory claim (present in Microsoft ID tokens)
+        # must agree with it when provided.
+        token_tid = claims.get('tid')
+        if token_tid and token_tid != tenant_id:
+            raise TokenVerificationError(
+                "Microsoft ID token was issued for a different tenant than the configured one."
+            )
         return claims
     except jwt.ExpiredSignatureError:
         raise TokenVerificationError("Microsoft ID token has expired.")
@@ -167,8 +177,27 @@ VERIFY_FUNCTIONS = {
 }
 
 
-def verify_id_token(provider: str, id_token: str) -> dict:
+def resolve_microsoft_tenant_id(foundation_id: int | None) -> str:
+    """Resolve the Microsoft tenant ID for a foundation.
+
+    A foundation with an active MicrosoftTenantConfig row is pinned to its own
+    Entra tenant; otherwise the global setting fallback applies.
+    """
+    if foundation_id:
+        from apps.identity.models import MicrosoftTenantConfig
+        config = MicrosoftTenantConfig.all_tenants.filter(
+            foundation_id=foundation_id,
+            deleted_at__isnull=True,
+        ).first()
+        if config:
+            return config.tenant_id
+    return settings.SOCIAL_AUTH_MICROSOFT_TENANT_ID
+
+
+def verify_id_token(provider: str, id_token: str, tenant_id: str | None = None) -> dict:
     """Verify an ID token for the given provider and return its claims.
+
+    `tenant_id` only applies to Microsoft tokens (per-foundation Entra pinning).
 
     Extracts the provider-specific unique user ID (sub for Google, oid for
     Microsoft) and the email claim.
@@ -176,6 +205,8 @@ def verify_id_token(provider: str, id_token: str) -> dict:
     verify_fn = VERIFY_FUNCTIONS.get(provider)
     if not verify_fn:
         raise SocialAuthError(f"Unsupported SSO provider: {provider}")
+    if provider == SocialLogin.PROVIDER_MICROSOFT:
+        return verify_fn(id_token, tenant_id=tenant_id)
     return verify_fn(id_token)
 
 
@@ -218,11 +249,14 @@ def social_login(provider: str, id_token: str) -> tuple[User, dict]:
     """
     from educore.middleware.tenancy import get_current_foundation_id
 
-    claims = verify_id_token(provider, id_token)
-    provider_user_id, email = extract_identity(provider, claims)
     foundation_id = get_current_foundation_id()
     if not foundation_id:
         raise SocialAuthError("Foundation context is required for SSO login.")
+
+    tenant_id = resolve_microsoft_tenant_id(foundation_id) \
+        if provider == SocialLogin.PROVIDER_MICROSOFT else None
+    claims = verify_id_token(provider, id_token, tenant_id=tenant_id)
+    provider_user_id, email = extract_identity(provider, claims)
 
     # Step 1: Look up existing SocialLogin
     social = SocialLogin.all_tenants.filter(
@@ -268,11 +302,14 @@ def social_link(user: User, provider: str, id_token: str) -> SocialLogin:
     """
     from educore.middleware.tenancy import get_current_foundation_id
 
-    claims = verify_id_token(provider, id_token)
-    provider_user_id, email = extract_identity(provider, claims)
     foundation_id = get_current_foundation_id()
     if not foundation_id:
         raise SocialAuthError("Foundation context is required.")
+
+    tenant_id = resolve_microsoft_tenant_id(foundation_id) \
+        if provider == SocialLogin.PROVIDER_MICROSOFT else None
+    claims = verify_id_token(provider, id_token, tenant_id=tenant_id)
+    provider_user_id, email = extract_identity(provider, claims)
 
     # Check no other user has linked this provider identity
     existing = SocialLogin.all_tenants.filter(

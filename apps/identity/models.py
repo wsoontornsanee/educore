@@ -8,9 +8,12 @@ Defines:
 - OTPChallenge: 6-digit WhatsApp/SMS OTP challenges
 """
 import logging
+import re
+import uuid
 from datetime import timedelta
 from decimal import Decimal
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import models
 from django.utils import timezone
 from apps.core.fields import MoneyField, soft_delete_uniqueness_marker
@@ -800,3 +803,52 @@ class SocialLogin(TenantModel):
 
     def __str__(self):
         return f"{self.provider}:{self.provider_user_id} -> {self.user_id}"
+
+
+def validate_microsoft_tenant_id(value: str) -> None:
+    """Accept a Microsoft Entra Directory (tenant) ID: a GUID or a registered domain."""
+    v = (value or '').strip()
+    try:
+        uuid.UUID(v)
+        return
+    except (ValueError, AttributeError):
+        pass
+    domain_re = r'[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+'
+    if re.fullmatch(domain_re, v):
+        return
+    raise DjangoValidationError(
+        "Tenant ID harus berupa GUID Microsoft Entra (Directory ID) atau nama domain terdaftar."
+    )
+
+
+class MicrosoftTenantConfig(TenantModel):
+    """Per-foundation Microsoft Entra (Azure AD) tenant pinning for Microsoft 365 SSO.
+
+    Open item deferred from TASK-036 (PR #115): the global env fallback
+    (`SOCIAL_AUTH_MICROSOFT_TENANT_ID`, default 'common') accepts ID tokens from
+    any Microsoft tenant. When an active row exists for the foundation, SSO for
+    that foundation verifies tokens strictly against this tenant instead
+    (tenant-specific JWKS/issuer + `tid` claim check). Foundations without a
+    row keep the pilot behaviour.
+    """
+    tenant_id = models.CharField(
+        max_length=255,
+        validators=[validate_microsoft_tenant_id],
+        help_text="Microsoft Entra Directory (tenant) ID — GUID atau domain terdaftar",
+    )
+    active_uniq_marker = soft_delete_uniqueness_marker()
+
+    class Meta:
+        db_table = 'microsoft_tenant_configs'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'active_uniq_marker'],
+                name='unique_active_ms_tenant_config_per_foundation',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['foundation_id', 'tenant_id']),
+        ]
+
+    def __str__(self):
+        return f"foundation={self.foundation_id} tenant={self.tenant_id}"

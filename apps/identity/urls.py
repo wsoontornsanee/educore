@@ -7,6 +7,7 @@ from .views import (
     EduCoreTokenRefreshView,
     FoundationEntitlementViewSet,
     GuardianChildrenView,
+    MicrosoftTenantConfigView,
     RequestOtpView,
     SocialLinkView,
     SocialLinksListView,
@@ -29,6 +30,7 @@ urlpatterns = [
     path('auth/sso/login/', SocialLoginView.as_view(), name='sso-login'),
     path('auth/sso/link/', SocialLinkView.as_view(), name='sso-link'),
     path('auth/sso/links/', SocialLinksListView.as_view(), name='sso-links'),
+    path('auth/sso/microsoft-tenant/', MicrosoftTenantConfigView.as_view(), name='sso-microsoft-tenant'),
     path('me', CurrentUserView.as_view(), name='current-user'),
     path('me/children/', GuardianChildrenView.as_view(), name='guardian-children'),
 ] + router.urls
