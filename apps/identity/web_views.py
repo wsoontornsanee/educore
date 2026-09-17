@@ -163,3 +163,172 @@ class WebLogoutView(View):
     def post(self, request):
         logout(request)
         return redirect('/web/login/')
+
+
+class FoundationMicrosoftTenantSettingsView(View):
+    """Foundation-admin settings surface for Microsoft Entra tenant pinning (spec/17, PR #117).
+    
+    Mounted at /web/auth/sso/microsoft-tenant/ and /web/foundation/settings/microsoft-tenant/.
+    Restricted to authenticated Foundation Admins. Renders the full page shell or the HTMX
+    fragment for in-place updates.
+    """
+
+    def _resolve_foundation_id(self, request):
+        from educore.middleware.tenancy import get_current_foundation_id
+        return get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+
+    def _is_htmx(self, request):
+        return bool(getattr(request, 'htmx', False) or request.headers.get('HX-Request') == 'true')
+
+    def _build_context(self, request, foundation_id, form_error=None, success_message=None, input_value=None):
+        from django.conf import settings
+        from apps.core.models import AuditEvent
+        from apps.identity.models import MicrosoftTenantConfig, User
+        from .social_auth import resolve_microsoft_tenant_id
+
+        config = MicrosoftTenantConfig.all_tenants.filter(
+            foundation_id=foundation_id,
+            deleted_at__isnull=True,
+        ).first()
+
+        is_pinned = config is not None
+        pinned_tenant_id = config.tenant_id if config else None
+        fallback_tenant_id = settings.SOCIAL_AUTH_MICROSOFT_TENANT_ID
+        effective_tenant_id = resolve_microsoft_tenant_id(foundation_id)
+
+        audit_events = list(AuditEvent.objects.filter(
+            foundation_id=foundation_id,
+            action__in=['identity.sso.microsoft_tenant.set', 'identity.sso.microsoft_tenant.removed'],
+        ).order_by('-timestamp')[:20])
+
+        actor_ids = [evt.actor_id for evt in audit_events if evt.actor_id and evt.actor_id.isdigit()]
+        actor_map = {}
+        if actor_ids:
+            users = User.all_tenants.filter(id__in=actor_ids)
+            for u in users:
+                actor_map[str(u.id)] = u.full_name or u.email or u.phone_e164
+
+        for evt in audit_events:
+            evt.actor_name = actor_map.get(str(evt.actor_id), evt.actor_id or 'Sistem')
+
+        return {
+            'foundation_id': foundation_id,
+            'config': config,
+            'is_pinned': is_pinned,
+            'pinned_tenant_id': pinned_tenant_id,
+            'fallback_tenant_id': fallback_tenant_id,
+            'effective_tenant_id': effective_tenant_id,
+            'audit_events': audit_events,
+            'form_error': form_error,
+            'success_message': success_message,
+            'tenant_id_input': input_value if input_value is not None else (pinned_tenant_id or ''),
+        }
+
+    def _render_response(self, request, context, status=200):
+        if self._is_htmx(request):
+            return render(request, 'components/_microsoft_tenant_settings.html', context, status=status)
+        return render(request, 'pages/foundation_microsoft_tenant_page.html', context, status=status)
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect(f"/web/login/?next={request.path}")
+
+        from apps.identity.rbac import is_foundation_admin
+        foundation_id = self._resolve_foundation_id(request)
+        if not foundation_id or not is_foundation_admin(request.user, foundation_id):
+            if self._is_htmx(request):
+                return render(request, 'components/_microsoft_tenant_settings.html', {
+                    'error': _("Hanya Administrator Yayasan yang berwenang mengakses pengaturan ini."),
+                }, status=403)
+            return render(request, 'pages/foundation_microsoft_tenant_page.html', {
+                'error': _("Hanya Administrator Yayasan yang berwenang mengakses pengaturan ini."),
+            }, status=403)
+
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request):
+        foundation_id = self._resolve_foundation_id(request)
+        context = self._build_context(request, foundation_id)
+        return self._render_response(request, context, status=200)
+
+    def post(self, request):
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from apps.core.services import audit
+        from apps.identity.models import MicrosoftTenantConfig, validate_microsoft_tenant_id
+
+        action = request.POST.get('action', '').strip().lower()
+        if action in ('delete', 'unpin', 'remove'):
+            return self.delete(request)
+
+        foundation_id = self._resolve_foundation_id(request)
+        tenant_id = (request.POST.get('tenant_id') or '').strip()
+
+        try:
+            validate_microsoft_tenant_id(tenant_id)
+        except DjangoValidationError as e:
+            error_msg = '; '.join(e.messages)
+            ctx = self._build_context(request, foundation_id, form_error=error_msg, input_value=tenant_id)
+            return self._render_response(request, ctx, status=400)
+
+        config = MicrosoftTenantConfig.all_tenants.filter(
+            foundation_id=foundation_id,
+            deleted_at__isnull=True,
+        ).first()
+
+        previous_tenant_id = config.tenant_id if config else None
+        if config:
+            config.tenant_id = tenant_id
+            config.save(update_fields=['tenant_id', 'updated_at', 'updated_by'])
+        else:
+            config = MicrosoftTenantConfig.all_tenants.create(
+                foundation_id=foundation_id,
+                tenant_id=tenant_id,
+                created_by=str(request.user.id),
+            )
+
+        audit(
+            action="identity.sso.microsoft_tenant.set",
+            entity_type="MicrosoftTenantConfig",
+            entity_id=str(config.id),
+            actor_id=str(request.user.id),
+            foundation_id=foundation_id,
+            ip_address=request.META.get('REMOTE_ADDR'),
+            diff={"tenant_id": {"before": previous_tenant_id, "after": tenant_id}},
+        )
+
+        ctx = self._build_context(
+            request,
+            foundation_id,
+            success_message=_("Penyematan tenant Microsoft Entra berhasil disimpan."),
+        )
+        return self._render_response(request, ctx, status=200)
+
+    def delete(self, request):
+        from django.utils import timezone
+        from apps.core.services import audit
+        from apps.identity.models import MicrosoftTenantConfig
+
+        foundation_id = self._resolve_foundation_id(request)
+        deleted = MicrosoftTenantConfig.all_tenants.filter(
+            foundation_id=foundation_id,
+            deleted_at__isnull=True,
+        ).update(deleted_at=timezone.now())
+
+        if deleted:
+            audit(
+                action="identity.sso.microsoft_tenant.removed",
+                entity_type="MicrosoftTenantConfig",
+                entity_id=str(foundation_id),
+                actor_id=str(request.user.id),
+                foundation_id=foundation_id,
+                ip_address=request.META.get('REMOTE_ADDR'),
+                diff={"tenant_id": {"after": None}},
+            )
+
+        ctx = self._build_context(
+            request,
+            foundation_id,
+            success_message=_("Penyematan tenant Microsoft Entra berhasil dilepas. SSO kembali menggunakan mode multi-tenant standar."),
+        )
+        return self._render_response(request, ctx, status=200)
+

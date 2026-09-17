@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% comment %}
+Page: Foundation Microsoft Tenant Settings UI (spec/14 §6, spec/17, PR #117).
+Session-auth web console for Foundation Admins to inspect, configure, and remove
+the pinned Microsoft Entra (Azure AD) Directory ID for their foundation SSO.
+{% endcomment %}
+
+{% block title %}Pengaturan SSO Microsoft Entra — EduCore{% endblock %}
+
+{% block breadcrumbs %}
+  <nav class="text-body-sm text-ink-500" style="display: flex; align-items: center; gap: 8px;">
+    <span>/</span>
+    <span class="text-ink-700 font-medium">Pengaturan Yayasan</span>
+    <span>/</span>
+    <span class="text-ink-900 font-medium">Integrasi SSO Microsoft</span>
+  </nav>
+{% endblock %}
+
+{% block content %}
+<div style="max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px;">
+
+  <!-- Page Header -->
+  <div style="display: flex; flex-direction: column; gap: 6px;">
+    <h1 class="text-h1 font-display text-ink-900" style="letter-spacing: -0.02em;">Integrasi Microsoft Entra ID</h1>
+    <p class="text-body text-ink-500">
+      Kelola penyematan tenant Microsoft 365 / Azure AD untuk mengontrol akses Single Sign-On (SSO) staf pada yayasan ini.
+    </p>
+  </div>
+
+  {% if error %}
+    <div class="card" style="border-left: 4px solid var(--color-danger); background-color: var(--color-danger-bg); padding: 16px 20px;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <span style="font-size: 1.25rem;">⚠️</span>
+        <div>
+          <h3 class="text-h3" style="color: var(--color-danger); margin-bottom: 4px;">Akses Ditolak</h3>
+          <p class="text-body text-ink-900">{{ error }}</p>
+        </div>
+      </div>
+    </div>
+  {% else %}
+    <!-- Inner HTMX Target Container -->
+    {% include "components/_microsoft_tenant_settings.html" %}
+  {% endif %}
+
+</div>
+{% endblock %}
