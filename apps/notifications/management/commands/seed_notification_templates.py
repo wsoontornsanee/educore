@@ -190,6 +190,26 @@ CANONICAL_TEMPLATES = [
         'body': 'Ekspor {report_name} ({format}) sudah siap diunduh. Tautan berlaku 24 jam: {deep_link}',
         'variables': ['report_name', 'format', 'deep_link'],
     },
+    # PAR-012 — closes the "permission slip notification template seed" gap.
+    # Dispatched by create_permission_slip on slip creation (ANNOUNCEMENT category).
+    # Payload keys: message, permission_slip_id, student_name, title, class_group_name,
+    # event_date (isoformat or ''), location.
+    {
+        'key': 'academic.permission_slip.new',
+        'channel': ChannelType.WHATSAPP,
+        'locale': 'id-ID',
+        'subject': 'Permintaan Izin Baru',
+        'body': 'Yth. Orang Tua/Wali {student_name}, terdapat permintaan izin baru dari sekolah: "{title}" untuk {class_group_name}. Mohon berikan persetujuan digital melalui aplikasi EduCore.',
+        'variables': ['student_name', 'title', 'class_group_name', 'event_date', 'location'],
+    },
+    {
+        'key': 'academic.permission_slip.new',
+        'channel': ChannelType.PUSH,
+        'locale': 'id-ID',
+        'subject': 'Izin Baru: {title}',
+        'body': 'Permintaan izin baru untuk {student_name}: "{title}". Buka aplikasi untuk menyetujui atau menolak.',
+        'variables': ['student_name', 'title', 'class_group_name'],
+    },
 ]
 
 
