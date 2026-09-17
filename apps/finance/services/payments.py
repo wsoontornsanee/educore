@@ -464,6 +464,26 @@ def process_payment_webhook(
             # PAR-008: Dispatch push notification to guardians
             _dispatch_payment_received_notification(payment, allocations)
 
+            # spec/18: notify partner integrations (webhook + polling fallback).
+            # Fire-and-forget: a partner-event failure must never roll back a
+            # settled payment.
+            from apps.partners.services import (
+                EVENT_FINANCE_PAYMENT_SETTLED,
+                safe_emit_partner_event,
+            )
+            safe_emit_partner_event(
+                foundation_id=payment.foundation_id,
+                event_type=EVENT_FINANCE_PAYMENT_SETTLED,
+                payload={
+                    'payment_id': payment.id,
+                    'reference': payment.reference,
+                    'student_id': payment.student.id if payment.student else None,
+                    'amount': {'amount': str(payment.amount), 'currency': payment.currency},
+                    'channel': payment.channel,
+                    'settled_at': payment.settled_at.isoformat() if payment.settled_at else None,
+                },
+            )
+
             audit(
                 action='finance.payment.settled',
                 entity_type='Payment',

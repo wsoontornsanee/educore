@@ -20,6 +20,9 @@ urlpatterns = [
     path('api/v1/reporting/', include('apps.reporting.urls')),
     path('api/v1/', include('apps.campus.urls')),
     path('api/v1/campus/', include('apps.campus.urls')),
+    # Partner & Vendor Integration API (spec/18) — HMAC-key partner surface
+    # and its foundation-admin management surface.
+    path('api/v1/', include('apps.partners.urls')),
     # Session-auth web (HTMX) pages — HTML responses, distinct from /api/v1/ JSON
     path('web/auth/', include('apps.identity.web_urls')),
     path('web/login/', WebLoginView.as_view(), name='login'),
