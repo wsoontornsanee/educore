@@ -1,3 +1,5 @@
+from django.http import HttpResponse
+from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.utils.translation import gettext_lazy as _
@@ -1765,3 +1767,206 @@ class PermissionSlipAcknowledgeView(APIView):
             'responded_at': ack.responded_at.isoformat(),
             'signature': ack.signature,
         }, status=status.HTTP_201_CREATED)
+
+
+# ── Permission Slip School Console (web/HTMX, spec/08 PAR-012, spec/17) ──────
+# Session-authenticated page + HTML-fragment routes under /web/academic/.
+# Distinct from the /api/v1/ JSON endpoints above; both share the same
+# services (create_permission_slip / get_slip_consent_tally) and permission keys.
+
+CONSOLE_SLIP_PAGE_SIZE = 50
+
+
+class PermissionSlipWebAccessMixin:
+    """Shared gating for the HTMX console views: authenticated staff only.
+
+    Uses DRF's permission pipeline (SessionAuthentication is a default auth
+    class) plus the same grades.read/grades.write keys the JSON endpoints use,
+    then additionally requires a Staff profile — a guardian must never reach
+    the school-side console even if a role mistake ever grants them grades.*.
+    """
+
+    permission_classes = [HasRequiredPermission]
+
+    def _resolve_staff(self, request):
+        foundation_id = get_current_foundation_id()
+        if not foundation_id:
+            return None
+        return Staff.objects.filter(
+            user=request.user, foundation_id=foundation_id, deleted_at__isnull=True,
+        ).select_related('person', 'school').first()
+
+
+class PermissionSlipConsolePageView(PermissionSlipWebAccessMixin, APIView):
+    """GET /web/academic/permission-slips/ — full console page (staff only)."""
+
+    def get_required_permission(self):
+        return 'grades.read'
+
+    def get(self, request):
+        from django.shortcuts import render
+
+        staff = self._resolve_staff(request)
+        if staff is None:
+            return Response({'error': _("Akun ini tidak terhubung ke profil staf.")}, status=status.HTTP_404_NOT_FOUND)
+
+        foundation_id = get_current_foundation_id()
+        class_groups = ClassGroup.objects.filter(
+            foundation_id=foundation_id, deleted_at__isnull=True,
+        ).select_related('school').order_by('school__name', 'name')
+
+        slips_qs = PermissionSlip.objects.filter(
+            foundation_id=foundation_id, deleted_at__isnull=True,
+        ).select_related('class_group', 'created_by__person').order_by('-created_at')[:CONSOLE_SLIP_PAGE_SIZE]
+
+        slips = [_serialize_permission_slip(slip, get_slip_consent_tally(slip)) for slip in slips_qs]
+
+        return render(request, 'pages/permission_slip_console_page.html', {
+            'staff': staff,
+            'class_groups': class_groups,
+            'slips': slips,
+            'create_url': '/web/academic/permission-slips/create/',
+            'tally_url_prefix': '/web/academic/permission-slips',
+            'form_error': None,
+        })
+
+
+class PermissionSlipConsoleCreateView(PermissionSlipWebAccessMixin, APIView):
+    """POST /web/academic/permission-slips/create/ — HTMX form target.
+
+    Creates the slip via the shared service and returns the refreshed
+    _permission_slip_list fragment (or the form error partial on 400)."""
+
+    def get_required_permission(self):
+        return 'grades.write'
+
+    def _error_response(self, request, message, status_code):
+        if request.htmx:
+            html = render_to_string('components/_slip_form_error.html', {'form_error': message}, request=request)
+            return HttpResponse(html, status=status_code)
+        return Response({'error': message}, status=status_code)
+
+    def post(self, request):
+        staff = self._resolve_staff(request)
+        if staff is None:
+            return self._error_response(request, _("Akun ini tidak terhubung ke profil staf."), 404)
+
+        foundation_id = get_current_foundation_id()
+        class_group = ClassGroup.objects.filter(
+            id=request.data.get('class_group_id'), foundation_id=foundation_id, deleted_at__isnull=True,
+        ).first()
+        if not class_group:
+            return self._error_response(request, _("Kelas tidak ditemukan."), 400)
+
+        title = (request.data.get('title') or '').strip()
+        if not title:
+            return self._error_response(request, _("Judul izin wajib diisi."), 400)
+
+        import datetime as _dt
+        event_date = None
+        if request.data.get('event_date'):
+            try:
+                event_date = _dt.date.fromisoformat(request.data['event_date'])
+            except ValueError:
+                return self._error_response(request, _("Format tanggal acara tidak valid (YYYY-MM-DD)."), 400)
+
+        due_at = None
+        if request.data.get('due_at'):
+            parsed = parse_datetime(request.data['due_at'])
+            if parsed is None:
+                return self._error_response(request, _("Format batas waktu tidak valid."), 400)
+            due_at = parsed
+            if timezone.is_naive(due_at):
+                due_at = timezone.make_aware(due_at)
+
+        try:
+            create_permission_slip(
+                staff, class_group, title,
+                description=request.data.get('description') or '',
+                event_date=event_date,
+                location=request.data.get('location') or '',
+                due_at=due_at,
+                actor=request.user,
+            )
+        except ValueError as e:
+            return self._error_response(request, str(e), 400)
+
+        return self._slip_list_response(request, foundation_id)
+
+    def _slip_list_response(self, request, foundation_id):
+        slips_qs = PermissionSlip.objects.filter(
+            foundation_id=foundation_id, deleted_at__isnull=True,
+        ).select_related('class_group', 'created_by__person').order_by('-created_at')[:CONSOLE_SLIP_PAGE_SIZE]
+        slips = [_serialize_permission_slip(slip, get_slip_consent_tally(slip)) for slip in slips_qs]
+        html = render_to_string('components/_permission_slip_list.html', {
+            'slips': slips,
+            'tally_url_prefix': '/web/academic/permission-slips',
+        }, request=request)
+        return HttpResponse(html, status=201 if request.method == 'POST' else 200)
+
+
+class PermissionSlipConsoleTallyView(PermissionSlipWebAccessMixin, APIView):
+    """GET /web/academic/permission-slips/:id/ — HTMX tally fragment (15s polling).
+    GET /web/academic/permission-slips/:id/roster/ — per-student roster fragment."""
+
+    def get_required_permission(self):
+        return 'grades.read'
+
+    def _get_slip_or_404(self, request, slip_id):
+        foundation_id = get_current_foundation_id()
+        return PermissionSlip.objects.filter(
+            id=slip_id, foundation_id=foundation_id, deleted_at__isnull=True,
+        ).select_related('class_group').first()
+
+    def get(self, request, slip_id):
+        slip = self._get_slip_or_404(request, slip_id)
+        if not slip:
+            return Response({'error': _("Izin tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        tally = get_slip_consent_tally(slip)
+        html = render_to_string('components/_permission_slip_tally.html', {'tally': tally}, request=request)
+        return HttpResponse(html)
+
+class PermissionSlipConsoleRosterView(PermissionSlipWebAccessMixin, APIView):
+    """GET /web/academic/permission-slips/:id/roster/ — per-student roster fragment."""
+
+    def get_required_permission(self):
+        return 'grades.read'
+
+    def get(self, request, slip_id):
+        foundation_id = get_current_foundation_id()
+        slip = PermissionSlip.objects.filter(
+            id=slip_id, foundation_id=foundation_id, deleted_at__isnull=True,
+        ).select_related('class_group').first()
+        if not slip:
+            return Response({'error': _("Izin tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        tally = get_slip_consent_tally(slip)
+        enrollments = ClassEnrollment.objects.filter(
+            class_group_id=slip.class_group_id, is_active=True,
+            foundation_id=foundation_id, deleted_at__isnull=True,
+        ).select_related('student__person')
+
+        acks = list(PermissionSlipAcknowledgement.objects.filter(
+            permission_slip=slip, foundation_id=foundation_id, deleted_at__isnull=True,
+        ).order_by('responded_at', 'id'))
+        latest_by_pair = {}
+        for ack in acks:
+            latest_by_pair[(ack.student_id, ack.guardian_id)] = ack
+
+        roster = []
+        for enrollment in enrollments:
+            student = enrollment.student
+            student_acks = [a for (sid, _gid), a in latest_by_pair.items() if sid == student.id]
+            effective = max(student_acks, key=lambda a: (a.responded_at, a.id)) if student_acks else None
+            roster.append({
+                'student_id': student.id,
+                'student_name': student.person.full_name if student.person else '',
+                'nis': student.nis,
+                'response': effective.response if effective else 'PENDING',
+                'responded_at': effective.responded_at.strftime('%d %b %Y %H:%M') if effective else None,
+            })
+
+        html = render_to_string('components/_permission_slip_roster.html', {
+            'roster': roster, 'tally': tally,
+        }, request=request)
+        return HttpResponse(html)

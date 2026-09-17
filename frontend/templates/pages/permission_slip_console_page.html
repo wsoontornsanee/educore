@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% comment %}
+Page: Permission Slip School Console (spec/08 PAR-012, spec/17).
+Session-auth web page for teachers/school admins: issue permission slips and
+watch the live guardian consent tally. Served by
+apps.academic.views.PermissionSlipConsolePageView at /web/academic/permission-slips/.
+{% endcomment %}
+
+{% block title %}Konsol Izin Digital — EduCore{% endblock %}
+
+{% block content %}
+  <main style="padding: 24px 16px;">
+    {% include "components/permission_slip_console.html" with staff=staff class_groups=class_groups slips=slips create_url=create_url tally_url_prefix=tally_url_prefix form_error=form_error %}
+  </main>
+{% endblock %}
