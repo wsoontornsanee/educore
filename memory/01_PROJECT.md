@@ -8,9 +8,9 @@
 
 ---
 
-- **Current Step:** [Open Item] Parent App: Academic Tab (grades, homework, report cards, timetable) (PAR-010, ACD-013/014) [DONE - PR #101 opened, awaiting PR merge].
-- **Preceding Step:** [Open Item] Payment-Settled Push Notification (backend) — PAR-008 [DONE - PR #100 merged].
-- **Recent Completed Step:** [Open Item] Parent App: Academic Tab (grades, homework, report cards, timetable) (PAR-010, ACD-013/014) [DONE - PR #101 opened, awaiting PR merge].
+- **Current Step:** Awaiting next task instruction.
+- **Preceding Step:** [Open Item] Parent App: Academic Tab (grades, homework, report cards, timetable) (PAR-010, ACD-013/014) [DONE - PR #101 merged].
+- **Recent Completed Step:** [Open Item] Parent App: Academic Tab (grades, homework, report cards, timetable) (PAR-010, ACD-013/014) [DONE - PR #101 merged].
 - **Target Milestone:** P0 Pilot Core [DONE] (M0–M5) -> P1 Classroom [DONE] (M6–M9) -> P2 Campus Economy (M10–M13): canteen wallet + POS [wallet core started], kiosks, face recognition, campus life (`spec/00 §6`).
   - *M0 (Step 0) [DONE]:* Django project skeleton, `core` app (`TenantModel`, `MoneyField`, `AuditEvent`, `DomainEvent`, `TaskQueue`, `JobRun`, `drain_tasks`, advisory locks, crontab).
   - *M1 (Step 1) [DONE]:* Tenancy, auth, RBAC, feature entitlements, foundation portal, seed data (`identity`, `foundation`). Demo: Foundation admin logs in, sees two schools.
