@@ -19,6 +19,7 @@ from .serializers import (
     UserProfileSerializer,
     OtpRequestSerializer,
     OtpVerifySerializer,
+    SocialLoginSerializer,
 )
 from .services import request_phone_otp, verify_phone_otp, normalize_phone_e164
 
@@ -669,4 +670,151 @@ class GuardianChildrenView(views.APIView):
         ).select_related('student__person')
         serializer = GuardianChildSerializer(links, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+# ── Third-Party SSO — Google Workspace / Microsoft 365 (spec/14 §6, TASK-036) ──
+
+class SocialLoginView(views.APIView):
+    """POST /api/v1/auth/sso/login/ — verify a provider ID token and mint an EduCore JWT.
+
+    The frontend obtains the ID token via the provider's SDK, sends it here along
+    with the foundation context (X-Foundation-ID header, like every other authed
+    call). Resolution order: existing SocialLogin link → email match against a
+    user holding a staff role (auto-link) → 404 AccountNotLinkedError.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        from .social_auth import social_login, SocialAuthError, AccountNotLinkedError, TokenVerificationError
+
+        serializer = SocialLoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        provider = serializer.validated_data['provider']
+        id_token = serializer.validated_data['id_token']
+
+        # Foundation context from header (mirrors EduCoreJWTAuthentication's contract)
+        foundation_id = request.headers.get('X-Foundation-ID')
+        if foundation_id:
+            from educore.middleware.tenancy import set_current_foundation_id
+            set_current_foundation_id(int(foundation_id))
+
+        try:
+            user, claims = social_login(provider, id_token)
+        except AccountNotLinkedError as e:
+            return Response({'error': str(e), 'code': 'ACCOUNT_NOT_LINKED'},
+                            status=status.HTTP_404_NOT_FOUND)
+        except (TokenVerificationError, SocialAuthError) as e:
+            return Response({'error': str(e), 'code': 'TOKEN_INVALID'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        if not user.is_active:
+            return Response({'error': 'Akun pengguna tidak aktif.', 'code': 'ACCOUNT_INACTIVE'},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        refresh = RefreshToken.for_user(user)
+        audit(
+            action="identity.sso.login",
+            entity_type="User",
+            entity_id=str(user.id),
+            actor_id=str(user.id),
+            foundation_id=user.foundation_id,
+            ip_address=request.META.get('REMOTE_ADDR'),
+            diff={"provider": {"after": provider}},
+        )
+        roles = list(
+            RoleAssignment.all_tenants.filter(
+                foundation_id=user.foundation_id, user=user, deleted_at__isnull=True
+            ).values('id', 'role', 'scope_type', 'scope_id')
+        )
+        return Response({
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': {
+                'id': user.id,
+                'full_name': user.full_name,
+                'phone_e164': user.phone_e164,
+                'email': user.email,
+                'foundation_id': user.foundation_id,
+                'roles': roles,
+            },
+        }, status=status.HTTP_200_OK)
+
+
+class SocialLinkView(views.APIView):
+    """POST /api/v1/auth/sso/link/ — link the authenticated user to an SSO provider.
+
+    DELETE /api/v1/auth/sso/link/ — soft-delete the user's link for a provider.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        from .social_auth import social_link, SocialAuthError, AccountAlreadyLinkedError, TokenVerificationError
+
+        serializer = SocialLoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        provider = serializer.validated_data['provider']
+        id_token = serializer.validated_data['id_token']
+
+        try:
+            social = social_link(request.user, provider, id_token)
+        except AccountAlreadyLinkedError as e:
+            return Response({'error': str(e), 'code': 'ACCOUNT_ALREADY_LINKED'},
+                            status=status.HTTP_409_CONFLICT)
+        except (TokenVerificationError, SocialAuthError) as e:
+            return Response({'error': str(e), 'code': 'TOKEN_INVALID'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        audit(
+            action="identity.sso.linked",
+            entity_type="SocialLogin",
+            entity_id=str(social.id),
+            actor_id=str(request.user.id),
+            foundation_id=request.user.foundation_id,
+            ip_address=request.META.get('REMOTE_ADDR'),
+            diff={"provider": {"after": provider}},
+        )
+        return Response({
+            'provider': social.provider,
+            'provider_user_id': social.provider_user_id,
+            'email': social.email,
+        }, status=status.HTTP_201_CREATED)
+
+    def delete(self, request):
+        from .social_auth import social_unlink, SocialAuthError
+
+        provider = request.query_params.get('provider')
+        if provider not in ('google', 'microsoft'):
+            return Response({'error': 'Provider harus "google" atau "microsoft".'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        try:
+            social_unlink(request.user, provider)
+        except SocialAuthError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        audit(
+            action="identity.sso.unlinked",
+            entity_type="SocialLogin",
+            entity_id=str(request.user.id),
+            actor_id=str(request.user.id),
+            foundation_id=request.user.foundation_id,
+            ip_address=request.META.get('REMOTE_ADDR'),
+            diff={"provider": {"after": provider}},
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class SocialLinksListView(views.APIView):
+    """GET /api/v1/auth/sso/links/ — list the authenticated user's SSO links."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from .models import SocialLogin
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        links = SocialLogin.all_tenants.filter(
+            foundation_id=foundation_id, user=request.user, deleted_at__isnull=True,
+        )
+        return Response({'results': [
+            {'provider': s.provider, 'provider_user_id': s.provider_user_id, 'email': s.email}
+            for s in links
+        ]})
 

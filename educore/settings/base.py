@@ -206,3 +206,10 @@ XENDIT_BASE_URL = os.environ.get('XENDIT_BASE_URL', 'https://api.xendit.co')
 # staging are both single-VM per spec/01 §7's own environment table, where the
 # constraint is trivially satisfied. See apps.core.management.base.CronHostCommand.
 EDUCORE_CRON_HOST_ENFORCED = False
+
+# Third-Party SSO — Google Workspace / Microsoft 365 (spec/14 §6, TASK-036).
+# Set these via .env or environment variables in production.
+# For Microsoft, set SOCIAL_AUTH_MICROSOFT_TENANT_ID to your tenant ID or 'common'.
+SOCIAL_AUTH_GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_OAUTH_CLIENT_ID', '')
+SOCIAL_AUTH_MICROSOFT_CLIENT_ID = os.environ.get('MICROSOFT_OAUTH_CLIENT_ID', '')
+SOCIAL_AUTH_MICROSOFT_TENANT_ID = os.environ.get('MICROSOFT_OAUTH_TENANT_ID', 'common')

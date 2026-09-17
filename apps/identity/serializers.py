@@ -439,3 +439,33 @@ class GuardianChildSerializer(serializers.Serializer):
     full_name = serializers.CharField(source='student.person.full_name')
     photo_key = serializers.CharField(source='student.photo_key')
     financial_responsible = serializers.BooleanField()
+
+
+# ── SSO (spec/14 §6, TASK-036) ─────────────────────────────────────
+
+class SocialLoginSerializer(serializers.Serializer):
+    """Validate an SSO login/link request."""
+    provider = serializers.ChoiceField(choices=['google', 'microsoft'])
+    id_token = serializers.CharField()
+
+    def validate_id_token(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("ID token wajib diisi.")
+        return value.strip()
+
+
+class SocialLoginResponseSerializer(serializers.Serializer):
+    """JWT response for a successful SSO login."""
+    access = serializers.CharField()
+    refresh = serializers.CharField()
+    user_id = serializers.IntegerField()
+    email = serializers.EmailField()
+    full_name = serializers.CharField()
+    is_staff = serializers.BooleanField()
+
+
+class SocialLinkResponseSerializer(serializers.Serializer):
+    """Response after linking an SSO account."""
+    provider = serializers.CharField()
+    provider_user_id = serializers.CharField()
+    email = serializers.EmailField(required=False, allow_blank=True)
