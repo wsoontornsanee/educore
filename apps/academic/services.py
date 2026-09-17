@@ -1319,10 +1319,41 @@ def get_expected_periods_for_school(school, date, missing_only=False) -> list:
         ).values_list('slot_id', flat=True).distinct()
     )
 
+    # Check for active AcademicCalendarEvents affecting attendance on this date
+    from datetime import datetime, time
+    from apps.academic.models import AcademicCalendarEvent
+    tz = timezone.get_current_timezone()
+    day_start = timezone.make_aware(datetime.combine(date, time.min), tz)
+    day_end = timezone.make_aware(datetime.combine(date, time.max), tz)
+
+    cal_events = list(AcademicCalendarEvent.objects.filter(
+        foundation_id=school.foundation_id,
+        school=school,
+        affects_attendance=True,
+        start_at__lte=day_end,
+        end_at__gte=day_start,
+        deleted_at__isnull=True,
+    ).prefetch_related('class_groups'))
+
+    def _find_exemption(slot_obj):
+        for ev in cal_events:
+            ev_cgroups = set(ev.class_groups.values_list('id', flat=True))
+            if ev_cgroups and slot_obj.class_subject.class_group_id not in ev_cgroups:
+                continue
+            if ev.is_all_day:
+                return ev
+            s_start = timezone.make_aware(datetime.combine(date, slot_obj.start_time), tz)
+            s_end = timezone.make_aware(datetime.combine(date, slot_obj.end_time), tz)
+            if s_start < ev.end_at and s_end > ev.start_at:
+                return ev
+        return None
+
     expected = []
     for slot in slots:
         attendance_submitted = slot.id in submitted_slot_ids
-        if missing_only and attendance_submitted:
+        ev = _find_exemption(slot)
+        is_exempt = ev is not None
+        if missing_only and (attendance_submitted or is_exempt):
             continue
         sub = substitutions_by_slot_id.get(slot.id)
         teacher = sub.substitute_teacher if sub else slot.class_subject.teacher
@@ -1335,6 +1366,9 @@ def get_expected_periods_for_school(school, date, missing_only=False) -> list:
             'teacher_name': teacher.person.full_name,
             'is_substitution': sub is not None,
             'attendance_submitted': attendance_submitted,
+            'is_exempt': is_exempt,
+            'exemption_reason': ev.title if ev else None,
+            'calendar_event_id': ev.id if ev else None,
         })
 
     expected.sort(key=lambda e: (e['class_group'], e['period_no']))

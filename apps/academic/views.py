@@ -17,10 +17,12 @@ from apps.identity.models import School, Staff, Student
 from educore.middleware.tenancy import get_current_foundation_id
 
 from apps.academic.models import (
+    AcademicCalendarEvent,
     AcademicYear,
     Assessment,
     AssessmentScore,
     Broadcast,
+    CalendarAcademicSyncPolicy,
     ClassEnrollment,
     ClassGroup,
     ClassSubject,
@@ -45,6 +47,7 @@ from apps.academic.models import (
     TimetableSubstitution,
 )
 from apps.academic.serializers import (
+    AcademicCalendarEventSerializer,
     AcademicYearSerializer,
     AssessmentScoreSerializer,
     AssessmentSerializer,
@@ -52,6 +55,7 @@ from apps.academic.serializers import (
     BroadcastPolicySerializer,
     BroadcastSerializer,
     BulkScoreEntrySerializer,
+    CalendarAcademicSyncPolicySerializer,
     ScoreCsvImportSerializer,
     ClassEnrollmentSerializer,
     ClassGroupSerializer,
@@ -84,6 +88,7 @@ from apps.academic.serializers import (
     TimetableSlotSerializer,
     TimetableSubstitutionSerializer,
 )
+from apps.academic.calendar_services import sync_external_calendar_events_to_academic
 from apps.academic.services import (
     AttemptAlreadySubmittedError,
     BroadcastNotAllowedError,
@@ -2054,3 +2059,72 @@ class PermissionSlipConsoleRosterView(PermissionSlipWebAccessMixin, APIView):
             'roster': roster, 'tally': tally,
         }, request=request)
         return HttpResponse(html)
+
+
+class AcademicCalendarEventViewSet(TenantScopedModelViewSet):
+    """CRUD API for dated academic calendar events (spec/04, spec/14 §6)."""
+    model = AcademicCalendarEvent
+    serializer_class = AcademicCalendarEventSerializer
+    filter_params = {
+        'school_id': 'school_id',
+        'event_type': 'event_type',
+        'source': 'source',
+        'academic_year_id': 'academic_year_id',
+        'term_id': 'term_id',
+    }
+    action_permissions = {
+        'list': 'school_config.read', 'retrieve': 'school_config.read',
+        'create': 'school_config.write', 'update': 'school_config.write',
+        'partial_update': 'school_config.write', 'destroy': 'school_config.write',
+    }
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        start = self.request.query_params.get('start_date')
+        end = self.request.query_params.get('end_date')
+        if start:
+            qs = qs.filter(end_at__date__gte=start)
+        if end:
+            qs = qs.filter(start_at__date__lte=end)
+        return qs
+
+
+class CalendarAcademicSyncPolicyViewSet(TenantScopedModelViewSet):
+    """Configuration for external calendar sync opt-in and heuristics."""
+    model = CalendarAcademicSyncPolicy
+    serializer_class = CalendarAcademicSyncPolicySerializer
+    filter_params = {'school_id': 'school_id'}
+    action_permissions = {
+        'list': 'school_config.read', 'retrieve': 'school_config.read',
+        'create': 'school_config.write', 'update': 'school_config.write',
+        'partial_update': 'school_config.write', 'destroy': 'school_config.write',
+    }
+
+
+class CalendarAcademicSyncView(APIView):
+    """Trigger synchronization from external calendar events into academic models.
+    Supports dry-run preview (?dry_run=true or dry_run in body).
+    """
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'school_config.write'
+
+    def post(self, request, *args, **kwargs):
+        foundation_id = get_current_foundation_id()
+        if not foundation_id:
+            return Response({'error': _("Yayasan tidak valid.")}, status=status.HTTP_400_BAD_REQUEST)
+
+        school_id = request.data.get('school_id') or request.query_params.get('school_id')
+        dry_run = request.data.get('dry_run', request.query_params.get('dry_run', 'false'))
+        if isinstance(dry_run, str):
+            dry_run = dry_run.lower() in ('true', '1', 'yes')
+
+        since_str = request.data.get('since') or request.query_params.get('since')
+        since = parse_datetime(since_str) if since_str else None
+
+        result = sync_external_calendar_events_to_academic(
+            foundation_id=foundation_id,
+            school_id=int(school_id) if school_id else None,
+            dry_run=dry_run,
+            since=since,
+        )
+        return Response(result, status=status.HTTP_200_OK)

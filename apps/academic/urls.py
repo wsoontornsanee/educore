@@ -2,10 +2,13 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from apps.academic.views import (
+    AcademicCalendarEventViewSet,
     AcademicYearViewSet,
     AssessmentViewSet,
     BroadcastPolicyView,
     BroadcastViewSet,
+    CalendarAcademicSyncPolicyViewSet,
+    CalendarAcademicSyncView,
     ClassEnrollmentViewSet,
     ClassGroupViewSet,
     ClassSubjectViewSet,
@@ -43,6 +46,8 @@ from apps.academic.views import (
 
 router = DefaultRouter()
 router.register(r'academic-years', AcademicYearViewSet, basename='academic-years')
+router.register(r'calendar-events', AcademicCalendarEventViewSet, basename='academic-calendar-events')
+router.register(r'calendar-sync-policies', CalendarAcademicSyncPolicyViewSet, basename='calendar-sync-policies')
 router.register(r'terms', TermViewSet, basename='terms')
 router.register(r'subjects', SubjectViewSet, basename='subjects')
 router.register(r'class-groups', ClassGroupViewSet, basename='class-groups')
@@ -78,5 +83,6 @@ urlpatterns = [
     path('schools/<int:school_id>/broadcast-policy/', BroadcastPolicyView.as_view(), name='broadcast-policy'),
     path('schools/<int:school_id>/period-grid/', PeriodGridView.as_view(), name='period-grid'),
     path('schools/<int:school_id>/expected-periods/', ExpectedPeriodsView.as_view(), name='expected-periods'),
+    path('calendar-events/sync/', CalendarAcademicSyncView.as_view(), name='calendar-events-sync'),
     path('', include(router.urls)),
 ]

@@ -774,3 +774,123 @@ class PermissionSlipAcknowledgement(TenantModel):
 
     def __str__(self):
         return f"{self.signature} -> {self.response} ({self.responded_at})"
+
+
+class AcademicCalendarEventType(models.TextChoices):
+    HOLIDAY = 'HOLIDAY', _('Hari Libur / Cuti')
+    EXAM = 'EXAM', _('Jadwal Ujian')
+    TIMETABLE_EXCEPTION = 'TIMETABLE_EXCEPTION', _('Pengecualian Jadwal / Pembatalan Sesi')
+    STAFF_MEETING = 'STAFF_MEETING', _('Rapat Staf / Guru')
+    SCHOOL_EVENT = 'SCHOOL_EVENT', _('Kegiatan Sekolah / Upacara')
+    OTHER = 'OTHER', _('Lainnya')
+
+
+class AcademicCalendarEvent(TenantModel):
+    """A dated event on the academic calendar (spec/04, spec/14 §6).
+    
+    Can represent school-wide holidays, exam windows, timetable session cancellations,
+    staff meetings, or school ceremonies. May be created manually or synchronized
+    from external staff calendars (Google Workspace / Microsoft 365).
+    """
+    school = models.ForeignKey(School, on_delete=models.PROTECT, related_name='academic_calendar_events')
+    academic_year = models.ForeignKey(AcademicYear, on_delete=models.PROTECT, null=True, blank=True, related_name='academic_calendar_events')
+    term = models.ForeignKey(Term, on_delete=models.PROTECT, null=True, blank=True, related_name='academic_calendar_events')
+    event_type = models.CharField(max_length=32, choices=AcademicCalendarEventType.choices, default=AcademicCalendarEventType.OTHER, db_index=True)
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default='')
+    location = models.CharField(max_length=255, blank=True, default='')
+    start_at = models.DateTimeField(db_index=True)
+    end_at = models.DateTimeField(db_index=True)
+    is_all_day = models.BooleanField(default=False)
+    class_groups = models.ManyToManyField(ClassGroup, blank=True, related_name='academic_calendar_events', help_text=_("Kosong berarti berlaku untuk seluruh sekolah"))
+    affects_attendance = models.BooleanField(default=False, help_text=_("Jika True, sesi jadwal pada rentang ini dikecualikan/diliburkan dari absensi"))
+    
+    SOURCE_MANUAL = 'MANUAL'
+    SOURCE_SYNCED = 'SYNCED'
+    SOURCE_CHOICES = [
+        (SOURCE_MANUAL, _('Manual')),
+        (SOURCE_SYNCED, _('Synced Calendar')),
+    ]
+    source = models.CharField(max_length=16, choices=SOURCE_CHOICES, default=SOURCE_MANUAL)
+    external_event = models.ForeignKey(
+        'calendar_sync.ExternalCalendarEvent',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='academic_events',
+        help_text=_("Tautan ke acara kalender eksternal sumber sinkronisasi")
+    )
+    exam = models.ForeignKey(
+        Exam,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='calendar_events',
+        help_text=_("Tautan ke jadwal ujian jika acara ini dipetakan sebagai ujian")
+    )
+    active_uniq_marker = soft_delete_uniqueness_marker()
+
+    class Meta:
+        db_table = 'academic_calendar_events'
+        verbose_name = _('Acara Kalender Akademik')
+        verbose_name_plural = _('Daftar Acara Kalender Akademik')
+        indexes = [
+            models.Index(fields=['foundation_id', 'school_id', 'start_at']),
+            models.Index(fields=['foundation_id', 'event_type', 'start_at']),
+            models.Index(fields=['foundation_id', 'external_event_id']),
+        ]
+
+    def __str__(self):
+        return f"[{self.event_type}] {self.title} ({self.start_at:%Y-%m-%d})"
+
+
+class CalendarAcademicSyncPolicy(TenantModel):
+    """Per-foundation or per-school policy governing external calendar mapping into academic models.
+    
+    Red line: auto_sync_enabled and auto_create_exams default to False.
+    External calendar pulls NEVER mutate academic models without explicit opt-in.
+    """
+    school = models.ForeignKey(
+        School,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='calendar_sync_policies',
+        help_text=_("Null berarti kebijakan bawaan tingkat yayasan")
+    )
+    auto_sync_enabled = models.BooleanField(
+        default=False,
+        help_text=_("Opt-in: izinkan sinkronisasi otomatis dari kalender eksternal ke kalender akademik")
+    )
+    auto_create_exams = models.BooleanField(
+        default=False,
+        help_text=_("Opt-in: otomatis buat entri Exam draf jika acara kalender bertipe UJIAN")
+    )
+    tag_prefix = models.CharField(
+        max_length=32,
+        default="[EDUCORE]",
+        blank=True,
+        help_text=_("Prefix penanda eksplisit pada judul kalender (opsional)")
+    )
+    custom_keywords = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_("Konfigurasi kata kunci kustom per tipe acara")
+    )
+    active_uniq_marker = soft_delete_uniqueness_marker()
+
+    class Meta:
+        db_table = 'calendar_academic_sync_policies'
+        verbose_name = _('Kebijakan Sinkronisasi Kalender Akademik')
+        verbose_name_plural = _('Daftar Kebijakan Sinkronisasi Kalender Akademik')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'school', 'active_uniq_marker'],
+                name='unique_active_calendar_sync_policy_per_school',
+            ),
+        ]
+
+    def __str__(self):
+        target = self.school.name if self.school else "Yayasan (Default)"
+        return f"Policy {target}: auto_sync={self.auto_sync_enabled}, exams={self.auto_create_exams}"
+
