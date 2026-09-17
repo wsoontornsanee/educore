@@ -1,0 +1,141 @@
+{% extends "marketing/base.html" %}
+
+{% block content %}
+<section class="site-container site-hero">
+  <div>
+    <span class="site-eyebrow">Sistem operasi sekolah</span>
+    <h1 class="site-hero-title">Satu sistem untuk seluruh yayasan Anda.</h1>
+    <p class="site-hero-lede">Akademik, kehadiran, keuangan, kantin, dan komunikasi orang tua dalam satu platform — dibangun untuk yayasan pendidikan di Indonesia.</p>
+    <div class="site-cta-row">
+      <a href="mailto:demo@educore.id" class="btn btn-primary">Minta demo</a>
+      <a href="{% url 'marketing:downloads' %}" class="btn btn-secondary">Unduh aplikasi</a>
+    </div>
+    <div class="site-stat-row">
+      <div>
+        <div class="site-stat-value">{{ dashboard.active_schools }}</div>
+        <div class="text-body-sm text-ink-500">sekolah aktif</div>
+      </div>
+      <div>
+        <div class="site-stat-value">{{ dashboard.enrolled_students }}</div>
+        <div class="text-body-sm text-ink-500">siswa terdaftar</div>
+      </div>
+      <div>
+        <div class="site-stat-value">{{ dashboard.uptime_pct }}</div>
+        <div class="text-body-sm text-ink-500">uptime jam sekolah</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dashboard-mock">
+    <div class="dashboard-mock-head">
+      <span class="dashboard-mock-dot"></span>
+      Dasbor yayasan — data langsung
+    </div>
+    <div class="dashboard-mock-body">
+      <div class="text-body-sm text-ink-500">Tertagih bulan ini</div>
+      <div style="font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 1.5rem;">{{ dashboard.collected_this_month }}</div>
+      <span style="display: inline-block; background-color: var(--color-success-bg); color: var(--color-success); font-size: 0.75rem; font-weight: 600; padding: 2px 8px; margin-top: 4px;">{{ dashboard.mom_change }}</span>
+    </div>
+    <div class="dashboard-mock-kpis">
+      <div>
+        <div class="dashboard-mock-kpi-value">{{ dashboard.collectibility_pct }}</div>
+        <div class="dashboard-mock-kpi-label">Kolektibilitas</div>
+      </div>
+      <div>
+        <div class="dashboard-mock-kpi-value">{{ dashboard.attendance_avg_pct }}</div>
+        <div class="dashboard-mock-kpi-label">Kehadiran rata-rata</div>
+      </div>
+      <div>
+        <div class="dashboard-mock-kpi-value">{{ dashboard.pending_approvals }}</div>
+        <div class="dashboard-mock-kpi-label">Menunggu persetujuan</div>
+      </div>
+    </div>
+    <div class="dashboard-mock-bars">
+      <div class="text-body-sm text-ink-500" style="padding: 8px 0 4px;">Kolektibilitas per sekolah</div>
+      {% for school in dashboard.per_school %}
+      <div class="dashboard-mock-bar-row">
+        <span style="width: 96px; flex-shrink: 0; color: var(--color-ink-700);">{{ school.name }}</span>
+        <span class="dashboard-mock-bar-track"><span class="dashboard-mock-bar-fill" style="width: {{ school.pct }}%;"></span></span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem;">{{ school.pct }}%</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section id="modul" class="site-section site-section-alt">
+  <div class="site-container">
+    <span class="site-eyebrow">Modul</span>
+    <h2 class="site-section-title">Semua yang dijalankan sekolah setiap hari.</h2>
+    <p class="site-section-lede">Satu basis data, satu identitas, satu jejak audit. Modul dinyalakan per sekolah sesuai kebutuhan yayasan.</p>
+    <div class="site-grid-2" style="background-color: var(--color-surface-alt);">
+      {% for m in modules %}
+      <div class="card" style="border: 1px solid var(--color-line); border-top: 2px solid var(--color-brand-600);">
+        <span class="site-card-no">{{ m.no }}</span>
+        <h3 class="text-h3" style="margin-bottom: 8px;">{{ m.title }}</h3>
+        <p class="text-body" style="color: var(--color-ink-700);">{{ m.body }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="site-section">
+  <div class="site-container">
+    <div class="site-grid-4" style="background-color: var(--color-surface);">
+      {% for p in principles %}
+      <div class="card">
+        <span class="site-card-no">{{ p.no }}</span>
+        <h3 class="text-h3" style="margin-bottom: 8px;">{{ p.title }}</h3>
+        <p class="text-body-sm" style="color: var(--color-ink-700);">{{ p.body }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="site-section site-section-alt">
+  <div class="site-container">
+    <h2 class="site-section-title">Untuk setiap peran di yayasan</h2>
+    <div class="site-grid-2" style="background-color: var(--color-surface-alt); margin-top: 24px;">
+      {% for r in roles %}
+      <div class="card">
+        <h3 class="text-h3" style="margin-bottom: 8px;">{{ r.title }}</h3>
+        <p class="text-body-sm" style="color: var(--color-ink-700);">{{ r.body }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="site-section">
+  <div class="site-container">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start;">
+      <div>
+        <span class="site-eyebrow">Kepatuhan</span>
+        <h2 class="site-section-title">Data siswa diperlakukan seperti data yang diatur undang-undang.</h2>
+        <p class="text-body" style="color: var(--color-ink-700);">EduCore dirancang mengikuti UU PDP: minimal data, retensi terbatas, dan pemisahan tenant ditegakkan di lapisan basis data.</p>
+      </div>
+      <div class="site-grid-2" style="background-color: var(--color-surface);">
+        {% for c in compliance %}
+        <div class="card">
+          <h3 class="text-h3" style="margin-bottom: 6px; font-size: 1rem;">{{ c.title }}</h3>
+          <p class="text-body-sm" style="color: var(--color-ink-700);">{{ c.body }}</p>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="site-cta-band">
+  <div class="site-container">
+    <h2 class="site-section-title">Lihat EduCore dengan data sekolah Anda.</h2>
+    <p style="max-width: 50ch; margin-bottom: 24px;">Demo 45 menit bersama tim penerapan, memakai satu sekolah contoh dari yayasan Anda.</p>
+    <div class="site-cta-row" style="margin-bottom: 0;">
+      <a href="mailto:demo@educore.id" class="btn" style="background-color: #FFFFFF; color: var(--color-brand-600);">Minta demo</a>
+      <a href="{% url 'marketing:partner-api' %}" class="btn btn-secondary">Mitra &amp; API</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

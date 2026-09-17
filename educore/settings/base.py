@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     'apps.campus.apps.CampusConfig',
     'apps.compliance.apps.ComplianceConfig',
     'apps.partners.apps.PartnersConfig',
+    'apps.marketing.apps.MarketingConfig',
 ]
 
 MIDDLEWARE = [

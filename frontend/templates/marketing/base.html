@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}EduCore — Sistem Operasi Sekolah Swasta{% endblock %}</title>
+  <meta name="description" content="{% block meta_description %}EduCore menyatukan akademik, kehadiran, keuangan, kantin, dan komunikasi orang tua dalam satu platform untuk yayasan pendidikan di Indonesia.{% endblock %}">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="stylesheet" href="/static/css/site.css">
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-surface-alt text-ink-900 font-sans">
+
+  <header class="site-header">
+    <div class="site-container site-header-row">
+      <a href="{% url 'marketing:home' %}" class="site-brand">
+        <span class="site-brand-mark"></span>
+        <span class="font-display" style="font-weight: 800; font-size: 1.125rem; color: var(--color-brand-600); letter-spacing: -0.02em;">EduCore</span>
+      </a>
+      <nav class="site-nav">
+        <a href="{% url 'marketing:home' %}" class="{% if active_page == 'home' %}active{% endif %}">Beranda</a>
+        <a href="{% url 'marketing:partner-api' %}" class="{% if active_page == 'partner-api' %}active{% endif %}">Mitra &amp; API</a>
+        <a href="{% url 'marketing:downloads' %}" class="{% if active_page == 'downloads' %}active{% endif %}">Unduh aplikasi</a>
+      </nav>
+      <div class="site-actions">
+        <div class="lang-toggle" title="Bahasa Indonesia adalah bahasa sumber situs ini; alih bahasa Inggris belum dibangun.">
+          <span class="active">ID</span><span>EN</span>
+        </div>
+        <a href="{% url 'login' %}" class="btn btn-secondary">Masuk</a>
+        <a href="mailto:demo@educore.id" class="btn btn-primary">Minta demo</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <div class="site-container">
+      <div class="site-footer-grid">
+        <div>
+          <div class="site-brand" style="margin-bottom: 12px;">
+            <span class="site-brand-mark"></span>
+            <span class="font-display" style="font-weight: 800; color: #FFFFFF;">EduCore</span>
+          </div>
+          <p style="font-size: 0.875rem; max-width: 32ch;">Sistem operasi sekolah untuk yayasan pendidikan di Indonesia. PT EduCore Nusantara, Jakarta.</p>
+        </div>
+        <div>
+          <h4>Produk</h4>
+          <ul>
+            <li><a href="{% url 'marketing:home' %}#modul">Akademik &amp; rapor</a></li>
+            <li><a href="{% url 'marketing:home' %}#modul">Kehadiran &amp; gerbang</a></li>
+            <li><a href="{% url 'marketing:home' %}#modul">Keuangan &amp; tagihan</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Pengembang</h4>
+          <ul>
+            <li><a href="{% url 'marketing:partner-api' %}">Dokumentasi API</a></li>
+            <li><a href="mailto:demo@educore.id">Changelog</a></li>
+            <li><a href="mailto:demo@educore.id">Status layanan</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Kepatuhan</h4>
+          <ul>
+            <li><a href="mailto:demo@educore.id">Kebijakan privasi</a></li>
+            <li><a href="mailto:demo@educore.id">Perjanjian data (UU PDP)</a></li>
+            <li><a href="mailto:demo@educore.id">Retensi data</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="site-footer-bottom">
+        <span>&copy; 2026 PT EduCore Nusantara</span>
+        <span>Bahasa Indonesia · English</span>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

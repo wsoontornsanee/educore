@@ -27,4 +27,6 @@ urlpatterns = [
     path('web/auth/', include('apps.identity.web_urls')),
     path('web/login/', WebLoginView.as_view(), name='login'),
     path('web/academic/', include('apps.academic.web_urls')),
+    # Public marketing website — no auth, no tenancy, root-mounted
+    path('', include('apps.marketing.urls')),
 ]
