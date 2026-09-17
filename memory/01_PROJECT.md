@@ -8,9 +8,9 @@
 
 ---
 
-- **Current Step:** Awaiting next task instruction.
+- **Current Step:** Awaiting PR review and merge approval for PR #106: [Open Item] Parent App: Payment Receipts as Downloadable / Shareable PDF (PAR-009, FIN-019, PAR-015).
 - **Preceding Step:** [Open Item] Full DAPODIK/EMIS Field Expansion (CMP-017) [DONE - PR #105 merged].
-- **Recent Completed Step:** [Open Item] Full DAPODIK/EMIS Field Expansion (CMP-017) [DONE - PR #105 merged].
+- **Recent Completed Step:** [Open Item] Parent App: Payment Receipts as Downloadable / Shareable PDF (PAR-009, FIN-019, PAR-015) [PR #106 opened].
 - **Target Milestone:** P0 Pilot Core [DONE] (M0–M5) -> P1 Classroom [DONE] (M6–M9) -> P2 Campus Economy (M10–M13): canteen wallet + POS [wallet core started], kiosks, face recognition, campus life (`spec/00 §6`).
   - *M0 (Step 0) [DONE]:* Django project skeleton, `core` app (`TenantModel`, `MoneyField`, `AuditEvent`, `DomainEvent`, `TaskQueue`, `JobRun`, `drain_tasks`, advisory locks, crontab).
   - *M1 (Step 1) [DONE]:* Tenancy, auth, RBAC, feature entitlements, foundation portal, seed data (`identity`, `foundation`). Demo: Foundation admin logs in, sees two schools.

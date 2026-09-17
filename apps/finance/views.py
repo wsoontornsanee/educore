@@ -712,6 +712,7 @@ class PaymentViewSet(FinancialScopeMixin, viewsets.ModelViewSet):
     action_permissions = {
         'list': 'finance.invoice.read',
         'retrieve': 'finance.invoice.read',
+        'receipt': 'finance.invoice.read',
         'cash': 'finance.invoice.write',
         'manual': 'finance.invoice.write',
         'verify': 'finance.invoice.write',
@@ -851,6 +852,26 @@ class PaymentViewSet(FinancialScopeMixin, viewsets.ModelViewSet):
             return Response(self.get_serializer(verified).data, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['get'], url_path='receipt')
+    def receipt(self, request, pk=None):
+        """Generate or retrieve official downloadable payment receipt (kwitansi) with signed URL (PAR-009, FIN-019)."""
+        foundation_id = get_current_foundation_id()
+        payment = self.get_object()
+
+        if payment.status != PaymentStatus.SETTLED:
+            return Response(
+                {'error': _("Kwitansi hanya dapat diakses untuk pembayaran yang telah lunas (SETTLED).")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from apps.finance.services.receipts import get_or_create_payment_receipt
+        try:
+            with tenant_context(foundation_id):
+                receipt_data = get_or_create_payment_receipt(payment)
+            return Response(receipt_data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 from rest_framework.views import APIView
