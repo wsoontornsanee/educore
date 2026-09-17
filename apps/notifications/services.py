@@ -504,11 +504,15 @@ def process_intent(intent_id: int) -> bool:
         return True
 
 
-def handle_gate_scanned_event(event_payload: Dict[str, Any]):
+def handle_gate_scanned_event(
+    event_payload: Dict[str, Any],
+    category: str = NotificationCategory.ARRIVAL,
+):
     """
     Domain event listener for 'attendance.gate.scanned'.
-    
-    Generates parent WhatsApp arrival notifications within 5 seconds (spec/05 §4 ATT-006, spec/13 §6).
+
+    Generates parent arrival/departure notifications within 5 seconds
+    (spec/05 §4 ATT-006, spec/13 §6, spec/08 PAR-004).
     """
     direction = event_payload.get('direction')
     student_id = event_payload.get('student_id')
@@ -516,13 +520,14 @@ def handle_gate_scanned_event(event_payload: Dict[str, Any]):
     occurred_at_str = event_payload.get('occurred_at')
     gate_event_id = event_payload.get('gate_event_id')
 
-    if direction != 'IN' or not student_id:
+    expected_direction = 'IN' if category == NotificationCategory.ARRIVAL else 'OUT'
+    if direction != expected_direction or not student_id:
         return
 
     try:
         student = Student.objects.select_related('school', 'person').get(id=student_id)
     except Student.DoesNotExist:
-        logger.warning(f"Student #{student_id} not found for arrival notification.")
+        logger.warning(f"Student #{student_id} not found for {category.lower()} notification.")
         return
 
     foundation_id = student.foundation_id
@@ -547,12 +552,13 @@ def handle_gate_scanned_event(event_payload: Dict[str, Any]):
     ).select_related('guardian__person', 'guardian__user')
 
     if not guardian_links.exists():
-        logger.info(f"Student #{student.id} has no linked guardians. No arrival notice sent.")
+        logger.info(f"Student #{student.id} has no linked guardians. No {category.lower()} notice sent.")
         return
 
     school_name = student.school.name if student.school else 'Sekolah'
     student_name = student.person.full_name if student.person else 'Siswa'
     gate_name = event_payload.get('gate_name') or 'Gerbang Sekolah'
+    template_key = 'attendance.arrival' if category == NotificationCategory.ARRIVAL else 'attendance.departure'
 
     for link in guardian_links:
         guardian = link.guardian
@@ -564,9 +570,11 @@ def handle_gate_scanned_event(event_payload: Dict[str, Any]):
         if not phone and not user:
             continue
 
-        dedupe_key = f"arrival:{student.id}:{occurred_date_str}:{guardian.id}"
+        dedupe_key = f"{category.lower()}:{student.id}:{occurred_date_str}:{guardian.id}"
 
         payload = {
+            'type': category,
+            'student_id': student.id,
             'student_name': student_name,
             'guardian_name': guardian_name,
             'school_name': school_name,
@@ -582,8 +590,8 @@ def handle_gate_scanned_event(event_payload: Dict[str, Any]):
             recipient_phone=phone,
             recipient_email=email,
             recipient_name=guardian_name,
-            category=NotificationCategory.ARRIVAL,
-            template_key='attendance.arrival',
+            category=category,
+            template_key=template_key,
             payload=payload,
             priority=NotificationPriority.HIGH,
             dedupe_key=dedupe_key,

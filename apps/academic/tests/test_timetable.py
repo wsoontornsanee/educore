@@ -165,7 +165,7 @@ class SubstitutionTests(TestCase):
     def test_assign_substitution_notifies_substitute(self):
         from apps.notifications.models import NotificationCategory, NotificationIntent
 
-        assign_substitution(self.slot, datetime.date(2026, 8, 3), self.substitute, reason="Sakit")
+        sub = assign_substitution(self.slot, datetime.date(2026, 8, 3), self.substitute, reason="Sakit")
 
         intent = NotificationIntent.all_tenants.filter(
             foundation_id=self.fx['foundation'].id, category=NotificationCategory.SUBSTITUTE_ASSIGNED,
@@ -174,6 +174,8 @@ class SubstitutionTests(TestCase):
         self.assertEqual(intent.recipient_user_id, self.substitute.user_id)
         self.assertEqual(intent.payload['class_group'], self.fx['class_group'].name)
         self.assertEqual(intent.payload['original_teacher'], self.fx['teacher'].person.full_name)
+        self.assertEqual(intent.payload['type'], 'SUBSTITUTE_ASSIGNED')
+        self.assertEqual(intent.payload['substitution_id'], sub.id)
 
     def test_notification_failure_does_not_block_substitution_assignment(self):
         from unittest.mock import patch

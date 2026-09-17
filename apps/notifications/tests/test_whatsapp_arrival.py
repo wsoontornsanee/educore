@@ -116,6 +116,8 @@ class WhatsAppArrivalMessagingIntegrationTests(TestCase):
             ).first()
             self.assertIsNotNone(intent)
             self.assertEqual(intent.status, IntentStatus.DISPATCHED)
+            self.assertEqual(intent.payload['type'], 'ARRIVAL')
+            self.assertEqual(intent.payload['student_id'], self.student.id)
 
             # Assert Delivery row
             delivery = NotificationDelivery.objects.filter(intent=intent).first()

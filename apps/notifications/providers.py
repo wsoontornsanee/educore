@@ -145,6 +145,7 @@ class MockPushProvider(BaseNotificationProvider):
             'recipient': recipient_target,
             'body': rendered_body,
             'subject': rendered_subject,
+            'variables': variables or {},
             'timestamp': timezone.now().isoformat(),
         })
         self.record_success()

@@ -492,11 +492,13 @@ def ingest_gate_events(
                     foundation_id=foundation_id,
                     payload=event_payload,
                 )
-                # Dispatch parent arrival notification (ATT-006: < 5s)
-                if direction == 'IN' and student:
+                # Dispatch parent arrival/departure notification (ATT-006: < 5s, PAR-004)
+                if direction in ('IN', 'OUT') and student:
                     try:
+                        from apps.notifications.models import NotificationCategory
                         from apps.notifications.services import handle_gate_scanned_event
-                        handle_gate_scanned_event(event_payload)
+                        category = NotificationCategory.ARRIVAL if direction == 'IN' else NotificationCategory.DEPARTURE
+                        handle_gate_scanned_event(event_payload, category=category)
                     except Exception as exc:
                         logger.warning(f"Error handling gate scanned event notification: {exc}")
 
