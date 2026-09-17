@@ -7,6 +7,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { createPaymentIntent, fetchPaymentIntent } from '../../services/payments';
 import { colors, radius, spacing, typography } from '../../theme/tokens';
+import { track } from '../../services/analytics.ts';
 import type { PaymentIntentItem } from '../../types';
 
 interface PaymentScreenProps {
@@ -50,6 +51,10 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ invoiceIds, onDone
   }, []);
 
   useEffect(() => {
+    track('pay_start');
+  }, []);
+
+  useEffect(() => {
     if (!intent?.expires_at) return;
     const tick = () => {
       const remaining = Math.max(0, Math.floor((new Date(intent.expires_at).getTime() - Date.now()) / 1000));
@@ -61,6 +66,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ invoiceIds, onDone
   }, [intent?.expires_at]);
 
   const handleChooseMethod = async (chosen: 'VA' | 'QRIS') => {
+    track('pay_method_selected');
     if (pollRef.current) {
       clearInterval(pollRef.current);
       pollRef.current = null;
@@ -73,6 +79,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ invoiceIds, onDone
     try {
       const created = await createPaymentIntent(invoiceIds, chosen);
       setIntent(created);
+      track('pay_intent_created');
       pollRef.current = setInterval(async () => {
         try {
           const refreshed = await fetchPaymentIntent(created.id);
@@ -84,6 +91,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ invoiceIds, onDone
             if (!pollRef.current) return;
             clearInterval(pollRef.current);
             pollRef.current = null;
+            track('pay_completed');
             onDone();
           } else if (UNPAID_TERMINAL_MESSAGE[refreshed.status]) {
             // EXPIRED / CANCELLED are terminal too: stop polling and let the

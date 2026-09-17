@@ -41,6 +41,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'hardware.read', 'hardware.write',
         'audit_log.read',
         'reporting.read',
+        'analytics.event.write',
     },
     ROLE_SCHOOL_ADMIN: {
         'school_config.read', 'school_config.write',
@@ -56,6 +57,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'hardware.read', 'hardware.write',
         'audit_log.read',
         'reporting.read',
+        'analytics.event.write',
     },
     ROLE_FINANCE_OFFICER: {
         'student_records.read',
@@ -67,12 +69,14 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'payroll.read', 'payroll.write',
         'audit_log.read',
         'reporting.read',
+        'analytics.event.write',
     },
     ROLE_TEACHER: {
         'student_records.read',
         'grades.read', 'grades.write',
         'attendance.read', 'attendance.write',
         'behaviour.read', 'behaviour.write',
+        'analytics.event.write',
     },
     ROLE_COUNSELLOR: {
         'student_records.read',
@@ -80,11 +84,13 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'attendance.read',
         'behaviour.read', 'behaviour.write',
         'clinic.read',
+        'analytics.event.write',
     },
     ROLE_CANTEEN_OPERATOR: {
         'student_records.read',
         'wallet.topup.read',
         'wallet.topup.write',
+        'analytics.event.write',
     },
     ROLE_PARENT: {
         'student_records.read',
@@ -100,6 +106,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'wallet.topup.read', 'wallet.topup.write',
         'behaviour.read',
         'clinic.read',
+        'analytics.event.write',
     },
 }
 

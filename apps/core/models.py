@@ -242,3 +242,36 @@ class ExportJob(TenantModel):
 
     def __str__(self):
         return f"ExportJob#{self.id} {self.report_key} ({self.status})"
+
+
+ANALYTICS_EVENT_NAMES = (
+    'app_open', 'child_switch', 'invoice_view', 'pay_start',
+    'pay_method_selected', 'pay_intent_created', 'pay_completed',
+    'topup_completed', 'absence_submitted', 'grades_view',
+    'report_card_view', 'notification_opened',
+)
+
+
+class AnalyticsEvent(TenantModel):
+    """Product analytics event (spec/08 §5, spec/15 RPT-015).
+
+    Deliberately distinct from AuditEvent: no actor_id, ip_address, or diff —
+    RPT-015 requires these events never carry PII, only foundation_id,
+    school_id, and role.
+    """
+    EVENT_NAME_CHOICES = [(name, name) for name in ANALYTICS_EVENT_NAMES]
+
+    event_name = models.CharField(max_length=32, choices=EVENT_NAME_CHOICES, db_index=True)
+    school_id = models.BigIntegerField(blank=True, null=True, db_index=True)
+    role = models.CharField(max_length=32)
+    occurred_at = models.DateTimeField(help_text="Client-reported event time; may differ from created_at for offline-queued events")
+
+    class Meta:
+        db_table = 'analytics_events'
+        indexes = [
+            models.Index(fields=['foundation_id', 'event_name', 'occurred_at']),
+            models.Index(fields=['foundation_id', 'occurred_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.event_name} @ {self.occurred_at} (foundation={self.foundation_id})"

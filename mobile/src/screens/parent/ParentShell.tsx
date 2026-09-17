@@ -6,6 +6,7 @@ import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, Touchabl
 import { fetchChildren } from '../../services/children';
 import { getLastChildId, saveLastChildId } from '../../services/storage';
 import { colors, radius, spacing, typography } from '../../theme/tokens';
+import { track } from '../../services/analytics.ts';
 import type { ChildSummary } from '../../types';
 
 export type ParentTab = 'HOME' | 'ATTENDANCE' | 'ACADEMIC' | 'MESSAGES' | 'WALLET' | 'NUTRITION' | 'INVOICES';
@@ -51,6 +52,7 @@ export const ParentShell: React.FC<ParentShellProps> = ({ activeTab, onTabChange
   const handleSelectChild = async (id: number) => {
     setSelectedId(id);
     await saveLastChildId(id);
+    track('child_switch');
   };
 
   const selectedChild = allChildren.find((k) => k.student_id === selectedId);

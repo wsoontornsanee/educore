@@ -48,6 +48,7 @@ import {
   updateSpendRules,
 } from '../../services/wallet';
 import { colors, radius, spacing, typography } from '../../theme/tokens';
+import { track } from '../../services/analytics.ts';
 import type {
   ChildSummary,
   WalletAutoTopupConfig,
@@ -301,6 +302,7 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
       );
 
       if (settledIntent.status === 'SETTLED') {
+        track('topup_completed');
         // Auto refresh wallet balance and transactions
         await loadData(true);
       }
