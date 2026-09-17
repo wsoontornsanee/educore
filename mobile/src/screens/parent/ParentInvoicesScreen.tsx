@@ -19,6 +19,7 @@ import { cacheGet, cacheSet } from '../../services/storage';
 import { StaleOfflineBanner } from '../../components/StaleOfflineBanner';
 import { PaymentScreen } from './PaymentScreen';
 import { colors, radius, spacing, typography } from '../../theme/tokens';
+import { track } from '../../services/analytics.ts';
 import type { ChildSummary, InvoiceItem, PaymentReceiptItem } from '../../types';
 
 export type InvoicesSubTab = 'INVOICES' | 'RECEIPTS';
@@ -68,6 +69,7 @@ export const ParentInvoicesScreen: React.FC<ParentInvoicesScreenProps> = ({ chil
   // Fetch Invoices
   useEffect(() => {
     let cancelled = false;
+    track('invoice_view');
     (async () => {
       setLoading(true);
       try {

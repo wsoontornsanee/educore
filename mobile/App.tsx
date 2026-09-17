@@ -7,6 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import { checkAuth, logout } from './src/services/auth';
 import { todayWib } from './src/services/localDate';
 import { isParent } from './src/services/roleRouting';
+import { track } from './src/services/analytics.ts';
 import { initQueueDb } from './src/services/offlineQueue';
 import {
   deactivatePushTokenAsync,
@@ -50,6 +51,7 @@ export default function App() {
         setCurrentUser(authState.user);
         // Register push tokens in background
         registerForPushNotificationsAsync().catch(() => {});
+        track('app_open');
       }
       setCheckingAuth(false);
     };
@@ -62,6 +64,7 @@ export default function App() {
       if (data?.type === 'SUBSTITUTE_ASSIGNED' && data?.slot) {
         setSubModalSlot(data.slot);
       }
+      track('notification_opened');
     });
 
     return () => {
