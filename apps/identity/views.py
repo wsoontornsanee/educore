@@ -818,3 +818,87 @@ class SocialLinksListView(views.APIView):
             for s in links
         ]})
 
+
+class MicrosoftTenantConfigView(views.APIView):
+    """GET/PUT/DELETE /api/v1/auth/sso/microsoft-tenant/ — per-foundation Microsoft
+    Entra tenant pinning for Microsoft 365 SSO (deferred from TASK-036 / PR #115).
+
+    Foundation Admins only, scoped to the caller's own foundation (never URL
+    parameters). When pinned, SSO for this foundation only accepts Microsoft ID
+    tokens issued by the configured tenant; DELETE removes the pin and restores
+    the global-setting fallback.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsFoundationAdmin]
+
+    def _get_config(self, foundation_id: int):
+        from .models import MicrosoftTenantConfig
+        return MicrosoftTenantConfig.all_tenants.filter(
+            foundation_id=foundation_id, deleted_at__isnull=True,
+        ).first()
+
+    def get(self, request):
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        config = self._get_config(foundation_id)
+        return Response({
+            'tenant_id': config.tenant_id if config else None,
+            'updated_at': config.updated_at if config else None,
+        }, status=status.HTTP_200_OK)
+
+    def put(self, request):
+        from .models import MicrosoftTenantConfig, validate_microsoft_tenant_id
+
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        if not foundation_id:
+            return Response({'error': 'Konteks yayasan tidak ditemukan.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        tenant_id = (request.data.get('tenant_id') or '').strip()
+        try:
+            validate_microsoft_tenant_id(tenant_id)
+        except DjangoValidationError as e:
+            return Response({'error': '; '.join(e.messages), 'code': 'TENANT_ID_INVALID'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        config = self._get_config(foundation_id)
+        previous_tenant_id = config.tenant_id if config else None
+        if config:
+            config.tenant_id = tenant_id
+            config.save(update_fields=['tenant_id', 'updated_at', 'updated_by'])
+        else:
+            config = MicrosoftTenantConfig.all_tenants.create(
+                foundation_id=foundation_id,
+                tenant_id=tenant_id,
+            )
+
+        audit(
+            action="identity.sso.microsoft_tenant.set",
+            entity_type="MicrosoftTenantConfig",
+            entity_id=str(config.id),
+            actor_id=str(request.user.id),
+            foundation_id=foundation_id,
+            ip_address=request.META.get('REMOTE_ADDR'),
+            diff={"tenant_id": {"before": previous_tenant_id, "after": tenant_id}},
+        )
+        return Response({'tenant_id': config.tenant_id}, status=status.HTTP_200_OK)
+
+    def delete(self, request):
+        from .models import MicrosoftTenantConfig
+        from django.utils import timezone as dj_timezone
+
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        deleted = MicrosoftTenantConfig.all_tenants.filter(
+            foundation_id=foundation_id, deleted_at__isnull=True,
+        ).update(deleted_at=dj_timezone.now())
+
+        if deleted:
+            audit(
+                action="identity.sso.microsoft_tenant.removed",
+                entity_type="MicrosoftTenantConfig",
+                entity_id=str(foundation_id),
+                actor_id=str(request.user.id),
+                foundation_id=foundation_id,
+                ip_address=request.META.get('REMOTE_ADDR'),
+                diff={"tenant_id": {"after": None}},
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
