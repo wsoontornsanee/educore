@@ -91,6 +91,32 @@ class School(TenantModel):
     base_currency = models.CharField(max_length=3, default='IDR', help_text="School base currency (CUR-007)")
     is_active = models.BooleanField(default=True)
 
+    # DAPODIK/EMIS statutory fields (CMP-017, CMP-019). Blank-optional:
+    # the pre-export validation report flags them, entry is never blocked.
+    OWNERSHIP_NEGERI = 'NEGERI'
+    OWNERSHIP_SWASTA = 'SWASTA'
+    OWNERSHIP_CHOICES = [
+        (OWNERSHIP_NEGERI, 'Negeri (Public)'),
+        (OWNERSHIP_SWASTA, 'Swasta (Private)'),
+    ]
+    nss = models.CharField(max_length=16, blank=True, default='', help_text="Nomor Statistik Sekolah (DAPODIK)")
+    nsm = models.CharField(max_length=16, blank=True, default='', help_text="Nomor Statistik Madrasah (EMIS, CMP-019)")
+    ownership_status = models.CharField(max_length=16, choices=OWNERSHIP_CHOICES, blank=True, default='', help_text="Status kepemilikan (negeri/swasta)")
+    ACCREDITATION_CHOICES = [
+        ('A', 'A'), ('B', 'B'), ('C', 'C'),
+        ('TIDAK_TERAKREDITASI', 'Belum Terakreditasi'),
+    ]
+    accreditation = models.CharField(max_length=19, choices=ACCREDITATION_CHOICES, blank=True, default='', help_text="Hasil akreditasi (A/B/C)")
+    establishment_date = models.DateField(null=True, blank=True, help_text="Tanggal pendirian sekolah")
+
+    # Structured school address (DAPODIK profile block)
+    street_address = models.TextField(blank=True, default='', help_text="Alamat jalan sekolah")
+    kelurahan = models.CharField(max_length=64, blank=True, default='', help_text="Kelurahan / Desa")
+    kecamatan = models.CharField(max_length=64, blank=True, default='', help_text="Kecamatan")
+    kabupaten_kota = models.CharField(max_length=64, blank=True, default='', help_text="Kabupaten / Kota")
+    provinsi = models.CharField(max_length=64, blank=True, default='', help_text="Provinsi")
+    postal_code = models.CharField(max_length=10, blank=True, default='', help_text="Kode pos")
+
     class Meta:
         db_table = 'schools'
         verbose_name = 'Sekolah'
@@ -105,9 +131,12 @@ class School(TenantModel):
 
 class Person(TenantModel):
     """PII Vault table isolating personal identity data for UU PDP compliance (spec/02 §2, spec/14 §4).
-    
+
     Identity-bearing PII (NIK, DOB, address) lives only in persons.
     Other tables reference person_id.
+
+    DAPODIK/EMIS statutory fields (CMP-017) are blank-optional: the
+    pre-export validation report flags them, entry is never blocked.
     """
     GENDER_MALE = 'L'
     GENDER_FEMALE = 'P'
@@ -116,11 +145,52 @@ class Person(TenantModel):
         (GENDER_FEMALE, 'Perempuan'),
     ]
 
+    RELIGION_ISLAM = 'ISLAM'
+    RELIGION_KRISTEN = 'KRISTEN'
+    RELIGION_KATOLIK = 'KATOLIK'
+    RELIGION_HINDU = 'HINDU'
+    RELIGION_BUDDHA = 'BUDDHA'
+    RELIGION_KONGHUCU = 'KONGHUCU'
+    RELIGION_CHOICES = [
+        (RELIGION_ISLAM, 'Islam'),
+        (RELIGION_KRISTEN, 'Kristen'),
+        (RELIGION_KATOLIK, 'Katolik'),
+        (RELIGION_HINDU, 'Hindu'),
+        (RELIGION_BUDDHA, 'Buddha'),
+        (RELIGION_KONGHUCU, 'Konghucu'),
+    ]
+
     nik = models.CharField(max_length=16, blank=True, null=True, db_index=True, help_text="Nomor Induk Kependudukan (16 digits)")
     full_name = models.CharField(max_length=128, help_text="Full legal name per birth certificate / KTP")
     dob = models.DateField(null=True, blank=True, help_text="Tanggal lahir")
     gender = models.CharField(max_length=1, choices=GENDER_CHOICES, blank=True, default='')
     address = models.TextField(blank=True, default='', help_text="Alamat domisili lengkap")
+
+    # DAPODIK/EMIS statutory fields (CMP-017)
+    religion = models.CharField(
+        max_length=16, choices=RELIGION_CHOICES, blank=True, default='',
+        help_text="Agama (DAPODIK/EMIS statutory field, CMP-017)"
+    )
+    birth_city = models.CharField(max_length=64, blank=True, default='', help_text="Tempat lahir (kota/kabupaten)")
+    birth_certificate_number = models.CharField(
+        max_length=64, blank=True, default='',
+        help_text="Nomor Akta Kelahiran (DAPODIK/EMIS statutory field)"
+    )
+    citizenship = models.CharField(
+        max_length=32, blank=True, default='WNI',
+        help_text="Kewarganegaraan (default WNI)"
+    )
+
+    # Structured address (DAPODIK requires the breakdown; `address` stays as
+    # the free-text jalan/line. All optional — validation flags incompleteness.)
+    rt = models.CharField(max_length=8, blank=True, default='', help_text="Rukun Tetangga")
+    rw = models.CharField(max_length=8, blank=True, default='', help_text="Rukun Warga")
+    dusun = models.CharField(max_length=64, blank=True, default='', help_text="Dusun / Kampung")
+    kelurahan = models.CharField(max_length=64, blank=True, default='', help_text="Kelurahan / Desa")
+    kecamatan = models.CharField(max_length=64, blank=True, default='', help_text="Kecamatan")
+    kabupaten_kota = models.CharField(max_length=64, blank=True, default='', help_text="Kabupaten / Kota")
+    provinsi = models.CharField(max_length=64, blank=True, default='', help_text="Provinsi")
+    postal_code = models.CharField(max_length=10, blank=True, default='', help_text="Kode pos")
 
     class Meta:
         db_table = 'persons'
@@ -630,6 +700,41 @@ class Staff(TenantModel):
         default=TYPE_PERMANENT,
         db_index=True
     )
+
+    # DAPODIK/EMIS statutory fields (CMP-017). Blank-optional: the
+    # pre-export validation report flags them, entry is never blocked.
+    APPT_PNS = 'PNS'
+    APPT_CPNS = 'CPNS'
+    APPT_PPPK = 'PPPK'
+    APPT_GTY = 'GTY'
+    APPT_PTT = 'PTT'
+    APPT_NONE = 'TIDAK_ADA'
+    APPOINTMENT_CHOICES = [
+        (APPT_PNS, 'PNS'),
+        (APPT_CPNS, 'CPNS'),
+        (APPT_PPPK, 'PPPK'),
+        (APPT_GTY, 'GTY (Guru Tidak Tetap)'),
+        (APPT_PTT, 'PTT (Pegawai Tidak Tetap)'),
+        (APPT_NONE, 'Tidak Ada (Tetap Lokal)'),
+    ]
+    appointment_type = models.CharField(max_length=16, choices=APPOINTMENT_CHOICES, blank=True, default='', help_text="Jenis pengangkatan (DAPODIK stat peg)")
+    CERT_SERTIFIKAT = 'SERTIFIKAT'
+    CERT_BELUM = 'BELUM'
+    CERT_PROSES = 'SERTIFIKASI_PROSES'
+    CERTIFICATION_CHOICES = [
+        (CERT_SERTIFIKAT, 'Sudah Bersertifikat Pendidik'),
+        (CERT_BELUM, 'Belum Bersertifikat'),
+        (CERT_PROSES, 'Sedang Proses Sertifikasi'),
+    ]
+    certification_status = models.CharField(max_length=19, choices=CERTIFICATION_CHOICES, blank=True, default='', help_text="Status sertifikasi pendidik (DAPODIK)")
+    DEGREE_CHOICES = [
+        ('SMA', 'SMA/SMK/MA'), ('D1', 'D1'), ('D2', 'D2'), ('D3', 'D3'),
+        ('D4', 'D4'), ('S1', 'S1'), ('S2', 'S2'), ('S3', 'S3'),
+    ]
+    highest_degree = models.CharField(max_length=16, choices=DEGREE_CHOICES, blank=True, default='', help_text="Pendidikan tertinggi (DAPODIK)")
+    degree_institution = models.CharField(max_length=128, blank=True, default='', help_text="Institusi pendidikan terakhir")
+    degree_graduation_year = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Tahun lulus pendidikan terakhir")
+
     join_date = models.DateField(help_text="Tanggal mulai bekerja")
     resignation_date = models.DateField(null=True, blank=True, help_text="Tanggal berhenti / offboarding")
     resignation_reason = models.TextField(blank=True, default='', help_text="Alasan offboarding")

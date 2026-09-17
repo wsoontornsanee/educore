@@ -67,6 +67,10 @@ class Subject(TenantModel):
     is_religious = models.BooleanField(default=False)
     credit_hours = models.PositiveSmallIntegerField(default=0)
     is_active = models.BooleanField(default=True)
+    dapodik_code = models.CharField(
+        max_length=32, blank=True, default='',
+        help_text=_("Ministry subject code for DAPODIK/EMIS export (CMP-017)")
+    )
     active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:

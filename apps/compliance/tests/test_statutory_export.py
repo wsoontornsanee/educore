@@ -48,16 +48,23 @@ class StatutoryExportFixtures(TestCase):
         self.school = School.all_tenants.create(
             foundation_id=self.foundation.id, name="SMA Bina Bangsa",
             npsn="40100001", level=School.LEVEL_SMA,
+            ownership_status=School.OWNERSHIP_SWASTA,
+            kelurahan="Menteng", kecamatan="Tebet",
+            kabupaten_kota="Jakarta Selatan", provinsi="DKI Jakarta",
         )
         self.madrasah = School.all_tenants.create(
             foundation_id=self.foundation.id, name="MA Bina Bangsa",
             npsn="40100002", level=School.LEVEL_MA,
+            nsm="121133010001",
+            ownership_status=School.OWNERSHIP_SWASTA,
+            kecamatan="Tebet", kabupaten_kota="Jakarta Selatan", provinsi="DKI Jakarta",
         )
 
         # Homeroom teacher with complete data
         self.teacher_person = Person.all_tenants.create(
             foundation_id=self.foundation.id, full_name="Pak Guru Wali",
             nik="3171010101010001", gender=Person.GENDER_MALE, dob=date(1985, 5, 20),
+            religion=Person.RELIGION_ISLAM,
         )
         self.teacher_user = User.all_tenants.create_user(
             phone_e164="+6281888888881", foundation_id=self.foundation.id,
@@ -66,13 +73,15 @@ class StatutoryExportFixtures(TestCase):
         self.teacher = Staff.all_tenants.create(
             foundation_id=self.foundation.id, person=self.teacher_person, user=self.teacher_user,
             school=self.school, nuptk="1612345678900001", nip="198505202010011001",
-            employment_type=Staff.TYPE_PERMANENT, join_date=date(2010, 1, 1),
+            employment_type=Staff.TYPE_PERMANENT, appointment_type=Staff.APPT_PNS,
+            join_date=date(2010, 1, 1),
         )
 
         # Student with complete data, enrolled in a rombel
         self.student_person = Person.all_tenants.create(
             foundation_id=self.foundation.id, full_name="Andi Wijaya",
             nik="3171010101010002", gender=Person.GENDER_MALE, dob=date(2008, 3, 15),
+            religion=Person.RELIGION_ISLAM,
         )
         self.student = Student.all_tenants.create(
             foundation_id=self.foundation.id, school=self.school, person=self.student_person,
@@ -158,8 +167,40 @@ class StatutoryValidationServiceTests(StatutoryExportFixtures):
             npsn="", level=School.LEVEL_SMA,
         )
         issues = validate_statutory_export(school, StatutorySystem.DAPODIK)
-        self.assertEqual(len(issues['school']), 1)
-        self.assertEqual(issues['school'][0]['field'], 'npsn')
+        npsn_issues = [i for i in issues['school'] if i['field'] == 'npsn']
+        self.assertEqual(len(npsn_issues), 1)
+        self.assertIn('NPSN kosong', npsn_issues[0]['problem'])
+        School.all_tenants.filter(id=school.id).delete()
+
+    def test_school_profile_issues_reported(self):
+        """New statutory fields: ownership, NSM (EMIS only), address completeness."""
+        school = School.all_tenants.create(
+            foundation_id=self.foundation.id, name="SMA Profil Kosong",
+            npsn="", level=School.LEVEL_SMA,
+        )
+        issues = validate_statutory_export(school, StatutorySystem.DAPODIK)
+        school_fields = {i['field'] for i in issues['school']}
+        self.assertIn('ownership_status', school_fields)
+        self.assertIn('address', school_fields)
+        # NSM is EMIS-only: not flagged on a DAPODIK run
+        self.assertNotIn('nsm', school_fields)
+        School.all_tenants.filter(id=school.id).delete()
+
+    def test_emis_requires_nsm(self):
+        """CMP-019: the EMIS path additionally requires the madrasah
+        statistics number (NSM)."""
+        # madrasah fixture has NSM set — clear it and re-validate
+        self.madrasah.nsm = ''
+        self.madrasah.save(update_fields=['nsm'])
+        issues = validate_statutory_export(self.madrasah, StatutorySystem.EMIS)
+        nsm_issues = [i for i in issues['school'] if i['field'] == 'nsm']
+        self.assertEqual(len(nsm_issues), 1)
+        self.assertIn('NSM kosong', nsm_issues[0]['problem'])
+
+        # But the same school on the DAPODIK path is NOT flagged for NSM
+        issues_dapodik = validate_statutory_export(self.madrasah, StatutorySystem.DAPODIK)
+        dapodik_fields = {i['field'] for i in issues_dapodik['school']}
+        self.assertNotIn('nsm', dapodik_fields)
 
     def test_rombel_without_homeroom_teacher_reported(self):
         orphan_rombel = ClassGroup.all_tenants.create(
@@ -245,11 +286,49 @@ class StatutoryExporterTests(StatutoryExportFixtures):
         self.assertEqual(students[0]['nisn'], '0061234567')
         self.assertEqual(students[0]['nik'], '3171010101010002')
         self.assertEqual(students[0]['rombel'], 'X IPA 1')
+        self.assertEqual(students[0]['agama'], 'ISLAM')
 
         staff = bundle['sheets']['staff']
         self.assertEqual(len(staff), 1)
         self.assertEqual(staff[0]['nama'], 'Pak Guru Wali')
         self.assertEqual(staff[0]['nuptk'], '1612345678900001')
+        self.assertEqual(staff[0]['kepegawaian'], 'PNS')
+
+    def test_expanded_statutory_fields_exported(self):
+        """New CMP-017 fields flow into the bundle's rows."""
+        self.student_person.birth_city = 'Jakarta'
+        self.student_person.birth_certificate_number = 'ACT-2008-998877'
+        self.student_person.rt = '003'
+        self.student_person.rw = '005'
+        self.student_person.kelurahan = 'Menteng'
+        self.student_person.kecamatan = 'Tebet'
+        self.student_person.kabupaten_kota = 'Jakarta Selatan'
+        self.student_person.provinsi = 'DKI Jakarta'
+        self.student_person.postal_code = '12810'
+        self.student_person.save()
+
+        self.teacher.highest_degree = 'S1'
+        self.teacher.degree_institution = 'Universitas Pendidikan Indonesia'
+        self.teacher.degree_graduation_year = 2008
+        self.teacher.certification_status = Staff.CERT_SERTIFIKAT
+        self.teacher.save()
+
+        exporter = DapodikFileExporter(school=self.school)
+        bundle = exporter.build_bundle()
+
+        student_row = bundle['sheets']['students'][0]
+        self.assertEqual(student_row['tempat_lahir'], 'Jakarta')
+        self.assertEqual(student_row['nomor_akta_kelahiran'], 'ACT-2008-998877')
+        self.assertEqual(student_row['rt'], '003')
+        self.assertEqual(student_row['kelurahan'], 'Menteng')
+        self.assertEqual(student_row['kode_pos'], '12810')
+
+        staff_row = bundle['sheets']['staff'][0]
+        self.assertEqual(staff_row['pendidikan_tertinggi'], 'S1')
+        self.assertEqual(staff_row['institusi'], 'Universitas Pendidikan Indonesia')
+        # _resolve stringifies values for the sheet rows
+        self.assertEqual(staff_row['tahun_lulus'], '2008')
+        self.assertEqual(staff_row['status_sertifikasi'], 'SERTIFIKAT')
 
         rombels = bundle['sheets']['rombel']
         self.assertEqual(len(rombels), 1)

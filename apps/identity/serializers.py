@@ -131,7 +131,13 @@ class StaffSerializer(serializers.ModelSerializer):
             'person',
             'user',
             'nip',
+            'nuptk',
             'employment_type',
+            'appointment_type',
+            'certification_status',
+            'highest_degree',
+            'degree_institution',
+            'degree_graduation_year',
             'join_date',
             'resignation_date',
             'resignation_reason',
@@ -153,15 +159,45 @@ class StaffCreateSerializer(serializers.Serializer):
     """Serializer for creating a new staff member with Person PII and User account."""
     school_id = serializers.IntegerField(required=False, allow_null=True)
     nip = serializers.CharField(max_length=32, required=False, allow_blank=True)
+    nuptk = serializers.CharField(max_length=16, required=False, allow_blank=True, allow_null=True)
     employment_type = serializers.ChoiceField(choices=['PERMANENT', 'CONTRACT', 'HONORARY'], default='PERMANENT')
+    appointment_type = serializers.ChoiceField(
+        choices=['PNS', 'CPNS', 'PPPK', 'GTY', 'PTT', 'TIDAK_ADA'],
+        required=False, allow_blank=True, allow_null=True, default='',
+    )
+    certification_status = serializers.ChoiceField(
+        choices=['SERTIFIKAT', 'BELUM', 'SERTIFIKASI_PROSES'],
+        required=False, allow_blank=True, allow_null=True, default='',
+    )
+    highest_degree = serializers.ChoiceField(
+        choices=['SMA', 'D1', 'D2', 'D3', 'D4', 'S1', 'S2', 'S3'],
+        required=False, allow_blank=True, allow_null=True, default='',
+    )
+    degree_institution = serializers.CharField(max_length=128, required=False, allow_blank=True, default='')
+    degree_graduation_year = serializers.IntegerField(required=False, allow_null=True)
     join_date = serializers.DateField()
-    
+
     # Person PII
     full_name = serializers.CharField(max_length=128)
     nik = serializers.CharField(max_length=16, required=False, allow_blank=True)
     dob = serializers.DateField(required=False, allow_null=True)
     gender = serializers.ChoiceField(choices=[('L', 'Laki-laki'), ('P', 'Perempuan')], required=False, allow_blank=True)
     address = serializers.CharField(required=False, allow_blank=True)
+    religion = serializers.ChoiceField(
+        choices=['ISLAM', 'KRISTEN', 'KATOLIK', 'HINDU', 'BUDDHA', 'KONGHUCU'],
+        required=False, allow_blank=True, allow_null=True, default='',
+    )
+    birth_city = serializers.CharField(max_length=64, required=False, allow_blank=True, default='')
+    birth_certificate_number = serializers.CharField(max_length=64, required=False, allow_blank=True, default='')
+    citizenship = serializers.CharField(max_length=32, required=False, allow_blank=True, default='WNI')
+    rt = serializers.CharField(max_length=8, required=False, allow_blank=True, default='')
+    rw = serializers.CharField(max_length=8, required=False, allow_blank=True, default='')
+    dusun = serializers.CharField(max_length=64, required=False, allow_blank=True, default='')
+    kelurahan = serializers.CharField(max_length=64, required=False, allow_blank=True, default='')
+    kecamatan = serializers.CharField(max_length=64, required=False, allow_blank=True, default='')
+    kabupaten_kota = serializers.CharField(max_length=64, required=False, allow_blank=True, default='')
+    provinsi = serializers.CharField(max_length=64, required=False, allow_blank=True, default='')
+    postal_code = serializers.CharField(max_length=10, required=False, allow_blank=True, default='')
 
     # User Auth
     phone_e164 = serializers.CharField(max_length=20)
@@ -184,6 +220,18 @@ class StudentPersonSerializer(serializers.Serializer):
     dob = serializers.DateField(read_only=True)
     gender = serializers.CharField(read_only=True)
     address = serializers.CharField(read_only=True)
+    religion = serializers.CharField(read_only=True)
+    birth_city = serializers.CharField(read_only=True)
+    birth_certificate_number = serializers.CharField(read_only=True)
+    citizenship = serializers.CharField(read_only=True)
+    rt = serializers.CharField(read_only=True)
+    rw = serializers.CharField(read_only=True)
+    dusun = serializers.CharField(read_only=True)
+    kelurahan = serializers.CharField(read_only=True)
+    kecamatan = serializers.CharField(read_only=True)
+    kabupaten_kota = serializers.CharField(read_only=True)
+    provinsi = serializers.CharField(read_only=True)
+    postal_code = serializers.CharField(read_only=True)
 
 
 class StudentSerializer(serializers.ModelSerializer):
@@ -231,6 +279,21 @@ class StudentCreateSerializer(serializers.Serializer):
     dob = serializers.DateField(required=False, allow_null=True)
     gender = serializers.ChoiceField(choices=[('L', 'Laki-laki'), ('P', 'Perempuan')], required=False, allow_blank=True)
     address = serializers.CharField(required=False, allow_blank=True, default='')
+    religion = serializers.ChoiceField(
+        choices=['ISLAM', 'KRISTEN', 'KATOLIK', 'HINDU', 'BUDDHA', 'KONGHUCU'],
+        required=False, allow_blank=True, allow_null=True, default='',
+    )
+    birth_city = serializers.CharField(max_length=64, required=False, allow_blank=True, default='')
+    birth_certificate_number = serializers.CharField(max_length=64, required=False, allow_blank=True, default='')
+    citizenship = serializers.CharField(max_length=32, required=False, allow_blank=True, default='WNI')
+    rt = serializers.CharField(max_length=8, required=False, allow_blank=True, default='')
+    rw = serializers.CharField(max_length=8, required=False, allow_blank=True, default='')
+    dusun = serializers.CharField(max_length=64, required=False, allow_blank=True, default='')
+    kelurahan = serializers.CharField(max_length=64, required=False, allow_blank=True, default='')
+    kecamatan = serializers.CharField(max_length=64, required=False, allow_blank=True, default='')
+    kabupaten_kota = serializers.CharField(max_length=64, required=False, allow_blank=True, default='')
+    provinsi = serializers.CharField(max_length=64, required=False, allow_blank=True, default='')
+    postal_code = serializers.CharField(max_length=10, required=False, allow_blank=True, default='')
 
 
 class StudentStatusTransitionSerializer(serializers.Serializer):

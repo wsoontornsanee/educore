@@ -45,6 +45,19 @@ def get_default_field_map() -> dict:
             'person.gender': 'jenis_kelamin',
             'person.nik': 'nik',
             'person.dob': 'tanggal_lahir',
+            'person.birth_city': 'tempat_lahir',
+            'person.religion': 'agama',
+            'person.birth_certificate_number': 'nomor_akta_kelahiran',
+            'person.citizenship': 'kewarganegaraan',
+            'person.address': 'alamat_jalan',
+            'person.rt': 'rt',
+            'person.rw': 'rw',
+            'person.dusun': 'dusun',
+            'person.kelurahan': 'kelurahan',
+            'person.kecamatan': 'kecamatan',
+            'person.kabupaten_kota': 'kabupaten_kota',
+            'person.provinsi': 'provinsi',
+            'person.postal_code': 'kode_pos',
             'status': 'status',
             'rombel': 'rombel',
         },
@@ -54,7 +67,15 @@ def get_default_field_map() -> dict:
             'person.full_name': 'nama',
             'person.gender': 'jenis_kelamin',
             'person.nik': 'nik',
+            'person.dob': 'tanggal_lahir',
+            'person.birth_city': 'tempat_lahir',
+            'person.religion': 'agama',
             'employment_type': 'jenis_ptk',
+            'appointment_type': 'kepegawaian',
+            'certification_status': 'status_sertifikasi',
+            'highest_degree': 'pendidikan_tertinggi',
+            'degree_institution': 'institusi',
+            'degree_graduation_year': 'tahun_lulus',
             'status': 'status',
         },
         'rombel': {
@@ -86,7 +107,7 @@ def validate_statutory_export(school: School, system: str) -> dict:
         'rombel': [],
     }
 
-    # --- School-level identifiers ---
+    # --- School-level identifiers + statutory profile (CMP-017/019) ---
     if not _is_set(school.npsn):
         issues['school'].append({
             'record': school.name,
@@ -98,6 +119,33 @@ def validate_statutory_export(school: School, system: str) -> dict:
             'record': school.name,
             'field': 'npsn',
             'problem': f'NPSN harus 8 digit angka (dapat: {school.npsn})',
+        })
+
+    if not _is_set(school.ownership_status):
+        issues['school'].append({
+            'record': school.name,
+            'field': 'ownership_status',
+            'problem': 'Status kepemilikan (negeri/swasta) kosong',
+        })
+
+    # EMIS additionally requires the madrasah statistics number.
+    if system == StatutorySystem.EMIS and not _is_set(school.nsm):
+        issues['school'].append({
+            'record': school.name,
+            'field': 'nsm',
+            'problem': 'NSM kosong (wajib untuk ekspor EMIS)',
+        })
+
+    # Structured address completeness: at minimum kecamatan + kabupaten/kota + provinsi.
+    missing_address = [
+        field for field in ('kecamatan', 'kabupaten_kota', 'provinsi')
+        if not _is_set(getattr(school, field, ''))
+    ]
+    if missing_address:
+        issues['school'].append({
+            'record': school.name,
+            'field': 'address',
+            'problem': f'Alamat sekolah belum lengkap: {", ".join(missing_address)}',
         })
 
     # --- Students: missing NISN, malformed NISN/NIK, no active rombel ---
@@ -151,6 +199,14 @@ def validate_statutory_export(school: School, system: str) -> dict:
                 'problem': f'NIK harus 16 digit angka (dapat: {person.nik})',
             })
 
+        if not _is_set(person.religion):
+            issues['students'].append({
+                'record': person.full_name,
+                'rombel': rombel,
+                'field': 'person.religion',
+                'problem': 'Agama kosong',
+            })
+
         if rombel is None:
             issues['students'].append({
                 'record': person.full_name,
@@ -197,6 +253,13 @@ def validate_statutory_export(school: School, system: str) -> dict:
                 'record': person.full_name,
                 'field': 'person.nik',
                 'problem': f'NIK harus 16 digit angka (dapat: {person.nik})',
+            })
+
+        if not _is_set(staff.appointment_type):
+            issues['staff'].append({
+                'record': person.full_name,
+                'field': 'appointment_type',
+                'problem': 'Jenis pengangkatan (CPNS/PNS/PPPK/GTY/PTT) kosong',
             })
 
     # --- Rombel: must have a homeroom teacher ---
