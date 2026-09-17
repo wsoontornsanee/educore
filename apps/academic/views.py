@@ -34,6 +34,7 @@ from apps.academic.models import (
     LessonPlan,
     ReportCard,
     Subject,
+    SubstitutionStatus,
     Term,
     TimetableSlot,
     TimetableSubstitution,
@@ -990,6 +991,42 @@ class StudentReportCardView(APIView):
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
         term_id = request.query_params.get('term_id')
+        if not term_id:
+            cards = ReportCard.objects.filter(
+                student=student, is_current=True, foundation_id=foundation_id,
+            ).select_related('term', 'term__academic_year').order_by('-term__start_date')
+            results = []
+            for rc in cards:
+                visibility = get_visible_report_card(rc)
+                if not visibility['visible']:
+                    results.append({
+                        'id': rc.id,
+                        'term_id': rc.term_id,
+                        'term_name': rc.term.name if rc.term else '',
+                        'academic_year_name': rc.term.academic_year.name if rc.term and rc.term.academic_year else '',
+                        'status': rc.status,
+                        'visible': False,
+                        'reason': visibility['reason'],
+                        'download_url': None,
+                    })
+                else:
+                    data = ReportCardSerializer(rc).data
+                    download_url = None
+                    if rc.pdf_key:
+                        try:
+                            dl_info = build_signed_download(rc.pdf_key)
+                            u = dl_info.get('download_url')
+                            if isinstance(u, str):
+                                download_url = u
+                        except Exception:
+                            pass
+                    data['download_url'] = download_url
+                    data['visible'] = True
+                    data['term_name'] = rc.term.name if rc.term else ''
+                    data['academic_year_name'] = rc.term.academic_year.name if rc.term and rc.term.academic_year else ''
+                    results.append(data)
+            return Response({'results': results})
+
         report_card = ReportCard.objects.filter(
             student=student, term_id=term_id, is_current=True, foundation_id=foundation_id,
         ).first()
@@ -1000,7 +1037,16 @@ class StudentReportCardView(APIView):
         if not visibility['visible']:
             return Response({'visible': False, 'reason': visibility['reason']}, status=status.HTTP_403_FORBIDDEN)
 
-        return Response({'visible': True, 'report_card': ReportCardSerializer(report_card).data})
+        data = ReportCardSerializer(report_card).data
+        if report_card.pdf_key:
+            try:
+                dl_info = build_signed_download(report_card.pdf_key)
+                u = dl_info.get('download_url')
+                if isinstance(u, str):
+                    data['download_url'] = u
+            except Exception:
+                pass
+        return Response({'visible': True, 'report_card': data})
 
 
 class LessonPlanViewSet(TenantScopedModelViewSet):
@@ -1155,6 +1201,10 @@ class StudentAttainmentView(APIView):
         if not student:
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
+        from apps.identity.guardian_access import can_guardian_access_student
+        if not can_guardian_access_student(request.user, student.id, foundation_id):
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
         class_subject_id = request.query_params.get('class_subject_id')
         class_subject = ClassSubject.objects.filter(id=class_subject_id, foundation_id=foundation_id).first()
         if not class_subject:
@@ -1236,3 +1286,221 @@ class ExpectedPeriodsView(APIView):
         missing_only = request.query_params.get('missing_only', '').lower() in ('1', 'true', 'yes')
         periods = get_expected_periods_for_school(school, date, missing_only=missing_only)
         return Response({'date': date_param, 'periods': periods})
+
+
+class StudentGradesView(APIView):
+    """GET /api/v1/academic/students/:student_id/grades/ -> published assessment scores and attainment (PAR-010)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'grades.read'
+
+    def get(self, request, student_id):
+        foundation_id = get_current_foundation_id()
+        student = Student.objects.filter(id=student_id, foundation_id=foundation_id).first()
+        if not student:
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.identity.guardian_access import can_guardian_access_student
+        if not can_guardian_access_student(request.user, student.id, foundation_id):
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        enrollments = ClassEnrollment.objects.filter(
+            student=student,
+            is_active=True,
+            foundation_id=foundation_id,
+        ).select_related('class_group', 'class_group__academic_year')
+
+        class_group_ids = [e.class_group_id for e in enrollments]
+        class_subjects = ClassSubject.objects.filter(
+            class_group_id__in=class_group_ids,
+            foundation_id=foundation_id,
+        ).select_related('subject', 'teacher__person', 'term', 'class_group').order_by('subject__name')
+
+        subjects_data = []
+        for cs in class_subjects:
+            # PAR-010: strictly published=True only
+            assessments = Assessment.objects.filter(
+                class_subject=cs,
+                published=True,
+                foundation_id=foundation_id,
+            ).order_by('-due_at', 'id')
+
+            scores = AssessmentScore.objects.filter(
+                assessment__in=assessments,
+                student=student,
+                foundation_id=foundation_id,
+            )
+            score_map = {s.assessment_id: s for s in scores}
+
+            term_grade = None
+            try:
+                term_grade = compute_term_grade(student, cs)
+            except Exception:
+                pass
+
+            subjects_data.append({
+                'class_subject_id': cs.id,
+                'class_group_id': cs.class_group_id,
+                'class_group_name': cs.class_group.name,
+                'subject_id': cs.subject_id,
+                'subject_name': cs.subject.name,
+                'subject_code': cs.subject.code,
+                'teacher_name': cs.teacher.person.full_name if cs.teacher and cs.teacher.person else '',
+                'term_id': cs.term_id,
+                'term_name': cs.term.name if cs.term else '',
+                'final_grade': str(term_grade['final_score']) if term_grade and term_grade.get('final_score') is not None else None,
+                'final_descriptor': term_grade.get('descriptor', '') if term_grade else '',
+                'is_complete': term_grade.get('is_complete', False) if term_grade else False,
+                'assessments': [
+                    {
+                        'id': a.id,
+                        'title': a.title,
+                        'type': a.type,
+                        'type_display': a.get_type_display(),
+                        'max_score': str(a.max_score),
+                        'weight': str(a.weight),
+                        'due_at': a.due_at.isoformat() if a.due_at else None,
+                        'score': str(score_map[a.id].score) if a.id in score_map and score_map[a.id].score is not None else None,
+                        'descriptor': score_map[a.id].descriptor if a.id in score_map else '',
+                        'feedback': score_map[a.id].feedback if a.id in score_map else '',
+                        'graded_at': score_map[a.id].graded_at.isoformat() if a.id in score_map and score_map[a.id].graded_at else None,
+                    }
+                    for a in assessments
+                ],
+            })
+
+        return Response({
+            'student_id': student.id,
+            'subjects': subjects_data,
+        })
+
+
+class StudentHomeworkView(APIView):
+    """GET /api/v1/academic/students/:student_id/homework/ -> homework & submission status for student (spec/08)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'grades.read'
+
+    def get(self, request, student_id):
+        foundation_id = get_current_foundation_id()
+        student = Student.objects.filter(id=student_id, foundation_id=foundation_id).first()
+        if not student:
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.identity.guardian_access import can_guardian_access_student
+        if not can_guardian_access_student(request.user, student.id, foundation_id):
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        enrollments = ClassEnrollment.objects.filter(
+            student=student,
+            is_active=True,
+            foundation_id=foundation_id,
+        ).values_list('class_group_id', flat=True)
+
+        homework_qs = Homework.objects.filter(
+            class_subject__class_group_id__in=enrollments,
+            foundation_id=foundation_id,
+        ).select_related(
+            'class_subject__subject',
+            'class_subject__teacher__person',
+            'class_subject__class_group',
+        ).order_by('-due_at')
+
+        submissions = HomeworkSubmission.objects.filter(
+            homework__in=homework_qs,
+            student=student,
+            foundation_id=foundation_id,
+        )
+        sub_map = {s.homework_id: s for s in submissions}
+
+        results = []
+        for hw in homework_qs:
+            sub = sub_map.get(hw.id)
+            results.append({
+                'id': hw.id,
+                'title': hw.title,
+                'instructions': hw.instructions,
+                'subject_name': hw.class_subject.subject.name,
+                'subject_code': hw.class_subject.subject.code,
+                'teacher_name': hw.class_subject.teacher.person.full_name if hw.class_subject.teacher and hw.class_subject.teacher.person else '',
+                'class_group_name': hw.class_subject.class_group.name,
+                'assigned_at': hw.assigned_at.isoformat() if hw.assigned_at else None,
+                'due_at': hw.due_at.isoformat() if hw.due_at else None,
+                'submission_status': sub.status if sub else 'NOT_STARTED',
+                'submitted_at': sub.submitted_at.isoformat() if sub and sub.submitted_at else None,
+                'score': str(sub.score) if sub and sub.score is not None else None,
+                'feedback': sub.feedback if sub else '',
+                'files_count': len(sub.files) if sub and isinstance(sub.files, list) else 0,
+            })
+
+        return Response({'results': results})
+
+
+class StudentTimetableView(APIView):
+    """GET /api/v1/academic/students/:student_id/timetable/?date= -> weekly timetable for student (spec/08)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'grades.read'
+
+    def get(self, request, student_id):
+        foundation_id = get_current_foundation_id()
+        student = Student.objects.filter(id=student_id, foundation_id=foundation_id).first()
+        if not student:
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.identity.guardian_access import can_guardian_access_student
+        if not can_guardian_access_student(request.user, student.id, foundation_id):
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        enrollments = ClassEnrollment.objects.filter(
+            student=student,
+            is_active=True,
+            foundation_id=foundation_id,
+        ).values_list('class_group_id', flat=True)
+
+        slots = TimetableSlot.objects.filter(
+            class_subject__class_group_id__in=enrollments,
+            foundation_id=foundation_id,
+        ).select_related(
+            'class_subject__subject',
+            'class_subject__teacher__person',
+            'class_subject__class_group',
+        ).order_by('day_of_week', 'period_no', 'start_time')
+
+        import datetime as _dt
+        date_param = request.query_params.get('date')
+        target_date = _dt.date.today()
+        if date_param:
+            try:
+                target_date = _dt.date.fromisoformat(date_param)
+            except ValueError:
+                pass
+
+        subs = TimetableSubstitution.objects.filter(
+            slot__in=slots,
+            date=target_date,
+            status=SubstitutionStatus.ACCEPTED,
+            foundation_id=foundation_id,
+        ).select_related('substitute_teacher__person')
+        sub_map = {s.slot_id: s for s in subs}
+
+        results = []
+        for slot in slots:
+            sub = sub_map.get(slot.id)
+            results.append({
+                'id': slot.id,
+                'day_of_week': slot.day_of_week,
+                'day_name': slot.get_day_of_week_display(),
+                'period_no': slot.period_no,
+                'start_time': slot.start_time.strftime('%H:%M'),
+                'end_time': slot.end_time.strftime('%H:%M'),
+                'room': slot.room,
+                'subject_name': slot.class_subject.subject.name,
+                'subject_code': slot.class_subject.subject.code,
+                'teacher_name': slot.class_subject.teacher.person.full_name if slot.class_subject.teacher and slot.class_subject.teacher.person else '',
+                'class_group_name': slot.class_subject.class_group.name,
+                'is_substituted': bool(sub),
+                'substitute_teacher_name': sub.substitute_teacher.person.full_name if sub and sub.substitute_teacher and sub.substitute_teacher.person else None,
+            })
+
+        return Response({
+            'date': target_date.isoformat(),
+            'slots': results,
+        })

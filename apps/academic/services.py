@@ -1825,7 +1825,7 @@ def revise_report_card(report_card: ReportCard, actor=None) -> ReportCard:
 
 
 def get_or_create_report_card_policy(school) -> ReportCardPolicy:
-    policy, _created = ReportCardPolicy.objects.get_or_create(
+    policy, _created = ReportCardPolicy.all_tenants.get_or_create(
         foundation_id=school.foundation_id, school=school,
     )
     return policy
