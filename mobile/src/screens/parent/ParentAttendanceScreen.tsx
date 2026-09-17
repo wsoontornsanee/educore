@@ -25,6 +25,7 @@ import { todayWib } from '../../services/localDate.ts';
 import { attendanceStatusLabel } from '../../constants/attendance.ts';
 import { findAttendanceRowIndex } from '../../services/deepLink.ts';
 import { StaleOfflineBanner } from '../../components/StaleOfflineBanner.tsx';
+import { useLocale } from '../../i18n/LocaleContext.tsx';
 import { colors, radius, spacing, typography } from '../../theme/tokens.ts';
 import type {
   AbsenceRequestItem,
@@ -60,7 +61,9 @@ const ABSENCE_STATUS_CONFIG: Record<
 };
 
 export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ child, highlightDate }) => {
+  const { t, locale } = useLocale();
   const [activeTab, setActiveTab] = useState<AttendanceSubTab>('TIMELINE');
+
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(false);
   const [cachedAt, setCachedAt] = useState<string | null>(null);
@@ -221,7 +224,7 @@ export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ 
           accessibilityState={{ selected: activeTab === 'TIMELINE' }}
         >
           <Text style={[styles.tabText, activeTab === 'TIMELINE' && styles.tabTextActive]}>
-            Riwayat Presensi
+            {t('attendance.tab_timeline')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -231,7 +234,7 @@ export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ 
           accessibilityState={{ selected: activeTab === 'ABSENCE' }}
         >
           <Text style={[styles.tabText, activeTab === 'ABSENCE' && styles.tabTextActive]}>
-            Pengajuan Izin / Sakit
+            {t('attendance.tab_absence')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -241,7 +244,7 @@ export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ 
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Memuat data presensi...</Text>
+          <Text style={styles.loadingText}>{t('common.loading')}</Text>
         </View>
       ) : activeTab === 'TIMELINE' ? (
         <FlatList
@@ -252,7 +255,7 @@ export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ 
           onScrollToIndexFailed={() => {}}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>Belum ada data riwayat presensi.</Text>
+              <Text style={styles.emptyText}>{t('attendance.no_history')}</Text>
             </View>
           }
           renderItem={({ item }) => (
@@ -261,8 +264,8 @@ export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ 
               <View style={styles.rowText}>
                 <Text style={styles.rowDate}>{item.date}</Text>
                 <Text style={styles.rowStatus}>
-                  {attendanceStatusLabel(item.status)}
-                  {item.first_in_at ? ` — Tiba ${item.first_in_at}` : ''}
+                  {attendanceStatusLabel(item.status, locale)}
+                  {item.first_in_at ? ` — ${t('home.arrived')} ${item.first_in_at}` : ''}
                 </Text>
               </View>
             </View>
@@ -284,14 +287,15 @@ export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ 
               }}
               accessibilityRole="button"
             >
-              <Text style={styles.ctaButtonText}>+ Ajukan Izin / Sakit</Text>
+              <Text style={styles.ctaButtonText}>{t('attendance.request_absence_btn')}</Text>
             </TouchableOpacity>
             {offline && (
               <Text style={styles.offlineWarningText}>
-                Pengajuan baru dinonaktifkan saat mode offline (PAR-015).
+                {t('messages.offline_notice')}
               </Text>
             )}
           </View>
+
 
           <FlatList
             data={absenceList}
@@ -299,14 +303,22 @@ export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ 
             contentContainerStyle={styles.list}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyTitle}>Belum Ada Pengajuan</Text>
+                <Text style={styles.emptyTitle}>{t('common.empty')}</Text>
                 <Text style={styles.emptyText}>
-                  Pengajuan izin atau sakit untuk {child.full_name} akan tercantum di sini.
+                  {t('attendance.no_absence_records')}
                 </Text>
               </View>
             }
             renderItem={({ item }) => {
               const statusCfg = ABSENCE_STATUS_CONFIG[item.status] || ABSENCE_STATUS_CONFIG.PENDING;
+              const statusLabel =
+                item.status === 'APPROVED'
+                  ? t('attendance.absence_approved')
+                  : item.status === 'REJECTED'
+                  ? t('attendance.absence_rejected')
+                  : t('attendance.absence_pending');
+              const typeLabel =
+                item.type === 'SAKIT' ? t('attendance.status.SAKIT') : t('attendance.status.IZIN');
               return (
                 <View style={styles.absenceCard}>
                   <View style={styles.cardHeader}>
@@ -322,12 +334,12 @@ export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ 
                           item.type === 'SAKIT' ? styles.typeTextSakit : styles.typeTextIzin,
                         ]}
                       >
-                        {item.type === 'SAKIT' ? 'SAKIT' : 'IZIN'}
+                        {typeLabel.toUpperCase()}
                       </Text>
                     </View>
                     <View style={[styles.statusBadge, { backgroundColor: statusCfg.bg }]}>
                       <Text style={[styles.statusBadgeText, { color: statusCfg.text }]}>
-                        {statusCfg.label}
+                        {statusLabel}
                       </Text>
                     </View>
                   </View>
@@ -339,13 +351,13 @@ export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ 
                   </Text>
 
                   <Text style={styles.reasonText}>
-                    <Text style={styles.reasonLabel}>Alasan: </Text>
+                    <Text style={styles.reasonLabel}>{t('common.notes')}: </Text>
                     {item.reason}
                   </Text>
 
                   {item.attachment_url && (
                     <View style={styles.attachmentIndicator}>
-                      <Text style={styles.attachmentIndicatorText}>📎 Foto / Surat Terlampir</Text>
+                      <Text style={styles.attachmentIndicatorText}>📎 {t('attendance.attached')} Foto / Dokumen</Text>
                     </View>
                   )}
 
@@ -370,7 +382,7 @@ export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ 
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <ScrollView contentContainerStyle={styles.modalScroll}>
-              <Text style={styles.modalTitle}>Ajukan Izin / Sakit</Text>
+              <Text style={styles.modalTitle}>{t('attendance.modal_title')}</Text>
               <Text style={styles.modalSubtitle}>Siswa: {child.full_name}</Text>
 
               {formError && (
@@ -380,14 +392,14 @@ export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ 
               )}
 
               {/* Type Selection */}
-              <Text style={styles.inputLabel}>Jenis Pengajuan</Text>
+              <Text style={styles.inputLabel}>{t('attendance.form_type')}</Text>
               <View style={styles.typeSelector}>
                 <TouchableOpacity
                   style={[styles.typeOption, formType === 'SAKIT' && styles.typeOptionActive]}
                   onPress={() => setFormType('SAKIT')}
                 >
                   <Text style={[styles.typeOptionText, formType === 'SAKIT' && styles.typeOptionTextActive]}>
-                    Sakit
+                    {t('attendance.status.SAKIT')}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -395,7 +407,7 @@ export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ 
                   onPress={() => setFormType('IZIN')}
                 >
                   <Text style={[styles.typeOptionText, formType === 'IZIN' && styles.typeOptionTextActive]}>
-                    Izin
+                    {t('attendance.status.IZIN')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -403,7 +415,7 @@ export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ 
               {/* Dates */}
               <View style={styles.dateRow}>
                 <View style={styles.dateCol}>
-                  <Text style={styles.inputLabel}>Dari Tanggal</Text>
+                  <Text style={styles.inputLabel}>{t('attendance.date_from')}</Text>
                   <TextInput
                     style={styles.input}
                     value={formDateFrom}
@@ -412,7 +424,7 @@ export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ 
                   />
                 </View>
                 <View style={styles.dateCol}>
-                  <Text style={styles.inputLabel}>Sampai Tanggal</Text>
+                  <Text style={styles.inputLabel}>{t('attendance.date_to')}</Text>
                   <TextInput
                     style={styles.input}
                     value={formDateTo}
@@ -423,18 +435,18 @@ export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ 
               </View>
 
               {/* Reason */}
-              <Text style={styles.inputLabel}>Alasan / Keterangan</Text>
+              <Text style={styles.inputLabel}>{t('attendance.reason')}</Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
                 value={formReason}
                 onChangeText={setFormReason}
-                placeholder="Jelaskan alasan izin atau kondisi sakit..."
+                placeholder={t('attendance.reason_placeholder')}
                 multiline
                 numberOfLines={3}
               />
 
               {/* Photo Attachment (PAR-011 limit 1MB) */}
-              <Text style={styles.inputLabel}>Lampiran Foto / Surat Dokter (Maks. 1MB)</Text>
+              <Text style={styles.inputLabel}>{t('attendance.attachment')}</Text>
               {formAttachmentName ? (
                 <View style={styles.attachmentPreview}>
                   <View style={styles.attachmentMeta}>
@@ -451,7 +463,7 @@ export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ 
                     style={styles.removeAttachmentButton}
                     onPress={handleClearAttachment}
                   >
-                    <Text style={styles.removeAttachmentText}>Hapus</Text>
+                    <Text style={styles.removeAttachmentText}>{t('common.cancel')}</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -460,13 +472,13 @@ export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ 
                     style={styles.pickFileButton}
                     onPress={() => handleSelectSampleAttachment(false)}
                   >
-                    <Text style={styles.pickFileButtonText}>📷 Pilih Foto Surat</Text>
+                    <Text style={styles.pickFileButtonText}>📷 {t('attendance.attach_photo_btn')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.pickFileButtonSecondary}
                     onPress={() => handleSelectSampleAttachment(true)}
                   >
-                    <Text style={styles.pickFileButtonSecondaryText}>⚠️ Uji File &gt; 1MB</Text>
+                    <Text style={styles.pickFileButtonSecondaryText}>⚠️ {t('attendance.attach_sample')}</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -478,7 +490,7 @@ export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ 
                   onPress={() => setModalVisible(false)}
                   disabled={submitting}
                 >
-                  <Text style={styles.cancelButtonText}>Batal</Text>
+                  <Text style={styles.cancelButtonText}>{t('common.cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
@@ -488,7 +500,7 @@ export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ 
                   {submitting ? (
                     <ActivityIndicator size="small" color={colors.white} />
                   ) : (
-                    <Text style={styles.submitButtonText}>Kirim Pengajuan</Text>
+                    <Text style={styles.submitButtonText}>{t('common.submit')}</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -496,6 +508,7 @@ export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ 
           </View>
         </View>
       </Modal>
+
     </View>
   );
 };

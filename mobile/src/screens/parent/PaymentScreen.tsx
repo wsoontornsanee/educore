@@ -8,6 +8,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View
 import { createPaymentIntent, fetchPaymentIntent } from '../../services/payments';
 import { colors, radius, spacing, typography } from '../../theme/tokens';
 import { track } from '../../services/analytics.ts';
+import { useLocale } from '../../i18n/LocaleContext.tsx';
 import type { PaymentIntentItem } from '../../types';
 
 interface PaymentScreenProps {
@@ -20,12 +21,9 @@ const POLL_INTERVAL_MS = 3000;
 // Terminal states of finance.PaymentIntentStatus. PENDING is the only non-terminal
 // one, so polling must stop on any of these three.
 const SUCCESS_STATUS = 'COMPLETED';
-const UNPAID_TERMINAL_MESSAGE: Record<string, string> = {
-  EXPIRED: 'Waktu pembayaran telah habis. Silakan ulangi dari daftar tagihan.',
-  CANCELLED: 'Pembayaran dibatalkan. Silakan ulangi dari daftar tagihan.',
-};
 
 export const PaymentScreen: React.FC<PaymentScreenProps> = ({ invoiceIds, onDone }) => {
+  const { t } = useLocale();
   const [method, setMethod] = useState<'VA' | 'QRIS' | null>(null);
   const [intent, setIntent] = useState<PaymentIntentItem | null>(null);
   const [loading, setLoading] = useState(false);
@@ -93,20 +91,22 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ invoiceIds, onDone
             pollRef.current = null;
             track('pay_completed');
             onDone();
-          } else if (UNPAID_TERMINAL_MESSAGE[refreshed.status]) {
-            // EXPIRED / CANCELLED are terminal too: stop polling and let the
-            // guardian go back instead of spinning forever.
+          } else if (refreshed.status === 'EXPIRED' || refreshed.status === 'CANCELLED') {
             if (!pollRef.current) return;
             clearInterval(pollRef.current);
             pollRef.current = null;
-            setTerminalMsg(UNPAID_TERMINAL_MESSAGE[refreshed.status]);
+            setTerminalMsg(
+              refreshed.status === 'EXPIRED'
+                ? t('payment.expired_msg', 'Waktu pembayaran telah habis. Silakan ulangi dari daftar tagihan.')
+                : t('payment.cancelled_msg', 'Pembayaran dibatalkan. Silakan ulangi dari daftar tagihan.')
+            );
           }
         } catch {
           // Network hiccup during polling — keep trying on the next tick.
         }
       }, POLL_INTERVAL_MS);
     } catch (err: any) {
-      setErrorMsg(err?.response?.data?.error || 'Gagal membuat intent pembayaran.');
+      setErrorMsg(err?.response?.data?.error || t('common.error'));
     } finally {
       setLoading(false);
     }
@@ -115,7 +115,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ invoiceIds, onDone
   if (!method) {
     return (
       <View style={styles.center}>
-        <Text style={styles.title}>Pilih Metode Pembayaran</Text>
+        <Text style={styles.title}>{t('payment.choose_bank')}</Text>
         <TouchableOpacity style={styles.methodButton} onPress={() => handleChooseMethod('VA')}>
           <Text style={styles.methodButtonText}>Virtual Account (VA)</Text>
         </TouchableOpacity>
@@ -123,7 +123,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ invoiceIds, onDone
           <Text style={styles.methodButtonText}>QRIS</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={handleBack} style={styles.cancelLink}>
-          <Text style={styles.cancelText}>Batal</Text>
+          <Text style={styles.cancelText}>{t('common.cancel')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -134,7 +134,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ invoiceIds, onDone
       <View style={styles.center}>
         <Text style={styles.errorText}>{terminalMsg}</Text>
         <TouchableOpacity onPress={handleBack} style={styles.cancelLink}>
-          <Text style={styles.cancelText}>Kembali ke daftar tagihan</Text>
+          <Text style={styles.cancelText}>{t('payment.back_to_invoices', 'Kembali ke daftar tagihan')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -147,7 +147,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ invoiceIds, onDone
           <>
             <Text style={styles.errorText}>{errorMsg}</Text>
             <TouchableOpacity onPress={() => setMethod(null)} style={styles.cancelLink}>
-              <Text style={styles.cancelText}>Coba lagi</Text>
+              <Text style={styles.cancelText}>{t('common.retry')}</Text>
             </TouchableOpacity>
           </>
         ) : (
@@ -164,15 +164,15 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ invoiceIds, onDone
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
       <View style={styles.summaryCard}>
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Jumlah Tagihan</Text>
+          <Text style={styles.summaryLabel}>{t('invoice.total_amount')}</Text>
           <Text style={styles.summaryValue}>{intent.currency} {intent.base_amount}</Text>
         </View>
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Biaya Layanan</Text>
+          <Text style={styles.summaryLabel}>{t('payment.admin_fee')}</Text>
           <Text style={styles.summaryValue}>{intent.currency} {intent.convenience_fee_amount}</Text>
         </View>
         <View style={[styles.summaryRow, styles.summaryTotalRow]}>
-          <Text style={styles.summaryTotalLabel}>Total Bayar</Text>
+          <Text style={styles.summaryTotalLabel}>{t('payment.total_pay')}</Text>
           <Text style={styles.summaryTotalValue}>{intent.currency} {intent.amount}</Text>
         </View>
       </View>
@@ -180,7 +180,7 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ invoiceIds, onDone
       <View style={styles.instructionCard}>
         {intent.method === 'VA' ? (
           <>
-            <Text style={styles.cardTitle}>Transfer Virtual Account — {intent.va_bank}</Text>
+            <Text style={styles.cardTitle}>{t('wallet.va_number')} — {intent.va_bank}</Text>
             <Text style={styles.vaNumber}>{intent.va_number}</Text>
             <Text style={styles.instructionBody}>
               1. Buka aplikasi mobile banking {intent.va_bank}.{'\n'}
@@ -190,8 +190,8 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ invoiceIds, onDone
           </>
         ) : (
           <>
-            <Text style={styles.cardTitle}>Bayar dengan QRIS</Text>
-            <Text style={styles.qrisLabel}>Kode QRIS</Text>
+            <Text style={styles.cardTitle}>{t('payment.qris_option')}</Text>
+            <Text style={styles.qrisLabel}>{t('payment.qris_code', 'Kode QRIS')}</Text>
             <Text style={styles.qrisPayload} selectable>{intent.qris_payload}</Text>
             <Text style={styles.instructionBody}>
               1. Buka aplikasi e-wallet atau mobile banking Anda.{'\n'}
@@ -201,16 +201,16 @@ export const PaymentScreen: React.FC<PaymentScreenProps> = ({ invoiceIds, onDone
           </>
         )}
         <Text style={styles.countdown}>
-          Kedaluwarsa dalam {minutes}:{String(seconds).padStart(2, '0')}
+          {t('payment.expires_in', 'Kedaluwarsa dalam')} {minutes}:{String(seconds).padStart(2, '0')}
         </Text>
       </View>
 
-      <Text style={styles.waitingNote}>Menunggu konfirmasi pembayaran otomatis…</Text>
+      <Text style={styles.waitingNote}>{t('wallet.topup_waiting')}</Text>
 
       {/* Escape hatch: the poll may never settle (VA paid later, network down),
           so the guardian must always be able to leave this screen. */}
       <TouchableOpacity onPress={handleBack} style={styles.backButton} accessibilityRole="button">
-        <Text style={styles.backButtonText}>Kembali ke daftar tagihan</Text>
+        <Text style={styles.backButtonText}>{t('payment.back_to_invoices', 'Kembali ke daftar tagihan')}</Text>
       </TouchableOpacity>
     </ScrollView>
   );

@@ -6,6 +6,7 @@
  */
 import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useLocale } from '../i18n/LocaleContext.tsx';
 import { colors, radius, spacing, typography } from '../theme/tokens';
 
 interface StaleOfflineBannerProps {
@@ -23,6 +24,8 @@ export const StaleOfflineBanner: React.FC<StaleOfflineBannerProps> = ({
   onSyncPress,
   isSyncing = false,
 }) => {
+  const { t } = useLocale();
+
   if (!isOffline && pendingCount === 0) {
     return null;
   }
@@ -35,13 +38,13 @@ export const StaleOfflineBanner: React.FC<StaleOfflineBannerProps> = ({
         </View>
         <View style={styles.textContainer}>
           <Text style={styles.title}>
-            {isOffline ? 'Mode Offline Aktif' : 'Presensi Menunggu Sinkron'}
+            {isOffline ? t('banner.offline_title') : t('banner.pending_title')}
           </Text>
           <Text style={styles.subtitle}>
             {pendingCount > 0
               ? `${pendingCount} sesi presensi tersimpan lokal di HP ini.`
-              : 'Perubahan akan otomatis dikirim saat sinyal pulih.'}
-            {lastSyncedAt ? ` (Sinkron: ${lastSyncedAt})` : ''}
+              : t('banner.offline_sub')}
+            {lastSyncedAt ? ` (${t('banner.last_synced')} ${lastSyncedAt})` : ''}
           </Text>
         </View>
       </View>
@@ -56,13 +59,14 @@ export const StaleOfflineBanner: React.FC<StaleOfflineBannerProps> = ({
           {isSyncing ? (
             <ActivityIndicator size="small" color={colors.white} />
           ) : (
-            <Text style={styles.syncButtonText}>Sinkronkan</Text>
+            <Text style={styles.syncButtonText}>{t('banner.sync_btn')}</Text>
           )}
         </TouchableOpacity>
       )}
     </View>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: {

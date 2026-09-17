@@ -49,6 +49,7 @@ import {
 } from '../../services/wallet';
 import { colors, radius, spacing, typography } from '../../theme/tokens';
 import { track } from '../../services/analytics.ts';
+import { useLocale } from '../../i18n/LocaleContext.tsx';
 import type {
   ChildSummary,
   WalletAutoTopupConfig,
@@ -67,6 +68,7 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
   child,
   onNavigateNutrition,
 }) => {
+  const { t, locale } = useLocale();
   // Screen state
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -390,7 +392,7 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
         <View style={styles.balanceHeroCard}>
           <View style={styles.balanceRowTop}>
             <View>
-              <Text style={styles.balanceLabel}>Saldo Dompet Digital Siswa</Text>
+              <Text style={styles.balanceLabel}>{t('wallet.balance_label')}</Text>
               <Text style={styles.balanceValue}>{formatRupiah(wallet?.balance)}</Text>
             </View>
             <View
@@ -411,7 +413,7 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
                   isFrozen ? styles.statusTextFrozen : styles.statusTextActive,
                 ]}
               >
-                {isFrozen ? 'Dibekukan' : 'Aktif'}
+                {isFrozen ? t('wallet.badge_frozen') : t('wallet.badge_active')}
               </Text>
             </View>
           </View>
@@ -431,13 +433,13 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
               disabled={isFrozen}
               accessibilityRole="button"
             >
-              <Text style={styles.primaryActionBtnText}>+ Isi Saldo</Text>
+              <Text style={styles.primaryActionBtnText}>{t('wallet.topup_btn')}</Text>
             </TouchableOpacity>
 
             <View style={styles.dailyLimitIndicator}>
-              <Text style={styles.dailyLimitIndicatorLabel}>Batas Belanja Harian:</Text>
+              <Text style={styles.dailyLimitIndicatorLabel}>{t('wallet.spend_limits')}:</Text>
               <Text style={styles.dailyLimitIndicatorValue}>
-                {wallet?.daily_limit ? formatRupiah(wallet.daily_limit) : 'Tanpa Batas'}
+                {wallet?.daily_limit ? formatRupiah(wallet.daily_limit) : t('common.unlimited')}
               </Text>
             </View>
           </View>
@@ -680,7 +682,7 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
 
         {/* Itemized Transaction History (WAL-008) */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Riwayat Transaksi Kantin</Text>
+          <Text style={styles.sectionTitle}>{t('wallet.history_title')}</Text>
           <Text style={styles.sectionSubtitle}>
             Daftar pembelian, pengisian saldo, dan penyesuaian transaksi kantin siswa.
           </Text>
@@ -688,7 +690,7 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
           {transactions.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyIcon}>💳</Text>
-              <Text style={styles.emptyTitle}>Belum Ada Transaksi</Text>
+              <Text style={styles.emptyTitle}>{t('wallet.history_empty')}</Text>
               <Text style={styles.emptySub}>
                 Transaksi belanja kantin atau pengisian saldo akan muncul di sini.
               </Text>
@@ -696,7 +698,7 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
           ) : (
             transactions.map((tx) => {
               const isCredit = tx.type === 'TOPUP' || tx.type === 'REFUND';
-              const formattedDate = new Date(tx.occurred_at).toLocaleString('id-ID', {
+              const formattedDate = new Date(tx.occurred_at).toLocaleString(locale, {
                 dateStyle: 'medium',
                 timeStyle: 'short',
               });
@@ -757,13 +759,13 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
             {/* Modal Header */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                {activeIntent ? 'Instruksi Pembayaran' : 'Isi Saldo Dompet Siswa'}
+                {activeIntent ? t('wallet.topup_method') : t('wallet.topup_modal_title')}
               </Text>
               <TouchableOpacity
                 style={styles.modalCloseBtn}
                 onPress={handleCloseTopupModal}
                 accessibilityRole="button"
-                accessibilityLabel="Tutup"
+                accessibilityLabel={t('common.close')}
               >
                 <Text style={styles.modalCloseText}>✕</Text>
               </TouchableOpacity>
@@ -774,7 +776,7 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
                 /* Step 1: Selection & Form */
                 <>
                   {/* Amount Preset Buttons */}
-                  <Text style={styles.modalLabel}>Pilih Nominal Top-Up:</Text>
+                  <Text style={styles.modalLabel}>{t('wallet.topup_nominal')}:</Text>
                   <View style={styles.presetGrid}>
                     {TOPUP_PRESETS.map((p) => {
                       const isSelected = !customAmountInput && topupAmount === p;
@@ -813,7 +815,7 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
 
                   {/* Payment Method Switcher */}
                   <Text style={[styles.modalLabel, { marginTop: spacing.base }]}>
-                    Metode Pembayaran:
+                    {t('wallet.topup_method')}:
                   </Text>
                   <View style={styles.methodTabRow}>
                     <TouchableOpacity
@@ -929,7 +931,7 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
                   {activeIntent.status === 'SETTLED' ? (
                     <View style={styles.settledBox}>
                       <Text style={styles.settledIcon}>✓</Text>
-                      <Text style={styles.settledTitle}>Top-Up Berhasil!</Text>
+                      <Text style={styles.settledTitle}>{t('wallet.topup_settled')}</Text>
                       <Text style={styles.settledSub}>
                         Saldo sebesar {formatRupiah(activeIntent.amount)} telah berhasil ditambahkan ke dompet anak.
                       </Text>
@@ -938,7 +940,7 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
                         onPress={handleCloseTopupModal}
                         accessibilityRole="button"
                       >
-                        <Text style={styles.doneBtnText}>Selesai</Text>
+                        <Text style={styles.doneBtnText}>{t('common.close')}</Text>
                       </TouchableOpacity>
                     </View>
                   ) : (
@@ -956,7 +958,7 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
 
                       {activeIntent.method === 'VA' ? (
                         <View style={styles.vaDisplayBox}>
-                          <Text style={styles.vaLabel}>Nomor Virtual Account:</Text>
+                          <Text style={styles.vaLabel}>{t('wallet.va_number')}:</Text>
                           <Text style={styles.vaNumber}>{activeIntent.va_number}</Text>
                           <TouchableOpacity
                             style={styles.copyBtn}
@@ -964,7 +966,7 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
                             accessibilityRole="button"
                           >
                             <Text style={styles.copyBtnText}>
-                              {copySuccess ? '✓ Tersalin!' : 'Salin Nomor VA'}
+                              {copySuccess ? `✓ ${t('common.success')}` : t('wallet.copy_va')}
                             </Text>
                           </TouchableOpacity>
                         </View>

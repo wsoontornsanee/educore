@@ -33,6 +33,7 @@ import {
   getDateRangeForPeriod,
 } from '../services/nutrition.ts';
 import { colors, radius, spacing, typography } from '../theme/tokens.ts';
+import { useLocale } from '../i18n/LocaleContext.tsx';
 import type {
   DailyNutritionBreakdown,
   LinkedStudentProfile,
@@ -69,6 +70,7 @@ export const ParentNutritionDashboardScreen: React.FC<ParentNutritionDashboardSc
   ],
   onBack,
 }) => {
+  const { t, locale } = useLocale();
   const [selectedStudent, setSelectedStudent] = useState<LinkedStudentProfile>(
     linkedStudents.find((s) => s.id === initialStudentId) || linkedStudents[0]
   );
@@ -232,7 +234,7 @@ export const ParentNutritionDashboardScreen: React.FC<ParentNutritionDashboardSc
               period === 'TODAY' && styles.periodTabTextActive,
             ]}
           >
-            Hari Ini
+            {t('nutrition.period_today')}
           </Text>
         </TouchableOpacity>
 
@@ -246,7 +248,7 @@ export const ParentNutritionDashboardScreen: React.FC<ParentNutritionDashboardSc
               period === 'WEEK' && styles.periodTabTextActive,
             ]}
           >
-            7 Hari Terakhir
+            {t('nutrition.period_week')}
           </Text>
         </TouchableOpacity>
 
@@ -260,7 +262,7 @@ export const ParentNutritionDashboardScreen: React.FC<ParentNutritionDashboardSc
               period === 'MONTH' && styles.periodTabTextActive,
             ]}
           >
-            30 Hari Terakhir
+            {t('nutrition.period_month')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -270,7 +272,7 @@ export const ParentNutritionDashboardScreen: React.FC<ParentNutritionDashboardSc
         <View style={styles.offlineBanner}>
           <Text style={styles.offlineBannerIcon}>⚠️</Text>
           <View style={styles.offlineBannerContent}>
-            <Text style={styles.offlineBannerTitle}>Mode Data Tersimpan (Luring)</Text>
+            <Text style={styles.offlineBannerTitle}>{t('banner.offline_title')}</Text>
             <Text style={styles.offlineBannerSub}>
               Diperbarui: {formatRelativeTime(lastUpdated)}
             </Text>
@@ -279,7 +281,7 @@ export const ParentNutritionDashboardScreen: React.FC<ParentNutritionDashboardSc
             style={styles.offlineRefreshBtn}
             onPress={() => loadData(true)}
           >
-            <Text style={styles.offlineRefreshBtnText}>Segarkan</Text>
+            <Text style={styles.offlineRefreshBtnText}>{t('banner.sync_btn')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -300,20 +302,20 @@ export const ParentNutritionDashboardScreen: React.FC<ParentNutritionDashboardSc
         {loading && (
           <View style={styles.stateContainer}>
             <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={styles.stateText}>Memuat analisis nutrisi siswa...</Text>
+            <Text style={styles.stateText}>{t('common.loading')}</Text>
           </View>
         )}
 
         {/* State 2: ERROR */}
         {!loading && errorMsg && (
           <View style={styles.errorCard}>
-            <Text style={styles.errorCardTitle}>Gagal Memuat Data Nutrisi</Text>
+            <Text style={styles.errorCardTitle}>{t('common.error')}</Text>
             <Text style={styles.errorCardMessage}>{errorMsg}</Text>
             <TouchableOpacity
               style={styles.retryButton}
               onPress={() => loadData(true)}
             >
-              <Text style={styles.retryButtonText}>Coba Lagi</Text>
+              <Text style={styles.retryButtonText}>{t('common.retry')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -322,15 +324,15 @@ export const ParentNutritionDashboardScreen: React.FC<ParentNutritionDashboardSc
         {!loading && !errorMsg && (!summary || summary.total_items === 0) && (
           <View style={styles.emptyCard}>
             <Text style={styles.emptyCardIcon}>🥗</Text>
-            <Text style={styles.emptyCardTitle}>Belum Ada Riwayat Konsumsi</Text>
+            <Text style={styles.emptyCardTitle}>{t('nutrition.log_title')}</Text>
             <Text style={styles.emptyCardSub}>
-              Tidak ditemukan transaksi pembelian makanan atau minuman di kantin untuk periode ini.
+              {t('nutrition.log_empty')}
             </Text>
             <TouchableOpacity
               style={styles.emptyResetBtn}
               onPress={() => setPeriod('MONTH')}
             >
-              <Text style={styles.emptyResetBtnText}>Lihat 30 Hari Terakhir</Text>
+              <Text style={styles.emptyResetBtnText}>{t('nutrition.period_month')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -350,20 +352,20 @@ export const ParentNutritionDashboardScreen: React.FC<ParentNutritionDashboardSc
             <View style={styles.kpiGrid}>
               {/* Card 1: Total Kalori */}
               <View style={styles.kpiCard}>
-                <Text style={styles.kpiLabel}>TOTAL KALORI</Text>
+                <Text style={styles.kpiLabel}>{t('nutrition.kpi_calories').toUpperCase()}</Text>
                 <Text style={styles.kpiValue}>
-                  {summary.total_calories.toLocaleString('id-ID')}{' '}
+                  {summary.total_calories.toLocaleString(locale)}{' '}
                   <Text style={styles.kpiUnit}>kkal</Text>
                 </Text>
                 <Text style={styles.kpiSub}>
-                  Rata-rata ~{avgCalories.toLocaleString('id-ID')} kkal/hari
+                  Rata-rata ~{avgCalories.toLocaleString(locale)} kkal/hari
                 </Text>
               </View>
 
               {/* Card 2: Asupan Gula */}
               <View style={styles.kpiCard}>
                 <View style={styles.kpiHeaderRow}>
-                  <Text style={styles.kpiLabel}>ASUPAN GULA</Text>
+                  <Text style={styles.kpiLabel}>{t('nutrition.kpi_sugar').toUpperCase()}</Text>
                   <View
                     style={[
                       styles.pillBadge,
@@ -385,15 +387,15 @@ export const ParentNutritionDashboardScreen: React.FC<ParentNutritionDashboardSc
                       ]}
                     >
                       {sugarStatus.status === 'HIGH'
-                        ? 'TINGGI'
+                        ? t('nutrition.sugar_high')
                         : sugarStatus.status === 'ELEVATED'
-                        ? 'SEDANG'
-                        : 'AMAN'}
+                        ? t('nutrition.sugar_elevated')
+                        : t('nutrition.sugar_normal')}
                     </Text>
                   </View>
                 </View>
                 <Text style={styles.kpiValue}>
-                  {parseFloat(summary.total_sugar_g).toLocaleString('id-ID', {
+                  {parseFloat(summary.total_sugar_g).toLocaleString(locale, {
                     maximumFractionDigits: 1,
                   })}{' '}
                   <Text style={styles.kpiUnit}>gram</Text>
@@ -405,7 +407,7 @@ export const ParentNutritionDashboardScreen: React.FC<ParentNutritionDashboardSc
 
               {/* Card 3: Pilihan Sehat */}
               <View style={styles.kpiCard}>
-                <Text style={styles.kpiLabel}>PILIHAN SEHAT</Text>
+                <Text style={styles.kpiLabel}>{t('nutrition.kpi_healthy').toUpperCase()}</Text>
                 <Text style={styles.kpiValue}>
                   {healthyRatio.percentage}%
                 </Text>
@@ -422,7 +424,7 @@ export const ParentNutritionDashboardScreen: React.FC<ParentNutritionDashboardSc
 
               {/* Card 4: Alergen */}
               <View style={styles.kpiCard}>
-                <Text style={styles.kpiLabel}>ALERGEN TERDETEKSI</Text>
+                <Text style={styles.kpiLabel}>{t('nutrition.kpi_allergens').toUpperCase()}</Text>
                 <Text
                   style={[
                     styles.kpiValue,
@@ -431,7 +433,7 @@ export const ParentNutritionDashboardScreen: React.FC<ParentNutritionDashboardSc
                 >
                   {allergenAlerts.length > 0
                     ? `${allergenAlerts.length} Jenis`
-                    : 'Nihil (Aman)'}
+                    : t('nutrition.allergen_safe')}
                 </Text>
                 <Text style={styles.kpiSub}>
                   {allergenAlerts.length > 0

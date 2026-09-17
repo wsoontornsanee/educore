@@ -25,6 +25,7 @@ import {
 } from '../../services/permissionSlips.ts';
 import { fetchStudentBroadcasts } from '../../services/broadcasts.ts';
 import { StaleOfflineBanner } from '../../components/StaleOfflineBanner.tsx';
+import { useLocale } from '../../i18n/LocaleContext.tsx';
 import { colors, radius, spacing, typography } from '../../theme/tokens.ts';
 import type { BroadcastItem, ChildSummary, PermissionSlipItem, PermissionSlipResponse } from '../../types/index.ts';
 
@@ -45,8 +46,8 @@ const TAB_OPTIONS: { key: MessagesTab; label: string }[] = [
   { key: 'ANNOUNCEMENTS', label: 'Pengumuman' },
   { key: 'PERMISSION_SLIPS', label: 'Izin' },
 ];
-
 export const ParentMessagesScreen: React.FC<ParentMessagesScreenProps> = ({ child }) => {
+  const { t } = useLocale();
   const [activeTab, setActiveTab] = useState<MessagesTab>('ANNOUNCEMENTS');
   const [bcState, setBcState] = useState<ScreenState>('LOADING');
   const [slipState, setSlipState] = useState<ScreenState>('LOADING');
@@ -146,32 +147,39 @@ export const ParentMessagesScreen: React.FC<ParentMessagesScreenProps> = ({ chil
 
   const renderSlip = ({ item }: { item: PermissionSlipItem }) => {
     const status = resolveSlipStatus(item);
-    const config = RESPONSE_CONFIG[status];
-    const eventLine = item.event_date
-      ? `Tanggal acara: ${item.event_date}${item.location ? ` • ${item.location}` : ''}`
-      : item.location
-        ? `Lokasi: ${item.location}`
-        : null;
+    const statusCfg = RESPONSE_CONFIG[status];
+    const statusLabel =
+      status === 'APPROVED'
+        ? t('slip.approved')
+        : status === 'DECLINED'
+        ? t('slip.declined')
+        : t('slip.pending');
+
 
     return (
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle} accessibilityLabel={`Izin: ${item.title}`}>
-            {item.title}
-          </Text>
-          <View style={[styles.badge, { backgroundColor: config.bg }]}>
-            <Text style={[styles.badgeText, { color: config.text }]}>{config.label}</Text>
+      <View style={styles.card} accessibilityLabel={`Izin: ${item.title}`}>
+        <View style={styles.cardTopRow}>
+          <Text style={styles.cardTitle}>{item.title}</Text>
+          <View style={[styles.badge, { backgroundColor: statusCfg.bg }]}>
+            <Text style={[styles.badgeText, { color: statusCfg.text }]}>{statusLabel}</Text>
           </View>
         </View>
 
-        {!!item.description && <Text style={styles.cardBody}>{item.description}</Text>}
-        {!!eventLine && <Text style={styles.cardMeta}>{eventLine}</Text>}
-        {!!item.due_at && !item.is_closed && (
-          <Text style={styles.cardMeta}>Batas respon: {item.due_at}</Text>
+        {!!item.class_group_name && <Text style={styles.cardClass}>{item.class_group_name}</Text>}
+        {!!item.description && <Text style={styles.cardDesc}>{item.description}</Text>}
+
+        {!!item.event_date && (
+          <Text style={styles.cardMeta}>{t('messages.event_date')} {item.event_date}</Text>
         )}
-        {item.is_closed && <Text style={styles.cardClosed}>Jendela persetujuan telah ditutup.</Text>}
+        {!!item.location && <Text style={styles.cardMeta}>{t('messages.location')} {item.location}</Text>}
+        {!!item.due_at && (
+          <Text style={styles.cardMeta}>
+            {t('messages.deadline')} {new Date(item.due_at).toLocaleDateString()}
+          </Text>
+        )}
+        {item.is_closed && <Text style={styles.cardClosed}>{t('messages.closed_notice')}</Text>}
         {!!item.my_responded_at && status !== 'PENDING' && (
-          <Text style={styles.cardMeta}>Ditandatangani: {item.my_responded_at}</Text>
+          <Text style={styles.cardMeta}>{t('messages.signed_at')} {item.my_responded_at}</Text>
         )}
 
         {!item.is_closed && item.my_pending && (
@@ -182,7 +190,7 @@ export const ParentMessagesScreen: React.FC<ParentMessagesScreenProps> = ({ chil
               disabled={offline}
               accessibilityLabel={`Setujui ${item.title}`}
               accessibilityRole="button">
-              <Text style={styles.actionButtonText}>Setujui</Text>
+              <Text style={styles.actionButtonText}>{t('slip.approved')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, styles.actionDecline]}
@@ -190,35 +198,34 @@ export const ParentMessagesScreen: React.FC<ParentMessagesScreenProps> = ({ chil
               disabled={offline}
               accessibilityLabel={`Tolak ${item.title}`}
               accessibilityRole="button">
-              <Text style={styles.actionButtonText}>Tolak</Text>
+              <Text style={styles.actionButtonText}>{t('slip.declined')}</Text>
             </TouchableOpacity>
           </View>
         )}
         {offline && item.my_pending && !item.is_closed && (
           <Text style={styles.offlineNote}>
-            Tanda tangan tidak tersedia saat offline. Sambungkan internet lalu coba lagi.
+            {t('messages.offline_notice')}
           </Text>
         )}
       </View>
     );
   };
-
   const renderTabContent = () => {
     if (activeTab === 'ANNOUNCEMENTS') {
       if (bcState === 'LOADING') {
         return (
-          <View style={styles.centered} accessibilityLabel="Memuat">
+          <View style={styles.centered} accessibilityLabel={t('common.loading')}>
             <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={styles.centeredText}>Memuat pengumuman...</Text>
+            <Text style={styles.centeredText}>{t('messages.loading_broadcasts')}</Text>
           </View>
         );
       }
       if (bcState === 'EMPTY') {
         return (
           <View style={styles.centered}>
-            <Text style={styles.emptyTitle}>Belum Ada Pengumuman</Text>
+            <Text style={styles.emptyTitle}>{t('messages.empty_broadcasts_title')}</Text>
             <Text style={styles.centeredText}>
-              Belum ada pengumuman dari sekolah untuk {child.full_name}.
+              {t('messages.empty_broadcasts_desc')}
             </Text>
           </View>
         );
@@ -226,12 +233,12 @@ export const ParentMessagesScreen: React.FC<ParentMessagesScreenProps> = ({ chil
       if (bcState === 'ERROR') {
         return (
           <View style={styles.centered}>
-            <Text style={styles.emptyTitle}>Gagal Memuat</Text>
+            <Text style={styles.emptyTitle}>{t('common.error')}</Text>
             <Text style={styles.centeredText}>
-              Tidak dapat memuat pengumuman. Periksa koneksi Anda lalu coba lagi.
+              {t('messages.error_broadcasts')}
             </Text>
             <TouchableOpacity style={styles.retryButton} onPress={loadBroadcasts} accessibilityRole="button">
-              <Text style={styles.actionButtonText}>Coba Lagi</Text>
+              <Text style={styles.actionButtonText}>{t('common.retry')}</Text>
             </TouchableOpacity>
           </View>
         );
@@ -251,16 +258,16 @@ export const ParentMessagesScreen: React.FC<ParentMessagesScreenProps> = ({ chil
       return (
         <View style={styles.centered} accessibilityLabel="Memuat">
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.centeredText}>Memuat izin...</Text>
+          <Text style={styles.centeredText}>{t('common.loading')}</Text>
         </View>
       );
     }
     if (slipState === 'EMPTY') {
       return (
         <View style={styles.centered}>
-          <Text style={styles.emptyTitle}>Belum Ada Izin</Text>
+          <Text style={styles.emptyTitle}>{t('messages.empty')}</Text>
           <Text style={styles.centeredText}>
-            Belum ada permintaan izin dari sekolah untuk {child.full_name}.
+            {t('messages.empty')}
           </Text>
         </View>
       );
@@ -268,12 +275,12 @@ export const ParentMessagesScreen: React.FC<ParentMessagesScreenProps> = ({ chil
     if (slipState === 'ERROR') {
       return (
         <View style={styles.centered}>
-          <Text style={styles.emptyTitle}>Gagal Memuat</Text>
+          <Text style={styles.emptyTitle}>{t('common.error')}</Text>
           <Text style={styles.centeredText}>
-            Tidak dapat memuat daftar izin. Periksa koneksi Anda lalu coba lagi.
+            {t('common.error')}
           </Text>
           <TouchableOpacity style={styles.retryButton} onPress={loadSlips} accessibilityRole="button">
-            <Text style={styles.actionButtonText}>Coba Lagi</Text>
+            <Text style={styles.actionButtonText}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       );
@@ -291,7 +298,7 @@ export const ParentMessagesScreen: React.FC<ParentMessagesScreenProps> = ({ chil
   return (
     <View style={styles.root}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Pesan &amp; Izin</Text>
+        <Text style={styles.headerTitle}>{t('messages.title')}</Text>
         <Text style={styles.headerSubtitle}>{child.full_name}</Text>
       </View>
 
@@ -299,6 +306,10 @@ export const ParentMessagesScreen: React.FC<ParentMessagesScreenProps> = ({ chil
       <View style={styles.segmentRow}>
         {TAB_OPTIONS.map((tab) => {
           const isActive = activeTab === tab.key;
+          const tabLabel =
+            tab.key === 'ANNOUNCEMENTS'
+              ? t('messages.tab_announcements')
+              : t('messages.tab_slips');
           return (
             <TouchableOpacity
               key={tab.key}
@@ -306,9 +317,9 @@ export const ParentMessagesScreen: React.FC<ParentMessagesScreenProps> = ({ chil
               onPress={() => setActiveTab(tab.key)}
               accessibilityRole="tab"
               accessibilityState={{ selected: isActive }}
-              accessibilityLabel={tab.label}>
+              accessibilityLabel={tabLabel}>
               <Text style={[styles.segmentText, isActive && styles.segmentTextActive]}>
-                {tab.label}
+                {tabLabel}
               </Text>
             </TouchableOpacity>
           );
@@ -322,15 +333,14 @@ export const ParentMessagesScreen: React.FC<ParentMessagesScreenProps> = ({ chil
       <Modal visible={signSlip !== null} transparent animationType="slide" onRequestClose={() => setSignSlip(null)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Tanda Tangan Digital</Text>
+            <Text style={styles.modalTitle}>{t('slip.modal_title')}</Text>
             {!!signSlip && <Text style={styles.modalSubtitle}>{signSlip.title}</Text>}
             <Text style={styles.modalNote}>
-              Ketik nama lengkap Anda sebagai tanda tangan digital. Waktu persetujuan dicatat otomatis
-              oleh sistem.
+              {t('slip.signature_label')}
             </Text>
             <TextInput
               style={styles.signatureInput}
-              placeholder="Nama lengkap Anda"
+              placeholder={t('slip.signature_placeholder')}
               placeholderTextColor={colors.subtle}
               value={signature}
               onChangeText={setSignature}
@@ -344,7 +354,7 @@ export const ParentMessagesScreen: React.FC<ParentMessagesScreenProps> = ({ chil
                 onPress={() => submitAcknowledgement('DECLINED')}
                 disabled={signing}
                 accessibilityRole="button">
-                <Text style={styles.actionButtonText}>Tolak</Text>
+                <Text style={styles.actionButtonText}>{t('slip.btn_decline')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.actionButton, styles.actionApprove]}
@@ -354,7 +364,7 @@ export const ParentMessagesScreen: React.FC<ParentMessagesScreenProps> = ({ chil
                 {signing ? (
                   <ActivityIndicator size="small" color={colors.white} />
                 ) : (
-                  <Text style={styles.actionButtonText}>Setujui</Text>
+                  <Text style={styles.actionButtonText}>{t('slip.btn_approve')}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -363,7 +373,7 @@ export const ParentMessagesScreen: React.FC<ParentMessagesScreenProps> = ({ chil
               onPress={() => setSignSlip(null)}
               disabled={signing}
               accessibilityRole="button">
-              <Text style={styles.modalCancelText}>Batal</Text>
+              <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
             </TouchableOpacity>
           </View>
         </View>

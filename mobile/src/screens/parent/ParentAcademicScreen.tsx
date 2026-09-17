@@ -27,6 +27,7 @@ import {
   fetchStudentTimetable,
 } from '../../services/academic.ts';
 import { colors, radius, spacing, typography } from '../../theme/tokens.ts';
+import { useLocale } from '../../i18n/LocaleContext.tsx';
 import type {
   AcademicSubTab,
   ChildSummary,
@@ -41,20 +42,13 @@ interface ParentAcademicScreenProps {
   onNavigateInvoices?: () => void;
 }
 
-const SUB_TABS: Array<{ key: AcademicSubTab; label: string }> = [
-  { key: 'GRADES', label: 'Nilai' },
-  { key: 'HOMEWORK', label: 'Tugas' },
-  { key: 'REPORT_CARDS', label: 'Rapor' },
-  { key: 'TIMETABLE', label: 'Jadwal' },
-];
-
-const DAY_NAMES = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
-
 export const ParentAcademicScreen: React.FC<ParentAcademicScreenProps> = ({
   child,
   onNavigateInvoices,
 }) => {
+  const { t, locale } = useLocale();
   const [activeTab, setActiveTab] = useState<AcademicSubTab>('GRADES');
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
@@ -93,7 +87,7 @@ export const ParentAcademicScreen: React.FC<ParentAcademicScreenProps> = ({
         setLastUpdated(res.lastUpdated);
       }
     } catch (err: any) {
-      setError(err?.message || 'Gagal memuat data akademik. Silakan coba lagi.');
+      setError(err?.message || t('common.error'));
     } finally {
       setLoading(false);
     }
@@ -103,9 +97,16 @@ export const ParentAcademicScreen: React.FC<ParentAcademicScreenProps> = ({
     loadData();
   }, [child.student_id, activeTab]);
 
+  const subTabs: Array<{ key: AcademicSubTab; label: string }> = [
+    { key: 'GRADES', label: t('academic.tab_grades') },
+    { key: 'HOMEWORK', label: t('academic.tab_homework') },
+    { key: 'REPORT_CARDS', label: t('academic.tab_reports') },
+    { key: 'TIMETABLE', label: t('academic.tab_timetable') },
+  ];
+
   const renderTabSelector = () => (
     <View style={styles.tabBar} accessibilityRole="tablist">
-      {SUB_TABS.map((tab) => {
+      {subTabs.map((tab) => {
         const isActive = activeTab === tab.key;
         return (
           <TouchableOpacity
@@ -130,9 +131,9 @@ export const ParentAcademicScreen: React.FC<ParentAcademicScreenProps> = ({
     if (subjects.length === 0) {
       return (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyTitle}>Belum Ada Nilai</Text>
+          <Text style={styles.emptyTitle}>{t('academic.empty_grades_title')}</Text>
           <Text style={styles.emptySubtitle}>
-            Belum ada nilai penilaian yang dipublikasikan untuk semester ini.
+            {t('academic.empty_grades')}
           </Text>
         </View>
       );
@@ -160,7 +161,7 @@ export const ParentAcademicScreen: React.FC<ParentAcademicScreenProps> = ({
             </View>
 
             {subj.assessments.length === 0 ? (
-              <Text style={styles.emptyInnerNote}>Belum ada rincian penilaian terbit.</Text>
+              <Text style={styles.emptyInnerNote}>{t('academic.empty_grades')}</Text>
             ) : (
               <View style={styles.assessmentList}>
                 {subj.assessments.map((a) => (
@@ -173,10 +174,10 @@ export const ParentAcademicScreen: React.FC<ParentAcademicScreenProps> = ({
                         </View>
                       </View>
                       <Text style={styles.assessmentMeta}>
-                        Bobot: {parseFloat(a.weight || '0')}% • Maks: {a.max_score}
+                        {t('academic.weight')} {parseFloat(a.weight || '0')}% • {t('academic.max')} {a.max_score}
                       </Text>
                       {a.feedback ? (
-                        <Text style={styles.feedbackText}>Catatan: {a.feedback}</Text>
+                        <Text style={styles.feedbackText}>{t('academic.feedback')} {a.feedback}</Text>
                       ) : null}
                     </View>
                     <View style={styles.assessmentScoreBox}>
@@ -201,8 +202,8 @@ export const ParentAcademicScreen: React.FC<ParentAcademicScreenProps> = ({
     if (homeworkList.length === 0) {
       return (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyTitle}>Tidak Ada Tugas</Text>
-          <Text style={styles.emptySubtitle}>Tidak ada tugas aktif atau pekerjaan rumah saat ini.</Text>
+          <Text style={styles.emptyTitle}>{t('academic.empty_homework_title')}</Text>
+          <Text style={styles.emptySubtitle}>{t('academic.empty_homework')}</Text>
         </View>
       );
     }
@@ -211,18 +212,18 @@ export const ParentAcademicScreen: React.FC<ParentAcademicScreenProps> = ({
       switch (status) {
         case 'GRADED':
           return {
-            label: score ? `Dinilai: ${score}` : 'Dinilai',
+            label: score ? `${t('academic.status_graded')}: ${score}` : t('academic.status_graded'),
             bg: colors.sakitLight,
             color: colors.sakit,
           };
         case 'SUBMITTED':
-          return { label: 'Terkumpul', bg: colors.hadirLight, color: colors.hadir };
+          return { label: t('academic.status_submitted'), bg: colors.hadirLight, color: colors.hadir };
         case 'LATE':
-          return { label: 'Terlambat', bg: colors.alpaLight, color: colors.alpa };
+          return { label: t('academic.status_late'), bg: colors.alpaLight, color: colors.alpa };
         case 'RETURNED':
-          return { label: 'Dikembalikan', bg: colors.substituteLight, color: colors.substitute };
+          return { label: t('academic.status_returned'), bg: colors.substituteLight, color: colors.substitute };
         default:
-          return { label: 'Belum Mengumpulkan', bg: colors.izinLight, color: colors.izin };
+          return { label: t('academic.status_pending'), bg: colors.izinLight, color: colors.izin };
       }
     };
 
@@ -231,7 +232,7 @@ export const ParentAcademicScreen: React.FC<ParentAcademicScreenProps> = ({
         {homeworkList.map((hw) => {
           const statusInfo = getStatusDetails(hw.submission_status, hw.score);
           const dueDateFormatted = hw.due_at
-            ? new Date(hw.due_at).toLocaleDateString('id-ID', {
+            ? new Date(hw.due_at).toLocaleDateString(locale, {
                 day: 'numeric',
                 month: 'short',
                 year: 'numeric',
@@ -261,15 +262,15 @@ export const ParentAcademicScreen: React.FC<ParentAcademicScreenProps> = ({
               ) : null}
 
               <View style={styles.hwFooter}>
-                <Text style={styles.dueText}>Tenggat: {dueDateFormatted}</Text>
+                <Text style={styles.dueText}>{t('academic.due_date')} {dueDateFormatted}</Text>
                 {hw.files_count > 0 && (
-                  <Text style={styles.filesCountText}>{hw.files_count} berkas terlampir</Text>
+                  <Text style={styles.filesCountText}>{hw.files_count} {t('academic.files_attached')}</Text>
                 )}
               </View>
 
               {hw.feedback ? (
                 <View style={styles.feedbackBox}>
-                  <Text style={styles.feedbackLabel}>Catatan Guru:</Text>
+                  <Text style={styles.feedbackLabel}>{t('academic.teacher_feedback')}</Text>
                   <Text style={styles.feedbackContent}>{hw.feedback}</Text>
                 </View>
               ) : null}
@@ -280,13 +281,23 @@ export const ParentAcademicScreen: React.FC<ParentAcademicScreenProps> = ({
     );
   };
 
+  const dayNames = [
+    t('day.1'),
+    t('day.2'),
+    t('day.3'),
+    t('day.4'),
+    t('day.5'),
+    t('day.6'),
+    t('day.0'),
+  ];
+
   const renderReportCardsContent = () => {
     if (reportCards.length === 0) {
       return (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyTitle}>Belum Ada Rapor</Text>
+          <Text style={styles.emptyTitle}>{t('academic.empty_reports_title')}</Text>
           <Text style={styles.emptySubtitle}>
-            Belum ada rapor semester yang dipublikasikan oleh pihak sekolah.
+            {t('academic.empty_reports')}
           </Text>
         </View>
       );
@@ -299,13 +310,13 @@ export const ParentAcademicScreen: React.FC<ParentAcademicScreenProps> = ({
             return (
               <View key={rc.id} style={[styles.card, styles.arrearsCard]}>
                 <View style={styles.arrearsHeader}>
-                  <Text style={styles.arrearsTitle}>Rapor Ditangguhkan (Tunggakan)</Text>
+                  <Text style={styles.arrearsTitle}>{t('academic.arrears_title')}</Text>
                   <Text style={styles.arrearsTerm}>
                     {rc.term_name} • {rc.academic_year_name}
                   </Text>
                 </View>
                 <Text style={styles.arrearsDesc}>
-                  Rapor semester belum dapat dilihat karena masih terdapat kewajiban pembayaran SPP atau tagihan sekolah yang belum terselesaikan.
+                  {t('academic.arrears_notice')}
                 </Text>
                 {onNavigateInvoices ? (
                   <TouchableOpacity
@@ -314,7 +325,7 @@ export const ParentAcademicScreen: React.FC<ParentAcademicScreenProps> = ({
                     accessibilityRole="button"
                     accessibilityLabel="Buka menu tagihan untuk menyelesaikan pembayaran"
                   >
-                    <Text style={styles.payButtonText}>Lihat Tagihan & Bayar</Text>
+                    <Text style={styles.payButtonText}>{t('academic.view_pay_btn')}</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -330,16 +341,16 @@ export const ParentAcademicScreen: React.FC<ParentAcademicScreenProps> = ({
                   <Text style={styles.subjectMeta}>{rc.academic_year_name}</Text>
                 </View>
                 <View style={[styles.statusPill, { backgroundColor: colors.hadirLight }]}>
-                  <Text style={[styles.statusPillText, { color: colors.hadir }]}>Diterbitkan</Text>
+                  <Text style={[styles.statusPillText, { color: colors.hadir }]}>{t('academic.published')}</Text>
                 </View>
               </View>
 
               {/* Attendance Snapshot */}
               <View style={styles.attendanceRow}>
-                <Text style={styles.attendanceItem}>Hadir: {att.hadir ?? 0}</Text>
-                <Text style={styles.attendanceItem}>Sakit: {att.sakit ?? 0}</Text>
-                <Text style={styles.attendanceItem}>Izin: {att.izin ?? 0}</Text>
-                <Text style={styles.attendanceItem}>Alpa: {att.alpa ?? 0}</Text>
+                <Text style={styles.attendanceItem}>{t('academic.hadir')}: {att.hadir ?? 0}</Text>
+                <Text style={styles.attendanceItem}>{t('academic.sakit')}: {att.sakit ?? 0}</Text>
+                <Text style={styles.attendanceItem}>{t('academic.izin')}: {att.izin ?? 0}</Text>
+                <Text style={styles.attendanceItem}>{t('academic.alpa')}: {att.alpa ?? 0}</Text>
               </View>
 
               {/* Grades Summary Snapshot */}
@@ -368,7 +379,7 @@ export const ParentAcademicScreen: React.FC<ParentAcademicScreenProps> = ({
                   accessibilityRole="button"
                   accessibilityLabel="Unduh salinan resmi rapor PDF"
                 >
-                  <Text style={styles.downloadButtonText}>Unduh Rapor Resmi (PDF)</Text>
+                  <Text style={styles.downloadButtonText}>{t('academic.download_rapor')}</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -382,9 +393,9 @@ export const ParentAcademicScreen: React.FC<ParentAcademicScreenProps> = ({
     if (timetableSlots.length === 0) {
       return (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyTitle}>Belum Ada Jadwal</Text>
+          <Text style={styles.emptyTitle}>{t('academic.empty_timetable_title')}</Text>
           <Text style={styles.emptySubtitle}>
-            Jadwal pelajaran mingguan belum dikonfigurasi untuk rombel ini.
+            {t('academic.empty_timetable')}
           </Text>
         </View>
       );
@@ -401,7 +412,7 @@ export const ParentAcademicScreen: React.FC<ParentAcademicScreenProps> = ({
           style={styles.daySelector}
           contentContainerStyle={styles.daySelectorContent}
         >
-          {DAY_NAMES.slice(0, 6).map((dayName, idx) => {
+          {dayNames.slice(0, 6).map((dayName, idx) => {
             const dayNum = idx + 1;
             const isDayActive = selectedDay === dayNum;
             return (
@@ -423,14 +434,14 @@ export const ParentAcademicScreen: React.FC<ParentAcademicScreenProps> = ({
         {filteredSlots.length === 0 ? (
           <View style={styles.emptyDayBox}>
             <Text style={styles.emptyDayText}>
-              Tidak ada kegiatan belajar mengajar pada hari {DAY_NAMES[selectedDay - 1]}.
+              {t('academic.empty_timetable')}
             </Text>
           </View>
         ) : (
           filteredSlots.map((slot) => (
             <View key={slot.id} style={styles.slotCard}>
               <View style={styles.slotTimeBox}>
-                <Text style={styles.slotPeriod}>Jam ke-{slot.period_no}</Text>
+                <Text style={styles.slotPeriod}>{t('academic.period_no')}{slot.period_no}</Text>
                 <Text style={styles.slotTime}>
                   {slot.start_time} - {slot.end_time}
                 </Text>
@@ -444,7 +455,7 @@ export const ParentAcademicScreen: React.FC<ParentAcademicScreenProps> = ({
                 {slot.is_substituted && (
                   <View style={styles.substituteBadge}>
                     <Text style={styles.substituteBadgeText}>
-                      Guru Pengganti: {slot.substitute_teacher_name || 'Ditugaskan'}
+                      {t('academic.substitute')} {slot.substitute_teacher_name || 'Ditugaskan'}
                     </Text>
                   </View>
                 )}
@@ -465,7 +476,7 @@ export const ParentAcademicScreen: React.FC<ParentAcademicScreenProps> = ({
       {loading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Memuat data akademik...</Text>
+          <Text style={styles.loadingText}>{t('common.loading')}</Text>
         </View>
       ) : error ? (
         <View style={styles.centerContainer}>
@@ -476,7 +487,7 @@ export const ParentAcademicScreen: React.FC<ParentAcademicScreenProps> = ({
             accessibilityRole="button"
             accessibilityLabel="Coba lagi memuat data akademik"
           >
-            <Text style={styles.retryButtonText}>Coba Lagi</Text>
+            <Text style={styles.retryButtonText}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       ) : (

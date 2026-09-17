@@ -5,7 +5,7 @@
  * (HADIR / ALPA / ...), and Home and Absensi must agree on the wording.
  */
 
-export const STATUS_LABEL: Record<string, string> = {
+export const STATUS_LABEL_ID: Record<string, string> = {
   HADIR: 'Sudah di sekolah',
   TERLAMBAT: 'Sudah di sekolah (Terlambat)',
   SAKIT: 'Sakit',
@@ -14,7 +14,23 @@ export const STATUS_LABEL: Record<string, string> = {
   DISPEN: 'Dispensasi',
 };
 
-export function attendanceStatusLabel(status: string | null | undefined): string {
-  if (!status) return 'Belum tiba';
-  return STATUS_LABEL[status] ?? status;
+export const STATUS_LABEL_EN: Record<string, string> = {
+  HADIR: 'At school',
+  TERLAMBAT: 'At school (Late)',
+  SAKIT: 'Sick',
+  IZIN: 'Excused',
+  ALPA: 'Absent',
+  DISPEN: 'Dispensation',
+};
+
+export const STATUS_LABEL = STATUS_LABEL_ID;
+
+export function attendanceStatusLabel(
+  status: string | null | undefined,
+  locale: 'id-ID' | 'en-US' = 'id-ID'
+): string {
+  if (!status) return locale === 'en-US' ? 'Not arrived yet' : 'Belum tiba';
+  const map = locale === 'en-US' ? STATUS_LABEL_EN : STATUS_LABEL_ID;
+  return map[status] ?? status;
 }
+

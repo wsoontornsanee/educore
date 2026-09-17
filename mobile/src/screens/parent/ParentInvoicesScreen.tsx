@@ -20,6 +20,7 @@ import { StaleOfflineBanner } from '../../components/StaleOfflineBanner';
 import { PaymentScreen } from './PaymentScreen';
 import { colors, radius, spacing, typography } from '../../theme/tokens';
 import { track } from '../../services/analytics.ts';
+import { useLocale } from '../../i18n/LocaleContext.tsx';
 import type { ChildSummary, InvoiceItem, PaymentReceiptItem } from '../../types';
 
 export type InvoicesSubTab = 'INVOICES' | 'RECEIPTS';
@@ -34,11 +35,11 @@ function formatCurrency(amount: string | number, currency: string = 'IDR'): stri
   return `${currency} ${num.toLocaleString('id-ID')}`;
 }
 
-function formatDate(dateStr?: string | null): string {
+function formatDate(dateStr?: string | null, loc: string = 'id-ID'): string {
   if (!dateStr) return '-';
   try {
     const d = new Date(dateStr);
-    return d.toLocaleDateString('id-ID', {
+    return d.toLocaleDateString(loc, {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
@@ -49,6 +50,7 @@ function formatDate(dateStr?: string | null): string {
 }
 
 export const ParentInvoicesScreen: React.FC<ParentInvoicesScreenProps> = ({ child }) => {
+  const { t, locale } = useLocale();
   const [activeTab, setActiveTab] = useState<InvoicesSubTab>('INVOICES');
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(false);
@@ -201,7 +203,7 @@ export const ParentInvoicesScreen: React.FC<ParentInvoicesScreenProps> = ({ chil
           activeOpacity={0.8}
         >
           <Text style={[styles.tabButtonText, activeTab === 'INVOICES' && styles.tabButtonTextActive]}>
-            Tagihan
+            {t('invoice.tab_invoices')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -211,7 +213,7 @@ export const ParentInvoicesScreen: React.FC<ParentInvoicesScreenProps> = ({ chil
           activeOpacity={0.8}
         >
           <Text style={[styles.tabButtonText, activeTab === 'RECEIPTS' && styles.tabButtonTextActive]}>
-            Bukti Bayar & Kwitansi
+            {t('invoice.tab_receipts')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -229,7 +231,9 @@ export const ParentInvoicesScreen: React.FC<ParentInvoicesScreenProps> = ({ chil
               {outstanding.length > 0 && !offline && (
                 <TouchableOpacity style={styles.payButton} onPress={handleQuickPay} activeOpacity={0.85}>
                   <Text style={styles.payButtonText}>
-                    BAYAR {outstanding.length === 1 ? 'TAGIHAN INI' : `TAGIHAN TERLAMA (${outstanding[0].period})`}
+                    {outstanding.length === 1
+                      ? t('invoice.pay_single', 'BAYAR TAGIHAN INI')
+                      : `${t('invoice.pay_oldest', 'BAYAR TAGIHAN TERLAMA')} (${outstanding[0].period})`}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -238,16 +242,18 @@ export const ParentInvoicesScreen: React.FC<ParentInvoicesScreenProps> = ({ chil
                 data={invoices}
                 keyExtractor={(item) => String(item.id)}
                 contentContainerStyle={styles.list}
-                ListEmptyComponent={<Text style={styles.emptyText}>Belum ada tagihan.</Text>}
+                ListEmptyComponent={<Text style={styles.emptyText}>{t('invoice.empty_invoices')}</Text>}
                 renderItem={({ item }) => (
                   <View style={styles.row}>
                     <View style={styles.rowText}>
                       <Text style={styles.rowNumber}>{item.number} — {item.period}</Text>
-                      <Text style={styles.rowDue}>Jatuh tempo: {item.due_date}</Text>
+                      <Text style={styles.rowDue}>{t('invoice.due_date')} {item.due_date}</Text>
                     </View>
                     <View style={styles.rowAmounts}>
                       <Text style={styles.rowTotal}>{item.currency} {item.total}</Text>
-                      <Text style={[styles.rowStatus, item.status === 'PAID' && styles.rowStatusPaid]}>{item.status}</Text>
+                      <Text style={[styles.rowStatus, item.status === 'PAID' && styles.rowStatusPaid]}>
+                        {item.status === 'PAID' ? t('invoice.status_paid') : item.status === 'OVERDUE' ? t('invoice.status_overdue') : t('invoice.status_unpaid')}
+                      </Text>
                     </View>
                   </View>
                 )}
@@ -268,7 +274,7 @@ export const ParentInvoicesScreen: React.FC<ParentInvoicesScreenProps> = ({ chil
               data={payments}
               keyExtractor={(item) => String(item.id)}
               contentContainerStyle={styles.list}
-              ListEmptyComponent={<Text style={styles.emptyText}>Belum ada bukti pembayaran.</Text>}
+              ListEmptyComponent={<Text style={styles.emptyText}>{t('invoice.empty_receipts')}</Text>}
               renderItem={({ item }) => {
                 const receiptNo = item.receipt_number || `Kwitansi #${item.id}`;
                 const isDownloading = downloadingId === item.id;
@@ -278,31 +284,31 @@ export const ParentInvoicesScreen: React.FC<ParentInvoicesScreenProps> = ({ chil
                       <View style={{ flex: 1 }}>
                         <Text style={styles.receiptNumber}>{receiptNo}</Text>
                         <Text style={styles.receiptDate}>
-                          {formatDate(item.paid_at || item.settled_at || item.created_at)}
+                          {formatDate(item.paid_at || item.settled_at || item.created_at, locale)}
                         </Text>
                       </View>
                       <View style={styles.badgeSuccess}>
-                        <Text style={styles.badgeSuccessText}>LUNAS</Text>
+                        <Text style={styles.badgeSuccessText}>{t('invoice.status_paid').toUpperCase()}</Text>
                       </View>
                     </View>
 
                     <View style={styles.receiptBody}>
                       <View style={styles.receiptRow}>
-                        <Text style={styles.receiptLabel}>Total Dibayar:</Text>
+                        <Text style={styles.receiptLabel}>{t('invoice.total_amount')}</Text>
                         <Text style={styles.receiptAmount}>{formatCurrency(item.amount, item.currency)}</Text>
                       </View>
                       <View style={styles.receiptRow}>
-                        <Text style={styles.receiptLabel}>Metode Pembayaran:</Text>
+                        <Text style={styles.receiptLabel}>{t('payment.title')}:</Text>
                         <Text style={styles.receiptValue}>{item.method} ({item.channel})</Text>
                       </View>
                       <View style={styles.receiptRow}>
-                        <Text style={styles.receiptLabel}>No. Referensi:</Text>
+                        <Text style={styles.receiptLabel}>{t('invoice.reference_no', 'No. Referensi:')}</Text>
                         <Text style={styles.receiptValueMono}>{item.reference}</Text>
                       </View>
 
                       {item.allocations && item.allocations.length > 0 && (
                         <View style={styles.allocationsContainer}>
-                          <Text style={styles.allocationsTitle}>Alokasi Tagihan:</Text>
+                          <Text style={styles.allocationsTitle}>{t('invoice.allocations', 'Alokasi Tagihan:')}</Text>
                           {item.allocations.map((alloc) => (
                             <View key={alloc.id} style={styles.allocationRow}>
                               <Text style={styles.allocationInvoice}>
@@ -332,7 +338,7 @@ export const ParentInvoicesScreen: React.FC<ParentInvoicesScreenProps> = ({ chil
                           <ActivityIndicator size="small" color={colors.white} />
                         ) : (
                           <Text style={styles.actionDownloadText}>
-                            {paymentsOffline ? 'Unduh Offline (Tidak Aktif)' : '📄 Unduh Kwitansi (PDF)'}
+                            {paymentsOffline ? t('invoice.offline_download_disabled', 'Unduh Offline (Tidak Aktif)') : `📄 ${t('invoice.download_pdf')}`}
                           </Text>
                         )}
                       </TouchableOpacity>
@@ -343,7 +349,7 @@ export const ParentInvoicesScreen: React.FC<ParentInvoicesScreenProps> = ({ chil
                         onPress={() => handleShareReceipt(item)}
                         activeOpacity={0.8}
                       >
-                        <Text style={styles.actionShareText}>🔗 Bagikan</Text>
+                        <Text style={styles.actionShareText}>🔗 {t('invoice.share_pdf')}</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
