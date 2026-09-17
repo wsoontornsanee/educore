@@ -4,17 +4,45 @@
  * Interacts with /api/v1/me/push-tokens/ to register device token
  * and handles incoming SUBSTITUTE_ASSIGNED pushes.
  */
-import { Platform } from 'react-native';
-import { apiClient } from './api';
-import { getItem, setItem } from './storage';
+import { apiClient } from './api.ts';
+import { getItem, setItem } from './storage.ts';
 
 const TOKEN_KEY = 'registered_push_token';
+
+// `react-native` and `expo-notifications` ship Flow/Metro-only syntax that
+// Node's native TS loader can't parse, so both are lazily required behind a
+// try/catch (same pattern already used across this file) rather than
+// statically imported. This keeps the module loadable under plain `node
+// --test` for unit tests, while Metro/Expo still resolve them normally at
+// runtime on-device.
+let Platform: any = { OS: 'ios' };
+try {
+  Platform = require('react-native').Platform;
+} catch {
+  // Headless test fallback
+}
 
 let Notifications: any = null;
 try {
   Notifications = require('expo-notifications');
 } catch {
   // Headless test fallback
+}
+
+/**
+ * Test-only seam: lets unit tests inject a mock `expo-notifications` module
+ * directly, instead of intercepting the `require('expo-notifications')` call
+ * above. A `Module.prototype.require`/`Module._load` monkey-patch was tried
+ * first (see mobile/__tests__/pushNotifications.test.ts for details) but does
+ * not reliably intercept that call in this repo: mobile/package.json sets
+ * `"type": "module"`, so this file loads as an ES module, and when a test's
+ * `require(esm)` interop pulls it in, this module's *own* internal
+ * `require('expo-notifications')` call does not route through the same
+ * `Module._load` hook the outer require does. Not exported from the public
+ * barrel; only used by tests that import it directly by path.
+ */
+export function __setNotificationsModuleForTesting(mockModule: any): void {
+  Notifications = mockModule;
 }
 
 export interface PushRegistrationResult {
@@ -85,4 +113,34 @@ export function subscribeToNotificationReceived(
   });
 
   return subscription;
+}
+
+export function subscribeToNotificationResponseReceived(
+  onData: (data: any) => void
+): { remove: () => void } {
+  if (!Notifications || typeof Notifications.addNotificationResponseReceivedListener !== 'function') {
+    return { remove: () => {} };
+  }
+
+  const subscription = Notifications.addNotificationResponseReceivedListener((response: any) => {
+    const data = response?.notification?.request?.content?.data;
+    if (data) {
+      onData(data);
+    }
+  });
+
+  return subscription;
+}
+
+export async function getInitialNotificationResponse(): Promise<any | null> {
+  if (!Notifications || typeof Notifications.getLastNotificationResponseAsync !== 'function') {
+    return null;
+  }
+
+  try {
+    const response = await Notifications.getLastNotificationResponseAsync();
+    return response?.notification?.request?.content?.data ?? null;
+  } catch {
+    return null;
+  }
 }
