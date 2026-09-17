@@ -2,7 +2,7 @@
 from django.contrib import admin
 from django.urls import include, path
 
-from apps.identity.web_views import WebLoginView
+from apps.identity.web_views import FoundationMicrosoftTenantSettingsView, WebLoginView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -26,6 +26,7 @@ urlpatterns = [
     # Session-auth web (HTMX) pages — HTML responses, distinct from /api/v1/ JSON
     path('web/auth/', include('apps.identity.web_urls')),
     path('web/login/', WebLoginView.as_view(), name='login'),
+    path('web/foundation/settings/microsoft-tenant/', FoundationMicrosoftTenantSettingsView.as_view(), name='web-foundation-ms-tenant-settings'),
     path('web/academic/', include('apps.academic.web_urls')),
     # Public marketing website — no auth, no tenancy, root-mounted
     path('', include('apps.marketing.urls')),
