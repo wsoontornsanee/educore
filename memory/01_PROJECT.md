@@ -8,7 +8,7 @@
 
 ---
 
-- **Current Step:** Awaiting next task instruction.
+- **Current Step:** [Open Item] Teacher App: Substitution Review Modal Auto-Open via Fetch-by-Id (In Progress - PR Phase).
 - **Preceding Step:** Step 14.1 — Third-Party SSO (Google Workspace / Microsoft 365) Integration (TASK-036) [DONE - PR #115 merged].
 - **Recent Completed Step:** [Open Item] Parent App: Full App-Wide i18n Propagation (PAR-014) [DONE - PR #114 merged].
 

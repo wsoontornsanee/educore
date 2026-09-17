@@ -6,7 +6,8 @@ import { ActivityIndicator, Alert, SafeAreaView, StyleSheet, View } from 'react-
 import { StatusBar } from 'expo-status-bar';
 import { checkAuth, logout } from './src/services/auth';
 import { todayWib } from './src/services/localDate';
-import { isParent } from './src/services/roleRouting';
+import { isParent, isStaff } from './src/services/roleRouting';
+import { fetchSubstitutionSlot } from './src/services/agenda';
 import { track } from './src/services/analytics';
 import { initAnalyticsQueueDb } from './src/services/analyticsQueue';
 import { initQueueDb } from './src/services/offlineQueue';
@@ -63,17 +64,24 @@ export default function App() {
     return Number.isFinite(n) ? n : null;
   };
 
-  const handleNotificationData = (data: any, user: UserProfile | null) => {
+  const handleNotificationData = async (data: any, user: UserProfile | null) => {
     if (!data) return;
     if ((data.type === 'ARRIVAL' || data.type === 'DEPARTURE') && isParent(user)) {
       setParentTab('ATTENDANCE');
       setDeepLinkChildId(parseNumericId(data.student_id));
       setDeepLinkDate(typeof data.date === 'string' ? data.date : null);
+    } else if (data.type === 'SUBSTITUTE_ASSIGNED' && isStaff(user)) {
+      const subId = parseNumericId(data.substitution_id);
+      if (subId) {
+        try {
+          const slotItem = await fetchSubstitutionSlot(subId);
+          setActiveSlot(null);
+          setSubModalSlot(slotItem);
+        } catch (err) {
+          console.warn('Failed to fetch substitution slot for modal auto-open:', err);
+        }
+      }
     }
-    // SUBSTITUTE_ASSIGNED: no `slot` object is included in the payload
-    // anymore (see docs/superpowers/specs/2026-09-17-parent-app-push-deep-link-attendance-design.md
-    // §4) — teachers land on the Agenda screen, already the default landing
-    // screen, which surfaces pending substitutions on its own.
   };
 
   // Mirrors `currentUser` for use inside the notification-handling closures
@@ -101,7 +109,7 @@ export default function App() {
         // Cold-start: app was launched by tapping a notification.
         const initialData = await getInitialNotificationResponse();
         if (initialData) {
-          handleNotificationData(initialData, currentUserRef.current);
+          await handleNotificationData(initialData, currentUserRef.current);
         }
 
         // PAR-018: check if biometric gate is enabled
@@ -118,19 +126,14 @@ export default function App() {
 
     // Foreground: notification arrived while the app is already open. This
     // fires on mere delivery, before any user interaction — it must never
-    // trigger deep-link navigation (see design doc §4), only its
-    // pre-existing SUBSTITUTE_ASSIGNED handling.
-    const sub = subscribeToNotificationReceived((notification) => {
-      const data = notification?.request?.content?.data;
-      if (data?.type === 'SUBSTITUTE_ASSIGNED' && data?.slot) {
-        setSubModalSlot(data.slot);
-      }
+    // trigger deep-link navigation or auto-open modals (see design doc §4).
+    const sub = subscribeToNotificationReceived((_notification) => {
       track('notification_opened');
     });
 
     // Tap: user taps a notification while the app is backgrounded or foregrounded.
-    const responseSub = subscribeToNotificationResponseReceived((data) => {
-      handleNotificationData(data, currentUserRef.current);
+    const responseSub = subscribeToNotificationResponseReceived(async (data) => {
+      await handleNotificationData(data, currentUserRef.current);
       track('notification_opened');
     });
 

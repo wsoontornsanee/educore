@@ -1176,6 +1176,7 @@ def assign_substitution(slot, date, substitute_teacher, reason='') -> TimetableS
             payload={
                 'type': NotificationCategory.SUBSTITUTE_ASSIGNED,
                 'substitution_id': substitution.id,
+                'slot_id': slot.id,
                 'class_group': slot.class_group.name,
                 'subject': slot.class_subject.subject.name,
                 'date': str(date),

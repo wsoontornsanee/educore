@@ -122,24 +122,98 @@ class ScoreCsvImportSerializer(serializers.Serializer):
 
 
 class TimetableSlotSerializer(serializers.ModelSerializer):
+    slot_item = serializers.SerializerMethodField()
+
     class Meta:
         model = TimetableSlot
-        fields = ['id', 'foundation_id', 'class_subject', 'day_of_week', 'period_no', 'start_time', 'end_time', 'room', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'foundation_id', 'created_at', 'updated_at']
+        fields = [
+            'id', 'foundation_id', 'class_subject', 'day_of_week', 'period_no',
+            'start_time', 'end_time', 'room', 'slot_item', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'foundation_id', 'slot_item', 'created_at', 'updated_at']
+
+    def get_slot_item(self, obj):
+        from apps.academic.models import ClassEnrollment
+        student_count = ClassEnrollment.objects.filter(
+            foundation_id=obj.foundation_id,
+            class_group_id=obj.class_subject.class_group_id,
+            deleted_at__isnull=True,
+        ).count()
+        teacher_name = ''
+        if obj.class_subject.teacher and hasattr(obj.class_subject.teacher, 'person'):
+            teacher_name = obj.class_subject.teacher.person.full_name
+        return {
+            'id': obj.id,
+            'slot_id': obj.id,
+            'day_of_week': obj.day_of_week,
+            'period_no': obj.period_no,
+            'start_time': obj.start_time.strftime('%H:%M') if hasattr(obj.start_time, 'strftime') else str(obj.start_time)[:5],
+            'end_time': obj.end_time.strftime('%H:%M') if hasattr(obj.end_time, 'strftime') else str(obj.end_time)[:5],
+            'room': obj.room,
+            'class_group_name': obj.class_subject.class_group.name,
+            'subject_name': obj.class_subject.subject.name,
+            'subject_code': obj.class_subject.subject.code,
+            'is_substitution': False,
+            'teacher_name': teacher_name,
+            'attendance_submitted': False,
+            'student_count': student_count,
+        }
 
 
 class TimetableSubstitutionSerializer(serializers.ModelSerializer):
+    slot_item = serializers.SerializerMethodField()
+
     class Meta:
         model = TimetableSubstitution
         fields = [
             'id', 'foundation_id', 'slot', 'date', 'original_teacher',
             'substitute_teacher', 'reason', 'status', 'decline_reason',
-            'responded_at', 'created_at', 'updated_at'
+            'responded_at', 'slot_item', 'created_at', 'updated_at'
         ]
         read_only_fields = [
             'id', 'foundation_id', 'original_teacher', 'status',
-            'decline_reason', 'responded_at', 'created_at', 'updated_at'
+            'decline_reason', 'responded_at', 'slot_item', 'created_at', 'updated_at'
         ]
+
+    def get_slot_item(self, obj):
+        slot = obj.slot
+        orig_name = ''
+        if obj.original_teacher and hasattr(obj.original_teacher, 'person'):
+            orig_name = obj.original_teacher.person.full_name
+
+        from apps.attendance.models import PeriodAttendance
+        attendance_submitted = PeriodAttendance.objects.filter(
+            foundation_id=obj.foundation_id,
+            slot_id=slot.id,
+            date=obj.date,
+        ).exists()
+
+        from apps.academic.models import ClassEnrollment
+        student_count = ClassEnrollment.objects.filter(
+            foundation_id=obj.foundation_id,
+            class_group_id=slot.class_subject.class_group_id,
+            deleted_at__isnull=True,
+        ).count()
+
+        return {
+            'id': slot.id,
+            'slot_id': slot.id,
+            'day_of_week': slot.day_of_week,
+            'period_no': slot.period_no,
+            'start_time': slot.start_time.strftime('%H:%M') if hasattr(slot.start_time, 'strftime') else str(slot.start_time)[:5],
+            'end_time': slot.end_time.strftime('%H:%M') if hasattr(slot.end_time, 'strftime') else str(slot.end_time)[:5],
+            'room': slot.room,
+            'class_group_name': slot.class_subject.class_group.name,
+            'subject_name': slot.class_subject.subject.name,
+            'subject_code': slot.class_subject.subject.code,
+            'is_substitution': True,
+            'substitution_id': obj.id,
+            'substitution_status': obj.status,
+            'original_teacher_name': orig_name,
+            'substitution_reason': obj.reason,
+            'attendance_submitted': attendance_submitted,
+            'student_count': student_count,
+        }
 
 
 class HomeworkSerializer(serializers.ModelSerializer):

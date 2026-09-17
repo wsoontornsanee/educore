@@ -176,6 +176,7 @@ class SubstitutionTests(TestCase):
         self.assertEqual(intent.payload['original_teacher'], self.fx['teacher'].person.full_name)
         self.assertEqual(intent.payload['type'], 'SUBSTITUTE_ASSIGNED')
         self.assertEqual(intent.payload['substitution_id'], sub.id)
+        self.assertEqual(intent.payload['slot_id'], self.slot.id)
 
     def test_notification_failure_does_not_block_substitution_assignment(self):
         from unittest.mock import patch

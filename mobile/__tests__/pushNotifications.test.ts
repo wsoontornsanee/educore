@@ -60,6 +60,49 @@ describe('Push Notification Data Extraction', () => {
     sub.remove();
   });
 
+  it('subscribeToNotificationResponseReceived extracts SUBSTITUTE_ASSIGNED tap data', () => {
+    const calls: any[] = [];
+    let capturedListener: ((response: any) => void) | null = null;
+
+    __setNotificationsModuleForTesting({
+      addNotificationResponseReceivedListener: (cb: (response: any) => void) => {
+        capturedListener = cb;
+        return { remove: () => {} };
+      },
+      getLastNotificationResponseAsync: async () => null,
+      getPermissionsAsync: async () => ({ status: 'granted' }),
+      requestPermissionsAsync: async () => ({ status: 'granted' }),
+      addNotificationReceivedListener: () => ({ remove: () => {} }),
+    });
+
+    const sub = subscribeToNotificationResponseReceived((data: any) => calls.push(data));
+    assert.ok(capturedListener);
+    capturedListener!({
+      notification: {
+        request: {
+          content: {
+            data: {
+              type: 'SUBSTITUTE_ASSIGNED',
+              substitution_id: 88,
+              slot_id: 2,
+              class_group: '7B',
+              subject: 'IPA Terpadu',
+              date: '2026-09-17',
+              period_no: '1',
+              original_teacher: 'Pak Budi',
+            },
+          },
+        },
+      },
+    });
+
+    assert.strictEqual(calls.length, 1);
+    assert.strictEqual(calls[0].type, 'SUBSTITUTE_ASSIGNED');
+    assert.strictEqual(calls[0].substitution_id, 88);
+    assert.strictEqual(calls[0].slot_id, 2);
+    sub.remove();
+  });
+
   it('getInitialNotificationResponse returns null when app was not launched by a notification', async () => {
     __setNotificationsModuleForTesting({
       addNotificationResponseReceivedListener: () => ({ remove: () => {} }),
