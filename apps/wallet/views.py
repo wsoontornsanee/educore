@@ -26,6 +26,7 @@ from apps.wallet.models import (
     WalletRefundStatus,
     WalletReconciliation,
     WalletReconciliationStatus,
+    WalletTopupIntent,
     WalletTransaction,
 )
 from apps.wallet.serializers import (
@@ -193,6 +194,29 @@ class WalletTopupIntentView(APIView):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(TopupIntentSerializer(intent).data, status=status.HTTP_201_CREATED)
+
+
+class WalletTopupIntentDetailView(APIView):
+    """GET /wallets/:student_id/topup-intents/:intent_id (WAL-005: polling status)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'wallet.topup.read'
+
+    def get(self, request, student_id, intent_id):
+        foundation_id = get_current_foundation_id()
+        student = _get_student_or_404(student_id, foundation_id, user=request.user)
+        if not student:
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        intent = WalletTopupIntent.objects.filter(
+            id=intent_id,
+            student=student,
+            foundation_id=foundation_id,
+            deleted_at__isnull=True,
+        ).first()
+        if not intent:
+            return Response({'error': _("Topup intent tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response(TopupIntentSerializer(intent).data)
 
 
 class WalletAutoTopupConfigView(APIView):

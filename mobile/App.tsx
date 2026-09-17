@@ -21,6 +21,7 @@ import { ParentShell, ParentTab } from './src/screens/parent/ParentShell';
 import { ParentHomeScreen } from './src/screens/parent/ParentHomeScreen';
 import { ParentAttendanceScreen } from './src/screens/parent/ParentAttendanceScreen';
 import { ParentInvoicesScreen } from './src/screens/parent/ParentInvoicesScreen';
+import { ParentWalletScreen } from './src/screens/parent/ParentWalletScreen';
 import { POSKioskScreen } from './src/screens/POSKioskScreen';
 import { ParentNutritionDashboardScreen } from './src/screens/ParentNutritionDashboardScreen';
 import { initPosQueueDb } from './src/services/posOfflineQueue';
@@ -128,9 +129,15 @@ export default function App() {
         <ParentShell activeTab={parentTab} onTabChange={setParentTab} onLogout={handleLogout}>
           {({ selectedChild, allChildren }) =>
             parentTab === 'HOME' ? (
-              <ParentHomeScreen child={selectedChild} />
+              <ParentHomeScreen child={selectedChild} onNavigateTab={setParentTab} />
             ) : parentTab === 'ATTENDANCE' ? (
               <ParentAttendanceScreen child={selectedChild} />
+            ) : parentTab === 'WALLET' ? (
+              <ParentWalletScreen
+                key={selectedChild.student_id}
+                child={selectedChild}
+                onNavigateNutrition={() => setParentTab('NUTRITION')}
+              />
             ) : parentTab === 'NUTRITION' ? (
               <ParentNutritionDashboardScreen
                 key={selectedChild.student_id}

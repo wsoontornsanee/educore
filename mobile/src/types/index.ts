@@ -292,3 +292,70 @@ export interface LinkedStudentProfile {
   photo_url?: string | null;
 }
 
+export type WalletStatusType = 'ACTIVE' | 'FROZEN' | 'BLOCKED';
+
+export interface WalletData {
+  id: number;
+  foundation_id: number;
+  student: number;
+  balance: string;
+  currency: string;
+  status: WalletStatusType;
+  daily_limit: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type WalletTransactionType = 'TOPUP' | 'PURCHASE' | 'REFUND' | 'ADJUSTMENT';
+
+export interface WalletTransactionItem {
+  id: number;
+  foundation_id: number;
+  wallet: number;
+  type: WalletTransactionType;
+  amount: string;
+  balance_after: string;
+  reference: string;
+  occurred_at: string;
+  status: string;
+}
+
+export interface WalletSpendRule {
+  id?: number;
+  foundation_id?: number;
+  student?: number;
+  daily_limit: string | null;
+  blocked_categories: string[];
+  blocked_products?: number[];
+  allowed_window_start?: string | null;
+  allowed_window_end?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface WalletAutoTopupConfig {
+  id?: number;
+  wallet?: number;
+  is_active: boolean;
+  threshold_amount: string;
+  topup_amount: string;
+  method: 'VA' | 'QRIS';
+  bank?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface WalletTopupIntentItem {
+  id: number;
+  method: 'VA' | 'QRIS';
+  provider: string;
+  amount: string;
+  currency: string;
+  va_bank: string;
+  va_number: string;
+  qris_payload: string;
+  external_id: string;
+  status: 'PENDING' | 'SETTLED' | 'EXPIRED' | 'FAILED';
+  expires_at: string;
+}
+
