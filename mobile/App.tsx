@@ -93,6 +93,7 @@ export default function App() {
       if (data?.type === 'SUBSTITUTE_ASSIGNED' && data?.slot) {
         setSubModalSlot(data.slot);
       }
+      handleNotificationData(data, bootstrappedUser);
       track('notification_opened');
     });
 
