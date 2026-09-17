@@ -1,9 +1,17 @@
+from typing import Any, Optional
+
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import status, views, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.attendance.models import (
+    AbsenceRequest,
+    AbsenceRequestStatus,
+    AbsenceType,
     AttendanceDay,
     AttendanceRule,
     AttendanceStatus,
@@ -11,6 +19,9 @@ from apps.attendance.models import (
     GateEvent,
 )
 from apps.attendance.serializers import (
+    AbsenceRequestCreateSerializer,
+    AbsenceRequestDecisionSerializer,
+    AbsenceRequestSerializer,
     AttendanceDayOverrideSerializer,
     AttendanceDaySerializer,
     AttendanceRuleSerializer,
@@ -25,19 +36,23 @@ from apps.attendance.serializers import (
 from apps.academic.services import SlotNotScheduledError
 from apps.attendance.services import (
     NotAuthorizedForSlotError,
+    approve_absence_request,
     get_live_gate_feed,
     get_teacher_agenda,
     ingest_gate_events,
     issue_credential,
     manual_gate_checkin,
     override_attendance_day,
+    reject_absence_request,
     revoke_credential,
+    submit_absence_request,
     submit_period_attendance,
     sync_offline_period_attendance_batch,
     verify_credential,
 )
 from apps.core.pagination import StandardCursorPagination
 from apps.hardware.models import Device
+from apps.identity.guardian_access import can_guardian_access_student
 from apps.identity.models import RoleAssignment, Staff, Student
 from apps.identity.permissions import HasRequiredPermission
 from educore.middleware.tenancy import get_current_foundation_id
@@ -917,3 +932,130 @@ class PeriodAttendanceSyncView(views.APIView):
 
         results = sync_offline_period_attendance_batch(teacher, entries)
         return Response({'results': results})
+
+
+class StudentAbsenceRequestView(views.APIView):
+    """
+    Student-scoped absence request endpoint for parents (spec/08 PAR-011).
+    Allows guardians to list and submit absence requests with photo attachments (max 1MB).
+    Enforces can_guardian_access_student (IAM-014) and 3-layer tenancy.
+    """
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def _get_student_or_404(self, student_id: int, user: Any, foundation_id: int) -> Student:
+        student = Student.all_tenants.filter(
+            id=student_id,
+            foundation_id=foundation_id,
+            deleted_at__isnull=True,
+        ).first()
+        if not student:
+            raise NotFound("Siswa tidak ditemukan.")
+
+        if not can_guardian_access_student(user, student_id, foundation_id):
+            raise NotFound("Siswa tidak ditemukan.")
+        return student
+
+    def get(self, request, student_id: int):
+        foundation_id = get_current_foundation_id()
+        student = self._get_student_or_404(student_id, request.user, foundation_id)
+
+        requests = AbsenceRequest.objects.filter(
+            foundation_id=foundation_id,
+            student=student,
+            deleted_at__isnull=True,
+        ).select_related('student', 'student__person', 'requested_by', 'decided_by', 'school').order_by('-created_at', '-id')
+
+        serializer = AbsenceRequestSerializer(requests, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request, student_id: int):
+        foundation_id = get_current_foundation_id()
+        student = self._get_student_or_404(student_id, request.user, foundation_id)
+
+        serializer = AbsenceRequestCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        data = serializer.validated_data
+        attachment_file = request.FILES.get('attachment') or data.get('attachment')
+
+        try:
+            absence_request = submit_absence_request(
+                student=student,
+                requested_by=request.user,
+                date_from=data['date_from'],
+                date_to=data['date_to'],
+                type=data['type'],
+                reason=data['reason'],
+                attachment_file=attachment_file,
+                foundation_id=foundation_id,
+            )
+        except (ValidationError, DjangoValidationError) as e:
+            msg = e.messages[0] if hasattr(e, 'messages') and e.messages else str(e)
+            return Response({'error': msg}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(
+            AbsenceRequestSerializer(absence_request).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class AbsenceRequestStaffViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Staff inbox for reviewing, approving, and rejecting absence requests (spec/05 §2, ATT-002).
+    """
+    serializer_class = AbsenceRequestSerializer
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'attendance.read'
+    pagination_class = StandardCursorPagination
+
+    def get_queryset(self):
+        foundation_id = get_current_foundation_id()
+        qs = AbsenceRequest.objects.filter(
+            foundation_id=foundation_id,
+            deleted_at__isnull=True
+        ).select_related('student', 'student__person', 'requested_by', 'decided_by', 'school').order_by('-created_at', '-id')
+
+        school_id = self.request.query_params.get('school_id')
+        if school_id:
+            qs = qs.filter(school_id=school_id)
+
+        status_param = self.request.query_params.get('status')
+        if status_param:
+            qs = qs.filter(status=status_param)
+
+        student_id = self.request.query_params.get('student_id')
+        if student_id:
+            qs = qs.filter(student_id=student_id)
+
+        return qs
+
+    @action(detail=True, methods=['post'], url_path='approve')
+    def approve(self, request, pk=None):
+        self.required_permission = 'attendance.write'
+        self.check_permissions(request)
+        absence_request = self.get_object()
+        serializer = AbsenceRequestDecisionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        note = serializer.validated_data.get('note', '')
+        try:
+            updated = approve_absence_request(absence_request, decided_by=request.user, note=note)
+        except (ValidationError, DjangoValidationError) as e:
+            msg = e.messages[0] if hasattr(e, 'messages') and e.messages else str(e)
+            return Response({'error': msg}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(AbsenceRequestSerializer(updated).data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='reject')
+    def reject(self, request, pk=None):
+        self.required_permission = 'attendance.write'
+        self.check_permissions(request)
+        absence_request = self.get_object()
+        serializer = AbsenceRequestDecisionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        note = serializer.validated_data.get('note', '')
+        try:
+            updated = reject_absence_request(absence_request, decided_by=request.user, note=note)
+        except (ValidationError, DjangoValidationError) as e:
+            msg = e.messages[0] if hasattr(e, 'messages') and e.messages else str(e)
+            return Response({'error': msg}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(AbsenceRequestSerializer(updated).data, status=status.HTTP_200_OK)

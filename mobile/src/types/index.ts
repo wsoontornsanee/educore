@@ -465,3 +465,36 @@ export interface StudentTimetableSlotItem {
 
 export type AcademicSubTab = 'GRADES' | 'HOMEWORK' | 'REPORT_CARDS' | 'TIMETABLE';
 
+export type AbsenceType = 'SAKIT' | 'IZIN';
+
+export type AbsenceRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface AbsenceRequestItem {
+  id: number;
+  student_id: number;
+  student_name: string;
+  requested_by_id: number;
+  requested_by_name: string;
+  type: AbsenceType;
+  date_from: string; // YYYY-MM-DD
+  date_to: string;   // YYYY-MM-DD
+  reason: string;
+  attachment_url: string | null;
+  status: AbsenceRequestStatus;
+  decision_note?: string;
+  decided_at?: string | null;
+  decided_by_name?: string | null;
+  created_at: string;
+}
+
+export interface CreateAbsenceRequestPayload {
+  student_id: number;
+  type: AbsenceType;
+  date_from: string;
+  date_to: string;
+  reason: string;
+  attachmentUri?: string | null;
+  attachmentName?: string | null;
+  attachmentType?: string | null;
+  attachmentSize?: number | null;
+}

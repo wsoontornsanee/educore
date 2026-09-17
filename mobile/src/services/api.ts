@@ -72,7 +72,12 @@ async function request<T>(
   };
 
   if (body !== undefined && method !== 'GET') {
-    fetchOptions.body = typeof body === 'string' ? body : JSON.stringify(body);
+    if (typeof FormData !== 'undefined' && body instanceof FormData) {
+      delete headers['Content-Type'];
+      fetchOptions.body = body;
+    } else {
+      fetchOptions.body = typeof body === 'string' ? body : JSON.stringify(body);
+    }
   }
 
   let response: Response;
