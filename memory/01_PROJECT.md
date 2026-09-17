@@ -9,8 +9,8 @@
 ---
 
 - **Current Step:** Awaiting next task instruction.
-- **Preceding Step:** [Open Item] Parent App: Full App-Wide i18n Propagation (PAR-014) [DONE - PR #114 merged].
-- **Recent Completed Step:** [Open Item] Parent App: Push-Driven Deep Link into Attendance Detail (spec/08 PAR-004) [DONE - PR #113 merged].
+- **Preceding Step:** Step 14.1 — Third-Party SSO (Google Workspace / Microsoft 365) Integration (TASK-036) [DONE - PR #115 merged].
+- **Recent Completed Step:** [Open Item] Parent App: Full App-Wide i18n Propagation (PAR-014) [DONE - PR #114 merged].
 
 - **Target Milestone:** P0 Pilot Core [DONE] (M0–M5) -> P1 Classroom [DONE] (M6–M9) -> P2 Campus Economy (M10–M13): canteen wallet + POS [wallet core started], kiosks, face recognition, campus life (`spec/00 §6`).
   - *M0 (Step 0) [DONE]:* Django project skeleton, `core` app (`TenantModel`, `MoneyField`, `AuditEvent`, `DomainEvent`, `TaskQueue`, `JobRun`, `drain_tasks`, advisory locks, crontab).
