@@ -964,7 +964,7 @@ class StudentAbsenceRequestView(views.APIView):
             foundation_id=foundation_id,
             student=student,
             deleted_at__isnull=True,
-        ).select_related('student', 'student__person', 'requested_by', 'decided_by', 'school').order_by('-created_at')
+        ).select_related('student', 'student__person', 'requested_by', 'decided_by', 'school').order_by('-created_at', '-id')
 
         serializer = AbsenceRequestSerializer(requests, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -1014,7 +1014,7 @@ class AbsenceRequestStaffViewSet(viewsets.ReadOnlyModelViewSet):
         qs = AbsenceRequest.objects.filter(
             foundation_id=foundation_id,
             deleted_at__isnull=True
-        ).select_related('student', 'student__person', 'requested_by', 'decided_by', 'school').order_by('-created_at')
+        ).select_related('student', 'student__person', 'requested_by', 'decided_by', 'school').order_by('-created_at', '-id')
 
         school_id = self.request.query_params.get('school_id')
         if school_id:
