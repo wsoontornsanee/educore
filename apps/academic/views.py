@@ -1,4 +1,5 @@
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.utils.translation import gettext_lazy as _
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
@@ -32,6 +33,8 @@ from apps.academic.models import (
     HomeworkSubmissionStatus,
     LearningObjective,
     LessonPlan,
+    PermissionSlip,
+    PermissionSlipAcknowledgement,
     ReportCard,
     Subject,
     SubstitutionStatus,
@@ -123,6 +126,12 @@ from apps.academic.services import (
     revise_report_card,
     save_answer,
     send_broadcast,
+    acknowledge_permission_slip,
+    create_permission_slip,
+    get_slip_consent_tally,
+    GuardianNotLinkedError,
+    PermissionSlipClosedError,
+    StudentNotEnrolledError,
     set_arrears_gate,
     set_assessment_score,
     set_report_card_content,
@@ -1504,3 +1513,255 @@ class StudentTimetableView(APIView):
             'date': target_date.isoformat(),
             'slots': results,
         })
+
+
+def _serialize_permission_slip(slip, tally=None):
+    """Compact JSON shape shared by staff and parent endpoints (PAR-012)."""
+    data = {
+        'id': slip.id,
+        'title': slip.title,
+        'description': slip.description,
+        'event_date': slip.event_date.isoformat() if slip.event_date else None,
+        'location': slip.location,
+        'due_at': slip.due_at.isoformat() if slip.due_at else None,
+        'is_closed': bool(slip.due_at and timezone.now() > slip.due_at),
+        'class_group_id': slip.class_group_id,
+        'class_group_name': slip.class_group.name,
+        'school_id': slip.class_group.school_id,
+        'created_by_name': slip.created_by.person.full_name if slip.created_by and slip.created_by.person else '',
+        'created_at': slip.created_at.isoformat() if slip.created_at else None,
+    }
+    if tally is not None:
+        data['tally'] = {
+            'total_enrolled': tally['total_enrolled'],
+            'approved': tally['approved'],
+            'declined': tally['declined'],
+            'pending': tally['pending'],
+        }
+    return data
+
+
+class TeacherPermissionSlipView(APIView):
+    """GET (list) + POST (create) /api/v1/academic/teacher/permission-slips/
+    School-side permission slips with live consent tally (spec/08 PAR-012)."""
+    permission_classes = [HasRequiredPermission]
+
+    def get_required_permission(self):
+        return 'grades.write' if self.request.method == 'POST' else 'grades.read'
+
+    def get(self, request):
+        foundation_id = get_current_foundation_id()
+        qs = PermissionSlip.objects.filter(
+            foundation_id=foundation_id, deleted_at__isnull=True,
+        ).select_related('class_group', 'created_by__person').order_by('-created_at')
+
+        class_group_id = request.query_params.get('class_group_id')
+        if class_group_id:
+            qs = qs.filter(class_group_id=class_group_id)
+
+        results = []
+        for slip in qs[:100]:
+            tally = get_slip_consent_tally(slip)
+            results.append(_serialize_permission_slip(slip, tally))
+        return Response({'results': results})
+
+    def post(self, request):
+        foundation_id = get_current_foundation_id()
+        staff = Staff.objects.filter(user=request.user, foundation_id=foundation_id).first()
+        if not staff:
+            return Response({'error': _("Akun ini tidak terhubung ke profil staf.")}, status=status.HTTP_404_NOT_FOUND)
+
+        class_group_id = request.data.get('class_group_id')
+        class_group = ClassGroup.objects.filter(id=class_group_id, foundation_id=foundation_id).first()
+        if not class_group:
+            return Response({'error': _("Kelas tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        title = (request.data.get('title') or '').strip()
+        if not title:
+            return Response({'error': _("Judul izin wajib diisi.")}, status=status.HTTP_400_BAD_REQUEST)
+
+        description = request.data.get('description') or ''
+        location = request.data.get('location') or ''
+
+        import datetime as _dt
+        event_date = None
+        if request.data.get('event_date'):
+            try:
+                event_date = _dt.date.fromisoformat(request.data['event_date'])
+            except ValueError:
+                return Response({'error': _("Format tanggal acara tidak valid (YYYY-MM-DD).")}, status=status.HTTP_400_BAD_REQUEST)
+
+        due_at = None
+        if request.data.get('due_at'):
+            parsed = parse_datetime(request.data['due_at'])
+            if parsed is None:
+                return Response({'error': _("Format batas waktu tidak valid (ISO 8601).")}, status=status.HTTP_400_BAD_REQUEST)
+            due_at = parsed
+            if timezone.is_naive(due_at):
+                due_at = timezone.make_aware(due_at)
+
+        try:
+            slip = create_permission_slip(
+                staff, class_group, title,
+                description=description, event_date=event_date,
+                location=location, due_at=due_at, actor=request.user,
+            )
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(_serialize_permission_slip(slip, get_slip_consent_tally(slip)), status=status.HTTP_201_CREATED)
+
+
+class TeacherPermissionSlipTallyView(APIView):
+    """GET /api/v1/academic/teacher/permission-slips/:id/consent-tally/
+    Live per-student consent roster + roll-up (PAR-012: school sees a live consent tally)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'grades.read'
+
+    def get(self, request, slip_id):
+        foundation_id = get_current_foundation_id()
+        slip = PermissionSlip.objects.filter(
+            id=slip_id, foundation_id=foundation_id, deleted_at__isnull=True,
+        ).select_related('class_group').first()
+        if not slip:
+            return Response({'error': _("Izin tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        tally = get_slip_consent_tally(slip)
+
+        from apps.identity.guardian_access import can_guardian_access_student  # noqa: F401 (staff path below)
+        enrollments = ClassEnrollment.objects.filter(
+            class_group_id=slip.class_group_id, is_active=True,
+            foundation_id=foundation_id, deleted_at__isnull=True,
+        ).select_related('student__person')
+
+        acks = list(PermissionSlipAcknowledgement.objects.filter(
+            permission_slip=slip, foundation_id=foundation_id, deleted_at__isnull=True,
+        ).select_related('guardian__person').order_by('responded_at', 'id'))
+        latest_by_pair = {}
+        for ack in acks:
+            latest_by_pair[(ack.student_id, ack.guardian_id)] = ack
+
+        roster = []
+        for enrollment in enrollments:
+            student = enrollment.student
+            student_acks = [a for (sid, _gid), a in latest_by_pair.items() if sid == student.id]
+            effective = max(student_acks, key=lambda a: (a.responded_at, a.id)) if student_acks else None
+            roster.append({
+                'student_id': student.id,
+                'student_name': student.person.full_name if student.person else '',
+                'nis': student.nis,
+                'response': effective.response if effective else 'PENDING',
+                'responded_at': effective.responded_at.isoformat() if effective else None,
+                'signature': effective.signature if effective else None,
+            })
+
+        return Response({
+            'permission_slip': _serialize_permission_slip(slip),
+            'tally': {
+                'total_enrolled': tally['total_enrolled'],
+                'approved': tally['approved'],
+                'declined': tally['declined'],
+                'pending': tally['pending'],
+            },
+            'roster': roster,
+        })
+
+
+class StudentPermissionSlipView(APIView):
+    """GET /api/v1/academic/students/:student_id/permission-slips/
+    Parent list of the child's class permission slips with the guardian's own
+    effective response (spec/08 PAR-012, IAM-014 guardian scoping)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'grades.read'
+
+    def get(self, request, student_id):
+        foundation_id = get_current_foundation_id()
+        student = Student.objects.filter(id=student_id, foundation_id=foundation_id).first()
+        if not student:
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.identity.guardian_access import can_guardian_access_student
+        if not can_guardian_access_student(request.user, student.id, foundation_id):
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.identity.models import Guardian, GuardianLink
+        enrollments = ClassEnrollment.objects.filter(
+            student=student, is_active=True, foundation_id=foundation_id, deleted_at__isnull=True,
+        ).values_list('class_group_id', flat=True)
+
+        slips = PermissionSlip.objects.filter(
+            class_group_id__in=enrollments, foundation_id=foundation_id, deleted_at__isnull=True,
+        ).select_related('class_group', 'created_by__person').order_by('-created_at')
+
+        guardian = Guardian.objects.filter(user=request.user, foundation_id=foundation_id).first()
+
+        results = []
+        for slip in slips:
+            tally = get_slip_consent_tally(slip)
+            item = _serialize_permission_slip(slip, tally)
+            my_response = None
+            my_responded_at = None
+            if guardian:
+                acks = list(PermissionSlipAcknowledgement.objects.filter(
+                    permission_slip=slip, student=student, guardian=guardian,
+                    foundation_id=foundation_id, deleted_at__isnull=True,
+                ).order_by('responded_at', 'id'))
+                if acks:
+                    effective = acks[-1]
+                    my_response = effective.response
+                    my_responded_at = effective.responded_at.isoformat()
+            item['my_response'] = my_response
+            item['my_responded_at'] = my_responded_at
+            item['my_pending'] = guardian is not None and my_response is None and not item['is_closed']
+            results.append(item)
+
+        return Response({'results': results})
+
+
+class PermissionSlipAcknowledgeView(APIView):
+    """POST /api/v1/academic/permission-slips/:id/acknowledge/
+    Guardian signs a digital acknowledgement with timestamp (PAR-012).
+    Body: {student_id, response: APPROVED|DECLINED, signature: "<typed full name>"}."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'grades.read'
+
+    def post(self, request, slip_id):
+        foundation_id = get_current_foundation_id()
+        slip = PermissionSlip.objects.filter(
+            id=slip_id, foundation_id=foundation_id, deleted_at__isnull=True,
+        ).select_related('class_group').first()
+        if not slip:
+            return Response({'error': _("Izin tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.identity.models import Guardian
+        guardian = Guardian.objects.filter(user=request.user, foundation_id=foundation_id).first()
+        if not guardian:
+            return Response({'error': _("Akun ini tidak terhubung ke profil wali murid.")}, status=status.HTTP_404_NOT_FOUND)
+
+        student_id = request.data.get('student_id')
+        student = Student.objects.filter(id=student_id, foundation_id=foundation_id).first()
+        if not student:
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        response = (request.data.get('response') or '').strip().upper()
+        signature = (request.data.get('signature') or '').strip()
+
+        try:
+            ack = acknowledge_permission_slip(slip, guardian, student, response, signature, actor=request.user)
+        except GuardianNotLinkedError as e:
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        except StudentNotEnrolledError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except PermissionSlipClosedError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            'id': ack.id,
+            'permission_slip_id': slip.id,
+            'student_id': student.id,
+            'response': ack.response,
+            'responded_at': ack.responded_at.isoformat(),
+            'signature': ack.signature,
+        }, status=status.HTTP_201_CREATED)

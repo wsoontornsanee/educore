@@ -701,3 +701,76 @@ class Broadcast(TenantModel):
 
     def __str__(self):
         return f"{self.title} -> {self.class_group.name} ({self.sent_at})"
+
+
+class PermissionSlip(TenantModel):
+    """A school-issued consent request for one class group (spec/08 PAR-012).
+
+    Field trips, extracurricular outings, media appearances, etc. Guardians of
+    enrolled students respond with a signed digital acknowledgement
+    (PermissionSlipAcknowledgement); the school watches the live consent tally.
+    """
+    class_group = models.ForeignKey(ClassGroup, on_delete=models.PROTECT, related_name='permission_slips')
+    created_by = models.ForeignKey(Staff, on_delete=models.PROTECT, related_name='permission_slips_created')
+    title = models.CharField(max_length=128)
+    description = models.TextField(blank=True, default='')
+    event_date = models.DateField(null=True, blank=True)
+    location = models.CharField(max_length=256, blank=True, default='')
+    due_at = models.DateTimeField(null=True, blank=True, help_text="Acks are closed for new responses after this moment")
+    active_uniq_marker = soft_delete_uniqueness_marker()
+
+    class Meta:
+        db_table = 'permission_slips'
+        indexes = [
+            models.Index(fields=['foundation_id', 'class_group_id', 'due_at']),
+            models.Index(fields=['foundation_id', 'created_by_id']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'class_group', 'title', 'active_uniq_marker'],
+                name='unique_active_permission_slip_title_per_class_group',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.title} -> {self.class_group.name}"
+
+
+class PermissionSlipAcknowledgement(TenantModel):
+    """A guardian's signed digital acknowledgement of one permission slip (PAR-012).
+
+    Records are append-only: a guardian who changes their answer before the slip
+    closes produces a NEW row superseding the previous one (latest responded_at
+    per (slip, student, guardian) is the effective response); existing rows are
+    never rewritten, matching the codebase's no-rewrite correction convention.
+    """
+    RESPONSE_APPROVED = 'APPROVED'
+    RESPONSE_DECLINED = 'DECLINED'
+    RESPONSE_CHOICES = [
+        (RESPONSE_APPROVED, 'Menyetujui (Approved)'),
+        (RESPONSE_DECLINED, 'Menolak (Declined)'),
+    ]
+
+    permission_slip = models.ForeignKey(PermissionSlip, on_delete=models.PROTECT, related_name='acknowledgements')
+    student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name='permission_slip_acknowledgements')
+    guardian = models.ForeignKey('identity.Guardian', on_delete=models.PROTECT, related_name='permission_slip_acknowledgements')
+    response = models.CharField(max_length=16, choices=RESPONSE_CHOICES)
+    responded_at = models.DateTimeField(help_text="Timestamp of the signed acknowledgement (PAR-012)")
+    signature = models.CharField(max_length=128, help_text="Guardian's typed full name as the digital signature")
+    active_uniq_marker = soft_delete_uniqueness_marker()
+
+    class Meta:
+        db_table = 'permission_slip_acknowledgements'
+        indexes = [
+            models.Index(fields=['foundation_id', 'permission_slip_id', 'student_id']),
+            models.Index(fields=['foundation_id', 'guardian_id']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'permission_slip', 'student', 'guardian', 'active_uniq_marker'],
+                name='unique_active_ack_per_slip_student_guardian',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.signature} -> {self.response} ({self.responded_at})"
