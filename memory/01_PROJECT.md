@@ -9,8 +9,8 @@
 ---
 
 - **Current Step:** Awaiting next task instruction.
-- **Preceding Step:** [Open Item] Permission Slip: School-side web console (HTMX) for slip creation & tally (PAR-012) [DONE - PR #109 merged].
-- **Recent Completed Step:** [Open Item] Parent App: Analytics Event Instrumentation (spec/08 §5, spec/15 RPT-015) [DONE - PR #108 merged].
+- **Preceding Step:** [Open Item] Permission Slip: Push notification on new slip (template seed decision) (PAR-012) [DONE].
+- **Recent Completed Step:** [Open Item] Permission Slip: School-side web console (HTMX) for slip creation & tally (PAR-012) [DONE - PR #109 merged].
 - **Target Milestone:** P0 Pilot Core [DONE] (M0–M5) -> P1 Classroom [DONE] (M6–M9) -> P2 Campus Economy (M10–M13): canteen wallet + POS [wallet core started], kiosks, face recognition, campus life (`spec/00 §6`).
   - *M0 (Step 0) [DONE]:* Django project skeleton, `core` app (`TenantModel`, `MoneyField`, `AuditEvent`, `DomainEvent`, `TaskQueue`, `JobRun`, `drain_tasks`, advisory locks, crontab).
   - *M1 (Step 1) [DONE]:* Tenancy, auth, RBAC, feature entitlements, foundation portal, seed data (`identity`, `foundation`). Demo: Foundation admin logs in, sees two schools.
@@ -226,5 +226,9 @@ From `spec/appendix.md §3`:
 
 ---
 
-## 6. Blockers & Risks
+## 6. Retrospectives (continued)
+
+54. **Notification Template Seed Decision — Keep ANNOUNCEMENT Category, Don't Proliferate:** The open item asked whether `academic.permission_slip.new` should get its own `NotificationCategory` or reuse the existing `ANNOUNCEMENT`. Kept `ANNOUNCEMENT` — semantically, a permission slip request *is* a school announcement to guardians, and the existing category config (WHATSAPP+PUSH, opt-out allowed, NORMAL priority) fits perfectly. A new category would only add unnecessary proliferation; if separate opt-out control is ever needed, one can be added then. The dispatch payload was also enhanced with structured fields (`title`, `class_group_name`, `event_date`, `location`) alongside the existing pre-formatted `message` — so seeded templates can reference structured variables rather than relying on the generic fallback's `{message}` key.
+
+## 7. Blockers & Risks
 - None currently active.

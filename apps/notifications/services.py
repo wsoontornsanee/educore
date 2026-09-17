@@ -267,6 +267,9 @@ def render_template_message(
         elif template_key == 'finance.refund_executed':
             body_fmt = "Pengembalian dana sebesar {currency} {amount} untuk pembayaran {payment_reference} telah berhasil diproses (Ref: {payout_reference})."
             subj_fmt = "Pengembalian Dana Berhasil"
+        elif template_key == 'academic.permission_slip.new':
+            body_fmt = "Permintaan izin baru: {message}"
+            subj_fmt = "Permintaan Izin Baru"
         else:
             body_fmt = "Pemberitahuan sekolah: {message}"
             subj_fmt = "Pemberitahuan EduCore"
