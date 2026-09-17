@@ -579,3 +579,19 @@ export interface AcknowledgePermissionSlipPayload {
   response: 'APPROVED' | 'DECLINED';
   signature: string;
 }
+
+// --- Profile Tab Types (PAR-013, PAR-014, PAR-018) ---
+
+export type NotificationLocale = 'id-ID' | 'en-US';
+
+export type NotificationChannelType = 'WHATSAPP' | 'PUSH' | 'SMS' | 'EMAIL';
+
+export interface NotificationPrefItem {
+  id?: number;
+  category: string;
+  channels: NotificationChannelType[];
+  quiet_hours_start: string; // "HH:MM"
+  quiet_hours_end: string;   // "HH:MM"
+  enabled: boolean;
+}
+

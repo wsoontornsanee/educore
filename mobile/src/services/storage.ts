@@ -23,6 +23,10 @@ export const StorageKeys = {
   // "list keys" / "clear by prefix" API and the per-child cache keys embed a
   // student_id we no longer know at logout time, so cacheSet records them here.
   CACHE_KEY_REGISTRY: 'educore_cache_key_registry',
+  // PAR-014: language preference (survives logout — device preference, not PII)
+  LOCALE: 'educore_locale',
+  // PAR-018: biometric unlock enabled flag (survives logout — device preference)
+  BIOMETRIC_ENABLED: 'educore_biometric_enabled',
 };
 
 export async function setItem(key: string, value: string): Promise<void> {
@@ -152,3 +156,24 @@ export async function getLastChildId(): Promise<number | null> {
   const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : null;
 }
+
+// PAR-014: Language preference helpers (device preference — survives logout)
+export async function getLocale(): Promise<'id-ID' | 'en-US'> {
+  const raw = await getItem(StorageKeys.LOCALE);
+  return raw === 'en-US' ? 'en-US' : 'id-ID';
+}
+
+export async function setLocale(locale: 'id-ID' | 'en-US'): Promise<void> {
+  await setItem(StorageKeys.LOCALE, locale);
+}
+
+// PAR-018: Biometric unlock helpers (device preference — survives logout)
+export async function getBiometricEnabled(): Promise<boolean> {
+  const raw = await getItem(StorageKeys.BIOMETRIC_ENABLED);
+  return raw === 'true';
+}
+
+export async function setBiometricEnabled(enabled: boolean): Promise<void> {
+  await setItem(StorageKeys.BIOMETRIC_ENABLED, enabled ? 'true' : 'false');
+}
+
