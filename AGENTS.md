@@ -51,9 +51,39 @@ Every task must strictly adhere to the following 5-phase SOP:
    - Always fetch and merge/rebase on the latest target branch (`main`) so you have the latest code before opening or finalizing a PR.
    - Verify that the PR is strictly mergeable without conflicts, with all automated tests passing.
    - Prepare atomic conventional commits on a feature branch and open a clean Pull Request.
+   - Strictly follow the **Pre-PR Synchronization & Conflict Resolution Protocol** below.
 5. **Wait for PR Merged & Deploy Instruction:**
    - Never deploy or merge unilaterally; wait for explicit PR merge approval and subsequent deployment instructions from the user.
    - Upon task completion / merge, update the Notion task status to `Done` with PR link and verification summary in `Logs`.
+
+### PRE-PR SYNCHRONIZATION & CONFLICT RESOLUTION PROTOCOL
+
+Before opening, marking ready, or updating any Pull Request, you must ensure your branch is cleanly rebased on top of the latest target branch and conflict-free.
+
+#### Mandatory Pre-PR Checklist:
+
+1. Fetch and Rebase:
+   - Run: `git fetch origin main` (or the relevant target base branch).
+   - Run: `git rebase origin/main`.
+
+2. Resolve In-Flight Merge Conflicts:
+   - If conflicts occur, inspect each conflicting file directly.
+   - PRESERVATION RULE: You must NEVER delete, rewrite, or discard existing functionality or business logic introduced by other commits. Blend the changes: keep all upstream logic intact while integrating your task changes.
+   - Ensure zero conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`) remain anywhere in the code.
+   - Stage resolved files: `git add <resolved-files>`
+   - Finalize: `git rebase --continue` (Repeat until rebase is clean).
+
+3. Targeted Validation (DO NOT Run Full Suite):
+   - DO NOT run the entire project test suite, full regression suite, or end-to-end integration passes during conflict resolution.
+   - ONLY run:
+     1. Syntax/Linter/Build check on the affected files (e.g., `python -m py_compile <file>` or `tsc --noEmit`).
+     2. Specific unit tests directly targeting the conflicting modules or modified functions (e.g., `pytest path/to/test_modified_module.py`).
+   - If targeted tests fail, fix the integration without touching unrelated files.
+
+4. Push & PR Creation:
+   - Only after targeted tests pass cleanly, force-push with lease:
+     `git push origin <your-feature-branch> --force-with-lease`
+   - You are now cleared to open or update the PR. Never open a PR if `origin/main` has diverged.
 
 ---
 
