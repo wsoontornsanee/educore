@@ -8,7 +8,7 @@
 
 ---
 
-- **Current Step:** Awaiting next task instruction.
+- **Current Step:** [Open Item] Parent App: Full App-Wide i18n Propagation (PAR-014) [Implemented & tested — PR #114 opened].
 - **Preceding Step:** [Open Item] Parent App: Push-Driven Deep Link into Attendance Detail (spec/08 PAR-004) [DONE - PR #113 merged].
 - **Recent Completed Step:** [Open Item] Parent App: Messages Tab (announcements, teacher messages, permission slips) (spec/08 §2) [DONE - PR #112 merged].
 

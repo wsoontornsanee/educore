@@ -24,7 +24,7 @@ interface ParentShellProps {
 }
 
 export const ParentShell: React.FC<ParentShellProps> = ({ activeTab, onTabChange, onLogout, deepLinkChildId, children }) => {
-  const { locale } = useLocale();
+  const { locale, t } = useLocale();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [allChildren, setAllChildren] = useState<ChildSummary[]>([]);
@@ -97,17 +97,17 @@ export const ParentShell: React.FC<ParentShellProps> = ({ activeTab, onTabChange
     return (
       <SafeAreaView style={styles.center}>
         <Text style={styles.emptyText}>
-          Gagal memuat data anak. Periksa koneksi Anda lalu coba lagi.
+          {t('common.error')}
         </Text>
         <TouchableOpacity
           onPress={() => setReloadToken((t) => t + 1)}
           style={styles.retryButton}
           accessibilityRole="button"
         >
-          <Text style={styles.retryText}>Coba lagi</Text>
+          <Text style={styles.retryText}>{t('common.retry')}</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={onLogout} style={styles.logoutLink} accessibilityRole="button">
-          <Text style={styles.logoutText}>Keluar</Text>
+          <Text style={styles.logoutText}>{t('profile.logout')}</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
@@ -116,9 +116,9 @@ export const ParentShell: React.FC<ParentShellProps> = ({ activeTab, onTabChange
   if (!selectedChild) {
     return (
       <SafeAreaView style={styles.center}>
-        <Text style={styles.emptyText}>Tidak ada data anak terhubung.</Text>
+        <Text style={styles.emptyText}>{t('profile.section.children')}</Text>
         <TouchableOpacity onPress={onLogout} style={styles.logoutLink} accessibilityRole="button">
-          <Text style={styles.logoutText}>Keluar</Text>
+          <Text style={styles.logoutText}>{t('profile.logout')}</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );

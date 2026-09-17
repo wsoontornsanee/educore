@@ -10,6 +10,7 @@ import { cacheGet, cacheSet } from '../../services/storage';
 import { todayWib } from '../../services/localDate';
 import { attendanceStatusLabel } from '../../constants/attendance';
 import { StaleOfflineBanner } from '../../components/StaleOfflineBanner';
+import { useLocale } from '../../i18n/LocaleContext';
 import { colors, radius, spacing, typography } from '../../theme/tokens';
 import type { AttendanceDayItem, ChildSummary, InvoiceItem, WalletData } from '../../types';
 import type { ParentTab } from './ParentShell';
@@ -20,7 +21,9 @@ interface ParentHomeScreenProps {
 }
 
 export const ParentHomeScreen: React.FC<ParentHomeScreenProps> = ({ child, onNavigateTab }) => {
+  const { t, locale } = useLocale();
   const [loading, setLoading] = useState(true);
+
   const [offline, setOffline] = useState(false);
   const [cachedAt, setCachedAt] = useState<string | null>(null);
   const [today, setToday] = useState<AttendanceDayItem | null>(null);
@@ -80,7 +83,7 @@ export const ParentHomeScreen: React.FC<ParentHomeScreenProps> = ({ child, onNav
     );
   }
 
-  const statusLabel = attendanceStatusLabel(today?.status);
+  const statusLabel = attendanceStatusLabel(today?.status, locale);
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
@@ -88,14 +91,18 @@ export const ParentHomeScreen: React.FC<ParentHomeScreenProps> = ({ child, onNav
 
       <View style={styles.statusCard}>
         <Text style={styles.statusLabel}>{statusLabel}</Text>
-        {today?.first_in_at && <Text style={styles.statusTime}>Tiba: {today.first_in_at}</Text>}
+        {today?.first_in_at && (
+          <Text style={styles.statusTime}>
+            {t('home.arrived')} {today.first_in_at}
+          </Text>
+        )}
       </View>
 
       {/* Wallet Balance Card (PAR-002, WAL-008) */}
       <View style={styles.walletCard}>
         <View style={styles.walletCardTop}>
           <View>
-            <Text style={styles.cardTitle}>Dompet Kantin Digital</Text>
+            <Text style={styles.cardTitle}>{t('home.wallet_title')}</Text>
             <Text style={styles.walletBalanceText}>{formatRupiah(wallet?.balance)}</Text>
           </View>
           {wallet && (
@@ -111,7 +118,7 @@ export const ParentHomeScreen: React.FC<ParentHomeScreenProps> = ({ child, onNav
                   wallet.status === 'ACTIVE' ? styles.walletBadgeTextActive : styles.walletBadgeTextFrozen,
                 ]}
               >
-                {wallet.status === 'ACTIVE' ? 'Aktif' : 'Dibekukan'}
+                {wallet.status === 'ACTIVE' ? t('wallet.badge_active') : t('wallet.badge_frozen')}
               </Text>
             </View>
           )}
@@ -123,19 +130,19 @@ export const ParentHomeScreen: React.FC<ParentHomeScreenProps> = ({ child, onNav
             onPress={() => onNavigateTab('WALLET')}
             accessibilityRole="button"
           >
-            <Text style={styles.walletActionBtnText}>Buka Dompet Siswa →</Text>
+            <Text style={styles.walletActionBtnText}>{t('home.open_wallet')}</Text>
           </TouchableOpacity>
         )}
       </View>
 
       {child.financial_responsible && (
         <View style={styles.invoiceCard}>
-          <Text style={styles.cardTitle}>Tagihan</Text>
+          <Text style={styles.cardTitle}>{t('home.invoices_title')}</Text>
           {outstandingInvoices.length === 0 ? (
-            <Text style={styles.cardBody}>Tidak ada tagihan tertunggak.</Text>
+            <Text style={styles.cardBody}>{t('home.no_invoices')}</Text>
           ) : (
             <Text style={styles.cardBody}>
-              {outstandingInvoices.length} tagihan belum lunas — jatuh tempo terdekat {outstandingInvoices[0].due_date}.
+              {outstandingInvoices.length} {t('home.invoices_due')} {outstandingInvoices[0].due_date}.
             </Text>
           )}
         </View>
@@ -143,6 +150,7 @@ export const ParentHomeScreen: React.FC<ParentHomeScreenProps> = ({ child, onNav
     </ScrollView>
   );
 };
+
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surface },
