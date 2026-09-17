@@ -18,4 +18,6 @@ urlpatterns = [
     path('api/v1/reporting/', include('apps.reporting.urls')),
     path('api/v1/', include('apps.campus.urls')),
     path('api/v1/campus/', include('apps.campus.urls')),
+    # Session-auth web (HTMX) pages — HTML responses, distinct from /api/v1/ JSON
+    path('web/academic/', include('apps.academic.web_urls')),
 ]

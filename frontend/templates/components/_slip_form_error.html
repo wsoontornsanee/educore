@@ -1,0 +1,11 @@
+{% comment %}
+Fragment: Create-form validation error (PAR-012 console).
+Returned with a 4xx status by the create endpoint so HTMX swaps it into the
+form area. Parameters:
+  - form_error: string message (id-ID)
+{% endcomment %}
+<div id="slip-form-error" role="alert"
+     class="text-body-sm text-danger"
+     style="margin-top: 12px; padding: 10px 14px; background-color: var(--color-danger-bg); border: 1px solid var(--color-danger);">
+  {{ form_error }}
+</div>

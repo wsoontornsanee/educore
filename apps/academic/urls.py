@@ -20,6 +20,10 @@ from apps.academic.views import (
     LessonPlanViewSet,
     PeriodGridView,
     PermissionSlipAcknowledgeView,
+    PermissionSlipConsoleCreateView,
+    PermissionSlipConsolePageView,
+    PermissionSlipConsoleRosterView,
+    PermissionSlipConsoleTallyView,
     ReportCardPolicyView,
     ReportCardViewSet,
     StudentAttainmentView,
@@ -67,6 +71,7 @@ urlpatterns = [
     path('teacher/permission-slips/', TeacherPermissionSlipView.as_view(), name='teacher-permission-slips'),
     path('teacher/permission-slips/<int:slip_id>/consent-tally/', TeacherPermissionSlipTallyView.as_view(), name='teacher-permission-slip-tally'),
     path('permission-slips/<int:slip_id>/acknowledge/', PermissionSlipAcknowledgeView.as_view(), name='permission-slip-acknowledge'),
+
     path('schools/<int:school_id>/report-card-policy/', ReportCardPolicyView.as_view(), name='report-card-policy'),
     path('schools/<int:school_id>/broadcast-policy/', BroadcastPolicyView.as_view(), name='broadcast-policy'),
     path('schools/<int:school_id>/period-grid/', PeriodGridView.as_view(), name='period-grid'),

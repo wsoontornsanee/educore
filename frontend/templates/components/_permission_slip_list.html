@@ -1,0 +1,63 @@
+{% comment %}
+Fragment: Permission slip list cards with live tally badges (spec/08 PAR-012).
+Swapped into #slip-list-container by the create form (hx-post) and refreshed by
+the polling poller on the console page. Parameters:
+  - slips: list of serialized slip dicts (see permission_slip_console.html header)
+  - tally_url_prefix: GET prefix for the tally fragment (appends /<slip_id>/)
+{% endcomment %}
+
+{% if slips %}
+  <div style="display: flex; flex-direction: column; gap: 16px;">
+    {% for slip in slips %}
+      <article class="card" id="slip-card-{{ slip.id }}" style="padding: 20px 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
+          <div style="min-width: 240px;">
+            <div class="text-label text-ink-500">{{ slip.class_group_name }}</div>
+            <h4 class="text-h3 font-display text-ink-900" style="margin: 4px 0 0 0;">{{ slip.title }}</h4>
+            {% if slip.description %}
+              <p class="text-body-sm text-ink-700" style="margin: 6px 0 0 0;">{{ slip.description }}</p>
+            {% endif %}
+            <p class="text-body-sm text-ink-500" style="margin: 6px 0 0 0;">
+              {% if slip.event_date %}Acara: {{ slip.event_date }}{% endif %}
+              {% if slip.location %}{% if slip.event_date %} • {% endif %}Lokasi: {{ slip.location }}{% endif %}
+            </p>
+            <p class="text-body-sm text-ink-500" style="margin: 4px 0 0 0;">
+              {% if slip.due_at %}Batas respon: {{ slip.due_at }}{% else %}Tanpa batas waktu{% endif %}
+              {% if slip.is_closed %} • <span class="text-danger" style="font-weight: 600;">Ditutup</span>{% endif %}
+            </p>
+          </div>
+
+          <!-- Live Tally -->
+          <div id="slip-tally-{{ slip.id }}"
+               style="display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap;"
+               hx-get="{{ tally_url_prefix }}/{{ slip.id }}/"
+               hx-trigger="every 15s"
+               hx-target="this"
+               hx-swap="innerHTML">
+            {% include "components/_permission_slip_tally.html" with tally=slip.tally %}
+          </div>
+        </div>
+
+        <div style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <span class="text-body-sm text-ink-500">Diterbitkan oleh {{ slip.created_by_name }}</span>
+          <button type="button"
+                  class="btn btn-secondary text-body-sm"
+                  hx-get="{{ tally_url_prefix }}/{{ slip.id }}/roster/"
+                  hx-target="#slip-roster-{{ slip.id }}"
+                  hx-swap="innerHTML"
+                  aria-controls="slip-roster-{{ slip.id }}">
+            Lihat Rincian Siswa
+          </button>
+        </div>
+        <div id="slip-roster-{{ slip.id }}" style="margin-top: 8px;"></div>
+      </article>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="card" style="padding: 32px; text-align: center;">
+    <p class="text-h3 font-display text-ink-900" style="margin: 0 0 4px 0;">Belum Ada Izin</p>
+    <p class="text-body-sm text-ink-500" style="margin: 0;">
+      Terbitkan izin pertama Anda melalui formulir di atas.
+    </p>
+  </div>
+{% endif %}
