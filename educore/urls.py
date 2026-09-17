@@ -2,6 +2,7 @@
 from django.contrib import admin
 from django.urls import include, path
 
+from apps.calendar_sync.views import CalendarOAuthCallbackView
 from apps.identity.web_views import FoundationMicrosoftTenantSettingsView, WebLoginView
 
 urlpatterns = [
@@ -23,6 +24,11 @@ urlpatterns = [
     # Partner & Vendor Integration API (spec/18) — HMAC-key partner surface
     # and its foundation-admin management surface.
     path('api/v1/', include('apps.partners.urls')),
+    # Calendar sync (spec/14 §6): API under /api/v1/, plus the public OAuth
+    # callback the providers redirect back to (AllowAny, signed-state gated).
+    path('api/v1/', include('apps.calendar_sync.urls')),
+    path('web/auth/calendar/callback/', CalendarOAuthCallbackView.as_view(),
+         name='calendar-oauth-callback'),
     # Session-auth web (HTMX) pages — HTML responses, distinct from /api/v1/ JSON
     path('web/auth/', include('apps.identity.web_urls')),
     path('web/login/', WebLoginView.as_view(), name='login'),
