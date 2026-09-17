@@ -7,6 +7,7 @@ import { fetchChildren } from '../../services/children';
 import { getLastChildId, saveLastChildId } from '../../services/storage';
 import { colors, radius, spacing, typography } from '../../theme/tokens';
 import { track } from '../../services/analytics.ts';
+import { resolveDeepLinkChild } from '../../services/deepLink.ts';
 import type { ChildSummary } from '../../types';
 
 export type ParentTab = 'HOME' | 'ATTENDANCE' | 'ACADEMIC' | 'MESSAGES' | 'WALLET' | 'NUTRITION' | 'INVOICES';
@@ -15,10 +16,11 @@ interface ParentShellProps {
   activeTab: ParentTab;
   onTabChange: (tab: ParentTab) => void;
   onLogout: () => void;
+  deepLinkChildId?: number | null;
   children: (ctx: { selectedChild: ChildSummary; allChildren: ChildSummary[] }) => React.ReactNode;
 }
 
-export const ParentShell: React.FC<ParentShellProps> = ({ activeTab, onTabChange, onLogout, children }) => {
+export const ParentShell: React.FC<ParentShellProps> = ({ activeTab, onTabChange, onLogout, deepLinkChildId, children }) => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [allChildren, setAllChildren] = useState<ChildSummary[]>([]);
@@ -67,6 +69,17 @@ export const ParentShell: React.FC<ParentShellProps> = ({ activeTab, onTabChange
       onTabChange('HOME');
     }
   }, [selectedChild, activeTab, onTabChange]);
+
+  // PAR-004: a push-driven deep link names a specific child; switch to it
+  // once the child list has loaded, covering both "already viewing this
+  // child" (no-op) and "switch to a different child" cases.
+  useEffect(() => {
+    if (allChildren.length === 0 || deepLinkChildId === undefined || deepLinkChildId === null) return;
+    const target = resolveDeepLinkChild(allChildren, deepLinkChildId);
+    if (target && target.student_id !== selectedId) {
+      handleSelectChild(target.student_id);
+    }
+  }, [allChildren, deepLinkChildId]);
 
   if (loading) {
     return (

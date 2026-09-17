@@ -1,7 +1,7 @@
 /**
  * Parent Attendance: per-child attendance timeline and absence requests (spec/08 §2, PAR-011, ATT-002, PAR-015).
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -23,6 +23,7 @@ import {
 import { cacheGet, cacheSet } from '../../services/storage.ts';
 import { todayWib } from '../../services/localDate.ts';
 import { attendanceStatusLabel } from '../../constants/attendance.ts';
+import { findAttendanceRowIndex } from '../../services/deepLink.ts';
 import { StaleOfflineBanner } from '../../components/StaleOfflineBanner.tsx';
 import { colors, radius, spacing, typography } from '../../theme/tokens.ts';
 import type {
@@ -35,6 +36,7 @@ import type {
 
 interface ParentAttendanceScreenProps {
   child: ChildSummary;
+  highlightDate?: string | null;
 }
 
 type AttendanceSubTab = 'TIMELINE' | 'ABSENCE';
@@ -57,7 +59,7 @@ const ABSENCE_STATUS_CONFIG: Record<
   REJECTED: { label: 'Ditolak', bg: colors.alpaLight, text: colors.alpa },
 };
 
-export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ child }) => {
+export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ child, highlightDate }) => {
   const [activeTab, setActiveTab] = useState<AttendanceSubTab>('TIMELINE');
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(false);
@@ -81,6 +83,8 @@ export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ 
   const [formAttachmentSize, setFormAttachmentSize] = useState<number | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const flatListRef = useRef<FlatList<AttendanceDayItem>>(null);
 
   const timelineCacheKey = `educore_parent_attendance_${child.student_id}`;
 
@@ -128,6 +132,20 @@ export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ 
       loadAbsenceData();
     }
   }, [child.student_id, activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'TIMELINE' || !highlightDate || days.length === 0) return;
+    const index = findAttendanceRowIndex(days, highlightDate);
+    if (index === -1) return;
+    // scrollToIndex can throw if the target row hasn't been measured/laid
+    // out yet on a long list — harmless to skip in that case, the row is
+    // still visually highlighted below even if not auto-scrolled to.
+    try {
+      flatListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.3 });
+    } catch {
+      // ignore
+    }
+  }, [days, highlightDate, activeTab]);
 
   const handleSelectSampleAttachment = (isOverLimit: boolean = false) => {
     if (isOverLimit) {
@@ -227,16 +245,18 @@ export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ 
         </View>
       ) : activeTab === 'TIMELINE' ? (
         <FlatList
+          ref={flatListRef}
           data={days}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.list}
+          onScrollToIndexFailed={() => {}}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyText}>Belum ada data riwayat presensi.</Text>
             </View>
           }
           renderItem={({ item }) => (
-            <View style={styles.row}>
+            <View style={[styles.row, item.date === highlightDate && styles.rowHighlighted]}>
               <View style={[styles.dot, { backgroundColor: STATUS_COLOR[item.status] ?? colors.muted }]} />
               <View style={styles.rowText}>
                 <Text style={styles.rowDate}>{item.date}</Text>
@@ -566,6 +586,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.card,
     padding: spacing.md,
     marginBottom: spacing.sm,
+  },
+  rowHighlighted: {
+    borderColor: colors.primary,
+    borderWidth: 2,
+    backgroundColor: colors.surfaceAlt,
   },
   dot: { width: 10, height: 10, marginRight: spacing.md },
   rowText: { flex: 1 },

@@ -14,6 +14,8 @@ import {
   deactivatePushTokenAsync,
   registerForPushNotificationsAsync,
   subscribeToNotificationReceived,
+  subscribeToNotificationResponseReceived,
+  getInitialNotificationResponse,
 } from './src/services/pushNotifications';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { AgendaScreen } from './src/screens/AgendaScreen';
@@ -40,11 +42,28 @@ export default function App() {
   const [parentTab, setParentTab] = useState<ParentTab>('HOME');
   const [posMode, setPosMode] = useState(false);
   const [nutritionMode, setNutritionMode] = useState(false);
+  const [deepLinkChildId, setDeepLinkChildId] = useState<number | null>(null);
+  const [deepLinkDate, setDeepLinkDate] = useState<string | null>(null);
 
   const isCanteenOperator = currentUser?.roles?.some((r) => r.role === 'canteen_operator');
   const todayStr = todayWib();
 
+  const handleNotificationData = (data: any, user: UserProfile | null) => {
+    if (!data) return;
+    if ((data.type === 'ARRIVAL' || data.type === 'DEPARTURE') && isParent(user)) {
+      setParentTab('ATTENDANCE');
+      setDeepLinkChildId(typeof data.student_id === 'number' ? data.student_id : null);
+      setDeepLinkDate(typeof data.date === 'string' ? data.date : null);
+    }
+    // SUBSTITUTE_ASSIGNED: no `slot` object is included in the payload
+    // anymore (see docs/superpowers/specs/2026-09-17-parent-app-push-deep-link-attendance-design.md
+    // §4) — teachers land on the Agenda screen, already the default landing
+    // screen, which surfaces pending substitutions on its own.
+  };
+
   useEffect(() => {
+    let bootstrappedUser: UserProfile | null = null;
+
     const bootstrap = async () => {
       await initQueueDb();
       await initPosQueueDb();
@@ -52,16 +71,23 @@ export default function App() {
       const authState = await checkAuth();
       if (authState.authenticated && authState.user) {
         setCurrentUser(authState.user);
+        bootstrappedUser = authState.user;
         // Register push tokens in background
         registerForPushNotificationsAsync().catch(() => {});
         track('app_open');
+
+        // Cold-start: app was launched by tapping a notification.
+        const initialData = await getInitialNotificationResponse();
+        if (initialData) {
+          handleNotificationData(initialData, bootstrappedUser);
+        }
       }
       setCheckingAuth(false);
     };
 
     bootstrap();
 
-    // Subscribe to push notification events
+    // Foreground: notification arrived while the app is already open.
     const sub = subscribeToNotificationReceived((notification) => {
       const data = notification?.request?.content?.data;
       if (data?.type === 'SUBSTITUTE_ASSIGNED' && data?.slot) {
@@ -70,9 +96,18 @@ export default function App() {
       track('notification_opened');
     });
 
+    // Tap: user taps a notification while the app is backgrounded or foregrounded.
+    const responseSub = subscribeToNotificationResponseReceived((data) => {
+      handleNotificationData(data, bootstrappedUser);
+      track('notification_opened');
+    });
+
     return () => {
       if (sub && typeof sub.remove === 'function') {
         sub.remove();
+      }
+      if (responseSub && typeof responseSub.remove === 'function') {
+        responseSub.remove();
       }
     };
   }, []);
@@ -133,12 +168,17 @@ export default function App() {
           }}
         />
       ) : isParent(currentUser) ? (
-        <ParentShell activeTab={parentTab} onTabChange={setParentTab} onLogout={handleLogout}>
+        <ParentShell
+          activeTab={parentTab}
+          onTabChange={setParentTab}
+          onLogout={handleLogout}
+          deepLinkChildId={deepLinkChildId}
+        >
           {({ selectedChild, allChildren }) =>
             parentTab === 'HOME' ? (
               <ParentHomeScreen child={selectedChild} onNavigateTab={setParentTab} />
             ) : parentTab === 'ATTENDANCE' ? (
-              <ParentAttendanceScreen child={selectedChild} />
+              <ParentAttendanceScreen child={selectedChild} highlightDate={deepLinkDate} />
             ) : parentTab === 'ACADEMIC' ? (
               <ParentAcademicScreen
                 key={selectedChild.student_id}
