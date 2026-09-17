@@ -100,3 +100,18 @@ class AnalyticsIngestEndpointTests(TestCase):
             format='json',
         )
         self.assertEqual(response.status_code, 401)
+
+    def test_batch_over_max_length_is_rejected(self):
+        self._auth(self.parent_user)
+        events = [
+            {"event_name": "app_open", "school_id": None, "occurred_at": "2026-09-17T08:00:00Z"}
+            for _ in range(201)
+        ]
+        response = self.client.post(
+            '/api/v1/analytics/events/',
+            {"events": events},
+            format='json',
+            HTTP_IDEMPOTENCY_KEY='oversized-batch-key',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(AnalyticsEvent.all_tenants.filter(foundation_id=self.foundation.id).count(), 0)

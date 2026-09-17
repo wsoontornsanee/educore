@@ -7,7 +7,8 @@ import { StatusBar } from 'expo-status-bar';
 import { checkAuth, logout } from './src/services/auth';
 import { todayWib } from './src/services/localDate';
 import { isParent } from './src/services/roleRouting';
-import { track } from './src/services/analytics.ts';
+import { track } from './src/services/analytics';
+import { initAnalyticsQueueDb } from './src/services/analyticsQueue';
 import { initQueueDb } from './src/services/offlineQueue';
 import {
   deactivatePushTokenAsync,
@@ -46,6 +47,7 @@ export default function App() {
     const bootstrap = async () => {
       await initQueueDb();
       await initPosQueueDb();
+      await initAnalyticsQueueDb();
       const authState = await checkAuth();
       if (authState.authenticated && authState.user) {
         setCurrentUser(authState.user);

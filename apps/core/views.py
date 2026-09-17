@@ -85,23 +85,28 @@ class AnalyticsEventIngestView(IdempotentViewMixin, APIView):
         batch.is_valid(raise_exception=True)
 
         foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        if not foundation_id:
+            return Response({"error": "Konteks yayasan tidak ditemukan."}, status=400)
+
         role_assignment = RoleAssignment.all_tenants.filter(
             foundation_id=foundation_id, user=request.user, deleted_at__isnull=True,
-        ).values_list('role', flat=True).first()
+        ).order_by('id').values_list('role', flat=True).first()
         role = role_assignment or ''
 
-        accepted = 0
+        events_to_create = []
         for raw_event in batch.validated_data['events']:
             item = AnalyticsEventItemSerializer(data=raw_event)
             if not item.is_valid():
                 continue
-            AnalyticsEvent.objects.create(
+            events_to_create.append(AnalyticsEvent(
                 foundation_id=foundation_id,
                 event_name=item.validated_data['event_name'],
                 school_id=item.validated_data.get('school_id'),
                 role=role,
                 occurred_at=item.validated_data['occurred_at'],
-            )
-            accepted += 1
+            ))
 
-        return Response({'accepted': accepted}, status=201)
+        if events_to_create:
+            AnalyticsEvent.objects.bulk_create(events_to_create)
+
+        return Response({'accepted': len(events_to_create)}, status=201)

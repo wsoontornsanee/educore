@@ -256,7 +256,7 @@ class AnalyticsEvent(TenantModel):
     """Product analytics event (spec/08 §5, spec/15 RPT-015).
 
     Deliberately distinct from AuditEvent: no actor_id, ip_address, or diff —
-    RPT-015 requires these events carry never PII, only foundation_id,
+    RPT-015 requires these events never carry PII, only foundation_id,
     school_id, and role.
     """
     EVENT_NAME_CHOICES = [(name, name) for name in ANALYTICS_EVENT_NAMES]

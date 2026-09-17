@@ -28,6 +28,33 @@ function generateUUID(): string {
   });
 }
 
+/**
+ * Deterministic non-cryptographic hash (djb2) over a string. Used to derive a
+ * stable Idempotency-Key from batch membership so retrying the SAME batch
+ * (e.g. after a lost response) reuses the SAME key, while a batch with
+ * different/additional rows gets a different key.
+ */
+function djb2Hash(input: string): string {
+  let hash = 5381;
+  for (let i = 0; i < input.length; i++) {
+    hash = (hash * 33) ^ input.charCodeAt(i);
+  }
+  // Force unsigned 32-bit, hex-encode.
+  return (hash >>> 0).toString(16);
+}
+
+function batchIdempotencyKey(items: AnalyticsQueueItem[]): string {
+  const membership = items
+    .map((item) => item.id)
+    .sort()
+    .join(',');
+  return `analytics-batch-${djb2Hash(membership)}`;
+}
+
+// Guards against overlapping syncPendingEvents() calls (e.g. track() firing
+// several events in quick succession) selecting and POSTing the same rows.
+let syncInFlight = false;
+
 let sqliteDb: any = null;
 try {
   const SQLite = require('expo-sqlite');
@@ -55,6 +82,11 @@ export async function initAnalyticsQueueDb(): Promise<void> {
           last_error TEXT
         );
       `);
+      // A row stuck in SYNCING can only mean a previous run was killed
+      // mid-sync (this is a single-threaded JS runtime, so nothing else
+      // could legitimately still hold that state across an app restart).
+      // Reset it to PENDING so it gets retried.
+      sqliteDb.execSync(`UPDATE analytics_event_queue SET status = 'PENDING' WHERE status = 'SYNCING';`);
       return;
     } catch {
       // Fallback
@@ -160,42 +192,56 @@ export async function clearAllAnalyticsForTesting(): Promise<void> {
     }
   }
   memoryQueue.clear();
+  // Defense-in-depth for test isolation: a prior test's fire-and-forget
+  // track() call could still be mid-sync when this runs.
+  syncInFlight = false;
 }
 
 export async function syncPendingEvents(): Promise<{ total: number; succeeded: number; failed: number }> {
-  const pending = await getPendingEvents();
-  if (pending.length === 0) {
+  if (syncInFlight) {
+    // A sync is already running; let it own the current pending set instead
+    // of racing to select and POST the same rows twice.
     return { total: 0, succeeded: 0, failed: 0 };
   }
-
-  for (const item of pending) {
-    await markEventStatus(item.id, 'SYNCING');
-  }
-
-  const batchPayload = {
-    events: pending.map((item) => ({
-      event_name: item.event_name,
-      school_id: item.school_id,
-      occurred_at: item.occurred_at,
-    })),
-  };
+  syncInFlight = true;
 
   try {
-    await apiClient.post('/analytics/events/', batchPayload, {
-      headers: { 'Idempotency-Key': generateUUID() },
-    });
+    const pending = await getPendingEvents();
+    if (pending.length === 0) {
+      return { total: 0, succeeded: 0, failed: 0 };
+    }
 
     for (const item of pending) {
-      await markEventStatus(item.id, 'SYNCED');
+      await markEventStatus(item.id, 'SYNCING');
     }
-    await clearSyncedEvents();
 
-    return { total: pending.length, succeeded: pending.length, failed: 0 };
-  } catch (err: any) {
-    const errorMessage = err?.response?.data?.error || err.message || 'Sync failed';
-    for (const item of pending) {
-      await markEventStatus(item.id, 'FAILED', errorMessage);
+    const batchPayload = {
+      events: pending.map((item) => ({
+        event_name: item.event_name,
+        school_id: item.school_id,
+        occurred_at: item.occurred_at,
+      })),
+    };
+
+    try {
+      await apiClient.post('/analytics/events/', batchPayload, {
+        headers: { 'Idempotency-Key': batchIdempotencyKey(pending) },
+      });
+
+      for (const item of pending) {
+        await markEventStatus(item.id, 'SYNCED');
+      }
+      await clearSyncedEvents();
+
+      return { total: pending.length, succeeded: pending.length, failed: 0 };
+    } catch (err: any) {
+      const errorMessage = err?.response?.data?.error || err.message || 'Sync failed';
+      for (const item of pending) {
+        await markEventStatus(item.id, 'FAILED', errorMessage);
+      }
+      return { total: pending.length, succeeded: 0, failed: pending.length };
     }
-    return { total: pending.length, succeeded: 0, failed: pending.length };
+  } finally {
+    syncInFlight = false;
   }
 }

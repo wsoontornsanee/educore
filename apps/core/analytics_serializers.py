@@ -10,4 +10,4 @@ class AnalyticsEventItemSerializer(serializers.Serializer):
 
 
 class AnalyticsEventBatchSerializer(serializers.Serializer):
-    events = serializers.ListField(child=serializers.DictField(), allow_empty=False)
+    events = serializers.ListField(child=serializers.DictField(), allow_empty=False, max_length=200)
