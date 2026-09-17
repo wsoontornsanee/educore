@@ -149,7 +149,7 @@ class StudentNutritionSummaryTests(TestCase):
         )
 
         self.client.force_authenticate(user=self.parent_user)
-        date_str = now.date().isoformat()
+        date_str = timezone.localdate().isoformat()
         resp = self.client.get(
             f"/api/v1/students/{self.student.id}/nutrition-summary/?from={date_str}&to={date_str}",
             HTTP_X_FOUNDATION_ID=str(self.foundation.id),

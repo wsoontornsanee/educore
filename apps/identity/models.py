@@ -406,6 +406,10 @@ class Student(TenantModel):
         return f"{self.person.full_name} (NIS: {self.nis} - {self.status})"
 
     @property
+    def full_name(self) -> str:
+        return self.person.full_name if hasattr(self, 'person') and self.person else ''
+
+    @property
     def effective_grade_level(self):
         """Resolve current grade level: active ClassEnrollment grade_level if enrolled, else target_grade_level."""
         active_enrollment = self.class_enrollments.filter(is_active=True).select_related('class_group').first()

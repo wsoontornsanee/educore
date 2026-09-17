@@ -22,6 +22,7 @@ import { ParentHomeScreen } from './src/screens/parent/ParentHomeScreen';
 import { ParentAttendanceScreen } from './src/screens/parent/ParentAttendanceScreen';
 import { ParentInvoicesScreen } from './src/screens/parent/ParentInvoicesScreen';
 import { POSKioskScreen } from './src/screens/POSKioskScreen';
+import { ParentNutritionDashboardScreen } from './src/screens/ParentNutritionDashboardScreen';
 import { initPosQueueDb } from './src/services/posOfflineQueue';
 import { colors } from './src/theme/tokens';
 import { StudentRosterItem, TimetableSlotItem, UserProfile } from './src/types';
@@ -33,6 +34,7 @@ export default function App() {
   const [subModalSlot, setSubModalSlot] = useState<TimetableSlotItem | null>(null);
   const [parentTab, setParentTab] = useState<ParentTab>('HOME');
   const [posMode, setPosMode] = useState(false);
+  const [nutritionMode, setNutritionMode] = useState(false);
 
   const isCanteenOperator = currentUser?.roles?.some((r) => r.role === 'canteen_operator');
   const todayStr = todayWib();
@@ -112,13 +114,37 @@ export default function App() {
       <StatusBar style="dark" />
       {!currentUser ? (
         <LoginScreen onLoginSuccess={handleLoginSuccess} />
+      ) : nutritionMode ? (
+        <ParentNutritionDashboardScreen
+          onBack={() => {
+            if (nutritionMode) {
+              setNutritionMode(false);
+            } else {
+              handleLogout();
+            }
+          }}
+        />
       ) : isParent(currentUser) ? (
         <ParentShell activeTab={parentTab} onTabChange={setParentTab} onLogout={handleLogout}>
-          {({ selectedChild }) =>
+          {({ selectedChild, allChildren }) =>
             parentTab === 'HOME' ? (
               <ParentHomeScreen child={selectedChild} />
             ) : parentTab === 'ATTENDANCE' ? (
               <ParentAttendanceScreen child={selectedChild} />
+            ) : parentTab === 'NUTRITION' ? (
+              <ParentNutritionDashboardScreen
+                key={selectedChild.student_id}
+                initialStudentId={selectedChild.student_id}
+                linkedStudents={allChildren.map((c) => ({
+                  id: c.student_id,
+                  full_name: c.full_name,
+                  nis: c.nis,
+                  nisn: c.nisn,
+                  class_name: c.class_name,
+                  school_name: c.school_name,
+                }))}
+                onBack={() => setParentTab('HOME')}
+              />
             ) : (
               // Keyed on the child so switching children mid-payment remounts the
               // screen instead of leaving the previous child's VA/amount on screen.

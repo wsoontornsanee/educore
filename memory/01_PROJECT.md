@@ -8,7 +8,7 @@
 
 ---
 
-- **Current Step:** Awaiting next step / deployment instruction.
+- **Current Step:** [Open Item] Parent Nutrition & Daily Intake Analytics Dashboard UI (spec/07 WAL-024, spec/08 PAR-010) [Awaiting PR #98 merge].
 - **Preceding Step:** Step 10.1 — Parent Mobile App v1: Login, Attendance, Invoicing & VA Pay (TASK-074) [DONE - PR #97 merged].
 - **Recent Completed Step:** Step 10.1 — Parent Mobile App v1: Login, Attendance, Invoicing & VA Pay (TASK-074) [DONE - PR #97 merged].
 - **Target Milestone:** P0 Pilot Core [DONE] (M0–M5) -> P1 Classroom [DONE] (M6–M9) -> P2 Campus Economy (M10–M13): canteen wallet + POS [wallet core started], kiosks, face recognition, campus life (`spec/00 §6`).
@@ -193,6 +193,7 @@
 | `TASK-FND-004` | Foundation Campus Comparison Endpoint | Server-side rollup aggregation (`rpt_foundation_kpis`), ranking/sorting by any KPI metric, 25-school capacity, <=15m freshness check, multi-currency reporting, and CSV/XLSX export streaming with audit header banners (`spec/03 §2, §5`, `FND-004`, `FND-005`, `FND-005b`, `FND-006`, `FND-014`). PR: [#89](https://github.com/wsoontornsanee/educore/pull/89) | Completed (PR #89) |
 | `TASK-033` | Step 11.1 — Cashless Canteen Wallet & Offline-First POS Kiosk | Canteen operator RBAC, student nutrition summary API (`WAL-024`), React Native tablet POS kiosk (`POSKioskScreen.tsx`), offline SQLite/IndexedDB queue sync (`WAL-015`, `WAL-016`), live spend-rule validations (`WAL-009`..`013`), and digital receipt (`WAL-020`) (`spec/07 §3-§8`, `spec/12`). PR: [#96](https://github.com/wsoontornsanee/educore/pull/96) | Completed (PR #96) |
 | `TASK-074` | Step 10.1 — Parent Mobile App v1 | Guardian OTP login (`POST /auth/otp/request|verify/`, `PAR-001`), `GET /me/children/` child switcher, bolted onto existing `mobile/` app: `ParentShell`, Home/Attendance/Invoices/`PaymentScreen` (VA/QRIS, settlement polling) with offline cache fallback (`PAR-002/003/005/006/007/015/017`). Closed a real gap — no code path ever granted a guardian the `RoleAssignment` its own existing endpoints require — and, via the final whole-branch review, a pre-existing whole-system bug (`TenancyMiddleware` ran before DRF resolved JWT auth, so every Bearer-token request had no tenant context) plus two cross-family financial leaks (`PaymentIntentViewSet`, `PaymentViewSet`) newly made reachable by this branch (`spec/08`). PR: [#97](https://github.com/wsoontornsanee/educore/pull/97) | Completed (PR #97) |
+| `TASK-OPEN-NUTRITION` | Parent Nutrition & Daily Intake Analytics Dashboard UI | React Native mobile screen (`ParentNutritionDashboardScreen.tsx`) & web companion template (`parent_nutrition_dashboard.html`), multi-child switcher (`PAR-003`), period filter, 4 hero KPI cards (`UI-002`), daily calorie intake bar chart, allergen alerts, itemized purchase logs, 5 mandatory states (`spec/17 §8.1`), and offline caching (`PAR-015`) backed by `GET /api/v1/students/:id/nutrition-summary?from&to` (`WAL-024`). PR: [#98](https://github.com/wsoontornsanee/educore/pull/98) | Awaiting PR #98 merge |
 
 
 ---
