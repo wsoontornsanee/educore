@@ -617,6 +617,13 @@ class Staff(TenantModel):
         db_index=True,
         help_text="Nomor Induk Pegawai"
     )
+    nuptk = models.CharField(
+        max_length=16,
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="Nomor Urut Pendidik dan Tenaga Kependidikan (DAPODIK/EMIS educator ID, CMP-017)"
+    )
     employment_type = models.CharField(
         max_length=32,
         choices=EMPLOYMENT_CHOICES,
