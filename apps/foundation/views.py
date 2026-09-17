@@ -58,6 +58,14 @@ FOUNDATION_KPI_SUM_FIELDS = [
     'ar_90_plus', 'campus_spend', 'active_students',
 ]
 
+# Money fields serialize as fixed 2dp strings (CUR-026) regardless of what
+# scale the database's SUM()/AVG() happened to return; active_students is a
+# count, avg_attendance_pct is a Decimal(5,2) percentage.
+FOUNDATION_KPI_MONEY_FIELDS = [
+    'billed', 'collected', 'outstanding', 'ar_0_30', 'ar_31_60', 'ar_61_90',
+    'ar_90_plus', 'campus_spend',
+]
+
 class SchoolViewSet(viewsets.ModelViewSet):
     """CRUD API for schools under the authenticated user's foundation (spec/02 §7).
     
@@ -244,12 +252,18 @@ class FoundationKPIView(views.APIView):
             avg_attendance_pct=Avg('avg_attendance_pct'),
         )
 
+        def _fmt_total(field, value):
+            value = Decimal(str(value if value is not None else '0'))
+            if field in FOUNDATION_KPI_MONEY_FIELDS or field == 'avg_attendance_pct':
+                return str(value.quantize(Decimal('0.01')))
+            return str(value)
+
         delta = {}
         delta_pct = {}
         for field in FOUNDATION_KPI_SUM_FIELDS + ['avg_attendance_pct']:
             current_value = Decimal(str(current_totals.get(field) or '0.00'))
             prior_value = Decimal(str(prior_totals.get(field) or '0.00'))
-            delta[field] = str(current_value - prior_value)
+            delta[field] = _fmt_total(field, current_value - prior_value)
             delta_pct[field] = (
                 str(((current_value - prior_value) / prior_value * Decimal('100')).quantize(Decimal('0.01')))
                 if prior_value else None
@@ -257,8 +271,8 @@ class FoundationKPIView(views.APIView):
 
         return {
             'prior_period': {'from': str(prior_from), 'to': str(prior_to)},
-            'current': {k: str(v or Decimal('0.00')) for k, v in current_totals.items()},
-            'prior': {k: str(v or Decimal('0.00')) for k, v in prior_totals.items()},
+            'current': {field: _fmt_total(field, current_totals.get(field)) for field in FOUNDATION_KPI_SUM_FIELDS + ['avg_attendance_pct']},
+            'prior': {field: _fmt_total(field, prior_totals.get(field)) for field in FOUNDATION_KPI_SUM_FIELDS + ['avg_attendance_pct']},
             'delta': delta,
             'delta_pct': delta_pct,
         }
