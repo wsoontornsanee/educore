@@ -545,3 +545,37 @@ export interface CreateAbsenceRequestPayload {
   attachmentType?: string | null;
   attachmentSize?: number | null;
 }
+
+// ── Permission Slips (spec/08 PAR-012) ─────────────────────────────
+
+export type PermissionSlipResponse = 'APPROVED' | 'DECLINED' | 'PENDING';
+
+export interface PermissionSlipItem {
+  id: number;
+  title: string;
+  description: string;
+  event_date: string | null; // YYYY-MM-DD
+  location: string;
+  due_at: string | null;     // ISO 8601
+  is_closed: boolean;
+  class_group_id: number;
+  class_group_name: string;
+  school_id: number;
+  created_by_name: string;
+  created_at: string | null;
+  tally?: {
+    total_enrolled: number;
+    approved: number;
+    declined: number;
+    pending: number;
+  };
+  my_response?: PermissionSlipResponse | null;
+  my_responded_at?: string | null;
+  my_pending?: boolean;
+}
+
+export interface AcknowledgePermissionSlipPayload {
+  student_id: number;
+  response: 'APPROVED' | 'DECLINED';
+  signature: string;
+}
