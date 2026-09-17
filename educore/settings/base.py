@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     'apps.compliance.apps.ComplianceConfig',
     'apps.partners.apps.PartnersConfig',
     'apps.marketing.apps.MarketingConfig',
+    'apps.calendar_sync.apps.CalendarSyncConfig',
 ]
 
 MIDDLEWARE = [
@@ -226,3 +227,21 @@ EDUCORE_CRON_HOST_ENFORCED = False
 SOCIAL_AUTH_GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_OAUTH_CLIENT_ID', '')
 SOCIAL_AUTH_MICROSOFT_CLIENT_ID = os.environ.get('MICROSOFT_OAUTH_CLIENT_ID', '')
 SOCIAL_AUTH_MICROSOFT_TENANT_ID = os.environ.get('MICROSOFT_OAUTH_TENANT_ID', 'common')
+
+# Calendar sync — Google Workspace / Microsoft 365 (spec/14 §6, second purpose).
+# Deliberately separate OAuth clients from the SSO ones: calendar needs
+# authorization-code flow with offline refresh tokens and different scopes.
+# An empty CLIENT_ID disables that provider's calendar sync (503 on connect).
+GOOGLE_CALENDAR_CLIENT_ID = os.environ.get('GOOGLE_CALENDAR_CLIENT_ID', '')
+GOOGLE_CALENDAR_CLIENT_SECRET = os.environ.get('GOOGLE_CALENDAR_CLIENT_SECRET', '')
+MICROSOFT_CALENDAR_CLIENT_ID = os.environ.get('MICROSOFT_CALENDAR_CLIENT_ID', '')
+MICROSOFT_CALENDAR_CLIENT_SECRET = os.environ.get('MICROSOFT_CALENDAR_CLIENT_SECRET', '')
+MICROSOFT_CALENDAR_TENANT_ID = os.environ.get('MICROSOFT_CALENDAR_TENANT_ID', 'common')
+# One redirect URI is whitelisted in both provider consoles; the provider
+# rides inside the HMAC-signed state.
+CALENDAR_SYNC_REDIRECT_URI = os.environ.get(
+    'CALENDAR_SYNC_REDIRECT_URI', 'http://localhost:8000/web/auth/calendar/callback/')
+# OAuth tokens for calendar connections are encrypted at rest with their own
+# Fernet key (same pattern as EDUCORE_PARTNER_FERNET_KEY; derived from
+# SECRET_KEY when unset — production must set an explicit key).
+EDUCORE_CALENDAR_FERNET_KEY = os.environ.get('EDUCORE_CALENDAR_FERNET_KEY', '')
