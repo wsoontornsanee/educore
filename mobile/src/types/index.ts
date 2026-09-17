@@ -579,3 +579,30 @@ export interface AcknowledgePermissionSlipPayload {
   response: 'APPROVED' | 'DECLINED';
   signature: string;
 }
+
+// --- Profile Tab Types (PAR-013, PAR-014, PAR-018) ---
+
+export type NotificationLocale = 'id-ID' | 'en-US';
+
+export type NotificationChannelType = 'WHATSAPP' | 'PUSH' | 'SMS' | 'EMAIL';
+
+export interface NotificationPrefItem {
+  id?: number;
+  category: string;
+  channels: NotificationChannelType[];
+  quiet_hours_start: string; // "HH:MM"
+  quiet_hours_end: string;   // "HH:MM"
+  enabled: boolean;
+}
+
+// ── Broadcasts / Announcements (spec/08 §2 Messages tab) ─────────────
+
+export interface BroadcastItem {
+  id: number;
+  title: string;
+  body: string;
+  sent_at: string;          // ISO 8601
+  sender_name: string;
+  class_group_name: string;
+  class_group_id: number;
+}

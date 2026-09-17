@@ -5,12 +5,15 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { fetchChildren } from '../../services/children';
 import { getLastChildId, saveLastChildId } from '../../services/storage';
+import { useLocale } from '../../i18n/LocaleContext';
+import { t } from '../../i18n/strings';
 import { colors, radius, spacing, typography } from '../../theme/tokens';
 import { track } from '../../services/analytics.ts';
 import { resolveDeepLinkChild } from '../../services/deepLink.ts';
 import type { ChildSummary } from '../../types';
 
-export type ParentTab = 'HOME' | 'ATTENDANCE' | 'ACADEMIC' | 'MESSAGES' | 'WALLET' | 'NUTRITION' | 'INVOICES';
+export type ParentTab = 'HOME' | 'ATTENDANCE' | 'ACADEMIC' | 'MESSAGES' | 'WALLET' | 'NUTRITION' | 'INVOICES' | 'PROFILE';
+
 
 interface ParentShellProps {
   activeTab: ParentTab;
@@ -21,6 +24,7 @@ interface ParentShellProps {
 }
 
 export const ParentShell: React.FC<ParentShellProps> = ({ activeTab, onTabChange, onLogout, deepLinkChildId, children }) => {
+  const { locale } = useLocale();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [allChildren, setAllChildren] = useState<ChildSummary[]>([]);
@@ -146,29 +150,33 @@ export const ParentShell: React.FC<ParentShellProps> = ({ activeTab, onTabChange
 
       <View style={styles.tabBar}>
         <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('HOME')}>
-          <Text style={[styles.tabLabel, activeTab === 'HOME' && styles.tabLabelActive]}>Home</Text>
+          <Text style={[styles.tabLabel, activeTab === 'HOME' && styles.tabLabelActive]}>{t('tab.home', locale)}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('ATTENDANCE')}>
-          <Text style={[styles.tabLabel, activeTab === 'ATTENDANCE' && styles.tabLabelActive]}>Absensi</Text>
+          <Text style={[styles.tabLabel, activeTab === 'ATTENDANCE' && styles.tabLabelActive]}>{t('tab.attendance', locale)}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('ACADEMIC')}>
-          <Text style={[styles.tabLabel, activeTab === 'ACADEMIC' && styles.tabLabelActive]}>Akademik</Text>
+          <Text style={[styles.tabLabel, activeTab === 'ACADEMIC' && styles.tabLabelActive]}>{t('tab.academic', locale)}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('MESSAGES')}>
-          <Text style={[styles.tabLabel, activeTab === 'MESSAGES' && styles.tabLabelActive]}>Pesan</Text>
+          <Text style={[styles.tabLabel, activeTab === 'MESSAGES' && styles.tabLabelActive]}>{t('tab.messages', locale)}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('WALLET')}>
-          <Text style={[styles.tabLabel, activeTab === 'WALLET' && styles.tabLabelActive]}>Dompet</Text>
+          <Text style={[styles.tabLabel, activeTab === 'WALLET' && styles.tabLabelActive]}>{t('tab.wallet', locale)}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('NUTRITION')}>
-          <Text style={[styles.tabLabel, activeTab === 'NUTRITION' && styles.tabLabelActive]}>Nutrisi</Text>
+          <Text style={[styles.tabLabel, activeTab === 'NUTRITION' && styles.tabLabelActive]}>{t('tab.nutrition', locale)}</Text>
         </TouchableOpacity>
         {showInvoicesTab && (
           <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('INVOICES')}>
-            <Text style={[styles.tabLabel, activeTab === 'INVOICES' && styles.tabLabelActive]}>Tagihan</Text>
+            <Text style={[styles.tabLabel, activeTab === 'INVOICES' && styles.tabLabelActive]}>{t('tab.invoices', locale)}</Text>
           </TouchableOpacity>
         )}
+        <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('PROFILE')}>
+          <Text style={[styles.tabLabel, activeTab === 'PROFILE' && styles.tabLabelActive]}>{t('tab.profile', locale)}</Text>
+        </TouchableOpacity>
       </View>
+
     </SafeAreaView>
   );
 };

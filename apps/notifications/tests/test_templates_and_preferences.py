@@ -91,3 +91,86 @@ class NotificationTemplateAndPreferenceTests(TestCase):
             self.assertEqual(pref.channels, [ChannelType.WHATSAPP, ChannelType.EMAIL])
             self.assertEqual(str(pref.quiet_hours_start), '21:00:00')
             self.assertEqual(str(pref.quiet_hours_end), '06:00:00')
+
+    def test_permission_slip_new_builtin_fallback(self):
+        """Built-in fallback renders for academic.permission_slip.new without a seeded template."""
+        res = render_template_message(
+            template_key='academic.permission_slip.new',
+            channel=ChannelType.WHATSAPP,
+            foundation_id=self.foundation_a.id,
+            payload={
+                'message': 'Permintaan izin baru: Field Trip ke Museum. Mohon berikan persetujuan digital di aplikasi.',
+                'permission_slip_id': 1,
+                'student_name': 'Ahmad Fauzi',
+            },
+        )
+        self.assertEqual(res['subject'], 'Permintaan Izin Baru')
+        self.assertIn('Permintaan izin baru:', res['body'])
+        self.assertIn('Field Trip ke Museum', res['body'])
+
+    def test_permission_slip_new_seeded_template_whatsapp(self):
+        """Seeded WhatsApp template renders all structured variables."""
+        with tenant_context(self.foundation_a.id):
+            NotificationTemplate.objects.create(
+                foundation_id=self.foundation_a.id,
+                key='academic.permission_slip.new',
+                channel=ChannelType.WHATSAPP,
+                locale='id-ID',
+                subject='Permintaan Izin Baru',
+                body='Yth. Orang Tua/Wali {student_name}, terdapat permintaan izin baru dari sekolah: "{title}" untuk {class_group_name}. Mohon berikan persetujuan digital melalui aplikasi EduCore.',
+                variables=['student_name', 'title', 'class_group_name', 'event_date', 'location'],
+                version=1,
+                approval_status=TemplateApprovalStatus.APPROVED,
+                is_active=True,
+            )
+
+            res = render_template_message(
+                template_key='academic.permission_slip.new',
+                channel=ChannelType.WHATSAPP,
+                foundation_id=self.foundation_a.id,
+                payload={
+                    'student_name': 'Ahmad Fauzi',
+                    'title': 'Field Trip ke Museum',
+                    'class_group_name': '7A',
+                    'event_date': '2026-09-20',
+                    'location': 'Museum Nasional',
+                    'message': 'Permintaan izin baru: Field Trip ke Museum.',
+                    'permission_slip_id': 42,
+                },
+            )
+            self.assertEqual(res['subject'], 'Permintaan Izin Baru')
+            self.assertIn('Ahmad Fauzi', res['body'])
+            self.assertIn('Field Trip ke Museum', res['body'])
+            self.assertIn('7A', res['body'])
+
+    def test_permission_slip_new_seeded_template_push(self):
+        """Seeded PUSH template renders concise format."""
+        with tenant_context(self.foundation_a.id):
+            NotificationTemplate.objects.create(
+                foundation_id=self.foundation_a.id,
+                key='academic.permission_slip.new',
+                channel=ChannelType.PUSH,
+                locale='id-ID',
+                subject='Izin Baru: {title}',
+                body='Permintaan izin baru untuk {student_name}: "{title}". Buka aplikasi untuk menyetujui atau menolak.',
+                variables=['student_name', 'title', 'class_group_name'],
+                version=1,
+                approval_status=TemplateApprovalStatus.APPROVED,
+                is_active=True,
+            )
+
+            res = render_template_message(
+                template_key='academic.permission_slip.new',
+                channel=ChannelType.PUSH,
+                foundation_id=self.foundation_a.id,
+                payload={
+                    'student_name': 'Ahmad Fauzi',
+                    'title': 'Field Trip ke Museum',
+                    'class_group_name': '7A',
+                    'message': 'Permintaan izin baru: Field Trip ke Museum.',
+                    'permission_slip_id': 42,
+                },
+            )
+            self.assertEqual(res['subject'], 'Izin Baru: Field Trip ke Museum')
+            self.assertIn('Ahmad Fauzi', res['body'])
+            self.assertIn('Field Trip ke Museum', res['body'])

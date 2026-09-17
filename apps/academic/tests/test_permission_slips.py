@@ -444,3 +444,63 @@ class PermissionSlipAPITests(TestCase):
         self.assertEqual(len(res.data['results']), 0)
         # row still exists (soft delete, never hard)
         self.assertTrue(PermissionSlip.all_tenants.with_deleted().filter(id=slip.id).exists())
+
+    # --- guardian broadcast endpoints ---
+
+    def test_guardian_lists_broadcasts_for_child(self):
+        """Guardian sees broadcasts sent to their child's class group."""
+        from apps.academic.services import send_broadcast
+        broadcast = send_broadcast(
+            self.teacher, self.class_group, 'Pengumuman Ujian',
+            'Ujian tengah semester dimulai 1 Desember.', actor=self.teacher.user,
+        )
+        self._auth(self.guardian_user)
+        res = self.client.get(f'/api/v1/academic/students/{self.student.id}/broadcasts/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.data['results']), 1)
+        item = res.data['results'][0]
+        self.assertEqual(item['title'], 'Pengumuman Ujian')
+        self.assertIn('Ujian tengah semester', item['body'])
+        self.assertIn('sent_at', item)
+        self.assertEqual(item['class_group_name'], self.class_group.name)
+        self.assertEqual(item['class_group_id'], self.class_group.id)
+        # sender_name comes from Staff.person.full_name
+        self.assertTrue(len(item.get('sender_name', '')) > 0)
+
+    def test_guardian_broadcasts_404_for_unlinked_student(self):
+        """Cross-family guardian receives 404."""
+        other_fx = build_academic_fixture("Yayasan Broadcast X Tenant")
+        other_student = other_fx['student']
+        other_class = other_fx['class_group']
+        other_teacher = other_fx['teacher']
+        from apps.academic.services import send_broadcast
+        send_broadcast(other_teacher, other_class, 'Lintas', 'tidak terlihat', actor=other_teacher.user)
+        self._auth(self.guardian_user)
+        res = self.client.get(f'/api/v1/academic/students/{other_student.id}/broadcasts/')
+        self.assertEqual(res.status_code, 404)
+
+    def test_guardian_broadcasts_empty_state(self):
+        """Guardian sees empty list when no broadcasts exist."""
+        self._auth(self.guardian_user)
+        res = self.client.get(f'/api/v1/academic/students/{self.student.id}/broadcasts/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.data['results']), 0)
+
+    def test_guardian_broadcasts_require_auth(self):
+        """Unauthenticated request returns 401/403."""
+        res = self.client.get(f'/api/v1/academic/students/{self.student.id}/broadcasts/')
+        self.assertIn(res.status_code, (401, 403))
+
+    def test_guardian_broadcasts_excludes_other_class(self):
+        """Guardian only sees broadcasts for their child's enrolled class group."""
+        from apps.academic.models import ClassGroup
+        from apps.academic.services import send_broadcast
+        other_class = ClassGroup.all_tenants.create(
+            foundation_id=self.foundation.id, school=self.school, name='9A',
+            grade_level=9, academic_year=self.fx['academic_year'],
+        )
+        send_broadcast(self.teacher, other_class, 'Kelas lain', 'tidak terlihat', actor=self.teacher.user)
+        self._auth(self.guardian_user)
+        res = self.client.get(f'/api/v1/academic/students/{self.student.id}/broadcasts/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.data['results']), 0)

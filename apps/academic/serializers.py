@@ -343,6 +343,17 @@ class BroadcastSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class GuardianBroadcastSerializer(serializers.ModelSerializer):
+    """Guardian-facing broadcast list — sender/class_group as friendly strings (PAR-012)."""
+    sender_name = serializers.CharField(source='sender.person.full_name', read_only=True, default='')
+    class_group_name = serializers.CharField(source='class_group.name', read_only=True)
+
+    class Meta:
+        model = Broadcast
+        fields = ['id', 'title', 'body', 'sent_at', 'sender_name', 'class_group_name', 'class_group_id']
+        read_only_fields = fields
+
+
 class BroadcastCreateSerializer(serializers.Serializer):
     class_group_id = serializers.IntegerField()
     title = serializers.CharField(max_length=128)
