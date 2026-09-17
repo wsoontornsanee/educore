@@ -1,7 +1,7 @@
 /**
  * EduCore Guru Mobile App Entry Point.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, SafeAreaView, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { checkAuth, logout } from './src/services/auth';
@@ -48,11 +48,17 @@ export default function App() {
   const isCanteenOperator = currentUser?.roles?.some((r) => r.role === 'canteen_operator');
   const todayStr = todayWib();
 
+  const parseNumericId = (value: unknown): number | null => {
+    if (value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  };
+
   const handleNotificationData = (data: any, user: UserProfile | null) => {
     if (!data) return;
     if ((data.type === 'ARRIVAL' || data.type === 'DEPARTURE') && isParent(user)) {
       setParentTab('ATTENDANCE');
-      setDeepLinkChildId(typeof data.student_id === 'number' ? data.student_id : null);
+      setDeepLinkChildId(parseNumericId(data.student_id));
       setDeepLinkDate(typeof data.date === 'string' ? data.date : null);
     }
     // SUBSTITUTE_ASSIGNED: no `slot` object is included in the payload
@@ -61,9 +67,16 @@ export default function App() {
     // screen, which surfaces pending substitutions on its own.
   };
 
+  // Mirrors `currentUser` for use inside the notification-handling closures
+  // below, which are set up once (empty-deps effect) and would otherwise
+  // only ever see the user from an existing-session restore, never a fresh
+  // in-session login via handleLoginSuccess.
+  const currentUserRef = useRef<UserProfile | null>(null);
   useEffect(() => {
-    let bootstrappedUser: UserProfile | null = null;
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
 
+  useEffect(() => {
     const bootstrap = async () => {
       await initQueueDb();
       await initPosQueueDb();
@@ -71,7 +84,7 @@ export default function App() {
       const authState = await checkAuth();
       if (authState.authenticated && authState.user) {
         setCurrentUser(authState.user);
-        bootstrappedUser = authState.user;
+        currentUserRef.current = authState.user;
         // Register push tokens in background
         registerForPushNotificationsAsync().catch(() => {});
         track('app_open');
@@ -79,7 +92,7 @@ export default function App() {
         // Cold-start: app was launched by tapping a notification.
         const initialData = await getInitialNotificationResponse();
         if (initialData) {
-          handleNotificationData(initialData, bootstrappedUser);
+          handleNotificationData(initialData, currentUserRef.current);
         }
       }
       setCheckingAuth(false);
@@ -87,19 +100,21 @@ export default function App() {
 
     bootstrap();
 
-    // Foreground: notification arrived while the app is already open.
+    // Foreground: notification arrived while the app is already open. This
+    // fires on mere delivery, before any user interaction — it must never
+    // trigger deep-link navigation (see design doc §4), only its
+    // pre-existing SUBSTITUTE_ASSIGNED handling.
     const sub = subscribeToNotificationReceived((notification) => {
       const data = notification?.request?.content?.data;
       if (data?.type === 'SUBSTITUTE_ASSIGNED' && data?.slot) {
         setSubModalSlot(data.slot);
       }
-      handleNotificationData(data, bootstrappedUser);
       track('notification_opened');
     });
 
     // Tap: user taps a notification while the app is backgrounded or foregrounded.
     const responseSub = subscribeToNotificationResponseReceived((data) => {
-      handleNotificationData(data, bootstrappedUser);
+      handleNotificationData(data, currentUserRef.current);
       track('notification_opened');
     });
 

@@ -82,11 +82,17 @@ site) alongside its existing keys.
   case), or `null` otherwise.
 
 **`App.tsx`** adds a single `handleNotificationData(data)` function, called
-from three places: the existing foreground `subscribeToNotificationReceived`
-listener, the new `subscribeToNotificationResponseReceived` listener, and a
-one-time `getInitialNotificationResponse()` check in the bootstrap effect
-(after auth resolves, since deep-linking only makes sense once we know
-who's signed in and whether they're staff or parent).
+from two places: the new `subscribeToNotificationResponseReceived` (tap)
+listener, and a one-time `getInitialNotificationResponse()` check in the
+bootstrap effect (after auth resolves, since deep-linking only makes sense
+once we know who's signed in and whether they're staff or parent). It is
+deliberately NOT called from the existing foreground
+`subscribeToNotificationReceived` listener: that listener fires on mere
+delivery, before any user interaction, and silent delivery must never
+auto-navigate — a parent mid-task who receives a push for a sibling should
+not be yanked to another tab with no tap. Cold-start via
+`getInitialNotificationResponse()` is still tap-driven in effect, since the
+app was launched by the user tapping the notification that produced it.
 
 `handleNotificationData`:
 - `data.type === 'SUBSTITUTE_ASSIGNED'`: the existing `setSubModalSlot(data.slot)`
