@@ -13,7 +13,7 @@ from decimal import Decimal
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
 from django.utils import timezone
-from apps.core.fields import MoneyField
+from apps.core.fields import MoneyField, soft_delete_uniqueness_marker
 from apps.core.models import TenantModel
 from .managers import UserManager, AllUsersManager
 
@@ -760,5 +760,43 @@ class Staff(TenantModel):
         return f"{self.person.full_name} ({self.nip or 'No NIP'} - {school_name} - {self.status})"
 
 
+class SocialLogin(TenantModel):
+    """Links a User to an external identity provider (Google Workspace / Microsoft 365)
+    for Staff SSO (spec/14 §6, TASK-036).
 
+    One user may link multiple provider accounts; one provider user ID may only
+    be linked to one user per foundation (enforced by unique constraint). Soft-delete
+    preserves history when unlinking.
+    """
+    PROVIDER_GOOGLE = 'google'
+    PROVIDER_MICROSOFT = 'microsoft'
+    PROVIDER_CHOICES = [
+        (PROVIDER_GOOGLE, 'Google Workspace'),
+        (PROVIDER_MICROSOFT, 'Microsoft 365'),
+    ]
 
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='social_logins')
+    provider = models.CharField(max_length=16, choices=PROVIDER_CHOICES, db_index=True)
+    provider_user_id = models.CharField(
+        max_length=255,
+        help_text="Provider's unique identifier (Google 'sub' or Microsoft 'oid')",
+    )
+    email = models.EmailField(max_length=255, blank=True, default='',
+                              help_text="Email used for this social login")
+    active_uniq_marker = soft_delete_uniqueness_marker()
+
+    class Meta:
+        db_table = 'social_logins'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'provider', 'provider_user_id', 'active_uniq_marker'],
+                name='unique_active_social_login_per_provider',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['foundation_id', 'user']),
+            models.Index(fields=['foundation_id', 'email']),
+        ]
+
+    def __str__(self):
+        return f"{self.provider}:{self.provider_user_id} -> {self.user_id}"
