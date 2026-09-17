@@ -23,6 +23,7 @@ import { StatusBadge } from '../components/StatusBadge';
 import { SyncStatusPill } from '../components/SyncStatusPill';
 import { colors, radius, spacing, typography } from '../theme/tokens';
 import { TimetableSlotItem, UserProfile } from '../types';
+import { StaffProfileModal } from './StaffProfileModal';
 
 interface AgendaScreenProps {
   user: UserProfile;
@@ -44,6 +45,7 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
   const [pendingCount, setPendingCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [currentSlotId, setCurrentSlotId] = useState<number | null>(null);
+  const [profileVisible, setProfileVisible] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
 
@@ -192,9 +194,20 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
           <Text style={styles.headerDate}>{todayStr}</Text>
           <Text style={styles.headerTeacher}>{user.full_name}</Text>
         </View>
-        <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
-          <Text style={styles.logoutText}>Keluar</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.profileButton}
+            onPress={() => setProfileVisible(true)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Buka profil staf"
+          >
+            <Text style={styles.profileButtonText}>Profil</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
+            <Text style={styles.logoutText}>Keluar</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Stale / Offline Banner */}
@@ -233,6 +246,7 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
                 loadAgenda(true);
               }}
               colors={[colors.primary]}
+              tintColor={colors.primary}
             />
           }
         />
@@ -247,6 +261,13 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
           />
         </View>
       )}
+
+      {/* Staff Profile Modal */}
+      <StaffProfileModal
+        visible={profileVisible}
+        user={user}
+        onClose={() => setProfileVisible(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -279,12 +300,36 @@ const styles = StyleSheet.create({
     color: colors.heading,
     marginTop: 2,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  profileButton: {
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.white,
+    borderRadius: radius.button,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    minHeight: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileButtonText: {
+    fontSize: typography.fontSize.xs,
+    color: colors.primary,
+    fontWeight: typography.fontWeight.bold,
+  },
   logoutButton: {
     borderWidth: 1,
     borderColor: colors.borderDark,
     borderRadius: radius.button,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
+    minHeight: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   logoutText: {
     fontSize: typography.fontSize.xs,
