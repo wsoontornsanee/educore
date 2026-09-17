@@ -9,8 +9,8 @@
 ---
 
 - **Current Step:** Awaiting next task instruction.
-- **Preceding Step:** [Open Item] Partner/Vendor Integration API Documentation [DONE - PR #118 merged]. `spec/18-partner-vendor-api.md` documents the partner-facing REST surface (HMAC key-id/secret auth with rotation, path-based versioning + 12mo deprecation, pagination/money/time/idempotency conventions, RFC 9457 errors, webhook+polling, 8 endpoints across payroll/finance/roster/attendance, rate limits) sourced from a design handoff via the claude.ai design tool. Docs-only by user decision; backend implementation split into its own Notion Open Item `3de347a6-6594-8182-b6eb-c245f806723d`.
-- **Recent Completed Step:** [Open Item] SSO: Per-Foundation Microsoft Tenant Configuration [DONE - PR #117 merged]. `MicrosoftTenantConfig` (identity migration 0012) pins each foundation's Microsoft Entra tenant for SSO; `resolve_microsoft_tenant_id(foundation_id)` overrides the global `SOCIAL_AUTH_MICROSOFT_TENANT_ID` fallback; `social_login`/`social_link` resolve foundation context before token verification; foundation-admin API `GET/PUT/DELETE /api/v1/auth/sso/microsoft-tenant/` (audit-logged). Settings UI deferred: Notion Open Item `3de347a6-6594-8177-8166-dc0ebb101e95`.
+- **Preceding Step:** [Open Item] SSO: Web/Mobile Login Button Wiring [DONE - PR #119 merged].
+- **Recent Completed Step:** [Open Item] Partner/Vendor Integration API Documentation [DONE - PR #118 merged].
 
 - **Target Milestone:** P0 Pilot Core [DONE] (M0–M5) -> P1 Classroom [DONE] (M6–M9) -> P2 Campus Economy (M10–M13): canteen wallet + POS [wallet core started], kiosks, face recognition, campus life (`spec/00 §6`).
   - *M0 (Step 0) [DONE]:* Django project skeleton, `core` app (`TenantModel`, `MoneyField`, `AuditEvent`, `DomainEvent`, `TaskQueue`, `JobRun`, `drain_tasks`, advisory locks, crontab).

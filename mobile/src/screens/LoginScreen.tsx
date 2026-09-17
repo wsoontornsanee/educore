@@ -5,6 +5,8 @@ import {
 } from 'react-native';
 import { login } from '../services/auth';
 import { requestOtp, verifyOtp } from '../services/parentAuth';
+import { loginWithSSO, signInWithProvider, SocialProvider } from '../services/sso';
+import { SSOButtons } from '../components/SSOButtons';
 import { colors, radius, spacing, typography } from '../theme/tokens';
 import { UserProfile } from '../types';
 
@@ -21,6 +23,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   // Guru (teacher) state — unchanged behavior from the original component.
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [ssoProvider, setSsoProvider] = useState<SocialProvider | null>(null);
 
   // Wali (parent) state.
   const [waliStep, setWaliStep] = useState<WaliStep>('PHONE');
@@ -58,6 +61,34 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       );
     } finally {
       setGuruLoading(false);
+    }
+  };
+
+  const handleSSOLogin = async (provider: SocialProvider) => {
+    setGuruLoading(true);
+    setSsoProvider(provider);
+    setGuruError(null);
+    try {
+      const { idToken } = await signInWithProvider(provider);
+      const result = await loginWithSSO(provider, idToken);
+      onLoginSuccess(result.user);
+    } catch (err: any) {
+      const code = err?.response?.data?.code;
+      if (code === 'ACCOUNT_NOT_LINKED') {
+        const providerName = provider === 'google' ? 'Google Workspace' : 'Microsoft 365';
+        setGuruError(
+          `Akun ${providerName} ini belum ditautkan ke akun staf EduCore Anda. Silakan masuk menggunakan kata sandi terlebih dahulu dan tautkan akun di menu Profil.`
+        );
+      } else {
+        setGuruError(
+          err?.response?.data?.error ||
+          err?.response?.data?.detail ||
+          'Gagal masuk menggunakan SSO. Periksa kembali akun Anda.'
+        );
+      }
+    } finally {
+      setGuruLoading(false);
+      setSsoProvider(null);
     }
   };
 
@@ -156,8 +187,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 />
               </View>
               <TouchableOpacity style={styles.submitButton} onPress={handleGuruSubmit} disabled={loading} activeOpacity={0.85}>
-                {loading ? <ActivityIndicator color={colors.white} /> : <Text style={styles.submitButtonText}>MASUK KE PORTAL</Text>}
+                {loading && !ssoProvider ? <ActivityIndicator color={colors.white} /> : <Text style={styles.submitButtonText}>MASUK KE PORTAL</Text>}
               </TouchableOpacity>
+              <SSOButtons
+                onSelectProvider={handleSSOLogin}
+                loading={guruLoading}
+                activeProvider={ssoProvider}
+                disabled={guruLoading}
+              />
             </>
           ) : waliStep === 'PHONE' ? (
             <>

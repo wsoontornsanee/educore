@@ -539,6 +539,27 @@ class Student(TenantModel):
         except Exception as exc:
             logger.warning(f"Error queuing wallet refund on exit for student #{self.id}: {exc}")
 
+        # spec/18: notify partner integrations when a student becomes ACTIVE
+        # within their scope ("roster.student.enrolled"). Fire-and-forget, kept
+        # as a third independently try/except-wrapped call.
+        if new_status == self.STATUS_ACTIVE:
+            try:
+                from apps.partners.services import (
+                    EVENT_ROSTER_STUDENT_ENROLLED,
+                    safe_emit_partner_event,
+                )
+                safe_emit_partner_event(
+                    foundation_id=self.foundation_id,
+                    event_type=EVENT_ROSTER_STUDENT_ENROLLED,
+                    payload={
+                        'student_id': self.id,
+                        'school_id': self.school_id,
+                        'full_name': self.full_name,
+                    },
+                )
+            except Exception as exc:
+                logger.warning(f"Error emitting partner roster event for student #{self.id}: {exc}")
+
 
 class Guardian(TenantModel):
     """Parent / legal guardian profile (spec/02 §2, IAM-009, IAM-014).

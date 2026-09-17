@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Profile Tab Screen — PAR-013, PAR-014, PAR-018.
  *
  * Sections:
@@ -42,6 +42,7 @@ import {
   getBiometricEnabled,
   setBiometricEnabled,
 } from '../../services/storage';
+import { LinkedAccountsSection } from '../../components/LinkedAccountsSection';
 import { colors, radius, spacing, typography } from '../../theme/tokens';
 import type { ChildSummary, NotificationChannelType, NotificationLocale, UserProfile } from '../../types/index';
 
@@ -358,7 +359,10 @@ export const ParentProfileScreen: React.FC<ParentProfileScreenProps> = ({
           </>
         )}
 
-        {/* 6. Logout */}
+        {/* 6. Linked SSO Accounts */}
+        <LinkedAccountsSection />
+
+        {/* 7. Logout */}
         <TouchableOpacity
           style={styles.logoutButton}
           onPress={onLogout}

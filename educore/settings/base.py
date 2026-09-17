@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     'apps.reporting.apps.ReportingConfig',
     'apps.campus.apps.CampusConfig',
     'apps.compliance.apps.ComplianceConfig',
+    'apps.partners.apps.PartnersConfig',
     'apps.marketing.apps.MarketingConfig',
 ]
 
@@ -187,6 +188,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 REST_FRAMEWORK = {
     'COERCE_DECIMAL_TO_STRING': True,  # CUR-026: serialize MoneyField/Decimal as string
     'DEFAULT_PAGINATION_CLASS': 'apps.core.pagination.StandardCursorPagination',
+    # spec/18 §5: partner views render RFC 9457 problem+json. The handler is
+    # view-scoped (apps.partners only) — every other app keeps its shape.
+    'EXCEPTION_HANDLER': 'apps.partners.errors._drf_problem_handler',
     'PAGE_SIZE': 50,
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'apps.identity.authentication.EduCoreJWTAuthentication',
@@ -201,6 +205,14 @@ REST_FRAMEWORK = {
 XENDIT_API_KEY = os.environ.get('XENDIT_API_KEY', '')
 XENDIT_CALLBACK_TOKEN = os.environ.get('XENDIT_CALLBACK_TOKEN', 'sandbox-token')
 XENDIT_BASE_URL = os.environ.get('XENDIT_BASE_URL', 'https://api.xendit.co')
+
+# Partner & Vendor Integration API (spec/18). Fernet key for partner secret
+# encryption at rest — production MUST set an explicit 32-byte urlsafe-b64
+# key; the SECRET_KEY-derived fallback exists only for dev/test parity.
+EDUCORE_PARTNER_FERNET_KEY = os.environ.get('EDUCORE_PARTNER_FERNET_KEY', '')
+# Days a payroll run stays acknowledgeable after approval (PVA-032 window).
+EDUCORE_PARTNER_PAYROLL_ACK_DAYS = int(os.environ.get('EDUCORE_PARTNER_PAYROLL_ACK_DAYS', '14'))
+
 
 # Single cron host enforcement (spec/01 §7, ARC-013): production runs exactly one
 # dedicated cron host, identified by EDUCORE_CRON_HOST=1. Off by default — local and
