@@ -2,7 +2,7 @@
  * EduCore Guru Mobile App Entry Point.
  */
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, SafeAreaView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, SafeAreaView, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { checkAuth, logout } from './src/services/auth';
 import { todayWib } from './src/services/localDate';
@@ -15,6 +15,9 @@ import {
   registerForPushNotificationsAsync,
   subscribeToNotificationReceived,
 } from './src/services/pushNotifications';
+import { getBiometricEnabled } from './src/services/storage';
+import { authenticateBiometric } from './src/services/biometric';
+import { LocaleProvider } from './src/i18n/LocaleContext';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { AgendaScreen } from './src/screens/AgendaScreen';
 import { RollCallScreen } from './src/screens/RollCallScreen';
@@ -26,11 +29,14 @@ import { ParentInvoicesScreen } from './src/screens/parent/ParentInvoicesScreen'
 import { ParentWalletScreen } from './src/screens/parent/ParentWalletScreen';
 import { ParentAcademicScreen } from './src/screens/parent/ParentAcademicScreen';
 import { ParentMessagesScreen } from './src/screens/parent/ParentMessagesScreen';
+import { ParentProfileScreen } from './src/screens/parent/ParentProfileScreen';
 import { POSKioskScreen } from './src/screens/POSKioskScreen';
 import { ParentNutritionDashboardScreen } from './src/screens/ParentNutritionDashboardScreen';
+
 import { initPosQueueDb } from './src/services/posOfflineQueue';
 import { colors } from './src/theme/tokens';
 import { StudentRosterItem, TimetableSlotItem, UserProfile } from './src/types';
+
 
 export default function App() {
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -40,6 +46,9 @@ export default function App() {
   const [parentTab, setParentTab] = useState<ParentTab>('HOME');
   const [posMode, setPosMode] = useState(false);
   const [nutritionMode, setNutritionMode] = useState(false);
+  // PAR-018: biometric gate — true means we need biometric auth before showing the shell
+  const [biometricBlocked, setBiometricBlocked] = useState(false);
+  const [biometricChecked, setBiometricChecked] = useState(false);
 
   const isCanteenOperator = currentUser?.roles?.some((r) => r.role === 'canteen_operator');
   const todayStr = todayWib();
@@ -55,7 +64,15 @@ export default function App() {
         // Register push tokens in background
         registerForPushNotificationsAsync().catch(() => {});
         track('app_open');
+
+        // PAR-018: check if biometric gate is enabled
+        const bioEnabled = await getBiometricEnabled();
+        if (bioEnabled) {
+          setBiometricBlocked(true);
+        }
+
       }
+      setBiometricChecked(true);
       setCheckingAuth(false);
     };
 
@@ -77,6 +94,21 @@ export default function App() {
     };
   }, []);
 
+  // PAR-018: attempt biometric auth when blocked
+  useEffect(() => {
+    if (!biometricBlocked) return;
+    (async () => {
+      const result = await authenticateBiometric('Masuk ke EduCore');
+      if (result.success) {
+        setBiometricBlocked(false);
+      } else {
+        // Auth failed or cancelled: log the user out for safety
+        await handleLogout();
+        setBiometricBlocked(false);
+      }
+    })();
+  }, [biometricBlocked]);
+
   const handleLoginSuccess = (user: UserProfile) => {
     setCurrentUser(user);
     registerForPushNotificationsAsync().catch(() => {});
@@ -89,7 +121,17 @@ export default function App() {
     setActiveSlot(null);
   };
 
+
   if (checkingAuth) {
+    return (
+      <SafeAreaView style={styles.center}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </SafeAreaView>
+    );
+  }
+
+  // PAR-018: biometric gate loading — show spinner while prompt is in progress
+  if (biometricBlocked) {
     return (
       <SafeAreaView style={styles.center}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -118,99 +160,109 @@ export default function App() {
   };
 
   return (
-    <View style={styles.root}>
-      <StatusBar style="dark" />
-      {!currentUser ? (
-        <LoginScreen onLoginSuccess={handleLoginSuccess} />
-      ) : nutritionMode ? (
-        <ParentNutritionDashboardScreen
-          onBack={() => {
-            if (nutritionMode) {
-              setNutritionMode(false);
-            } else {
-              handleLogout();
+    <LocaleProvider>
+      <View style={styles.root}>
+        <StatusBar style="dark" />
+        {!currentUser ? (
+          <LoginScreen onLoginSuccess={handleLoginSuccess} />
+        ) : nutritionMode ? (
+          <ParentNutritionDashboardScreen
+            onBack={() => {
+              if (nutritionMode) {
+                setNutritionMode(false);
+              } else {
+                handleLogout();
+              }
+            }}
+          />
+        ) : isParent(currentUser) ? (
+          <ParentShell activeTab={parentTab} onTabChange={setParentTab} onLogout={handleLogout}>
+            {({ selectedChild, allChildren }) =>
+              parentTab === 'HOME' ? (
+                <ParentHomeScreen child={selectedChild} onNavigateTab={setParentTab} />
+              ) : parentTab === 'ATTENDANCE' ? (
+                <ParentAttendanceScreen child={selectedChild} />
+              ) : parentTab === 'ACADEMIC' ? (
+                <ParentAcademicScreen
+                  key={selectedChild.student_id}
+                  child={selectedChild}
+                  onNavigateInvoices={() => setParentTab('INVOICES')}
+                />
+              ) : parentTab === 'MESSAGES' ? (
+                <ParentMessagesScreen key={selectedChild.student_id} child={selectedChild} />
+              ) : parentTab === 'WALLET' ? (
+                <ParentWalletScreen
+                  key={selectedChild.student_id}
+                  child={selectedChild}
+                  onNavigateNutrition={() => setParentTab('NUTRITION')}
+                />
+              ) : parentTab === 'NUTRITION' ? (
+                <ParentNutritionDashboardScreen
+                  key={selectedChild.student_id}
+                  initialStudentId={selectedChild.student_id}
+                  linkedStudents={allChildren.map((c) => ({
+                    id: c.student_id,
+                    full_name: c.full_name,
+                    nis: c.nis,
+                    nisn: c.nisn,
+                    class_name: c.class_name,
+                    school_name: c.school_name,
+                  }))}
+                  onBack={() => setParentTab('HOME')}
+                />
+              ) : parentTab === 'PROFILE' ? (
+                // PAR-013/PAR-014/PAR-018: Profile tab
+                <ParentProfileScreen
+                  user={currentUser}
+                  allChildren={allChildren}
+                  onLogout={handleLogout}
+                />
+              ) : (
+                // Keyed on the child so switching children mid-payment remounts the
+                // screen instead of leaving the previous child's VA/amount on screen.
+                <ParentInvoicesScreen key={selectedChild.student_id} child={selectedChild} />
+              )
             }
-          }}
-        />
-      ) : isParent(currentUser) ? (
-        <ParentShell activeTab={parentTab} onTabChange={setParentTab} onLogout={handleLogout}>
-          {({ selectedChild, allChildren }) =>
-            parentTab === 'HOME' ? (
-              <ParentHomeScreen child={selectedChild} onNavigateTab={setParentTab} />
-            ) : parentTab === 'ATTENDANCE' ? (
-              <ParentAttendanceScreen child={selectedChild} />
-            ) : parentTab === 'ACADEMIC' ? (
-              <ParentAcademicScreen
-                key={selectedChild.student_id}
-                child={selectedChild}
-                onNavigateInvoices={() => setParentTab('INVOICES')}
-              />
-            ) : parentTab === 'MESSAGES' ? (
-              <ParentMessagesScreen key={selectedChild.student_id} child={selectedChild} />
-            ) : parentTab === 'WALLET' ? (
-              <ParentWalletScreen
-                key={selectedChild.student_id}
-                child={selectedChild}
-                onNavigateNutrition={() => setParentTab('NUTRITION')}
-              />
-            ) : parentTab === 'NUTRITION' ? (
-              <ParentNutritionDashboardScreen
-                key={selectedChild.student_id}
-                initialStudentId={selectedChild.student_id}
-                linkedStudents={allChildren.map((c) => ({
-                  id: c.student_id,
-                  full_name: c.full_name,
-                  nis: c.nis,
-                  nisn: c.nisn,
-                  class_name: c.class_name,
-                  school_name: c.school_name,
-                }))}
-                onBack={() => setParentTab('HOME')}
-              />
-            ) : (
-              // Keyed on the child so switching children mid-payment remounts the
-              // screen instead of leaving the previous child's VA/amount on screen.
-              <ParentInvoicesScreen key={selectedChild.student_id} child={selectedChild} />
-            )
-          }
-        </ParentShell>
-      ) : isCanteenOperator || posMode ? (
-        <POSKioskScreen
-          onBack={() => {
-            if (posMode) {
-              setPosMode(false);
-            } else {
-              handleLogout();
-            }
-          }}
-        />
-      ) : activeSlot ? (
-        <RollCallScreen
-          slot={activeSlot}
-          dateStr={todayStr}
-          initialRoster={getMockRosterForSlot(activeSlot)}
-          onBack={() => setActiveSlot(null)}
-          onSaved={() => setActiveSlot(null)}
-        />
-      ) : (
-        <AgendaScreen
-          user={currentUser}
-          onSelectSlot={(slot) => setActiveSlot(slot)}
-          onOpenSubstitution={(slot) => setSubModalSlot(slot)}
-          onLogout={handleLogout}
-        />
-      )}
+          </ParentShell>
+        ) : isCanteenOperator || posMode ? (
+          <POSKioskScreen
+            onBack={() => {
+              if (posMode) {
+                setPosMode(false);
+              } else {
+                handleLogout();
+              }
+            }}
+          />
+        ) : activeSlot ? (
+          <RollCallScreen
+            slot={activeSlot}
+            dateStr={todayStr}
+            initialRoster={getMockRosterForSlot(activeSlot)}
+            onBack={() => setActiveSlot(null)}
+            onSaved={() => setActiveSlot(null)}
+          />
+        ) : (
+          <AgendaScreen
+            user={currentUser}
+            onSelectSlot={(slot) => setActiveSlot(slot)}
+            onOpenSubstitution={(slot) => setSubModalSlot(slot)}
+            onLogout={handleLogout}
+          />
+        )}
 
-      {/* Substitution Modal */}
-      <SubstitutionModal
-        visible={!!subModalSlot}
-        slot={subModalSlot}
-        onClose={() => setSubModalSlot(null)}
-        onResolved={() => {
-          setSubModalSlot(null);
-        }}
-      />
-    </View>
+
+        {/* Substitution Modal */}
+        <SubstitutionModal
+          visible={!!subModalSlot}
+          slot={subModalSlot}
+          onClose={() => setSubModalSlot(null)}
+          onResolved={() => {
+            setSubModalSlot(null);
+          }}
+        />
+      </View>
+    </LocaleProvider>
   );
 }
 
@@ -226,3 +278,4 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
 });
+
