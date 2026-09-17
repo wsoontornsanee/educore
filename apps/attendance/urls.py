@@ -2,6 +2,7 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 
 from apps.attendance.views import (
+    AbsenceRequestStaffViewSet,
     AttendanceDayViewSet,
     AttendanceRuleViewSet,
     CredentialViewSet,
@@ -10,6 +11,7 @@ from apps.attendance.views import (
     ManualCheckInView,
     PeriodAttendanceSyncView,
     PeriodAttendanceView,
+    StudentAbsenceRequestView,
     TeacherAgendaView,
 )
 
@@ -18,6 +20,7 @@ router.register('credentials', CredentialViewSet, basename='credential')
 router.register('gate/events', GateEventViewSet, basename='gate-event')
 router.register('attendance/daily', AttendanceDayViewSet, basename='attendance-daily')
 router.register('attendance/rules', AttendanceRuleViewSet, basename='attendance-rule')
+router.register('attendance/absence-requests', AbsenceRequestStaffViewSet, basename='absence-request-staff')
 
 urlpatterns = [
     # Direct spec routes (spec/05 §8)
@@ -29,5 +32,6 @@ urlpatterns = [
     path('teacher/agenda/', TeacherAgendaView.as_view(), name='teacher-agenda-slash'),
     path('timetable/slots/<int:slot_id>/period-attendance/', PeriodAttendanceView.as_view(), name='period-attendance'),
     path('period-attendance/sync/', PeriodAttendanceSyncView.as_view(), name='period-attendance-sync'),
+    path('attendance/students/<int:student_id>/absence-requests/', StudentAbsenceRequestView.as_view(), name='student-absence-requests'),
 ] + router.urls
 

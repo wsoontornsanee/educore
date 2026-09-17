@@ -11,6 +11,9 @@ from django.utils.translation import gettext_lazy as _
 from apps.core.models import AuditEvent, DomainEvent
 from apps.core.services import audit, record_domain_event
 from apps.attendance.models import (
+    AbsenceRequest,
+    AbsenceRequestStatus,
+    AbsenceType,
     AttendanceDay,
     AttendanceSource,
     AttendanceStatus,
@@ -1176,5 +1179,262 @@ def sync_offline_period_attendance_batch(teacher: Staff, entries: list) -> list:
         results.append({'slot_id': slot_id, 'date': str(date), 'status': 'SYNCED'})
 
     return results
+
+
+MAX_ABSENCE_ATTACHMENT_SIZE = 1024 * 1024  # 1MB (PAR-011)
+ALLOWED_ABSENCE_CONTENT_TYPES = {
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/webp',
+    'application/pdf',
+}
+
+
+def validate_absence_attachment(uploaded_file) -> None:
+    """Validates that an absence photo attachment complies with PAR-011.
+    Must be <= 1MB (1,048,576 bytes) and an image or PDF document.
+    """
+    if uploaded_file.size > MAX_ABSENCE_ATTACHMENT_SIZE:
+        raise ValidationError(
+            _("Ukuran berkas lampiran tidak boleh melebihi 1MB (PAR-011).")
+        )
+    content_type = getattr(uploaded_file, 'content_type', '') or ''
+    if content_type.lower() not in ALLOWED_ABSENCE_CONTENT_TYPES:
+        raise ValidationError(
+            _("Format berkas lampiran tidak didukung. Harap gunakan JPG, PNG, WebP, atau PDF.")
+        )
+
+
+@transaction.atomic
+def submit_absence_request(
+    student: Student,
+    requested_by: Any,
+    date_from: Any,
+    date_to: Any,
+    type: str,
+    reason: str,
+    attachment_file: Optional[Any] = None,
+    foundation_id: Optional[int] = None,
+) -> AbsenceRequest:
+    """
+    Parent submission of absence request with photo attachment (spec/05 §2, spec/08 PAR-011).
+    """
+    import datetime as _dt
+    from apps.core.services import write_generated_file
+
+    if foundation_id is None:
+        foundation_id = student.foundation_id
+
+    if isinstance(date_from, str):
+        date_from = _dt.date.fromisoformat(date_from)
+    if isinstance(date_to, str):
+        date_to = _dt.date.fromisoformat(date_to)
+
+    if date_from > date_to:
+        raise ValidationError(_("Tanggal mulai tidak boleh melebihi tanggal akhir."))
+
+    if type not in AbsenceType.values:
+        raise ValidationError(_(f"Tipe permohonan '{type}' tidak valid. Pilihan: SAKIT, IZIN."))
+
+    if not reason or not str(reason).strip():
+        raise ValidationError(_("Alasan izin atau keterangan sakit wajib diisi."))
+
+    attachment_key = ''
+    if attachment_file:
+        validate_absence_attachment(attachment_file)
+        stored_file = write_generated_file(
+            purpose='ABSENCE_ATTACHMENT',
+            filename=attachment_file.name,
+            data=b''.join(attachment_file.chunks()),
+            content_type=attachment_file.content_type,
+            foundation_id=foundation_id,
+            uploaded_by=str(requested_by.id) if requested_by else '',
+            school_id=student.school_id,
+        )
+        attachment_key = stored_file.key
+
+    absence_request = AbsenceRequest.objects.create(
+        foundation_id=foundation_id,
+        school=student.school,
+        student=student,
+        requested_by=requested_by,
+        date_from=date_from,
+        date_to=date_to,
+        type=type,
+        reason=str(reason).strip(),
+        attachment_key=attachment_key,
+        status=AbsenceRequestStatus.PENDING,
+        created_by=str(requested_by.id) if requested_by else '',
+    )
+
+    audit(
+        action='attendance.absence_request.submitted',
+        entity_type='AbsenceRequest',
+        entity_id=absence_request.id,
+        actor_id=str(requested_by.id) if requested_by else '',
+        foundation_id=foundation_id,
+        school_id=student.school_id,
+        diff={
+            'student_id': str(student.id),
+            'type': type,
+            'date_from': date_from.isoformat(),
+            'date_to': date_to.isoformat(),
+            'reason': absence_request.reason,
+            'has_attachment': bool(attachment_key),
+        }
+    )
+
+    record_domain_event(
+        name='attendance.absence_request.submitted',
+        foundation_id=foundation_id,
+        payload={
+            'absence_request_id': str(absence_request.id),
+            'student_id': str(student.id),
+            'school_id': str(student.school_id),
+            'type': type,
+            'date_from': date_from.isoformat(),
+            'date_to': date_to.isoformat(),
+        }
+    )
+
+    return absence_request
+
+
+@transaction.atomic
+def approve_absence_request(
+    absence_request: AbsenceRequest,
+    decided_by: Any,
+    note: str = '',
+) -> AbsenceRequest:
+    """
+    Staff approval of an absence request (spec/05 ATT-002).
+    Overrides daily attendance status to SAKIT or IZIN for the covered date range.
+    """
+    import datetime as _dt
+
+    if absence_request.status != AbsenceRequestStatus.PENDING:
+        raise ValidationError(_("Permohonan ini telah diproses sebelumnya dan tidak dapat disetujui lagi."))
+
+    actor_id = str(decided_by.id) if decided_by and getattr(decided_by, 'id', None) else ''
+
+    absence_request.status = AbsenceRequestStatus.APPROVED
+    absence_request.decided_by = decided_by
+    absence_request.decided_at = timezone.now()
+    absence_request.decision_note = str(note or '').strip()
+    absence_request.updated_by = actor_id
+    absence_request.save(update_fields=['status', 'decided_by', 'decided_at', 'decision_note', 'updated_by', 'updated_at'])
+
+    # ATT-002: Override daily status for each date in the window
+    note_text = f"Disetujui: {absence_request.reason}" if not note else f"Disetujui: {note}"
+    current_date = absence_request.date_from
+    while current_date <= absence_request.date_to:
+        att_day = AttendanceDay.all_tenants.filter(
+            foundation_id=absence_request.foundation_id,
+            school=absence_request.school,
+            student=absence_request.student,
+            date=current_date,
+            deleted_at__isnull=True,
+        ).first()
+
+        if att_day:
+            if not att_day.is_override:
+                att_day.original_status = att_day.status
+            att_day.status = absence_request.type
+            att_day.source = AttendanceSource.MANUAL
+            att_day.is_override = True
+            att_day.note = note_text
+            att_day.updated_by = actor_id
+            att_day.save(update_fields=['status', 'original_status', 'source', 'is_override', 'note', 'updated_by', 'updated_at'])
+        else:
+            AttendanceDay.objects.create(
+                foundation_id=absence_request.foundation_id,
+                school=absence_request.school,
+                student=absence_request.student,
+                date=current_date,
+                status=absence_request.type,
+                source=AttendanceSource.MANUAL,
+                is_override=True,
+                note=note_text,
+                created_by=actor_id,
+            )
+        current_date += _dt.timedelta(days=1)
+
+    audit(
+        action='attendance.absence_request.approved',
+        entity_type='AbsenceRequest',
+        entity_id=absence_request.id,
+        actor_id=actor_id,
+        foundation_id=absence_request.foundation_id,
+        school_id=absence_request.school_id,
+        diff={
+            'student_id': str(absence_request.student_id),
+            'status': AbsenceRequestStatus.APPROVED,
+            'type': absence_request.type,
+            'date_from': absence_request.date_from.isoformat(),
+            'date_to': absence_request.date_to.isoformat(),
+            'decision_note': absence_request.decision_note,
+        }
+    )
+
+    record_domain_event(
+        name='attendance.absence_request.approved',
+        foundation_id=absence_request.foundation_id,
+        payload={
+            'absence_request_id': str(absence_request.id),
+            'student_id': str(absence_request.student_id),
+            'status': AbsenceRequestStatus.APPROVED,
+        }
+    )
+
+    return absence_request
+
+
+@transaction.atomic
+def reject_absence_request(
+    absence_request: AbsenceRequest,
+    decided_by: Any,
+    note: str = '',
+) -> AbsenceRequest:
+    """
+    Staff rejection of an absence request (spec/05 §2).
+    """
+    if absence_request.status != AbsenceRequestStatus.PENDING:
+        raise ValidationError(_("Permohonan ini telah diproses sebelumnya dan tidak dapat ditolak lagi."))
+
+    actor_id = str(decided_by.id) if decided_by and getattr(decided_by, 'id', None) else ''
+
+    absence_request.status = AbsenceRequestStatus.REJECTED
+    absence_request.decided_by = decided_by
+    absence_request.decided_at = timezone.now()
+    absence_request.decision_note = str(note or '').strip()
+    absence_request.updated_by = actor_id
+    absence_request.save(update_fields=['status', 'decided_by', 'decided_at', 'decision_note', 'updated_by', 'updated_at'])
+
+    audit(
+        action='attendance.absence_request.rejected',
+        entity_type='AbsenceRequest',
+        entity_id=absence_request.id,
+        actor_id=actor_id,
+        foundation_id=absence_request.foundation_id,
+        school_id=absence_request.school_id,
+        diff={
+            'student_id': str(absence_request.student_id),
+            'status': AbsenceRequestStatus.REJECTED,
+            'decision_note': absence_request.decision_note,
+        }
+    )
+
+    record_domain_event(
+        name='attendance.absence_request.rejected',
+        foundation_id=absence_request.foundation_id,
+        payload={
+            'absence_request_id': str(absence_request.id),
+            'student_id': str(absence_request.student_id),
+            'status': AbsenceRequestStatus.REJECTED,
+        }
+    )
+
+    return absence_request
 
 

@@ -432,3 +432,100 @@ class PeriodAttendance(TenantModel):
     def __str__(self):
         return f"{self.student.nis} - {self.slot} @ {self.date} [{self.status}]"
 
+
+class AbsenceType(models.TextChoices):
+    SAKIT = 'SAKIT', _('Sakit (Sick / Medical)')
+    IZIN = 'IZIN', _('Izin (Permitted)')
+
+
+class AbsenceRequestStatus(models.TextChoices):
+    PENDING = 'PENDING', _('Menunggu (Pending)')
+    APPROVED = 'APPROVED', _('Disetujui (Approved)')
+    REJECTED = 'REJECTED', _('Ditolak (Rejected)')
+
+
+class AbsenceRequest(TenantModel):
+    """
+    Parent-submitted absence request with photo attachment (spec/05 §2, spec/08 PAR-011).
+    Upon approval by school staff, automatically updates daily attendance status
+    for the covered date range to SAKIT or IZIN (spec/05 ATT-002).
+    """
+    school = models.ForeignKey(
+        'identity.School',
+        on_delete=models.PROTECT,
+        related_name='absence_requests',
+        help_text=_('Sekolah tempat siswa terdaftar')
+    )
+    student = models.ForeignKey(
+        'identity.Student',
+        on_delete=models.PROTECT,
+        related_name='absence_requests',
+        help_text=_('Siswa yang dimohonkan izin/sakit')
+    )
+    requested_by = models.ForeignKey(
+        'identity.User',
+        on_delete=models.PROTECT,
+        related_name='submitted_absence_requests',
+        help_text=_('Orang tua / wali yang mengajukan permohonan')
+    )
+    date_from = models.DateField(
+        db_index=True,
+        help_text=_('Tanggal mulai ketidakhadiran')
+    )
+    date_to = models.DateField(
+        db_index=True,
+        help_text=_('Tanggal akhir ketidakhadiran (inklusif)')
+    )
+    type = models.CharField(
+        max_length=16,
+        choices=AbsenceType.choices,
+        default=AbsenceType.SAKIT,
+        db_index=True
+    )
+    reason = models.TextField(
+        help_text=_('Alasan pengajuan izin atau keterangan sakit')
+    )
+    attachment_key = models.CharField(
+        max_length=500,
+        blank=True,
+        default='',
+        help_text=_('Kunci StoredFile untuk berkas lampiran foto surat dokter/izin')
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=AbsenceRequestStatus.choices,
+        default=AbsenceRequestStatus.PENDING,
+        db_index=True
+    )
+    decided_by = models.ForeignKey(
+        'identity.User',
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name='decided_absence_requests',
+        help_text=_('Staf yang memproses persetujuan atau penolakan')
+    )
+    decided_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=_('Waktu keputusan diproses')
+    )
+    decision_note = models.TextField(
+        blank=True,
+        default='',
+        help_text=_('Catatan keputusan dari staf')
+    )
+
+    class Meta(TenantModel.Meta):
+        db_table = 'absence_requests'
+        verbose_name = _('Permohonan Izin / Sakit')
+        verbose_name_plural = _('Permohonan Izin / Sakit')
+        indexes = [
+            models.Index(fields=['foundation_id', 'student', 'status'], name='idx_absreq_fnd_stu_st'),
+            models.Index(fields=['foundation_id', 'school', 'status'], name='idx_absreq_fnd_sch_st'),
+            models.Index(fields=['foundation_id', 'date_from', 'date_to'], name='idx_absreq_fnd_dt'),
+        ]
+
+    def __str__(self):
+        return f"{self.type} - {self.student.nis} ({self.date_from} s/d {self.date_to}) [{self.status}]"
+

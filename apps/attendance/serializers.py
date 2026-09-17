@@ -1,6 +1,9 @@
 from rest_framework import serializers
 
 from apps.attendance.models import (
+    AbsenceRequest,
+    AbsenceRequestStatus,
+    AbsenceType,
     AttendanceDay,
     AttendanceRule,
     AttendanceSource,
@@ -227,5 +230,99 @@ class ManualCheckInSerializer(serializers.Serializer):
     direction = serializers.ChoiceField(choices=GateDirection.choices, default=GateDirection.IN)
     occurred_at = serializers.DateTimeField(required=False, allow_null=True)
     reason = serializers.CharField(max_length=255, required=True, min_length=1)
+
+
+class AbsenceRequestSerializer(serializers.ModelSerializer):
+    student_nis = serializers.CharField(source='student.nis', read_only=True)
+    student_name = serializers.CharField(source='student.person.full_name', read_only=True)
+    requested_by_name = serializers.SerializerMethodField()
+    decided_by_name = serializers.SerializerMethodField()
+    attachment_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AbsenceRequest
+        fields = [
+            'id',
+            'school',
+            'student',
+            'student_nis',
+            'student_name',
+            'requested_by',
+            'requested_by_name',
+            'date_from',
+            'date_to',
+            'type',
+            'reason',
+            'attachment_key',
+            'attachment_url',
+            'status',
+            'decided_by',
+            'decided_by_name',
+            'decided_at',
+            'decision_note',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = [
+            'id',
+            'school',
+            'student',
+            'student_nis',
+            'student_name',
+            'requested_by',
+            'requested_by_name',
+            'attachment_key',
+            'attachment_url',
+            'status',
+            'decided_by',
+            'decided_by_name',
+            'decided_at',
+            'created_at',
+            'updated_at',
+        ]
+
+    def get_requested_by_name(self, obj) -> str:
+        if not obj.requested_by:
+            return ''
+        return getattr(obj.requested_by, 'full_name', '') or getattr(obj.requested_by, 'phone_e164', '') or getattr(obj.requested_by, 'email', '')
+
+    def get_decided_by_name(self, obj) -> str:
+        if not obj.decided_by:
+            return ''
+        return getattr(obj.decided_by, 'full_name', '') or getattr(obj.decided_by, 'phone_e164', '') or getattr(obj.decided_by, 'email', '')
+
+    def get_attachment_url(self, obj) -> str:
+        if not obj.attachment_key:
+            return ''
+        from apps.core import storage
+        try:
+            url = storage.generate_download_url(obj.attachment_key, expires_seconds=3600)
+            return str(url) if isinstance(url, str) else ''
+        except Exception:
+            return ''
+
+
+class AbsenceRequestCreateSerializer(serializers.Serializer):
+    date_from = serializers.DateField(required=True)
+    date_to = serializers.DateField(required=True)
+    type = serializers.ChoiceField(choices=AbsenceType.choices, required=True)
+    reason = serializers.CharField(required=True, min_length=3)
+    attachment = serializers.FileField(required=False, allow_null=True)
+
+    def validate(self, attrs):
+        if attrs['date_from'] > attrs['date_to']:
+            raise serializers.ValidationError({"date_from": "Tanggal mulai tidak boleh melebihi tanggal akhir."})
+        attachment = attrs.get('attachment')
+        if attachment:
+            from apps.attendance.services import validate_absence_attachment
+            try:
+                validate_absence_attachment(attachment)
+            except Exception as e:
+                raise serializers.ValidationError({"attachment": str(e)})
+        return attrs
+
+
+class AbsenceRequestDecisionSerializer(serializers.Serializer):
+    note = serializers.CharField(required=False, allow_blank=True, default='')
 
 
