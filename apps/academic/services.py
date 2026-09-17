@@ -38,6 +38,8 @@ from apps.academic.models import (
     MAX_SUBMISSION_FILES,
     MAX_SUBMISSION_FILE_SIZE,
     PeriodGridSlot,
+    PermissionSlip,
+    PermissionSlipAcknowledgement,
     ReportCard,
     ReportCardPolicy,
     ReportCardStatus,
@@ -1988,3 +1990,206 @@ def send_broadcast(teacher, class_group, title, body, actor=None) -> Broadcast:
         diff={'class_group': class_group.name, 'recipient_count': sent_count},
     )
     return broadcast
+
+
+
+class PermissionSlipClosedError(ValueError):
+    """The permission slip's due_at has passed — new acknowledgements are closed."""
+
+
+class GuardianNotLinkedError(ValueError):
+    """The guardian is not linked to the given student (IAM-014)."""
+
+
+class StudentNotEnrolledError(ValueError):
+    """The student is not actively enrolled in the permission slip's class group."""
+
+
+def create_permission_slip(staff, class_group, title, description='',
+                           event_date=None, location='', due_at=None, actor=None):
+    """Create a school-issued permission slip for one class group (spec/08 PAR-012),
+    then notify that class's guardians that a consent request awaits their signature.
+    Notification failures never block the slip's creation."""
+    from apps.identity.models import GuardianLink
+    from apps.notifications.models import NotificationCategory
+    from apps.notifications.services import dispatch_intent
+
+    if not title or not title.strip():
+        raise ValueError("TITLE_REQUIRED: slip title must not be empty.")
+    if due_at is not None and event_date is not None:
+        # due_at may sit at any point before the event; it must not fall after the event day
+        from datetime import datetime as _dt, time as _time
+        event_end_of_day = _dt.combine(event_date, _time(23, 59, 59), tzinfo=timezone.utc if timezone.is_naive(due_at) else due_at.tzinfo)
+        if due_at > event_end_of_day:
+            raise ValueError("DUE_AFTER_EVENT: due_at must not fall after the event date.")
+
+    slip = PermissionSlip.objects.create(
+        foundation_id=class_group.foundation_id,
+        class_group=class_group,
+        created_by=staff,
+        title=title.strip(),
+        description=description or '',
+        event_date=event_date,
+        location=location or '',
+        due_at=due_at,
+    )
+    audit(
+        action='academic.permission_slip.created',
+        entity_type='PermissionSlip',
+        entity_id=slip.id,
+        foundation_id=class_group.foundation_id,
+        school_id=class_group.school_id,
+        actor_id=getattr(actor, 'id', None),
+        diff={'title': slip.title, 'class_group': class_group.name},
+    )
+
+    student_ids = ClassEnrollment.objects.filter(
+        class_group=class_group, is_active=True, deleted_at__isnull=True,
+    ).values_list('student_id', flat=True)
+
+    guardian_links = GuardianLink.objects.filter(
+        foundation_id=class_group.foundation_id, student_id__in=student_ids, deleted_at__isnull=True,
+    ).select_related('guardian__person', 'guardian__user')
+
+    event_line = f" (Tanggal: {slip.event_date.isoformat()})" if slip.event_date else ""
+    seen_guardian_ids = set()
+    for link in guardian_links:
+        guardian = link.guardian
+        if guardian.id in seen_guardian_ids or not guardian.user:
+            continue
+        seen_guardian_ids.add(guardian.id)
+        try:
+            dispatch_intent(
+                foundation_id=class_group.foundation_id,
+                category=NotificationCategory.ANNOUNCEMENT,
+                template_key='academic.permission_slip.new',
+                payload={
+                    'message': f"Permintaan izin baru: {slip.title}{event_line}. Mohon berikan persetujuan digital di aplikasi.",
+                    'permission_slip_id': slip.id,
+                    'student_name': link.student.person.full_name if link.student and link.student.person else '',
+                },
+                school_id=class_group.school_id,
+                recipient_user=guardian.user,
+                recipient_phone=getattr(guardian.user, 'phone_e164', ''),
+                recipient_email=getattr(guardian.user, 'email', ''),
+                recipient_name=guardian.person.full_name if guardian.person else '',
+            )
+        except Exception:
+            logger.warning("permission slip notification dispatch failed for slip %s", slip.id, exc_info=True)
+    return slip
+
+
+def acknowledge_permission_slip(slip, guardian, student, response, signature, actor=None):
+    """Record a guardian's signed digital acknowledgement (PAR-012).
+
+    Validates guardian-student link (IAM-014), student enrollment in the slip's
+    class group, and the slip's due_at gate. A changed answer appends a NEW
+    superseding acknowledgement row — the previous active row for the same
+    (slip, student, guardian) is soft-deleted inside the same transaction
+    (history preserved, never rewritten), so exactly one active response per
+    signer exists at any moment (matching the active-only uniqueness constraint).
+    """
+    from django.db import transaction
+
+    from apps.identity.models import GuardianLink
+
+    if response not in {PermissionSlipAcknowledgement.RESPONSE_APPROVED, PermissionSlipAcknowledgement.RESPONSE_DECLINED}:
+        raise ValueError("INVALID_RESPONSE: response must be APPROVED or DECLINED.")
+    if not signature or not signature.strip():
+        raise ValueError("SIGNATURE_REQUIRED: a typed signature is required (PAR-012).")
+
+    link = GuardianLink.objects.filter(
+        foundation_id=slip.foundation_id, guardian=guardian, student=student, deleted_at__isnull=True,
+    ).first()
+    if not link:
+        raise GuardianNotLinkedError("GUARDIAN_NOT_LINKED: this guardian is not linked to the given student (IAM-014).")
+
+    enrolled = ClassEnrollment.objects.filter(
+        foundation_id=slip.foundation_id, student=student,
+        class_group_id=slip.class_group_id, is_active=True, deleted_at__isnull=True,
+    ).exists()
+    if not enrolled:
+        raise StudentNotEnrolledError("STUDENT_NOT_ENROLLED: the student is not in this slip's class group.")
+
+    if slip.due_at is not None and timezone.now() > slip.due_at:
+        raise PermissionSlipClosedError("PERMISSION_SLIP_CLOSED: the acknowledgement window has closed.")
+
+    now = timezone.now()
+    with transaction.atomic():
+        # Supersede: soft-delete any previous active response by this guardian
+        # for this (slip, student) — rows stay in history, only one stays active.
+        PermissionSlipAcknowledgement.objects.filter(
+            foundation_id=slip.foundation_id, permission_slip=slip,
+            student=student, guardian=guardian, deleted_at__isnull=True,
+        ).update(deleted_at=now)
+
+        ack = PermissionSlipAcknowledgement.objects.create(
+            foundation_id=slip.foundation_id,
+            permission_slip=slip,
+            student=student,
+            guardian=guardian,
+            response=response,
+            responded_at=now,
+            signature=signature.strip(),
+        )
+    audit(
+        action='academic.permission_slip.acknowledged',
+        entity_type='PermissionSlipAcknowledgement',
+        entity_id=ack.id,
+        foundation_id=slip.foundation_id,
+        school_id=slip.class_group.school_id,
+        actor_id=getattr(actor, 'id', None),
+        diff={'response': response, 'slip': slip.title, 'student_nis': student.nis},
+    )
+    return ack
+
+
+def get_effective_acknowledgement(slip, student, guardian):
+    """The guardian's current effective response for (slip, student): the latest active row."""
+    return PermissionSlipAcknowledgement.objects.filter(
+        foundation_id=slip.foundation_id, permission_slip=slip,
+        student=student, guardian=guardian, deleted_at__isnull=True,
+    ).order_by('-responded_at', '-id').first()
+
+
+def get_slip_consent_tally(slip):
+    """Live consent tally for the school (PAR-012): per enrolled student, the
+    latest effective response, plus roll-up counts approved/declined/pending."""
+    student_ids = list(ClassEnrollment.objects.filter(
+        class_group_id=slip.class_group_id, is_active=True, deleted_at__isnull=True,
+        foundation_id=slip.foundation_id,
+    ).values_list('student_id', flat=True))
+
+    acks = list(PermissionSlipAcknowledgement.objects.filter(
+        foundation_id=slip.foundation_id, permission_slip=slip,
+        student_id__in=student_ids, deleted_at__isnull=True,
+    ).order_by('responded_at', 'id'))
+    # latest per (student, guardian): dict keyed by (student_id, guardian_id)
+    latest_by_pair = {}
+    for ack in acks:
+        latest_by_pair[(ack.student_id, ack.guardian_id)] = ack
+
+    student_latest = {}  # student_id -> effective response (most recent guardian ack)
+    for (student_id, _guardian_id), ack in latest_by_pair.items():
+        current = student_latest.get(student_id)
+        if current is None or ack.responded_at >= current[1]:
+            student_latest[student_id] = (ack.response, ack.responded_at)
+
+    approved = declined = 0
+    pending_students = []
+    for sid in student_ids:
+        entry = student_latest.get(sid)
+        if entry is None:
+            pending_students.append(sid)
+        elif entry[0] == PermissionSlipAcknowledgement.RESPONSE_APPROVED:
+            approved += 1
+        else:
+            declined += 1
+
+    return {
+        'total_enrolled': len(student_ids),
+        'approved': approved,
+        'declined': declined,
+        'pending': len(pending_students),
+        'pending_student_ids': pending_students,
+    }
