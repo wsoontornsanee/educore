@@ -27,6 +27,9 @@ from apps.finance.services.payment_providers import get_payment_provider
 from apps.identity.models import School, Student
 
 
+logger = __import__('logging').getLogger(__name__)
+
+
 class CurrencyMismatchError(ValueError):
     pass
 
@@ -243,6 +246,83 @@ def allocate_payment_to_invoices(
     return allocations, overpayment
 
 
+def _dispatch_payment_received_notification(payment: Payment, allocations: list) -> None:
+    """
+    PAR-008: Dispatch PAYMENT_RECEIVED push notification to guardians
+    within 30s of settlement. Dispatched via all three settlement paths:
+    gateway webhook, cash payment, and manual transfer verification.
+    """
+    try:
+        from apps.notifications.services import dispatch_intent
+        from apps.notifications.models import NotificationCategory, NotificationPriority
+        from apps.identity.models import GuardianLink
+        from django.db.models import Q as Q_
+
+        student = payment.student
+        if not student:
+            return
+
+        guardian_links = list(
+            GuardianLink.objects.filter(
+                foundation_id=payment.foundation_id,
+                student=student,
+                deleted_at__isnull=True,
+            )
+            .filter(Q_(is_primary=True) | Q_(financial_responsible=True))
+            .select_related('guardian__user', 'guardian__person')
+        )
+        if not guardian_links:
+            guardian_links = list(
+                GuardianLink.objects.filter(
+                    foundation_id=payment.foundation_id,
+                    student=student,
+                    deleted_at__isnull=True,
+                )
+                .select_related('guardian__user', 'guardian__person')
+            )
+
+        # Build invoice summary
+        invoice_numbers = [a.invoice.number for a in allocations if a.invoice]
+        invoice_info = ', '.join(invoice_numbers[:3])
+        if len(invoice_numbers) > 3:
+            invoice_info += f' (+{len(invoice_numbers) - 3} lainnya)'
+
+        student_name = student.person.full_name if student.person else ''
+
+        for link in guardian_links:
+            guardian = link.guardian
+            if not guardian:
+                continue
+            guardian_user = guardian.user
+            if not guardian_user:
+                continue
+            guardian_person = guardian.person
+            phone = guardian_user.phone_e164 if guardian_user.phone_e164 else ''
+            name = guardian_person.full_name if guardian_person else ''
+
+            dispatch_intent(
+                foundation_id=payment.foundation_id,
+                category=NotificationCategory.PAYMENT_RECEIVED,
+                template_key='finance.payment_received',
+                school_id=payment.school_id,
+                recipient_user=guardian_user,
+                recipient_phone=phone,
+                recipient_name=name,
+                payload={
+                    'student_name': student_name,
+                    'amount': str(payment.amount),
+                    'currency': payment.currency,
+                    'invoice_info': invoice_info,
+                    'payment_reference': payment.reference,
+                },
+                priority=NotificationPriority.HIGH,
+                dedupe_key=f"payment_received:{payment.id}:{guardian.id}",
+                immediate=True,
+            )
+    except Exception as e:
+        logger.warning("Failed to dispatch payment-received notification for payment %s: %s", payment.id, e)
+
+
 @transaction.atomic
 def process_payment_webhook(
     provider_name: str,
@@ -365,7 +445,7 @@ def process_payment_webhook(
                 overpayment=overpayment,
             )
 
-            # Record domain event & audit event
+            # Record domain event
             record_domain_event(
                 name='finance.payment_settled',
                 payload={
@@ -378,6 +458,10 @@ def process_payment_webhook(
                 },
                 foundation_id=payment.foundation_id,
             )
+
+            # PAR-008: Dispatch push notification to guardians
+            _dispatch_payment_received_notification(payment, allocations)
+
             audit(
                 action='finance.payment.settled',
                 entity_type='Payment',
@@ -470,6 +554,10 @@ def record_cash_payment(
         },
         foundation_id=school.foundation_id,
     )
+
+    # PAR-008: Dispatch push notification to guardians
+    _dispatch_payment_received_notification(payment, allocations)
+
     audit(
         action='finance.payment.cash_received',
         entity_type='Payment',
@@ -574,6 +662,10 @@ def verify_manual_transfer(
             },
             foundation_id=payment.foundation_id,
         )
+
+        # PAR-008: Dispatch push notification to guardians
+        _dispatch_payment_received_notification(payment, allocations)
+
         audit(
             action='finance.manual_transfer.approved',
             entity_type='Payment',

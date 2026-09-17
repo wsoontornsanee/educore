@@ -88,6 +88,15 @@ CANONICAL_TEMPLATES = [
         'body': 'Terima kasih: Pembayaran sebesar {amount} untuk tagihan {invoice_number} ananda {student_name} telah kami terima.',
         'variables': ['invoice_number', 'amount', 'student_name'],
     },
+    # PAR-008: Payment confirmation push within 30s of settlement.
+    {
+        'key': 'finance.payment_received',
+        'channel': ChannelType.PUSH,
+        'locale': 'id-ID',
+        'subject': 'Pembayaran Diterima',
+        'body': 'Pembayaran sebesar {amount} untuk ananda {student_name} telah diterima. {invoice_info}',
+        'variables': ['amount', 'student_name', 'invoice_info', 'payment_reference'],
+    },
     # spec/17 §5 — closes the WAL-017 "notify the guardian" gap. Meta approval for the
     # WhatsApp variants is a launch blocker for the canteen module.
     {
