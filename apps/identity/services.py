@@ -81,19 +81,44 @@ def verify_phone_otp(challenge_id: int, code: str) -> tuple[bool, str]:
         remaining = challenge.max_attempts - challenge.attempts
         return False, f"Kode OTP salah. Sisa percobaan: {remaining}."
 
-def create_user_with_person(foundation_id: int, full_name: str, phone: str, email: str = None, password: str = None, nik: str = None, dob=None, gender: str = '', address: str = '') -> tuple[User, Person]:
-    """Atomically create a User and their isolated Person PII vault record (spec/02 §2)."""
+def create_user_with_person(
+    foundation_id: int,
+    full_name: str,
+    phone: str,
+    email: str = None,
+    password: str = None,
+    nik: str = None,
+    dob=None,
+    gender: str = '',
+    address: str = '',
+    person_extra: dict = None,
+) -> tuple[User, Person]:
+    """Atomically create a User and their isolated Person PII vault record (spec/02 §2).
+
+    `person_extra` carries the optional DAPODIK/EMIS statutory fields
+    (religion, birth_city, structured address, etc.) so callers don't need
+    to grow this signature per field; unknown keys are ignored.
+    """
     phone_e164 = normalize_phone_e164(phone)
 
+    person_fields = {
+        'foundation_id': foundation_id,
+        'full_name': full_name,
+        'nik': nik,
+        'dob': dob,
+        'gender': gender,
+        'address': address,
+    }
+    for key in (
+        'religion', 'birth_city', 'birth_certificate_number', 'citizenship',
+        'rt', 'rw', 'dusun', 'kelurahan', 'kecamatan', 'kabupaten_kota',
+        'provinsi', 'postal_code',
+    ):
+        if person_extra and person_extra.get(key) is not None:
+            person_fields[key] = person_extra[key]
+
     with transaction.atomic():
-        person = Person.objects.create(
-            foundation_id=foundation_id,
-            full_name=full_name,
-            nik=nik,
-            dob=dob,
-            gender=gender,
-            address=address,
-        )
+        person = Person.objects.create(**person_fields)
 
         user = User.objects.create_user(
             phone_e164=phone_e164,

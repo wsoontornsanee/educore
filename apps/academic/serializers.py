@@ -44,7 +44,7 @@ class TermSerializer(serializers.ModelSerializer):
 class SubjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Subject
-        fields = ['id', 'foundation_id', 'school', 'code', 'name', 'level', 'is_religious', 'credit_hours', 'is_active', 'created_at', 'updated_at']
+        fields = ['id', 'foundation_id', 'school', 'code', 'name', 'level', 'is_religious', 'credit_hours', 'is_active', 'dapodik_code', 'created_at', 'updated_at']
         read_only_fields = ['id', 'foundation_id', 'created_at', 'updated_at']
 
 
