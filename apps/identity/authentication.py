@@ -19,13 +19,26 @@ class EduCoreJWTAuthentication(JWTAuthentication):
             return result
 
         user, _token = result
+        foundation_id = getattr(user, 'foundation_id', None)
+
+        # Validate X-Foundation-ID header against authenticated user's foundation.
+        # If present and non-matching, reject the request — prevents a JWT user
+        # from using the header to access a different foundation's context.
+        header_fid = request.headers.get('X-Foundation-ID')
+        if header_fid and header_fid.isdigit():
+            header_foundation = int(header_fid)
+            if foundation_id and foundation_id != header_foundation:
+                raise AuthenticationFailed(
+                    _("X-Foundation-ID header value does not match the authenticated user's foundation."),
+                    code='foundation_mismatch',
+                )
+
         # ARC-002: TenancyMiddleware runs before DRF authentication, so a Bearer
         # JWT request reaches it as AnonymousUser and the thread-local foundation
         # context is left unset. Every TenantManager queryset then fails closed and
         # returns nothing (and TenantModel writes have no tenant). Establish the
         # context here — the first point at which the token's user is known.
         # TenancyMiddleware still clears the thread-local when the response is done.
-        foundation_id = getattr(user, 'foundation_id', None)
         if foundation_id and get_current_foundation_id() is None:
             set_current_foundation_id(foundation_id)
             request.foundation_id = foundation_id
