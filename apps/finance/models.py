@@ -432,6 +432,7 @@ class Payment(TenantModel):
     net = MoneyField(default=Decimal('0.00'), help_text=_("Net amount received by school (amount - fee)"))
     
     receipt_number = models.CharField(max_length=64, null=True, blank=True, help_text=_("Receipt number e.g. RCP/SDIT01/2026/000001"))
+    receipt_pdf_key = models.CharField(max_length=512, null=True, blank=True, help_text=_("GCS object key for rendered receipt document (PAR-009, FIN-019)"))
     received_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='received_payments')
     proof_file = models.CharField(max_length=512, null=True, blank=True, help_text=_("Proof upload file path"))
     metadata = models.JSONField(default=dict, blank=True)

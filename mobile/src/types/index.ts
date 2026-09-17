@@ -143,6 +143,53 @@ export interface PaymentIntentItem {
   status: string;
 }
 
+export interface PaymentReceiptAllocation {
+  id: number;
+  payment: number;
+  invoice: number;
+  invoice_number?: string;
+  invoice_line?: number | null;
+  amount: string;
+  currency: string;
+}
+
+export interface PaymentReceiptItem {
+  id: number;
+  foundation_id: number;
+  school: number;
+  student: number;
+  student_name?: string;
+  amount: string;
+  currency: string;
+  method: string;
+  channel: string;
+  reference: string;
+  external_id?: string | null;
+  paid_at?: string | null;
+  settled_at?: string | null;
+  status: string;
+  fee: string;
+  net: string;
+  receipt_number?: string | null;
+  receipt_pdf_key?: string | null;
+  receipt_download_url?: string | null;
+  allocations: PaymentReceiptAllocation[];
+  created_at: string;
+}
+
+export interface PaymentReceiptDetail {
+  payment_id: number;
+  reference: string;
+  receipt_number: string;
+  receipt_pdf_key: string;
+  download_url: string;
+  expires_at: string;
+  amount: string;
+  currency: string;
+  paid_at?: string | null;
+  status: string;
+}
+
 // POS & Canteen Domain Types (spec/07 §3-§6)
 
 export interface POSProductNutrition {

@@ -429,7 +429,9 @@ def process_payment_webhook(
             payment.settled_at = timezone.now()
             payment.fee = fee
             payment.net = net
-            payment.save(update_fields=['status', 'settled_at', 'fee', 'net', 'updated_at'])
+            if not payment.receipt_number:
+                payment.receipt_number = get_next_receipt_number(payment.school)
+            payment.save(update_fields=['status', 'settled_at', 'fee', 'net', 'receipt_number', 'updated_at'])
 
             if payment.payment_intent:
                 payment.payment_intent.status = PaymentIntentStatus.COMPLETED

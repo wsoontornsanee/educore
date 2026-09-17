@@ -304,6 +304,7 @@ class PaymentIntentCreateSerializer(serializers.Serializer):
 
 class PaymentAllocationSerializer(serializers.ModelSerializer):
     amount = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    invoice_number = serializers.CharField(source='invoice.invoice_number', read_only=True, default='')
 
     class Meta:
         model = PaymentAllocation
@@ -311,17 +312,20 @@ class PaymentAllocationSerializer(serializers.ModelSerializer):
             'id',
             'payment',
             'invoice',
+            'invoice_number',
             'invoice_line',
             'amount',
             'currency',
         ]
-        read_only_fields = ['id']
+        read_only_fields = ['id', 'invoice_number']
 
 
 class PaymentSerializer(serializers.ModelSerializer):
     amount = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
     fee = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
     net = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    student_name = serializers.CharField(source='student.person.full_name', read_only=True, default='')
+    receipt_download_url = serializers.SerializerMethodField()
     allocations = PaymentAllocationSerializer(many=True, read_only=True)
 
     class Meta:
@@ -331,6 +335,7 @@ class PaymentSerializer(serializers.ModelSerializer):
             'foundation_id',
             'school',
             'student',
+            'student_name',
             'amount',
             'currency',
             'method',
@@ -343,6 +348,8 @@ class PaymentSerializer(serializers.ModelSerializer):
             'fee',
             'net',
             'receipt_number',
+            'receipt_pdf_key',
+            'receipt_download_url',
             'received_by',
             'proof_file',
             'allocations',
@@ -353,6 +360,8 @@ class PaymentSerializer(serializers.ModelSerializer):
             'foundation_id',
             'reference',
             'receipt_number',
+            'receipt_pdf_key',
+            'receipt_download_url',
             'paid_at',
             'settled_at',
             'status',
@@ -361,6 +370,15 @@ class PaymentSerializer(serializers.ModelSerializer):
             'allocations',
             'created_at',
         ]
+
+    def get_receipt_download_url(self, obj):
+        if not getattr(obj, 'receipt_pdf_key', None):
+            return None
+        from apps.core.services import build_signed_download
+        try:
+            return build_signed_download(obj.receipt_pdf_key).get('download_url')
+        except Exception:
+            return None
 
 
 class CashPaymentCreateSerializer(serializers.Serializer):
