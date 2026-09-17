@@ -851,6 +851,28 @@ def process_offline_pos_batch(terminal, transactions: list) -> dict:
     return {'results': results}
 
 
+def attach_receipts_to_batch_report(terminal, report: dict) -> dict:
+    """Attach rendered ESC/POS receipt bytes to a processed offline batch report
+    (WAL-020): terminals that accumulated sales offline print each receipt from
+    the sync response, same as the online checkout path."""
+    from apps.wallet.escpos import render_pos_receipt
+    import base64
+
+    by_client_id = {
+        tx.client_transaction_id: tx
+        for tx in POSTransaction.objects.filter(
+            foundation_id=terminal.foundation_id, terminal=terminal,
+            client_transaction_id__in=[r['client_transaction_id'] for r in report['results']],
+        )
+    }
+    for entry in report['results']:
+        tx = by_client_id.get(entry['client_transaction_id'])
+        if tx is None:
+            continue
+        entry['receipt_escpos_base64'] = base64.b64encode(render_pos_receipt(tx)).decode('ascii')
+    return report
+
+
 def create_reconciliation_case(wallet_tx: WalletTransaction, pos_transaction=None) -> WalletReconciliation:
     """REC-001/002: one OPEN case per accepted overspend. Caller MUST wrap this in the
     same DB transaction as the accepted wallet_tx (process_offline_pos_batch does)."""

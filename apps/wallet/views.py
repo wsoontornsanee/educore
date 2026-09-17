@@ -1,4 +1,5 @@
 from datetime import datetime
+import base64
 from decimal import Decimal
 
 from django.utils import timezone
@@ -64,6 +65,7 @@ from apps.wallet.services import (
     VoidWindowExpiredError,
     WalletAutoTopupError,
     WalletNotActiveError,
+    attach_receipts_to_batch_report,
     create_wallet_topup_intent,
     set_wallet_auto_topup_config,
     generate_settlement_statement_pdf,
@@ -436,7 +438,22 @@ class POSTransactionViewSet(TenantScopedCatalogViewSet):
     action_permissions = {
         'list': 'wallet.topup.read', 'retrieve': 'wallet.topup.read',
         'create': 'wallet.topup.write', 'void': 'wallet.topup.write', 'batch': 'wallet.topup.write',
+        'receipt': 'wallet.topup.write',
     }
+
+    @action(detail=True, methods=['get'], url_path='receipt')
+    def receipt(self, request, pk=None):
+        """GET /pos/transactions/:id/receipt/ — raw ESC/POS bytes for reprint
+        (WAL-020). The terminal writes them straight to its locally-attached
+        USB/Bluetooth printer port. Returns a plain Django HttpResponse: DRF's
+        JSON renderer would re-encode the raw bytes as a JSON string."""
+        from apps.wallet.escpos import render_pos_receipt
+        from django.http import HttpResponse
+        pos_tx = self.get_object()
+        payload = render_pos_receipt(pos_tx)
+        response = HttpResponse(payload, content_type='application/vnd.escpos.raw')
+        response['Content-Disposition'] = f'attachment; filename="receipt-{pos_tx.pk}.bin"'
+        return response
 
     @action(detail=False, methods=['post'], url_path='batch')
     def batch(self, request):
@@ -449,6 +466,7 @@ class POSTransactionViewSet(TenantScopedCatalogViewSet):
             return Response({'error': _("Terminal tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
         report = process_offline_pos_batch(terminal, payload.validated_data['transactions'])
+        report = attach_receipts_to_batch_report(terminal, report)
         return Response(report, status=status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
@@ -472,7 +490,13 @@ class POSTransactionViewSet(TenantScopedCatalogViewSet):
         except (SpendNotAllowedError, InsufficientBalanceError, WalletNotActiveError, CurrencyMismatchError) as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response(self.get_serializer(pos_tx).data, status=status.HTTP_201_CREATED)
+        # WAL-018/WAL-020: receipt bytes ride the checkout response so the
+        # terminal prints immediately from its attached printer — no second
+        # round trip inside the <=3s budget.
+        from apps.wallet.escpos import render_pos_receipt
+        body = self.get_serializer(pos_tx).data
+        body['receipt_escpos_base64'] = base64.b64encode(render_pos_receipt(pos_tx)).decode('ascii')
+        return Response(body, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'], url_path='void')
     def void(self, request, pk=None):
