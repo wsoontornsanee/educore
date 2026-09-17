@@ -9,7 +9,7 @@
 ---
 
 - **Current Step:** Awaiting next task instruction.
-- **Preceding Step:** [Open Item] Parent App: Messages Tab (announcements, teacher messages, permission slips) (spec/08 §2) [DONE - PR #112].
+- **Preceding Step:** [Open Item] Parent App: Messages Tab (announcements, teacher messages, permission slips) (spec/08 §2) [DONE - PR #112 merged].
 - **Recent Completed Step:** [Open Item] Parent App: Profile Tab (notification prefs, en-US switch, biometric unlock) (spec/08 PAR-013, PAR-014, PAR-018) [DONE - PR #111 merged].
 
 - **Target Milestone:** P0 Pilot Core [DONE] (M0–M5) -> P1 Classroom [DONE] (M6–M9) -> P2 Campus Economy (M10–M13): canteen wallet + POS [wallet core started], kiosks, face recognition, campus life (`spec/00 §6`).
