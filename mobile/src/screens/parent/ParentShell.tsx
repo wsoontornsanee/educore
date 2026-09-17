@@ -8,7 +8,7 @@ import { getLastChildId, saveLastChildId } from '../../services/storage';
 import { colors, radius, spacing, typography } from '../../theme/tokens';
 import type { ChildSummary } from '../../types';
 
-export type ParentTab = 'HOME' | 'ATTENDANCE' | 'WALLET' | 'NUTRITION' | 'INVOICES';
+export type ParentTab = 'HOME' | 'ATTENDANCE' | 'ACADEMIC' | 'WALLET' | 'NUTRITION' | 'INVOICES';
 
 interface ParentShellProps {
   activeTab: ParentTab;
@@ -135,6 +135,9 @@ export const ParentShell: React.FC<ParentShellProps> = ({ activeTab, onTabChange
         </TouchableOpacity>
         <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('ATTENDANCE')}>
           <Text style={[styles.tabLabel, activeTab === 'ATTENDANCE' && styles.tabLabelActive]}>Absensi</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('ACADEMIC')}>
+          <Text style={[styles.tabLabel, activeTab === 'ACADEMIC' && styles.tabLabelActive]}>Akademik</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('WALLET')}>
           <Text style={[styles.tabLabel, activeTab === 'WALLET' && styles.tabLabelActive]}>Dompet</Text>

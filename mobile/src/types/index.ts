@@ -359,3 +359,109 @@ export interface WalletTopupIntentItem {
   expires_at: string;
 }
 
+// --- Academic Types (spec/08 §2, PAR-010, ACD-013/014) ---
+
+export interface StudentAssessmentItem {
+  id: number;
+  title: string;
+  type: string;
+  type_display: string;
+  max_score: string;
+  weight: string;
+  due_at: string | null;
+  score: string | null;
+  descriptor: string;
+  feedback: string;
+  graded_at: string | null;
+}
+
+export interface StudentSubjectGradesItem {
+  class_subject_id: number;
+  class_group_id: number;
+  class_group_name: string;
+  subject_id: number;
+  subject_name: string;
+  subject_code: string;
+  teacher_name: string;
+  term_id: number;
+  term_name: string;
+  final_grade: string | null;
+  final_descriptor: string;
+  is_complete: boolean;
+  assessments: StudentAssessmentItem[];
+}
+
+export interface StudentGradesData {
+  student_id: number;
+  subjects: StudentSubjectGradesItem[];
+}
+
+export type HomeworkStatusType = 'NOT_STARTED' | 'SUBMITTED' | 'LATE' | 'GRADED' | 'RETURNED';
+
+export interface StudentHomeworkItem {
+  id: number;
+  title: string;
+  instructions: string;
+  subject_name: string;
+  subject_code: string;
+  teacher_name: string;
+  class_group_name: string;
+  assigned_at: string | null;
+  due_at: string | null;
+  submission_status: HomeworkStatusType;
+  submitted_at: string | null;
+  score: string | null;
+  feedback: string;
+  files_count: number;
+}
+
+export interface StudentReportCardItem {
+  id: number;
+  term_id: number;
+  term_name: string;
+  academic_year_name: string;
+  status: string;
+  visible: boolean;
+  reason?: string;
+  version?: number;
+  grades_snapshot?: Array<{
+    subject: string;
+    subject_code: string;
+    grade: string | number;
+    descriptor?: string;
+    narrative?: string;
+  }>;
+  attendance_snapshot?: {
+    hadir?: number;
+    sakit?: number;
+    izin?: number;
+    alpa?: number;
+  };
+  extracurricular_snapshot?: Array<{
+    name: string;
+    grade: string;
+    description: string;
+  }>;
+  general_narrative?: string;
+  promotion_decision?: string;
+  download_url?: string | null;
+}
+
+export interface StudentTimetableSlotItem {
+  id: number;
+  day_of_week: number;
+  day_name: string;
+  period_no: number;
+  start_time: string;
+  end_time: string;
+  room: string;
+  subject_name: string;
+  subject_code: string;
+  teacher_name: string;
+  class_group_name: string;
+  is_substituted: boolean;
+  substitute_teacher_name?: string | null;
+}
+
+export type AcademicSubTab = 'GRADES' | 'HOMEWORK' | 'REPORT_CARDS' | 'TIMETABLE';
+

@@ -12,10 +12,11 @@ import { attendanceStatusLabel } from '../../constants/attendance';
 import { StaleOfflineBanner } from '../../components/StaleOfflineBanner';
 import { colors, radius, spacing, typography } from '../../theme/tokens';
 import type { AttendanceDayItem, ChildSummary, InvoiceItem, WalletData } from '../../types';
+import type { ParentTab } from './ParentShell';
 
 interface ParentHomeScreenProps {
   child: ChildSummary;
-  onNavigateTab?: (tab: 'HOME' | 'ATTENDANCE' | 'WALLET' | 'NUTRITION' | 'INVOICES') => void;
+  onNavigateTab?: (tab: ParentTab) => void;
 }
 
 export const ParentHomeScreen: React.FC<ParentHomeScreenProps> = ({ child, onNavigateTab }) => {

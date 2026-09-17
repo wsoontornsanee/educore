@@ -22,6 +22,7 @@ import { ParentHomeScreen } from './src/screens/parent/ParentHomeScreen';
 import { ParentAttendanceScreen } from './src/screens/parent/ParentAttendanceScreen';
 import { ParentInvoicesScreen } from './src/screens/parent/ParentInvoicesScreen';
 import { ParentWalletScreen } from './src/screens/parent/ParentWalletScreen';
+import { ParentAcademicScreen } from './src/screens/parent/ParentAcademicScreen';
 import { POSKioskScreen } from './src/screens/POSKioskScreen';
 import { ParentNutritionDashboardScreen } from './src/screens/ParentNutritionDashboardScreen';
 import { initPosQueueDb } from './src/services/posOfflineQueue';
@@ -132,6 +133,12 @@ export default function App() {
               <ParentHomeScreen child={selectedChild} onNavigateTab={setParentTab} />
             ) : parentTab === 'ATTENDANCE' ? (
               <ParentAttendanceScreen child={selectedChild} />
+            ) : parentTab === 'ACADEMIC' ? (
+              <ParentAcademicScreen
+                key={selectedChild.student_id}
+                child={selectedChild}
+                onNavigateInvoices={() => setParentTab('INVOICES')}
+              />
             ) : parentTab === 'WALLET' ? (
               <ParentWalletScreen
                 key={selectedChild.student_id}
