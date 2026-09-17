@@ -52,7 +52,11 @@ class TenancyMiddleware:
         if user and getattr(user, 'is_authenticated', False):
             foundation_id = getattr(user, 'foundation_id', None)
 
-        # 2. From header (for service-to-service or privileged API access)
+        # 2. From header (for service-to-service or privileged API access).
+        #    When the user is already authenticated, the header is ignored —
+        #    the authenticated user's foundation is authoritative. A mismatch
+        #    between header and user foundation is validated by the DRF auth
+        #    layer (EduCoreJWTAuthentication) for JWT requests.
         if not foundation_id:
             header_fid = request.headers.get('X-Foundation-ID')
             if header_fid and header_fid.isdigit():
