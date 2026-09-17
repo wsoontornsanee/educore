@@ -8,7 +8,7 @@
 
 ---
 
-- **Current Step:** Awaiting next task instruction.
+- **Current Step:** [Open Item] Parent App: Absence Request with Photo Attachment (spec/05 ATT-002, spec/08 PAR-010, PAR-011, PAR-015) [PR #104 opened - awaiting merge approval].
 - **Preceding Step:** Step 13.1 — DAPODIK & EMIS Statutory Data Export Tooling (TASK-035) [DONE - PR #103 merged].
 - **Recent Completed Step:** Step 13.1 — DAPODIK & EMIS Statutory Data Export Tooling (TASK-035) [DONE - PR #103 merged].
 - **Target Milestone:** P0 Pilot Core [DONE] (M0–M5) -> P1 Classroom [DONE] (M6–M9) -> P2 Campus Economy (M10–M13): canteen wallet + POS [wallet core started], kiosks, face recognition, campus life (`spec/00 §6`).
