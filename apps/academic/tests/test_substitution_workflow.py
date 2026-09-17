@@ -184,6 +184,13 @@ class SubstitutionWorkflowApiTests(TestCase):
             substitute_teacher=self.substitute,
             reason="Dinas Luar",
         )
+        RoleAssignment.all_tenants.create(
+            foundation_id=self.fx['foundation'].id,
+            user=self.fx['teacher_user'],
+            role='teacher',
+            scope_type=RoleAssignment.SCOPE_SCHOOL,
+            scope_id=self.fx['school'].id,
+        )
 
     def test_substitute_can_accept_via_api(self):
         self.client.force_authenticate(user=self.substitute.user)
@@ -260,4 +267,76 @@ class SubstitutionWorkflowApiTests(TestCase):
             f'/api/v1/academic/timetable/substitutions/{self.sub.id}/accept/',
             format='json',
         )
+        self.assertEqual(res.status_code, 404)
+
+    def test_retrieve_substitution_returns_slot_item_for_substitute(self):
+        self.client.force_authenticate(user=self.substitute.user)
+        res = self.client.get(f'/api/v1/academic/timetable/substitutions/{self.sub.id}/')
+        self.assertEqual(res.status_code, 200, res.content)
+        data = res.json()
+        self.assertEqual(data['id'], self.sub.id)
+        slot_item = data['slot_item']
+        self.assertIsNotNone(slot_item)
+        self.assertEqual(slot_item['id'], self.slot.id)
+        self.assertEqual(slot_item['period_no'], self.slot.period_no)
+        self.assertEqual(slot_item['start_time'], '07:00')
+        self.assertEqual(slot_item['end_time'], '07:40')
+        self.assertEqual(slot_item['class_group_name'], self.fx['class_group'].name)
+        self.assertEqual(slot_item['subject_name'], self.fx['class_subject'].subject.name)
+        self.assertTrue(slot_item['is_substitution'])
+        self.assertEqual(slot_item['substitution_id'], self.sub.id)
+        self.assertEqual(slot_item['substitution_status'], SubstitutionStatus.PENDING)
+        self.assertEqual(slot_item['original_teacher_name'], self.fx['teacher'].person.full_name)
+
+    def test_retrieve_substitution_allowed_for_original_teacher(self):
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+        res = self.client.get(f'/api/v1/academic/timetable/substitutions/{self.sub.id}/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()['slot_item']['substitution_id'], self.sub.id)
+
+    def test_retrieve_substitution_forbidden_for_unrelated_teacher(self):
+        third_teacher = make_substitute_teacher(self.fx, phone='+628177777778', name='Guru Lain Sekali')
+        self.client.force_authenticate(user=third_teacher.user)
+        res = self.client.get(f'/api/v1/academic/timetable/substitutions/{self.sub.id}/')
+        self.assertEqual(res.status_code, 403)
+
+    def test_retrieve_substitution_cross_tenant_returns_404(self):
+        fx_b = build_academic_fixture(foundation_name="Yayasan Lain Sekali")
+        sub_b = make_substitute_teacher(fx_b, phone='+628155555556', name='Guru Yayasan B')
+        self.client.force_authenticate(user=sub_b.user)
+        res = self.client.get(f'/api/v1/academic/timetable/substitutions/{self.sub.id}/')
+        self.assertEqual(res.status_code, 404)
+
+    def test_slot_action_returns_slot_item_directly(self):
+        self.client.force_authenticate(user=self.substitute.user)
+        res = self.client.get(f'/api/v1/academic/timetable/substitutions/{self.sub.id}/slot/')
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data['substitution_id'], self.sub.id)
+        self.assertEqual(data['class_group_name'], self.fx['class_group'].name)
+
+    def test_retrieve_slot_allowed_for_slot_teacher_and_substitute(self):
+        # Substitute can retrieve slot
+        self.client.force_authenticate(user=self.substitute.user)
+        res = self.client.get(f'/api/v1/academic/timetable/slots/{self.slot.id}/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()['id'], self.slot.id)
+        self.assertEqual(res.json()['slot_item']['class_group_name'], self.fx['class_group'].name)
+
+        # Original teacher can retrieve slot
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+        res = self.client.get(f'/api/v1/academic/timetable/slots/{self.slot.id}/')
+        self.assertEqual(res.status_code, 200)
+
+    def test_retrieve_slot_forbidden_for_unrelated_teacher(self):
+        third_teacher = make_substitute_teacher(self.fx, phone='+628177777779', name='Guru Unrelated')
+        self.client.force_authenticate(user=third_teacher.user)
+        res = self.client.get(f'/api/v1/academic/timetable/slots/{self.slot.id}/')
+        self.assertEqual(res.status_code, 403)
+
+    def test_retrieve_slot_cross_tenant_returns_404(self):
+        fx_b = build_academic_fixture(foundation_name="Yayasan C")
+        sub_b = make_substitute_teacher(fx_b, phone='+628155555557', name='Guru Yayasan C')
+        self.client.force_authenticate(user=sub_b.user)
+        res = self.client.get(f'/api/v1/academic/timetable/slots/{self.slot.id}/')
         self.assertEqual(res.status_code, 404)

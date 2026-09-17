@@ -6,7 +6,9 @@ import assert from 'node:assert/strict';
 import {
   acceptSubstitution,
   declineSubstitution,
+  fetchSubstitutionSlot,
   fetchTeacherAgenda,
+  fetchTimetableSlot,
   findCurrentSlot,
   submitPeriodAttendance,
 } from '../src/services/agenda.ts';
@@ -171,6 +173,112 @@ describe('Agenda and Roll Call Services', () => {
       assert.strictEqual(declineRes.status, 'DECLINED');
     } finally {
       apiClient.post = originalPost;
+    }
+  });
+
+  it('fetches substitution slot_item and normalizes TimetableSlotItem', async () => {
+    const originalGet = apiClient.get;
+    apiClient.get = (async (path: string) => {
+      assert.strictEqual(path, '/academic/timetable/substitutions/88/');
+      return {
+        data: {
+          id: 88,
+          slot: 2,
+          slot_item: {
+            id: 2,
+            slot_id: 2,
+            day_of_week: 1,
+            period_no: 1,
+            start_time: '07:30',
+            end_time: '08:15',
+            room: 'R-102',
+            class_group_name: '7B',
+            subject_name: 'IPA Terpadu',
+            subject_code: 'IPA',
+            is_substitution: true,
+            substitution_id: 88,
+            substitution_status: 'PENDING',
+            original_teacher_name: 'Pak Budi',
+            attendance_submitted: false,
+            student_count: 30,
+          },
+        },
+        status: 200,
+        headers: {},
+      };
+    }) as any;
+
+    try {
+      const slot = await fetchSubstitutionSlot(88);
+      assert.strictEqual(slot.id, 2);
+      assert.strictEqual(slot.substitution_id, 88);
+      assert.strictEqual(slot.is_substitution, true);
+      assert.strictEqual(slot.class_group_name, '7B');
+      assert.strictEqual(slot.subject_name, 'IPA Terpadu');
+      assert.strictEqual(slot.original_teacher_name, 'Pak Budi');
+      assert.strictEqual(slot.period_no, 1);
+    } finally {
+      apiClient.get = originalGet;
+    }
+  });
+
+  it('fetches substitution slot with flat payload fallback', async () => {
+    const originalGet = apiClient.get;
+    apiClient.get = (async (path: string) => {
+      assert.strictEqual(path, '/academic/timetable/substitutions/99/');
+      return {
+        data: {
+          slot_id: 5,
+          day_of_week: 2,
+          period_no: 3,
+          start_time: '09:00:00',
+          end_time: '09:45:00',
+          room: 'Lab Fisika',
+          class_group: '8A',
+          subject: 'Fisika',
+          substitution_id: 99,
+          status: 'PENDING',
+          original_teacher_name: 'Bu Nina',
+        },
+        status: 200,
+        headers: {},
+      };
+    }) as any;
+
+    try {
+      const slot = await fetchSubstitutionSlot(99);
+      assert.strictEqual(slot.id, 5);
+      assert.strictEqual(slot.substitution_id, 99);
+      assert.strictEqual(slot.class_group_name, '8A');
+      assert.strictEqual(slot.subject_name, 'Fisika');
+      assert.strictEqual(slot.start_time, '09:00');
+      assert.strictEqual(slot.end_time, '09:45');
+      assert.strictEqual(slot.is_substitution, true);
+    } finally {
+      apiClient.get = originalGet;
+    }
+  });
+
+  it('fetches timetable slot directly by slotId', async () => {
+    const originalGet = apiClient.get;
+    apiClient.get = (async (path: string) => {
+      assert.strictEqual(path, '/academic/timetable/slots/1/');
+      return {
+        data: {
+          id: 1,
+          slot_item: mockSlots[0],
+        },
+        status: 200,
+        headers: {},
+      };
+    }) as any;
+
+    try {
+      const slot = await fetchTimetableSlot(1);
+      assert.strictEqual(slot.id, 1);
+      assert.strictEqual(slot.subject_name, 'Matematika');
+    } finally {
+      apiClient.get = originalGet;
     }
   });
 });

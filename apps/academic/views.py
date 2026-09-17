@@ -339,10 +339,31 @@ class TimetableSlotViewSet(TenantScopedModelViewSet):
     serializer_class = TimetableSlotSerializer
     filter_params = {'class_subject_id': 'class_subject_id', 'day_of_week': 'day_of_week'}
     action_permissions = {
-        'list': 'school_config.read', 'retrieve': 'school_config.read',
+        'list': 'school_config.read', 'retrieve': 'attendance.read',
         'create': 'school_config.write', 'update': 'school_config.write',
         'partial_update': 'school_config.write', 'destroy': 'school_config.write',
     }
+
+    def retrieve(self, request, *args, **kwargs):
+        slot = self.get_object()
+        user_staff = Staff.objects.filter(user=request.user, foundation_id=slot.foundation_id).first()
+        school_id = getattr(getattr(slot, 'class_group', None), 'school_id', None)
+        from apps.identity.rbac import has_permission
+        is_admin = has_permission(request.user, 'school_config.read', slot.foundation_id, school_id=school_id) or \
+                   has_permission(request.user, 'school_config.write', slot.foundation_id, school_id=school_id)
+        is_slot_teacher = user_staff and slot.class_subject and slot.class_subject.teacher_id == user_staff.id
+        is_substitute = user_staff and TimetableSubstitution.objects.filter(
+            foundation_id=slot.foundation_id,
+            slot=slot,
+            substitute_teacher=user_staff,
+            deleted_at__isnull=True,
+        ).exists()
+        if not (is_admin or is_slot_teacher or is_substitute):
+            return Response(
+                {'error': _("Hanya guru pengampu, guru pengganti, atau admin yang dapat melihat rincian slot jadwal ini.")},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return Response(self.get_serializer(slot).data, status=status.HTTP_200_OK)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -372,6 +393,7 @@ class TimetableSubstitutionViewSet(TenantScopedModelViewSet):
         'partial_update': 'school_config.write', 'destroy': 'school_config.write',
         'accept': 'attendance.write',
         'decline': 'attendance.write',
+        'slot': 'attendance.read',
     }
 
     def create(self, request, *args, **kwargs):
@@ -433,6 +455,38 @@ class TimetableSubstitutionViewSet(TenantScopedModelViewSet):
         except (SubstitutionDeclineReasonRequiredError, ValueError) as exc:
             return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(self.get_serializer(substitution).data, status=status.HTTP_200_OK)
+
+    def _check_substitution_access(self, request, substitution):
+        user_staff = Staff.objects.filter(user=request.user, foundation_id=substitution.foundation_id).first()
+        is_involved = user_staff and (
+            user_staff.id == substitution.substitute_teacher_id
+            or user_staff.id == substitution.original_teacher_id
+        )
+        school_id = getattr(getattr(substitution.slot, 'class_group', None), 'school_id', None)
+        from apps.identity.rbac import has_permission
+        is_admin = has_permission(request.user, 'school_config.read', substitution.foundation_id, school_id=school_id) or \
+                   has_permission(request.user, 'school_config.write', substitution.foundation_id, school_id=school_id)
+        return is_involved or is_admin
+
+    def retrieve(self, request, *args, **kwargs):
+        substitution = self.get_object()
+        if not self._check_substitution_access(request, substitution):
+            return Response(
+                {'error': _("Hanya guru pengganti terkait, guru utama, atau admin yang dapat melihat rincian penugasan ini.")},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return Response(self.get_serializer(substitution).data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'], url_path='slot')
+    def slot(self, request, pk=None):
+        substitution = self.get_object()
+        if not self._check_substitution_access(request, substitution):
+            return Response(
+                {'error': _("Hanya guru pengganti terkait, guru utama, atau admin yang dapat melihat rincian penugasan ini.")},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        serializer = self.get_serializer(substitution)
+        return Response(serializer.data.get('slot_item', {}), status=status.HTTP_200_OK)
 
 
 class HomeworkViewSet(TenantScopedModelViewSet):

@@ -20,7 +20,7 @@ export interface AttendanceSubmissionResult {
 export async function fetchTeacherAgenda(dateStr: string): Promise<TimetableSlotItem[]> {
   const response = await apiClient.get<AgendaResponse>(`/teacher/agenda?date=${dateStr}`);
   const items = response.data.agenda || [];
-  return items.sort((a, b) => a.period_no - b.period_no);
+  return [...items].sort((a, b) => a.period_no - b.period_no);
 }
 
 /**
@@ -116,3 +116,55 @@ export async function declineSubstitution(substitutionId: number, reason: string
   });
   return response.data;
 }
+
+/**
+ * Normalizes an API slot response into a typed TimetableSlotItem.
+ */
+function normalizeSlotItem(raw: any): TimetableSlotItem {
+  return {
+    id: Number(raw.id ?? raw.slot_id ?? 0),
+    day_of_week: Number(raw.day_of_week ?? 1),
+    period_no: Number(raw.period_no ?? 1),
+    start_time: typeof raw.start_time === 'string' ? raw.start_time.slice(0, 5) : String(raw.start_time || ''),
+    end_time: typeof raw.end_time === 'string' ? raw.end_time.slice(0, 5) : String(raw.end_time || ''),
+    room: String(raw.room || ''),
+    class_group_name: String(raw.class_group_name || raw.class_group || ''),
+    subject_name: String(raw.subject_name || raw.subject || ''),
+    subject_code: String(raw.subject_code || ''),
+    is_substitution: raw.is_substitution !== undefined ? Boolean(raw.is_substitution) : Boolean(raw.substitution_id),
+    substitution_id: raw.substitution_id !== undefined && raw.substitution_id !== null ? Number(raw.substitution_id) : null,
+    substitution_status: raw.substitution_status ?? raw.status ?? null,
+    original_teacher_name: raw.original_teacher_name ?? null,
+    attendance_submitted: Boolean(raw.attendance_submitted),
+    student_count: Number(raw.student_count ?? 0),
+    roster: raw.roster,
+  };
+}
+
+/**
+ * Fetches a single substitution assignment by ID and returns its TimetableSlotItem representation
+ * for use in SubstitutionModal (spec/09 §3 TCH-015, ACD-019).
+ */
+export async function fetchSubstitutionSlot(substitutionId: number): Promise<TimetableSlotItem> {
+  const response = await apiClient.get<any>(`/academic/timetable/substitutions/${substitutionId}/`);
+  const data = response.data;
+  const item = normalizeSlotItem(data?.slot_item || data);
+  item.is_substitution = true;
+  if (!item.substitution_id) {
+    item.substitution_id = substitutionId;
+  }
+  return item;
+}
+
+/**
+ * Fetches a single timetable slot by ID and returns its TimetableSlotItem representation.
+ */
+export async function fetchTimetableSlot(slotId: number): Promise<TimetableSlotItem> {
+  const response = await apiClient.get<any>(`/academic/timetable/slots/${slotId}/`);
+  const data = response.data;
+  if (data?.slot_item) {
+    return normalizeSlotItem(data.slot_item);
+  }
+  return normalizeSlotItem(data);
+}
+
