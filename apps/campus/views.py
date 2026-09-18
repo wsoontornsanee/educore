@@ -904,6 +904,10 @@ class StudentHealthProfileView(APIView):
         except Student.DoesNotExist:
             raise exceptions.NotFound("Siswa tidak ditemukan.")
 
+        from apps.identity.guardian_access import can_guardian_access_student
+        if not can_guardian_access_student(request.user, student.id, foundation_id):
+            raise exceptions.NotFound("Siswa tidak ditemukan.")
+
         profile = get_or_create_health_profile(student)
         serializer = HealthProfileSerializer(profile, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -921,6 +925,10 @@ class StudentMedicalAlertView(APIView):
         try:
             student = Student.objects.get(pk=student_id, foundation_id=foundation_id, deleted_at__isnull=True)
         except Student.DoesNotExist:
+            raise exceptions.NotFound("Siswa tidak ditemukan.")
+
+        from apps.identity.guardian_access import can_guardian_access_student
+        if not can_guardian_access_student(request.user, student.id, foundation_id):
             raise exceptions.NotFound("Siswa tidak ditemukan.")
 
         profile = get_or_create_health_profile(student)
