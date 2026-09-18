@@ -65,7 +65,7 @@ class DiscrepancyResolveTests(ActionTestBase):
         self.assertEqual(response.redirect_chain[-1][0].split('#')[0],
                          f"{reverse('finance-console-reconciliation')}?batch={self.batch.id}")
         self.assertEqual(len(flashes(response)), 1)
-        self.assertContains(response, 'fin-msg')  # messages partial rendered on the page
+        self.assertContains(response, flashes(response)[0])  # the flash text is rendered on the page
         self.assertTrue(AuditEvent.objects.filter(
             action='finance.reconciliation.discrepancy_resolved', entity_id=str(self.discrepancy.id)).exists())
 
