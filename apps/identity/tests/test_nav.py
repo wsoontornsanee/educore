@@ -50,6 +50,23 @@ class GetNavForUserTests(TestCase):
         item_ids = {item['id'] for group in nav for item in group['items']}
         self.assertIn('permission_slips', item_ids)
 
+    def test_roster_requires_staff_profile_and_permission(self):
+        """Siswa & kelas resolves to a real page that 404s without a Staff
+        profile (a guardian holds student_records.read too), so the nav must
+        hide it for a permission-holding user with no Staff row."""
+        nav = get_nav_for_user(self.teacher, self.foundation.id)
+        self.assertNotIn('roster', {item['id'] for group in nav for item in group['items']})
+
+        person = Person.objects.create(foundation_id=self.foundation.id, full_name='Teacher One')
+        Staff.objects.create(
+            foundation_id=self.foundation.id, person=person, user=self.teacher, school=self.school,
+            join_date=timezone.localdate(),
+        )
+        nav = get_nav_for_user(self.teacher, self.foundation.id)
+        akademik = next(group for group in nav if str(group['label']) == 'Akademik')
+        roster = next(item for item in akademik['items'] if item['id'] == 'roster')
+        self.assertEqual(roster['url_name'], 'academic-class-list-page')
+
     def test_coming_soon_items_are_hidden_even_with_permission(self):
         """Regression test (2026-09-19): a coming_soon item must never
         render, even for a user who holds its RBAC permission -- clicking

@@ -51,7 +51,7 @@ NAV_GROUPS = [
         {"id": "inbox", "label": _("Kotak tugas"), "permission": None, "url_name": "console-inbox"},
     ]},
     {"label": _("Akademik"), "items": [
-        {"id": "roster", "label": _("Siswa & kelas"), "permission": "student_records.read", "url_name": "console:coming_soon"},
+        {"id": "roster", "label": _("Siswa & kelas"), "permission": "student_records.read", "url_name": "academic-class-list-page", "requires_staff_profile": True},
         {"id": "schedule", "label": _("Jadwal"), "permission": "student_records.read", "url_name": "console:coming_soon"},
         {"id": "grading", "label": _("Antrean penilaian"), "permission": "grades.read", "url_name": "console:coming_soon"},
         {"id": "reports", "label": _("Rapor"), "permission": "grades.read", "url_name": "console:coming_soon"},

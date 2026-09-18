@@ -24,13 +24,13 @@ Four independent PRs, in this order: roster, schedule, grading queue, rapor. Eac
 
 - **Read-only.** Write actions (grade/return homework, generate/approve/publish report cards) stay on the JSON API. Tracked in Notion as a follow-on.
 - **Foundation-wide visibility.** Same as the permission-slip console and the JSON APIs: anyone holding the read permission sees every class of their foundation. Per-teacher scoping is a follow-on because it must change the API and console together.
-- **Staff profile required.** `ROLE_PARENT` holds both `student_records.read` and `grades.read`. A guardian must never reach the school-side console, so every page requires a linked `Staff` row (same reasoning as `PermissionSlipWebAccessMixin`). The four nav items get `requires_staff_profile=True` so the nav never shows a link that 404s.
+- **Staff profile required.** `ROLE_PARENT` holds both `student_records.read` and `grades.read`. A guardian must never reach the school-side console, so every page requires a linked `Staff` row (same reasoning as `StaffConsoleMixin`). The four nav items get `requires_staff_profile=True` so the nav never shows a link that 404s.
 - **Minimal PII.** Pages show student name and NIS only. Never NISN, NIK, phone, or guardian data.
 - **Substitutions not shown** on Jadwal v1 (follow-on).
 
 ## Shared pattern
 
-- `PermissionSlipWebAccessMixin` (in `apps/academic/views.py`) is generalised to `StaffWebAccessMixin`, keeping the old name as an alias. It supplies `HasRequiredPermission`, and `_resolve_staff()` (404 when the account has no Staff profile).
+- Views use `apps.identity.console_access.StaffConsoleMixin` (introduced by the Operasional console): `HasRequiredPermission` plus `_resolve_staff()` (a missing Staff profile 404s).
 - New module `apps/academic/console_views.py` holds the four page views. `views.py` is already ~2100 lines.
 - Routes live in `apps/academic/web_urls.py`, mounted under `/web/academic/`.
 - Templates live in `frontend/templates/pages/`, extend `base_console.html`, and use the existing spec/17 tokens and the permission-slip console's visual conventions (0px radii, mono labels, `var(--color-*)`).
@@ -40,7 +40,7 @@ Four independent PRs, in this order: roster, schedule, grading queue, rapor. Eac
 
 ## PR 1: Siswa & kelas
 
-- `GET /web/academic/classes/` (`academic-class-list-page`): class groups for one academic year. Defaults to the most recent active academic year; `?academic_year=<id>` overrides, with a select of the foundation's years. Columns: name, grade level, school, wali kelas, active-enrolment count / capacity. Enrolment counts come from one annotated query, not per-row queries.
+- `GET /web/academic/classes/` (`academic-class-list-page`): class groups for one academic year. Defaults to class groups of every active academic year (one per school); `?academic_year=<id>` shows that year instead, with a select of the foundation's years. Columns: name, grade level, school, wali kelas, active-enrolment count / capacity. Enrolment counts come from one annotated query, not per-row queries.
 - `GET /web/academic/classes/<id>/` (`academic-class-detail-page`): header (name, year, school, wali kelas) and roster of active enrolments (name, NIS, status), ordered by name. 404 for unknown or cross-tenant id.
 - Nav: `roster` gets `url_name="academic-class-list-page"` and `requires_staff_profile=True`.
 
