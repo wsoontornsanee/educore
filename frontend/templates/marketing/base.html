@@ -29,34 +29,43 @@
         <a href="{% url 'marketing:downloads' %}" class="{% if active_page == 'downloads' %}active{% endif %}">{% translate "Unduh aplikasi" %}</a>
       </nav>
       <div class="site-actions">
-        <details class="lang-switcher">
-          <summary class="lang-switcher-trigger" aria-label="{% translate "Ganti bahasa situs" %}">
-            <span class="lang-flag" aria-hidden="true">{% if LANGUAGE_CODE == 'id' %}🇮🇩{% else %}🇬🇧{% endif %}</span>
-            <span class="lang-code">{{ LANGUAGE_CODE|upper }}</span>
-            <svg class="lang-chevron" width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true">
-              <path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </summary>
-          <form action="{% url 'set_language' %}" method="post" class="lang-switcher-menu" role="menu">
-            {% csrf_token %}
-            <input type="hidden" name="next" value="{{ request.get_full_path }}">
-            <button type="submit" name="language" value="id" class="lang-option{% if LANGUAGE_CODE == 'id' %} active{% endif %}" role="menuitem">
-              <span class="lang-flag" aria-hidden="true">🇮🇩</span>
-              <span class="lang-option-label">Bahasa Indonesia</span>
-              {% if LANGUAGE_CODE == 'id' %}<svg class="lang-check" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M2.5 7.5L5.5 10.5L11.5 3.5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>{% endif %}
-            </button>
-            <button type="submit" name="language" value="en" class="lang-option{% if LANGUAGE_CODE == 'en' %} active{% endif %}" role="menuitem">
-              <span class="lang-flag" aria-hidden="true">🇬🇧</span>
-              <span class="lang-option-label">English</span>
-              {% if LANGUAGE_CODE == 'en' %}<svg class="lang-check" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M2.5 7.5L5.5 10.5L11.5 3.5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>{% endif %}
-            </button>
-          </form>
-        </details>
+        <button type="button" class="lang-switcher-trigger" id="lang-switcher-trigger" aria-haspopup="dialog" aria-controls="lang-switcher-dialog" aria-expanded="false" aria-label="{% translate "Ganti bahasa situs" %}">
+          <span class="lang-flag" aria-hidden="true">{% if LANGUAGE_CODE == 'id' %}🇮🇩{% else %}🇬🇧{% endif %}</span>
+          <span class="lang-code">{{ LANGUAGE_CODE|upper }}</span>
+          <svg class="lang-chevron" width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true">
+            <path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
         <a href="{% url 'login' %}" class="btn btn-secondary">{% translate "Masuk" %}</a>
         <a href="mailto:demo@educore.id" class="btn btn-primary">{% translate "Minta demo" %}</a>
       </div>
     </div>
   </header>
+
+  <dialog class="lang-modal" id="lang-switcher-dialog" aria-labelledby="lang-switcher-title">
+    <div class="lang-modal-header">
+      <h2 id="lang-switcher-title">{% translate "Pilih bahasa" %}</h2>
+      <button type="button" class="lang-modal-close" id="lang-switcher-close" aria-label="{% translate "Tutup" %}">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+          <path d="M1 1L13 13M13 1L1 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+    <form action="{% url 'set_language' %}" method="post" class="lang-modal-list">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <button type="submit" name="language" value="id" class="lang-modal-option{% if LANGUAGE_CODE == 'id' %} active{% endif %}">
+        <span class="lang-radio" aria-hidden="true"></span>
+        <span class="lang-flag" aria-hidden="true">🇮🇩</span>
+        <span class="lang-option-label">Bahasa Indonesia</span>
+      </button>
+      <button type="submit" name="language" value="en" class="lang-modal-option{% if LANGUAGE_CODE == 'en' %} active{% endif %}">
+        <span class="lang-radio" aria-hidden="true"></span>
+        <span class="lang-flag" aria-hidden="true">🇬🇧</span>
+        <span class="lang-option-label">English</span>
+      </button>
+    </form>
+  </dialog>
 
   <main>
     {% block content %}{% endblock %}
@@ -105,11 +114,23 @@
   </footer>
 
   <script>
-    document.querySelectorAll('.lang-switcher').forEach(function (el) {
-      document.addEventListener('click', function (event) {
-        if (!el.contains(event.target)) el.removeAttribute('open');
+    (function () {
+      var trigger = document.getElementById('lang-switcher-trigger');
+      var dialog = document.getElementById('lang-switcher-dialog');
+      var closeBtn = document.getElementById('lang-switcher-close');
+      if (!trigger || !dialog || !closeBtn) return;
+      trigger.addEventListener('click', function () {
+        trigger.setAttribute('aria-expanded', 'true');
+        dialog.showModal();
       });
-    });
+      dialog.addEventListener('close', function () {
+        trigger.setAttribute('aria-expanded', 'false');
+      });
+      closeBtn.addEventListener('click', function () { dialog.close(); });
+      dialog.addEventListener('click', function (event) {
+        if (event.target === dialog) dialog.close();
+      });
+    })();
   </script>
 </body>
 </html>

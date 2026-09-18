@@ -3197,6 +3197,14 @@ msgstr "Download apps"
 msgid "Ganti bahasa situs"
 msgstr "Switch site language"
 
+#: frontend/templates/marketing/base.html:47
+msgid "Pilih bahasa"
+msgstr "Select language"
+
+#: frontend/templates/marketing/base.html:48
+msgid "Tutup"
+msgstr "Close"
+
 #: frontend/templates/marketing/base.html:38
 msgid "Masuk"
 msgstr "Log in"
