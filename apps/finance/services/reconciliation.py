@@ -372,13 +372,37 @@ def resolve_discrepancy(
         )
 
         if resolution == DiscrepancyResolution.MANUAL_SETTLED and discrepancy.payment:
-            payment = discrepancy.payment
-            if payment.status != PaymentStatus.SETTLED:
-                payment.status = PaymentStatus.SETTLED
-                payment.settled_at = timezone.now()
-                payment.save(update_fields=['status', 'settled_at'])
+            _settle_payment_manually(discrepancy, resolved_by)
 
     return discrepancy
+
+
+def _settle_payment_manually(discrepancy: 'PaymentDiscrepancy', resolved_by) -> None:
+    """Settle the discrepancy's linked Payment through the SAME path a gateway
+    webhook uses (receipt number, invoice allocation, balanced ledger journal,
+    settlement events), instead of only flipping its status — which would mark
+    money settled without it ever reaching AR or the double-entry ledger.
+
+    The Payment's own recorded amount is what gets allocated (so an
+    AMOUNT_MISMATCH settles at the amount EduCore holds, not the gateway's);
+    the gateway's reported fee is kept when there is one and net is derived,
+    so `net + fee == amount` and the journal balances.
+    """
+    from apps.finance.services.payments import _finalize_payment_settlement
+    from educore.middleware.tenancy import tenant_context
+
+    payment = discrepancy.payment
+    if payment.status == PaymentStatus.SETTLED:
+        return
+    fee = discrepancy.gateway_fee or payment.fee or Decimal('0.00')
+    with tenant_context(discrepancy.foundation_id):
+        _finalize_payment_settlement(
+            payment,
+            fee=fee,
+            net=payment.amount - fee,
+            actor_role='MANUAL_RECONCILIATION',
+            actor_id=str(resolved_by.id) if resolved_by is not None else None,
+        )
 
 
 def _batch_summary(batch: 'GatewaySettlementBatch', dry_run: bool) -> dict:

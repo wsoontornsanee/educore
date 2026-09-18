@@ -459,13 +459,18 @@ def _get_or_create_pending_payment(*, foundation_id, school, student, intent, pa
     )
 
 
-def _finalize_payment_settlement(payment: Payment, *, fee: Decimal, net: Decimal, actor_role: str) -> dict:
+def _finalize_payment_settlement(
+    payment: Payment, *, fee: Decimal, net: Decimal, actor_role: str, actor_id: str = None,
+) -> dict:
     """Mark an existing `Payment` SETTLED, allocate it to invoices, post the
     balanced ledger journal, and fire every settlement side-effect (domain
     event, guardian notification, partner webhook, audit).
     Caller must already be inside `tenant_context(payment.foundation_id)`.
-    Shared by `process_payment_webhook` (inbound push) and `sync_payment_status`
-    (outbound poll fallback for a missed webhook, FIN-013/ARC-006).
+    Shared by `process_payment_webhook` (inbound push), `sync_payment_status`
+    (outbound poll fallback for a missed webhook, FIN-013/ARC-006) and
+    `resolve_discrepancy` (a finance user's manual settlement, `actor_id` =
+    that user). `net + fee` must equal `payment.amount`, or the settlement
+    journal cannot balance.
     """
     payment.status = PaymentStatus.SETTLED
     payment.settled_at = timezone.now()
@@ -532,6 +537,7 @@ def _finalize_payment_settlement(payment: Payment, *, fee: Decimal, net: Decimal
         entity_id=payment.id,
         foundation_id=payment.foundation_id,
         school_id=payment.school.id if payment.school else None,
+        actor_id=actor_id,
         role=actor_role,
         diff={
             'external_id': payment.external_id,
