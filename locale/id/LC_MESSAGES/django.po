@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: EduCore 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-18 16:49+0700\n"
+"POT-Creation-Date: 2026-09-18 17:39+0700\n"
 "PO-Revision-Date: 2026-09-16 11:00+0700\n"
 "Last-Translator: EduCore Team\n"
 "Language-Team: Indonesian\n"
@@ -3279,6 +3279,18 @@ msgstr ""
 
 #: apps/wallet/views.py:740
 msgid "Parameter 'from' tidak boleh melebihi 'to'."
+msgstr ""
+
+#: frontend/templates/base.html:49
+msgid "Bahasa Indonesia"
+msgstr ""
+
+#: frontend/templates/base.html:50
+msgid "English"
+msgstr ""
+
+#: frontend/templates/base.html:53
+msgid "Keluar"
 msgstr ""
 
 #: frontend/templates/marketing/base.html:7
