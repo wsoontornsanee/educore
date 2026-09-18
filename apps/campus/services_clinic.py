@@ -138,6 +138,7 @@ def record_clinic_visit(
 
         if outcome in (ClinicOutcome.SENT_HOME, ClinicOutcome.REFERRED):
             _apply_sakit_override(visit)
+            _apply_sakit_override_to_remaining_periods(visit)
 
     if outcome in (ClinicOutcome.SENT_HOME, ClinicOutcome.REFERRED):
         _dispatch_clinic_incident_notifications(visit)
@@ -157,6 +158,14 @@ def _get_homeroom_teacher(student: Student):
     return enrollment.class_group.homeroom_teacher if (enrollment and enrollment.class_group) else None
 
 
+def _clinic_override_note_and_user(visit: ClinicVisit):
+    """Shared by every attendance-override write a clinic visit triggers (day-level and
+    per-period), so the note text and acting-user derivation can't drift between them."""
+    note_text = f"Klinik: {visit.get_outcome_display()} (kunjungan #{visit.id})"
+    user = visit.handled_by.user if visit.handled_by else None
+    return note_text, user
+
+
 def _apply_sakit_override(visit: ClinicVisit) -> None:
     """LIF-003: get-or-create today's AttendanceDay for the visit's student, then reuse the
     shared day-level override service (design doc §6) so the mutation is audited the same
@@ -164,9 +173,8 @@ def _apply_sakit_override(visit: ClinicVisit) -> None:
     from apps.attendance.models import AttendanceDay, AttendanceSource, AttendanceStatus
     from apps.attendance.services import override_attendance_day
 
-    note_text = f"Klinik: {visit.get_outcome_display()} (kunjungan #{visit.id})"
+    note_text, user = _clinic_override_note_and_user(visit)
     visit_date = visit.occurred_at.date()
-    user = visit.handled_by.user if visit.handled_by else None
 
     att_day = AttendanceDay.all_tenants.filter(
         foundation_id=visit.foundation_id,
@@ -195,6 +203,77 @@ def _apply_sakit_override(visit: ClinicVisit) -> None:
         note=note_text,
         user=user,
     )
+
+
+def _apply_sakit_override_to_remaining_periods(visit: ClinicVisit) -> None:
+    """LIF-003: also mark the student's remaining scheduled periods that day SAKIT in
+    PeriodAttendance, not just the day-level AttendanceDay override — the DSAR export
+    (apps.compliance.services) and the teacher agenda / get_expected_periods_for_school
+    ('attendance_submitted') both read PeriodAttendance directly and would otherwise show
+    those periods as unrecorded rather than excused.
+
+    'Remaining' = the student's TimetableSlots that weekday whose start_time is still
+    ahead of the visit's school-local wall-clock time — the in-progress period at the
+    moment of the visit, and every period before it, are left alone entirely (get_or_create
+    only creates a row if none exists yet, so a teacher's real earlier-in-the-day
+    attendance is never overwritten). Queries use the unscoped `all_tenants` manager with
+    an explicit `foundation_id` filter, the same pattern `_apply_sakit_override` (above)
+    uses for `AttendanceDay` — this function must work correctly even if ever called
+    outside an HTTP request's ambient tenancy thread-local (e.g. a future management
+    command), where the default `TenantManager` would otherwise fail closed to empty.
+    """
+    from apps.academic.models import ClassEnrollment, TimetableSlot
+    from apps.attendance.models import AttendanceStatus, PeriodAttendance, PeriodAttendanceSource
+    from apps.attendance.services import get_school_timezone
+
+    visit_local = visit.occurred_at.astimezone(get_school_timezone(visit.school))
+
+    class_group_ids = ClassEnrollment.all_tenants.filter(
+        foundation_id=visit.foundation_id, student=visit.student, is_active=True, deleted_at__isnull=True,
+    ).values_list('class_group_id', flat=True)
+
+    # Scoped by class_subject__class_group__school too (matching
+    # get_expected_periods_for_school's own scope), not just foundation_id: a stale
+    # duplicate active ClassEnrollment in a different school within the same foundation
+    # must never pull in that other school's timetable slots.
+    remaining_slots = TimetableSlot.all_tenants.filter(
+        foundation_id=visit.foundation_id,
+        class_subject__class_group_id__in=class_group_ids,
+        class_subject__class_group__school=visit.school,
+        day_of_week=visit_local.isoweekday(),
+        start_time__gt=visit_local.time(),
+        deleted_at__isnull=True,
+    )
+
+    note_text, user = _clinic_override_note_and_user(visit)
+    created_slot_ids = []
+
+    for slot in remaining_slots:
+        _record, created = PeriodAttendance.all_tenants.get_or_create(
+            foundation_id=visit.foundation_id,
+            student=visit.student,
+            slot=slot,
+            date=visit_local.date(),
+            defaults={
+                'status': AttendanceStatus.SAKIT,
+                'source': PeriodAttendanceSource.MANUAL,
+                'note': note_text,
+                'recorded_by': user,
+            },
+        )
+        if created:
+            created_slot_ids.append(slot.id)
+
+    if created_slot_ids:
+        audit(
+            action='campus.clinic_visit.periods_overridden',
+            entity_type='ClinicVisit',
+            entity_id=str(visit.id),
+            actor_id=str(user.id) if user else None,
+            foundation_id=visit.foundation_id,
+            school_id=visit.school_id,
+            diff={'student_id': visit.student_id, 'date': str(visit_local.date()), 'slot_ids': created_slot_ids},
+        )
 
 
 def _dispatch_clinic_incident_notifications(visit: ClinicVisit) -> int:

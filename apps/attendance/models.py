@@ -391,6 +391,7 @@ class GateEvent(TenantModel):
 class PeriodAttendanceSource(models.TextChoices):
     TEACHER = 'TEACHER', _('Guru (Teacher)')
     GATE_PREFILL = 'GATE_PREFILL', _('Pra-isi dari Gerbang (Gate Pre-fill)')
+    MANUAL = 'MANUAL', _('Override Manual (mis. Klinik/UKS)')
 
 
 class PeriodAttendance(TenantModel):
