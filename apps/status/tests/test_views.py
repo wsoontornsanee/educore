@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.test import TestCase
-from django.urls import reverse
+from django.urls import resolve, reverse
 from django.utils import timezone
 from apps.status.models import ServiceComponent, DailyComponentStatus, StatusIncident
 from apps.status.services import create_incident
@@ -19,6 +19,20 @@ class StatusPageViewTests(TestCase):
         self.actor = User.objects.create(
             foundation_id=self.foundation.id, phone_e164='+6281200000007', full_name='Ops',
         )
+
+    def test_url_resolves_to_the_real_status_app_not_a_shadowing_route(self):
+        """Regression guard: /status/ must resolve to apps.status.views.StatusPageView.
+
+        PR #186 once registered a second, static apps.marketing route at the
+        same 'status/' path, ahead of this app's include in educore/urls.py —
+        Django's first-match-wins routing silently made this real,
+        database-backed page unreachable. Reverted in the fix for that
+        collision; this test exists so a future 'status/' route added to
+        apps.marketing.urls (or a urls.py reorder) fails loudly instead of
+        silently shadowing this page again.
+        """
+        match = resolve('/status/')
+        self.assertEqual(match.view_name, 'status:page')
 
     def test_page_renders_200(self):
         response = self.client.get(reverse('status:page'))
