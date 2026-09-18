@@ -7,6 +7,9 @@ from .views import (
     BehaviourReasonViewSet,
     BehaviourRecordViewSet,
     CounsellingSessionViewSet,
+    LibraryItemViewSet,
+    LoanViewSet,
+    OverdueLoansView,
     StudentBehaviourSummaryView,
 )
 
@@ -15,9 +18,12 @@ router.register(r'behaviour-reasons', BehaviourReasonViewSet, basename='behaviou
 router.register(r'behaviour-records', BehaviourRecordViewSet, basename='behaviour-records')
 router.register(r'behaviour-cases', BehaviourCaseViewSet, basename='behaviour-cases')
 router.register(r'counselling/sessions', CounsellingSessionViewSet, basename='counselling-sessions')
+router.register(r'library/items', LibraryItemViewSet, basename='library-items')
+router.register(r'library/loans', LoanViewSet, basename='library-loans')
 
 urlpatterns = [
     path('schools/<int:school_id>/behaviour-policy/', BehaviourPolicyView.as_view(), name='behaviour-policy'),
     path('students/<int:student_id>/behaviour/', StudentBehaviourSummaryView.as_view(), name='student-behaviour-summary'),
+    path('library/overdue', OverdueLoansView.as_view(), name='library-overdue'),
     path('', include(router.urls)),
 ]

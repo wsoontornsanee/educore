@@ -1,8 +1,11 @@
+from decimal import Decimal
+
 from django.core.exceptions import PermissionDenied
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from apps.core.fields import MoneyField
 from apps.core.models import TenantModel
 from .crypto import decrypt_notes, encrypt_notes
 
@@ -211,6 +214,7 @@ class LoanStatus(models.TextChoices):
     ACTIVE = 'ACTIVE', _('Dipinjam')
     RETURNED = 'RETURNED', _('Dikembalikan')
     OVERDUE = 'OVERDUE', _('Terlambat')
+    LOST = 'LOST', _('Hilang')
 
 
 class LibraryItem(TenantModel):
@@ -233,6 +237,10 @@ class LibraryItem(TenantModel):
     copies_total = models.PositiveIntegerField(default=1)
     copies_available = models.PositiveIntegerField(default=1)
     location = models.CharField(max_length=128, blank=True, default='')
+    replacement_cost = MoneyField(
+        default=Decimal('0.00'),
+        help_text=_('Biaya penggantian jika hilang (LIF-021).'),
+    )
 
     class Meta(TenantModel.Meta):
         db_table = 'campus_library_items'
@@ -263,9 +271,31 @@ class Loan(TenantModel):
     borrowed_at = models.DateTimeField(default=timezone.now)
     due_at = models.DateTimeField(db_index=True)
     returned_at = models.DateTimeField(null=True, blank=True)
-    fine = models.PositiveIntegerField(default=0, help_text=_("Reserved for LIF-020; not computed in this slice."))
+    fine = MoneyField(
+        default=Decimal('0.00'),
+        help_text=_('Denda keterlambatan, dihitung saat pengembalian (LIF-020).'),
+    )
     status = models.CharField(max_length=16, choices=LoanStatus.choices, default=LoanStatus.ACTIVE, db_index=True)
     last_reminded_at = models.DateTimeField(null=True, blank=True)
+    condition_on_issue = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        help_text=_('Kondisi barang saat dipinjamkan, wajib untuk EQUIPMENT (LIF-022).'),
+    )
+    condition_on_return = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        help_text=_('Kondisi barang saat dikembalikan, wajib untuk EQUIPMENT (LIF-022).'),
+    )
+    checked_out_by = models.ForeignKey(
+        'identity.User',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='checked_out_library_loans',
+    )
 
     class Meta(TenantModel.Meta):
         db_table = 'campus_library_loans'
@@ -375,3 +405,41 @@ class CounsellingSession(TenantModel):
 
     def __str__(self):
         return f"CounsellingSession({self.student_id}, {self.type}, {self.confidentiality})"
+
+
+class LibraryPolicy(TenantModel):
+    """Per-school, per-borrower-type loan and fine configuration (LIF-019, LIF-020)."""
+    school = models.ForeignKey(
+        'identity.School',
+        on_delete=models.CASCADE,
+        related_name='library_policies',
+    )
+    borrower_type = models.CharField(max_length=16, choices=LoanBorrowerType.choices)
+    loan_period_days = models.PositiveIntegerField(
+        default=7,
+        help_text=_('Lama masa pinjam dalam hari (LIF-019).'),
+    )
+    max_concurrent_loans = models.PositiveIntegerField(
+        default=3,
+        help_text=_('Jumlah maksimum pinjaman aktif bersamaan (LIF-019).'),
+    )
+    fine_per_day = MoneyField(
+        default=Decimal('0.00'),
+        help_text=_('Denda keterlambatan per hari (LIF-020).'),
+    )
+    fine_cap = MoneyField(
+        default=Decimal('0.00'),
+        help_text=_('Batas maksimum denda keterlambatan (LIF-020).'),
+    )
+
+    class Meta(TenantModel.Meta):
+        db_table = 'campus_library_policies'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'school', 'borrower_type'],
+                name='unique_school_library_policy_borrower_type',
+            ),
+        ]
+
+    def __str__(self):
+        return f"LibraryPolicy(school_id={self.school_id}, {self.borrower_type})"
