@@ -63,16 +63,25 @@
 .lang-toggle {
   display: inline-flex;
   border: 1px solid var(--color-line);
+  margin: 0;
 }
 
-.lang-toggle span {
+.lang-toggle-option {
   padding: 8px 12px;
   font-family: 'IBM Plex Mono', monospace;
   font-size: 0.75rem;
   font-weight: 600;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
 }
 
-.lang-toggle span.active {
+.lang-toggle-option:disabled {
+  cursor: default;
+}
+
+.lang-toggle-option.active {
   background-color: var(--color-ink-900);
   color: #FFFFFF;
 }

@@ -1,10 +1,11 @@
+{% load i18n %}
 <!DOCTYPE html>
-<html lang="id">
+<html lang="{{ LANGUAGE_CODE }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}EduCore — Sistem Operasi Sekolah Swasta{% endblock %}</title>
-  <meta name="description" content="{% block meta_description %}EduCore menyatukan akademik, kehadiran, keuangan, kantin, dan komunikasi orang tua dalam satu platform untuk yayasan pendidikan di Indonesia.{% endblock %}">
+  <title>{% block title %}{% translate "EduCore — Sistem Operasi Sekolah Swasta" %}{% endblock %}</title>
+  <meta name="description" content="{% block meta_description %}{% translate "EduCore menyatukan akademik, kehadiran, keuangan, kantin, dan komunikasi orang tua dalam satu platform untuk yayasan pendidikan di Indonesia." %}{% endblock %}">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,16 +24,19 @@
         <span class="font-display" style="font-weight: 800; font-size: 1.125rem; color: var(--color-brand-600); letter-spacing: -0.02em;">EduCore</span>
       </a>
       <nav class="site-nav">
-        <a href="{% url 'marketing:home' %}" class="{% if active_page == 'home' %}active{% endif %}">Beranda</a>
-        <a href="{% url 'marketing:partner-api' %}" class="{% if active_page == 'partner-api' %}active{% endif %}">Mitra &amp; API</a>
-        <a href="{% url 'marketing:downloads' %}" class="{% if active_page == 'downloads' %}active{% endif %}">Unduh aplikasi</a>
+        <a href="{% url 'marketing:home' %}" class="{% if active_page == 'home' %}active{% endif %}">{% translate "Beranda" %}</a>
+        <a href="{% url 'marketing:partner-api' %}" class="{% if active_page == 'partner-api' %}active{% endif %}">{% translate "Mitra & API" %}</a>
+        <a href="{% url 'marketing:downloads' %}" class="{% if active_page == 'downloads' %}active{% endif %}">{% translate "Unduh aplikasi" %}</a>
       </nav>
       <div class="site-actions">
-        <div class="lang-toggle" title="Bahasa Indonesia adalah bahasa sumber situs ini; alih bahasa Inggris belum dibangun.">
-          <span class="active">ID</span><span>EN</span>
-        </div>
-        <a href="{% url 'login' %}" class="btn btn-secondary">Masuk</a>
-        <a href="mailto:demo@educore.id" class="btn btn-primary">Minta demo</a>
+        <form action="{% url 'set_language' %}" method="post" class="lang-toggle" title="{% translate "Ganti bahasa situs" %}">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <button type="submit" name="language" value="id" class="lang-toggle-option{% if LANGUAGE_CODE == 'id' %} active{% endif %}"{% if LANGUAGE_CODE == 'id' %} disabled{% endif %}>ID</button>
+          <button type="submit" name="language" value="en" class="lang-toggle-option{% if LANGUAGE_CODE == 'en' %} active{% endif %}"{% if LANGUAGE_CODE == 'en' %} disabled{% endif %}>EN</button>
+        </form>
+        <a href="{% url 'login' %}" class="btn btn-secondary">{% translate "Masuk" %}</a>
+        <a href="mailto:demo@educore.id" class="btn btn-primary">{% translate "Minta demo" %}</a>
       </div>
     </div>
   </header>
@@ -49,30 +53,30 @@
             <span class="site-brand-mark"></span>
             <span class="font-display" style="font-weight: 800; color: #FFFFFF;">EduCore</span>
           </div>
-          <p style="font-size: 0.875rem; max-width: 32ch;">Sistem operasi sekolah untuk yayasan pendidikan di Indonesia. PT EduCore Nusantara, Jakarta.</p>
+          <p style="font-size: 0.875rem; max-width: 32ch;">{% translate "Sistem operasi sekolah untuk yayasan pendidikan di Indonesia. PT EduCore Nusantara, Jakarta." %}</p>
         </div>
         <div>
-          <h4>Produk</h4>
+          <h4>{% translate "Produk" %}</h4>
           <ul>
-            <li><a href="{% url 'marketing:home' %}#modul">Akademik &amp; rapor</a></li>
-            <li><a href="{% url 'marketing:home' %}#modul">Kehadiran &amp; gerbang</a></li>
-            <li><a href="{% url 'marketing:home' %}#modul">Keuangan &amp; tagihan</a></li>
+            <li><a href="{% url 'marketing:home' %}#modul">{% translate "Akademik & rapor" %}</a></li>
+            <li><a href="{% url 'marketing:home' %}#modul">{% translate "Kehadiran & gerbang" %}</a></li>
+            <li><a href="{% url 'marketing:home' %}#modul">{% translate "Keuangan & tagihan" %}</a></li>
           </ul>
         </div>
         <div>
-          <h4>Pengembang</h4>
+          <h4>{% translate "Pengembang" %}</h4>
           <ul>
-            <li><a href="{% url 'marketing:partner-api' %}">Dokumentasi API</a></li>
+            <li><a href="{% url 'marketing:partner-api' %}">{% translate "Dokumentasi API" %}</a></li>
             <li><a href="mailto:demo@educore.id">Changelog</a></li>
-            <li><a href="mailto:demo@educore.id">Status layanan</a></li>
+            <li><a href="mailto:demo@educore.id">{% translate "Status layanan" %}</a></li>
           </ul>
         </div>
         <div>
-          <h4>Kepatuhan</h4>
+          <h4>{% translate "Kepatuhan" %}</h4>
           <ul>
-            <li><a href="mailto:demo@educore.id">Kebijakan privasi</a></li>
-            <li><a href="mailto:demo@educore.id">Perjanjian data (UU PDP)</a></li>
-            <li><a href="mailto:demo@educore.id">Retensi data</a></li>
+            <li><a href="mailto:demo@educore.id">{% translate "Kebijakan privasi" %}</a></li>
+            <li><a href="mailto:demo@educore.id">{% translate "Perjanjian data (UU PDP)" %}</a></li>
+            <li><a href="mailto:demo@educore.id">{% translate "Retensi data" %}</a></li>
           </ul>
         </div>
       </div>
