@@ -31,7 +31,10 @@ apps.foundation.web_views.SettingsView at /web/admin/settings/.
   {% endif %}
 
   <section class="card" style="padding:0;overflow-x:auto">
-    <h2 class="text-h3 font-display text-ink-900" style="margin:0;padding:20px 24px 12px">{% translate "Sekolah" %}</h2>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:20px 24px 12px">
+      <h2 class="text-h3 font-display text-ink-900" style="margin:0">{% translate "Sekolah" %}</h2>
+      {% if is_foundation_admin %}<a class="btn btn-primary text-body-sm" href="{% url 'admin-settings-school-new' %}">{% translate "Tambah sekolah" %}</a>{% endif %}
+    </div>
     {% if schools %}
     <table style="width:100%;border-collapse:collapse;min-width:560px">
       <thead>
@@ -50,7 +53,16 @@ apps.foundation.web_views.SettingsView at /web/admin/settings/.
           <td class="text-body-sm font-mono text-ink-700" style="padding:12px 16px">{{ school.npsn }}</td>
           <td class="text-body-sm text-ink-700" style="padding:12px 16px">{{ school.level }}</td>
           <td class="text-body-sm text-ink-700" style="padding:12px 16px">{% if school.is_active %}{% translate "Aktif" %}{% else %}{% translate "Nonaktif" %}{% endif %}</td>
-          <td style="padding:12px 24px;text-align:right"><a class="btn btn-secondary text-body-sm" href="{% url 'admin-settings-school' school.id %}">{% translate "Ubah" %}</a></td>
+          <td style="padding:12px 24px;text-align:right;white-space:nowrap">
+            <a class="btn btn-secondary text-body-sm" href="{% url 'admin-settings-school' school.id %}">{% translate "Ubah" %}</a>
+            {% if is_foundation_admin %}
+            <form method="post" action="{% url 'admin-settings-school-active' school.id %}" style="display:inline"{% if school.is_active %} onsubmit="return confirm('{% translate "Nonaktifkan sekolah ini? Sekolah tidak lagi diproses oleh tugas terjadwal dan konsol operasional." %}')"{% endif %}>
+              {% csrf_token %}
+              <input type="hidden" name="active" value="{% if school.is_active %}0{% else %}1{% endif %}">
+              <button type="submit" class="btn btn-secondary text-body-sm">{% if school.is_active %}{% translate "Nonaktifkan" %}{% else %}{% translate "Aktifkan" %}{% endif %}</button>
+            </form>
+            {% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>

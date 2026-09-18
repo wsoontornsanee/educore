@@ -7372,3 +7372,34 @@ msgstr "Download CSV"
 msgid "Sedang diproses"
 msgstr "Processing"
 
+
+
+msgid "Tambah sekolah — EduCore"
+msgstr "Add school — EduCore"
+
+msgid "Tambah sekolah"
+msgstr "Add school"
+
+msgid "Sekolah ditambahkan."
+msgstr "School added."
+
+msgid "Sekolah diaktifkan."
+msgstr "School activated."
+
+msgid "Sekolah dinonaktifkan."
+msgstr "School deactivated."
+
+msgid "NPSN harus terdiri dari 8 digit angka."
+msgstr "NPSN must be exactly 8 digits."
+
+msgid "NPSN ini sudah terdaftar."
+msgstr "This NPSN is already registered."
+
+msgid "Nonaktifkan sekolah ini? Sekolah tidak lagi diproses oleh tugas terjadwal dan konsol operasional."
+msgstr "Deactivate this school? It will no longer be processed by scheduled jobs or the operational consoles."
+
+msgid "Nonaktifkan"
+msgstr "Deactivate"
+
+msgid "Aktifkan"
+msgstr "Activate"

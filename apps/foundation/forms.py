@@ -1,4 +1,6 @@
 """Forms for the Administrasi console's settings page (apps.foundation.web_views)."""
+import re
+
 from django import forms
 from django.utils.translation import gettext_lazy as _
 
@@ -106,3 +108,23 @@ class SchoolSettingsForm(_SettingsForm):
             'provinsi': _("Provinsi"),
             'postal_code': _("Kode pos"),
         }
+
+
+class SchoolCreateForm(SchoolSettingsForm):
+    """New school: the settings fields plus `npsn`. NPSN is globally unique
+    across foundations (DB unique constraint), so uniqueness is checked
+    through all_tenants — ModelForm's own unique validation goes through the
+    tenant-filtered default manager and would miss another foundation's row,
+    turning a duplicate into an IntegrityError."""
+
+    class Meta(SchoolSettingsForm.Meta):
+        fields = ['npsn'] + SchoolSettingsForm.Meta.fields
+        labels = {**SchoolSettingsForm.Meta.labels, 'npsn': _("NPSN")}
+
+    def clean_npsn(self):
+        npsn = self.cleaned_data['npsn'].strip()
+        if not re.fullmatch(r'\d{8}', npsn):
+            raise forms.ValidationError(_("NPSN harus terdiri dari 8 digit angka."))
+        if School.all_tenants.filter(npsn=npsn).exists():
+            raise forms.ValidationError(_("NPSN ini sudah terdaftar."))
+        return npsn
