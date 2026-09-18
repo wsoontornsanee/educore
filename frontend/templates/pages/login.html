@@ -103,7 +103,9 @@
           </svg>
           {% translate "Masuk dengan Google Workspace" %}
         </button>
-        <div id="g_id_real_button" style="display: none;"></div>
+        <!-- display:none breaks Google's rendered button (it needs real layout to
+             size its iframe) — visually hide it off-screen instead. -->
+        <div id="g_id_real_button" style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;"></div>
 
         <!-- Microsoft SSO Button -->
         <button
