@@ -16,7 +16,7 @@ from django.views.generic import TemplateView
 
 from apps.core.models import ExportJob
 from apps.core.services import audit, create_export_job, get_export_job_status
-from apps.foundation.forms import FoundationProfileForm, SchoolSettingsForm
+from apps.foundation.forms import FoundationProfileForm, SchoolCreateForm, SchoolSettingsForm
 from apps.foundation.services import REPORT_KEY_FOUNDATION_AUDIT, filter_foundation_audit_events
 from apps.identity.console_access import ConsolePermissionMixin, accessible_school_ids, paginate_queryset
 from apps.identity.models import Foundation, School, User
@@ -228,4 +228,74 @@ class SchoolSettingsUpdateView(_SettingsAccessMixin, TemplateView):
             form.save()
             self._audit_update('identity.school.updated', 'School', school.id, form, school_id=school.id)
         messages.success(request, _("Pengaturan sekolah disimpan."))
+        return redirect('admin-settings')
+
+
+class _FoundationAdminMixin(ConsolePermissionMixin):
+    """School creation and (de)activation change the foundation's shape, not a
+    school's profile, so they are foundation-admin-only even though the JSON
+    SchoolViewSet gates them on school_config.write."""
+    foundation_admin_only = True
+
+
+class SchoolCreateView(_FoundationAdminMixin, TemplateView):
+    """GET/POST /web/admin/settings/schools/new/ — create a school."""
+    template_name = 'pages/admin_school_settings.html'
+
+    def get_context_data(self, form=None, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx.update({'school': None, 'form': form or SchoolCreateForm()})
+        return ctx
+
+    def post(self, request):
+        form = SchoolCreateForm(request.POST)
+        if not form.is_valid():
+            return self.render_to_response(self.get_context_data(form=form), status=400)
+        school = form.save(commit=False)
+        school.foundation_id = self.foundation_id
+        school.created_by = str(request.user.id)
+        school.save()
+        audit(
+            action='identity.school.created',
+            entity_type='School',
+            entity_id=str(school.id),
+            actor_id=str(request.user.id),
+            foundation_id=self.foundation_id,
+            school_id=school.id,
+            ip_address=request.META.get('REMOTE_ADDR'),
+            diff={'name': {'after': school.name}, 'npsn': {'after': school.npsn}},
+        )
+        messages.success(request, _("Sekolah ditambahkan."))
+        return redirect('admin-settings')
+
+
+class SchoolActiveToggleView(_FoundationAdminMixin, View):
+    """POST /web/admin/settings/schools/<id>/active/ with active=0|1.
+
+    Deactivation flips is_active, not deleted_at: the cron jobs and
+    portals that fan out over schools (absence marking, KPIs, operational
+    consoles) skip inactive schools, while every academic and financial
+    record stays intact and the school can be reactivated."""
+    http_method_names = ['post']
+
+    def post(self, request, school_id):
+        school = get_object_or_404(
+            School.all_tenants, id=school_id, foundation_id=self.foundation_id, deleted_at__isnull=True,
+        )
+        active = request.POST.get('active') == '1'
+        if school.is_active != active:
+            school.is_active = active
+            school.updated_by = str(request.user.id)
+            school.save(update_fields=['is_active', 'updated_at', 'updated_by'])
+            audit(
+                action='identity.school.activated' if active else 'identity.school.deactivated',
+                entity_type='School',
+                entity_id=str(school.id),
+                actor_id=str(request.user.id),
+                foundation_id=self.foundation_id,
+                school_id=school.id,
+                ip_address=request.META.get('REMOTE_ADDR'),
+                diff={'is_active': {'before': not active, 'after': active}},
+            )
+        messages.success(request, _("Sekolah diaktifkan.") if active else _("Sekolah dinonaktifkan."))
         return redirect('admin-settings')

@@ -356,3 +356,93 @@ class AuditExportTests(_AdminConsoleFixture):
         self.assertEqual(filter_foundation_audit_events(self.foundation.id, school_ids=[]).count(), 0)
         self.assertEqual(filter_foundation_audit_events(self.foundation.id, school_ids=[self.school_a.id]).count(), 1)
         self.assertEqual(filter_foundation_audit_events(self.foundation.id).count(), 1)
+
+
+class SchoolCreateDeactivateTests(_AdminConsoleFixture):
+    def setUp(self):
+        super().setUp()
+        self.new_url = reverse('admin-settings-school-new')
+        self.settings_url = reverse('admin-settings')
+
+    def _payload(self, **overrides):
+        payload = {
+            'npsn': '55555555', 'name': 'SMK Baru', 'level': 'SMK', 'curriculum': 'KURIKULUM_MERDEKA',
+            'timezone': 'Asia/Jakarta', 'base_currency': 'IDR', 'ownership_status': '', 'accreditation': '',
+            'nss': '', 'nsm': '', 'establishment_date': '', 'street_address': '', 'kelurahan': '',
+            'kecamatan': '', 'kabupaten_kota': '', 'provinsi': '', 'postal_code': '',
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_create_page_and_post_redirect_school_admin_home(self):
+        self.client.force_login(self.school_admin)
+        self.assertRedirects(self.client.get(self.new_url), reverse('web-console-home'), fetch_redirect_response=False)
+        self.client.post(self.new_url, self._payload())
+        self.assertFalse(School.all_tenants.filter(npsn='55555555').exists())
+
+    def test_foundation_admin_creates_school_in_own_foundation_and_audits(self):
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.get(self.new_url).status_code, 200)
+        response = self.client.post(self.new_url, self._payload(foundation_id='999'))
+        self.assertRedirects(response, self.settings_url, fetch_redirect_response=False)
+        school = School.all_tenants.get(npsn='55555555')
+        self.assertEqual(school.foundation_id, self.foundation.id)
+        self.assertEqual(school.created_by, str(self.admin.id))
+        self.assertTrue(school.is_active)
+        event = AuditEvent.objects.get(action='identity.school.created')
+        self.assertEqual(event.school_id, school.id)
+        self.assertEqual(event.diff['npsn'], {'after': '55555555'})
+
+    def test_invalid_npsn_rejected(self):
+        self.client.force_login(self.admin)
+        for bad in ('123', 'abcdefgh', '1234567890'):
+            response = self.client.post(self.new_url, self._payload(npsn=bad))
+            self.assertEqual(response.status_code, 400, bad)
+            self.assertIn('npsn', response.context['form'].errors)
+        self.assertFalse(AuditEvent.objects.filter(action='identity.school.created').exists())
+
+    def test_duplicate_npsn_across_foundations_is_a_form_error_not_500(self):
+        other = Foundation.objects.create(legal_name='O', brand_name='O')
+        School.objects.create(foundation_id=other.id, name='Theirs', npsn='55555555', level=School.LEVEL_SMA)
+        self.client.force_login(self.admin)
+        response = self.client.post(self.new_url, self._payload())
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('npsn', response.context['form'].errors)
+
+    def test_deactivate_and_reactivate_with_audit(self):
+        self.client.force_login(self.admin)
+        url = reverse('admin-settings-school-active', args=[self.school_a.id])
+        self.assertRedirects(self.client.post(url, {'active': '0'}), self.settings_url, fetch_redirect_response=False)
+        school = School.all_tenants.get(id=self.school_a.id)
+        self.assertFalse(school.is_active)
+        self.assertIsNone(school.deleted_at)
+        event = AuditEvent.objects.get(action='identity.school.deactivated')
+        self.assertEqual(event.diff['is_active'], {'before': True, 'after': False})
+        self.client.post(url, {'active': '1'})
+        self.assertTrue(School.all_tenants.get(id=self.school_a.id).is_active)
+        self.assertTrue(AuditEvent.objects.filter(action='identity.school.activated').exists())
+
+    def test_repeat_toggle_is_idempotent_and_writes_no_extra_audit(self):
+        self.client.force_login(self.admin)
+        url = reverse('admin-settings-school-active', args=[self.school_a.id])
+        self.client.post(url, {'active': '1'})  # already active
+        self.assertFalse(AuditEvent.objects.filter(action__startswith='identity.school.').exists())
+
+    def test_school_admin_cannot_toggle_and_other_foundation_school_404(self):
+        url = reverse('admin-settings-school-active', args=[self.school_a.id])
+        self.client.force_login(self.school_admin)
+        self.client.post(url, {'active': '0'})
+        self.assertTrue(School.all_tenants.get(id=self.school_a.id).is_active)
+        other = Foundation.objects.create(legal_name='O', brand_name='O')
+        foreign = School.objects.create(foundation_id=other.id, name='Theirs', npsn='66666666', level=School.LEVEL_SMA)
+        self.client.force_login(self.admin)
+        self.assertEqual(
+            self.client.post(reverse('admin-settings-school-active', args=[foreign.id]), {'active': '0'}).status_code, 404,
+        )
+        self.assertTrue(School.all_tenants.get(id=foreign.id).is_active)
+
+    def test_settings_page_shows_controls_for_foundation_admin_only(self):
+        self.client.force_login(self.admin)
+        self.assertContains(self.client.get(self.settings_url), self.new_url)
+        self.client.force_login(self.school_admin)
+        self.assertNotContains(self.client.get(self.settings_url), self.new_url)
