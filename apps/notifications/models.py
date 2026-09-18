@@ -38,6 +38,8 @@ class NotificationCategory(models.TextChoices):
     DEVICE_OFFLINE = 'DEVICE_OFFLINE', _('Perangkat Offline (Device Offline)')
     DAILY_DIGEST = 'DAILY_DIGEST', _('Ringkasan Aktivitas Harian (Daily Digest)')
     LIBRARY_LOAN_DUE = 'LIBRARY_LOAN_DUE', _('Peminjaman Perpustakaan Jatuh Tempo (Library Loan Due)')
+    COUNSELLING_URGENT = 'COUNSELLING_URGENT', _('Eskalasi BK Mendesak (Urgent Counselling Escalation)')
+    COUNSELLING_FOLLOW_UP = 'COUNSELLING_FOLLOW_UP', _('Pengingat Tindak Lanjut BK (Counselling Follow-up)')
 
 
 class NotificationPriority(models.TextChoices):
@@ -217,6 +219,24 @@ CATEGORY_CONFIG = {
         'default_channels': [ChannelType.WHATSAPP, ChannelType.EMAIL],
         'priority': NotificationPriority.NORMAL,
         'quiet_hours_respected': False,
+        'opt_out_allowed': True,
+    },
+    NotificationCategory.COUNSELLING_URGENT: {
+        # LIF-017: safeguarding escalation direct to the principal, bypassing
+        # normal queues — same urgency posture as EMERGENCY (quiet-hours
+        # exempt, not opt-outable), scoped to a single staff recipient.
+        'default_channels': [ChannelType.WHATSAPP, ChannelType.PUSH],
+        'priority': NotificationPriority.CRITICAL,
+        'quiet_hours_respected': False,
+        'opt_out_allowed': False,
+    },
+    NotificationCategory.COUNSELLING_FOLLOW_UP: {
+        # LIF-018: an internal counsellor task reminder, not a guardian
+        # notice — normal-priority, quiet-hours respected, opt-out allowed
+        # like any other staff operational heads-up.
+        'default_channels': [ChannelType.PUSH],
+        'priority': NotificationPriority.NORMAL,
+        'quiet_hours_respected': True,
         'opt_out_allowed': True,
     },
 }

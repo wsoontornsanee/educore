@@ -1,13 +1,13 @@
 import logging
 from typing import Optional
 
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Count, Q, Sum
 from django.utils import timezone
 
 from apps.core.services import audit
-from apps.identity.models import Guardian, GuardianLink, School, Staff, Student, User
+from apps.identity.models import Guardian, GuardianLink, RoleAssignment, School, Staff, Student, User
 from .models import (
     BehaviourCase,
     BehaviourCategory,
@@ -15,6 +15,9 @@ from .models import (
     BehaviourReason,
     BehaviourRecord,
     CaseStatus,
+    CounsellingConfidentiality,
+    CounsellingSession,
+    CounsellingSessionType,
     Loan,
     LoanBorrowerType,
     LoanStatus,
@@ -417,6 +420,224 @@ def get_student_behaviour_summary(student: Student, term=None) -> dict:
         'active_cases_count': cases_qs.count(),
         'escalation_threshold': policy.escalation_negative_threshold,
     }
+
+
+def record_counselling_session(
+    foundation_id: int,
+    school: School,
+    student: Student,
+    counsellor: Staff,
+    recorded_by: User,
+    case: Optional[BehaviourCase] = None,
+    occurred_at=None,
+    session_type: str = 'INITIAL',
+    notes: str = '',
+    follow_up_at=None,
+    confidentiality: str = CounsellingConfidentiality.NORMAL,
+    is_urgent: bool = False,
+) -> CounsellingSession:
+    """Creates a guidance counselling (BK) session record (spec/10 §5, LIF-015 to LIF-018).
+
+    Notes are encrypted at rest and never included in the audit diff (LIF-015
+    excludes RESTRICTED note content from every general trail; treated the
+    same way regardless of confidentiality since the content itself is
+    sensitive either way). Urgent sessions immediately escalate to the
+    school's principal, bypassing the normal queue (LIF-017).
+    """
+    if student.school_id != school.id:
+        raise ValidationError("Siswa tidak terdaftar di sekolah yang bersangkutan.")
+    if case is not None and case.student_id != student.id:
+        raise ValidationError("Kasus perilaku tidak sesuai dengan siswa.")
+    if occurred_at is None:
+        occurred_at = timezone.now()
+
+    with transaction.atomic():
+        session = CounsellingSession(
+            foundation_id=foundation_id,
+            school=school,
+            case=case,
+            student=student,
+            counsellor=counsellor,
+            occurred_at=occurred_at,
+            type=session_type,
+            follow_up_at=follow_up_at,
+            confidentiality=confidentiality,
+            is_urgent=is_urgent,
+        )
+        session.notes = notes
+        session.save()
+
+        audit(
+            action='campus.counselling.session_recorded',
+            entity_type='CounsellingSession',
+            entity_id=session.id,
+            actor_id=str(recorded_by.id) if recorded_by else None,
+            foundation_id=foundation_id,
+            school_id=school.id,
+            diff={
+                'student_id': student.id,
+                'counsellor_id': counsellor.id,
+                'case_id': case.id if case else None,
+                'type': session_type,
+                'confidentiality': confidentiality,
+                'is_urgent': is_urgent,
+                'follow_up_at': follow_up_at.isoformat() if follow_up_at else None,
+            },
+        )
+
+    if is_urgent:
+        _dispatch_urgent_counselling_escalation(session)
+
+    return session
+
+
+def get_principal_users(school: School) -> list[User]:
+    """Resolves the acting principal(s) for a school: `school_admin` role assignments
+    scoped to that school, plus `foundation_admin` (Yayasan-level oversight) (LIF-015, LIF-017)."""
+    school_admin_ids = RoleAssignment.all_tenants.filter(
+        foundation_id=school.foundation_id,
+        role=RoleAssignment.ROLE_SCHOOL_ADMIN,
+        scope_type=RoleAssignment.SCOPE_SCHOOL,
+        scope_id=school.id,
+        deleted_at__isnull=True,
+    ).values_list('user_id', flat=True)
+
+    foundation_admin_ids = RoleAssignment.all_tenants.filter(
+        foundation_id=school.foundation_id,
+        role=RoleAssignment.ROLE_FOUNDATION_ADMIN,
+        scope_type=RoleAssignment.SCOPE_FOUNDATION,
+        deleted_at__isnull=True,
+    ).values_list('user_id', flat=True)
+
+    user_ids = set(school_admin_ids) | set(foundation_admin_ids)
+    return list(User.all_tenants.filter(id__in=user_ids, deleted_at__isnull=True))
+
+
+def is_counselling_reader_authorized(session: CounsellingSession, user: User, foundation_id: int) -> bool:
+    """LIF-015: a RESTRICTED note is visible only to its authoring counsellor and the
+    principal — never to teachers or guardians."""
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    if session.counsellor.user_id == user.id:
+        return True
+    principal_ids = {u.id for u in get_principal_users(session.school)}
+    return user.id in principal_ids
+
+
+def access_counselling_session(session: CounsellingSession, user: User, foundation_id: int) -> CounsellingSession:
+    """Authorizes and audits a read of a (possibly RESTRICTED) counselling session (LIF-015, LIF-016).
+
+    Every access to a RESTRICTED note — granted or denied — writes an audit
+    event naming the reader (LIF-016; also exercised by the "teacher receives
+    403 and the attempt is audited" acceptance criterion).
+    """
+    if session.confidentiality != CounsellingConfidentiality.RESTRICTED:
+        return session
+
+    authorized = is_counselling_reader_authorized(session, user, foundation_id)
+    audit(
+        action='campus.counselling.restricted_note_accessed' if authorized else 'campus.counselling.restricted_note_access_denied',
+        entity_type='CounsellingSession',
+        entity_id=session.id,
+        actor_id=str(user.id) if user and user.is_authenticated else None,
+        foundation_id=foundation_id,
+        school_id=session.school_id,
+        diff={'student_id': session.student_id, 'granted': authorized},
+    )
+    if not authorized:
+        raise PermissionDenied("Catatan konseling ini bersifat RESTRICTED (LIF-015).")
+    return session
+
+
+def _dispatch_urgent_counselling_escalation(session: CounsellingSession):
+    """LIF-017: safeguarding escalation — notifies the principal directly, bypassing
+    normal queues (immediate, CRITICAL priority, quiet-hours exempt)."""
+    try:
+        from apps.notifications.models import NotificationCategory
+        from apps.notifications.services import dispatch_intent
+
+        student_name = (
+            session.student.person.full_name
+            if getattr(session.student, 'person', None)
+            else f"Siswa ID {session.student_id}"
+        )
+        for principal in get_principal_users(session.school):
+            dispatch_intent(
+                foundation_id=session.foundation_id,
+                category=NotificationCategory.COUNSELLING_URGENT,
+                template_key='campus.counselling.urgent',
+                payload={
+                    'message': f"Sesi BK mendesak untuk {student_name} memerlukan perhatian segera.",
+                    'student_name': student_name,
+                    'session_id': session.id,
+                    'occurred_at': session.occurred_at.isoformat(),
+                },
+                school_id=session.school_id,
+                recipient_user=principal,
+                recipient_phone=getattr(principal, 'phone_e164', ''),
+                recipient_email=getattr(principal, 'email', ''),
+                dedupe_key=f"counselling_urgent:{session.id}:{principal.id}",
+                immediate=True,
+            )
+        session.urgent_notified_at = timezone.now()
+        session.save(update_fields=['urgent_notified_at', 'updated_at'])
+    except Exception as exc:
+        logger.warning(
+            "Failed to dispatch urgent counselling escalation for session %s: %s",
+            session.id,
+            exc,
+        )
+
+
+def get_counsellor_followups_due(foundation_id: Optional[int] = None):
+    """LIF-018: counselling sessions whose follow-up date has arrived and whose
+    counsellor task reminder has not yet been sent."""
+    qs = CounsellingSession.all_tenants.filter(
+        follow_up_at__isnull=False,
+        follow_up_at__lte=timezone.now(),
+        follow_up_reminder_sent_at__isnull=True,
+        deleted_at__isnull=True,
+    )
+    if foundation_id:
+        qs = qs.filter(foundation_id=foundation_id)
+    return qs
+
+
+def queue_counsellor_followup_reminder(session: CounsellingSession) -> bool:
+    """LIF-018: dispatches (and stamps) the counsellor task reminder for a due follow-up."""
+    from apps.notifications.models import NotificationCategory
+    from apps.notifications.services import dispatch_intent
+
+    counsellor_user = session.counsellor.user
+    if not counsellor_user:
+        return False
+
+    student_name = (
+        session.student.person.full_name
+        if getattr(session.student, 'person', None)
+        else f"Siswa ID {session.student_id}"
+    )
+    dispatch_intent(
+        foundation_id=session.foundation_id,
+        category=NotificationCategory.COUNSELLING_FOLLOW_UP,
+        template_key='campus.counselling.follow_up_reminder',
+        payload={
+            'message': f"Tindak lanjut sesi BK untuk {student_name} sudah jatuh tempo.",
+            'student_name': student_name,
+            'session_id': session.id,
+            'follow_up_at': session.follow_up_at.isoformat(),
+        },
+        school_id=session.school_id,
+        recipient_user=counsellor_user,
+        recipient_phone=getattr(counsellor_user, 'phone_e164', ''),
+        recipient_email=getattr(counsellor_user, 'email', ''),
+        dedupe_key=f"counselling_followup:{session.id}",
+    )
+    session.follow_up_reminder_sent_at = timezone.now()
+    session.save(update_fields=['follow_up_reminder_sent_at', 'updated_at'])
+    return True
 
 
 def get_behaviour_report_card_data(student: Student, term) -> dict:

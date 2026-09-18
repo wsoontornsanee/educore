@@ -219,6 +219,11 @@ EDUCORE_PARTNER_PAYROLL_ACK_DAYS = int(os.environ.get('EDUCORE_PARTNER_PAYROLL_A
 # explicit key; the SECRET_KEY-derived fallback is dev/test-only.
 EDUCORE_BIOMETRIC_FERNET_KEY = os.environ.get('EDUCORE_BIOMETRIC_FERNET_KEY', '')
 
+# Counselling (BK) session note encryption at rest (spec/10 §5, LIF-015) — own
+# Fernet key, same pattern as EDUCORE_BIOMETRIC_FERNET_KEY. Production MUST
+# set an explicit key; the SECRET_KEY-derived fallback is dev/test-only.
+EDUCORE_COUNSELLING_FERNET_KEY = os.environ.get('EDUCORE_COUNSELLING_FERNET_KEY', '')
+
 
 # Single cron host enforcement (spec/01 §7, ARC-013): production runs exactly one
 # dedicated cron host, identified by EDUCORE_CRON_HOST=1. Off by default — local and
