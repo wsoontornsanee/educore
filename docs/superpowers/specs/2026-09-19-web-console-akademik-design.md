@@ -58,8 +58,9 @@ Four independent PRs, in this order: roster, schedule, grading queue, rapor. Eac
 
 ## PR 4: Rapor
 
-- `GET /web/academic/report-cards/`: current report cards with term and class filters, status badges (Konsep / Menunggu Tinjauan / Disetujui / Diterbitkan), and per-status counts.
-- `GET /web/academic/report-cards/<id>/`: renders `render_report_card_html`, plus a PDF link if the existing download path is directly linkable.
+- `GET /web/academic/report-cards/` (`academic-report-card-list-page`): current (`is_current`) report cards with per-status count cards (Konsep / Menunggu Tinjauan / Disetujui / Diterbitkan). `?term=<id>` defaults to the most recent term of an active academic year; an explicit empty `term=` means every term. `?class_group=<id>` filters. Rows: student (name, NIS), class, term, version, status; 200-row cap with a "showing N of M" note.
+- `GET /web/academic/report-cards/<id>/` (`academic-report-card-detail-page`): the frozen snapshot in console chrome (per-subject grade, descriptor via `compute_descriptor`, objective narrative; attendance summary; homeroom narrative, promotion decision, extracurricular notes). Unknown or cross-tenant id 404s.
+- `GET /web/academic/report-cards/<id>/print/` (`academic-report-card-print-page`): returns `render_report_card_html` (the branded layout the PDF is built from) for opening in a new tab. No PDF download link: the existing `download` action returns a signed-URL JSON document, not a linkable file.
 - Nav: `reports` flipped, `requires_staff_profile=True`.
 
 ## Out of scope (Notion Todos)

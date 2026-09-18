@@ -56,7 +56,7 @@ class GetNavForUserTests(TestCase):
         hide it for a permission-holding user with no Staff row."""
         nav = get_nav_for_user(self.teacher, self.foundation.id)
         ids = {item['id'] for group in nav for item in group['items']}
-        self.assertFalse({'roster', 'schedule', 'grading'} & ids)
+        self.assertFalse({'roster', 'schedule', 'grading', 'reports'} & ids)
 
         person = Person.objects.create(foundation_id=self.foundation.id, full_name='Teacher One')
         Staff.objects.create(
@@ -71,6 +71,8 @@ class GetNavForUserTests(TestCase):
         self.assertEqual(schedule['url_name'], 'academic-timetable-page')
         grading = next(item for item in akademik['items'] if item['id'] == 'grading')
         self.assertEqual(grading['url_name'], 'academic-grading-queue-page')
+        reports = next(item for item in akademik['items'] if item['id'] == 'reports')
+        self.assertEqual(reports['url_name'], 'academic-report-card-list-page')
 
     def test_coming_soon_items_are_hidden_even_with_permission(self):
         """Regression test (2026-09-19): a coming_soon item must never
