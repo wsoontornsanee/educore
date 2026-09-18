@@ -131,7 +131,10 @@ def assign_role(
     if foundation_id is None:
         foundation_id = user.foundation_id
 
-    assignment, _ = RoleAssignment.all_tenants.update_or_create(
+    # with_deleted(): all_tenants hides soft-deleted rows, so without it a
+    # previously revoked assignment is never found and the INSERT collides with
+    # the unique_user_role_scope constraint (which does not include deleted_at).
+    assignment, _ = RoleAssignment.all_tenants.with_deleted().update_or_create(
         foundation_id=foundation_id,
         user=user,
         role=role,

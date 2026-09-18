@@ -5,12 +5,14 @@ Directory over apps.identity.Staff + RoleAssignment, mounted under
 JSON StaffViewSet uses for list/retrieve — and narrowed to the schools the
 viewer is actually assigned to (the JSON viewset is foundation-wide).
 
+Role (jabatan) editing lives in apps.identity.role_admin, which owns every
+privilege-escalation rule; the views here only render and relay its refusals.
+
 Creating and offboarding staff are gated by school_config.write and go through
 the same services as the JSON StaffViewSet (create_staff_member,
 offboard_staff), but — unlike the JSON viewset — are additionally ceilinged to
 the schools the actor may write to: a school administrator can neither create
-staff into, nor offboard staff of, another school. Role-assignment editing is
-not offered here (it needs its own privilege-escalation design).
+staff into, nor offboard staff of, another school.
 """
 from django.contrib import messages
 from django.core.exceptions import ValidationError
@@ -18,10 +20,12 @@ from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import redirect
 from django.utils.translation import gettext as _
+from django.views import View
 from django.views.generic import FormView, TemplateView
 
 from .console_access import ConsolePermissionMixin, accessible_school_ids, can_manage_staff, paginate_queryset
 from .models import RoleAssignment, School, Staff
+from .role_admin import GRANTABLE_ROLES, RoleChangeError, grant_role, revoke_blocker, revoke_role_assignment
 from .services import create_staff_member, offboard_staff
 from .web_admin_forms import StaffCreateForm, StaffOffboardForm
 
@@ -96,6 +100,10 @@ class StaffDirectoryView(ConsolePermissionMixin, TemplateView):
             row.role_list = roles_by_user.get(row.user_id, [])
             row.can_manage = row.status != Staff.STATUS_OFFBOARDED and can_manage_staff(
                 self.request.user, row, write_ceiling, assignments_by_user.get(row.user_id, []),
+            )
+            row.can_edit_roles = (
+                row.status != Staff.STATUS_OFFBOARDED and row.user_id != self.request.user.id
+                and (write_ceiling is None or row.school_id in write_ceiling)
             )
 
         ctx.update({
@@ -203,3 +211,113 @@ class StaffOffboardView(ConsolePermissionMixin, FormView):
             self.request, _("Staf %(name)s telah di-offboard.") % {'name': self.staff.person.full_name},
         )
         return redirect('admin-staff')
+
+
+class _StaffRolesMixin(ConsolePermissionMixin):
+    """Shared target lookup for the role pages: the Staff is found inside the
+    acting user's write ceiling, so an out-of-scope or other-tenant id is a
+    404, never an oracle. Self-editing is refused by the service."""
+    required_permission = WRITE_PERMISSION
+
+    def _load_staff(self):
+        ceiling = accessible_school_ids(self.request.user, self.foundation_id, WRITE_PERMISSION)
+        qs = Staff.all_tenants.filter(
+            id=self.kwargs['staff_id'], foundation_id=self.foundation_id, deleted_at__isnull=True,
+        ).select_related('person', 'school')
+        if ceiling is not None:
+            qs = qs.filter(school_id__in=ceiling)
+        staff = qs.first()
+        if staff is None:
+            raise Http404
+        return staff
+
+    def _back(self, staff):
+        return redirect('admin-staff-roles', staff_id=staff.id)
+
+
+class StaffRolesView(_StaffRolesMixin, TemplateView):
+    """GET /web/admin/staff/<id>/roles/ — a staff member's role assignments,
+    with revoke buttons and a grant form limited to what the viewer may grant."""
+    template_name = 'pages/admin_staff_roles.html'
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        staff = self._load_staff()
+        actor, foundation_id = self.request.user, self.foundation_id
+        writable_schools, foundation_wide, _ceiling = _writable_schools(actor, foundation_id)
+        school_names = {
+            s.id: s.name for s in School.all_tenants.filter(foundation_id=foundation_id, deleted_at__isnull=True)
+        }
+        role_labels = dict(RoleAssignment.ROLE_CHOICES)
+        assignments = []
+        for a in RoleAssignment.all_tenants.filter(
+            foundation_id=foundation_id, user_id=staff.user_id, deleted_at__isnull=True,
+        ).order_by('scope_type', 'role'):
+            assignments.append({
+                'id': a.id,
+                'label': role_labels.get(a.role, a.role),
+                'scope': _('Yayasan') if a.scope_type == RoleAssignment.SCOPE_FOUNDATION else school_names.get(a.scope_id, '—'),
+                'blocker': revoke_blocker(foundation_id=foundation_id, actor=actor, assignment=a),
+            })
+        scopes = ([('foundation', _('Yayasan'))] if foundation_wide else []) + [
+            (f'school:{s.id}', s.name) for s in writable_schools
+        ]
+        ctx.update({
+            'staff': staff,
+            'assignments': assignments,
+            'grant_roles': [(r, role_labels[r]) for r in GRANTABLE_ROLES],
+            'grant_scopes': scopes,
+            'self_edit': staff.user_id == actor.id,
+        })
+        return ctx
+
+
+class StaffRoleGrantView(_StaffRolesMixin, View):
+    """POST /web/admin/staff/<id>/roles/grant/ — role + scope ('foundation' or 'school:<id>')."""
+    http_method_names = ['post']
+
+    def post(self, request, staff_id):
+        staff = self._load_staff()
+        scope = request.POST.get('scope', '')
+        if scope == 'foundation':
+            scope_type, scope_id = RoleAssignment.SCOPE_FOUNDATION, self.foundation_id
+        elif scope.startswith('school:') and scope[7:].isdigit():
+            scope_type, scope_id = RoleAssignment.SCOPE_SCHOOL, int(scope[7:])
+        else:
+            messages.error(request, _("Cakupan tidak valid."))
+            return self._back(staff)
+        try:
+            _assignment, created = grant_role(
+                foundation_id=self.foundation_id, actor=request.user, target_user_id=staff.user_id,
+                role=request.POST.get('role', ''), scope_type=scope_type, scope_id=scope_id,
+                ip_address=request.META.get('REMOTE_ADDR'),
+            )
+        except RoleChangeError as exc:
+            messages.error(request, exc.messages[0])
+        else:
+            messages.success(request, _("Peran ditambahkan.") if created else _("Staf sudah memiliki peran ini."))
+        return self._back(staff)
+
+
+class StaffRoleRevokeView(_StaffRolesMixin, View):
+    """POST /web/admin/staff/<id>/roles/<assignment_id>/revoke/"""
+    http_method_names = ['post']
+
+    def post(self, request, staff_id, assignment_id):
+        staff = self._load_staff()
+        # The assignment must belong to THIS staff member: a mismatched pair is
+        # a 404, so the URL cannot be used to revoke someone else's role.
+        if not RoleAssignment.all_tenants.filter(
+            id=assignment_id, foundation_id=self.foundation_id, user_id=staff.user_id, deleted_at__isnull=True,
+        ).exists():
+            raise Http404
+        try:
+            revoke_role_assignment(
+                foundation_id=self.foundation_id, actor=request.user, assignment_id=assignment_id,
+                ip_address=request.META.get('REMOTE_ADDR'),
+            )
+        except RoleChangeError as exc:
+            messages.error(request, exc.messages[0])
+        else:
+            messages.success(request, _("Peran dicabut."))
+        return self._back(staff)
