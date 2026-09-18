@@ -3,7 +3,14 @@ import re
 from abc import ABC, abstractmethod
 
 from apps.academic.models import ClassEnrollment, ClassGroup
-from apps.compliance.models import StatutoryExportSchema, StatutorySystem
+from apps.compliance.models import (
+    DataSubjectRequest,
+    DataSubjectRequestStatus,
+    DataSubjectRequestSubjectType,
+    StatutoryExportSchema,
+    StatutorySystem,
+)
+from apps.core.services import audit
 from apps.identity.models import Person, School, Staff, Student
 
 
@@ -527,3 +534,236 @@ def get_exporter(system: str, school: School) -> StatutoryExporter:
     if exporter_cls is None:
         raise StatutoryExportError(f"Unknown statutory system: {system}")
     return exporter_cls(school=school, schema=get_active_schema(school.foundation_id, system))
+
+
+# --- DSAR access export bundle (CMP-011) ---
+
+class PersonNotFoundError(ValueError):
+    """Raised when a DSAR request targets a subject that doesn't exist in this foundation."""
+
+
+def _serialize_date(value):
+    return value.isoformat() if value else None
+
+
+def collect_person_data_bundle(subject_type: str, subject_id: int, foundation_id: int) -> dict:
+    """DSAR access-export bundle (CMP-011): Identity + Academic + Attendance +
+    Finance for one Student or Staff. Notifications/wallet/campus-life data
+    are a documented follow-up, not pulled in here. Shape is sheet-ready:
+    every key except 'identity' is a flat list of row-dicts, consumed
+    directly by apps/compliance/exports.py's dsar_access renderer."""
+    from apps.attendance.models import AttendanceDay, PeriodAttendance
+    from apps.finance.models import Invoice, Payment
+
+    if subject_type == 'STUDENT':
+        student = Student.objects.filter(foundation_id=foundation_id, id=subject_id).select_related('person').first()
+        if student is None:
+            raise PersonNotFoundError(f"Student {subject_id} not found in foundation {foundation_id}")
+        person = student.person
+
+        from apps.academic.models import ReportCard
+
+        academic_enrollments = [
+            {
+                'class_group': e.class_group.name,
+                'enrolled_at': _serialize_date(e.enrolled_at),
+                'is_active': e.is_active,
+            }
+            for e in ClassEnrollment.objects.filter(student=student).select_related('class_group')
+        ]
+        report_cards = [
+            {
+                'term_id': rc.term_id,
+                'status': rc.status,
+                'published_at': rc.published_at.isoformat() if rc.published_at else None,
+            }
+            for rc in ReportCard.objects.filter(student=student, is_current=True)
+        ]
+        attendance_days = [
+            {'date': _serialize_date(a.date), 'status': a.status}
+            for a in AttendanceDay.objects.filter(student=student).order_by('date')
+        ]
+        period_attendances = [
+            {'date': _serialize_date(p.date), 'status': p.status, 'source': p.source}
+            for p in PeriodAttendance.objects.filter(student=student).order_by('date')
+        ]
+        invoices = [
+            {
+                'number': inv.number, 'period': inv.period, 'total': str(inv.total),
+                'currency': inv.currency, 'status': inv.status,
+            }
+            for inv in Invoice.objects.filter(student=student)
+        ]
+        payments = [
+            {
+                'reference': p.reference, 'amount': str(p.amount), 'currency': p.currency,
+                'status': p.status, 'paid_at': p.paid_at.isoformat() if p.paid_at else None,
+            }
+            for p in Payment.objects.filter(student=student)
+        ]
+
+        return {
+            'identity': {
+                'subject_type': 'STUDENT', 'full_name': person.full_name, 'nik': person.nik,
+                'dob': _serialize_date(person.dob), 'gender': person.gender, 'address': person.address,
+                'nis': student.nis, 'nisn': student.nisn, 'status': student.status,
+            },
+            'academic_enrollments': academic_enrollments,
+            'academic_report_cards': report_cards,
+            'attendance_days': attendance_days,
+            'period_attendances': period_attendances,
+            'invoices': invoices,
+            'payments': payments,
+        }
+
+    if subject_type == 'STAFF':
+        staff = Staff.objects.filter(foundation_id=foundation_id, id=subject_id).select_related('person').first()
+        if staff is None:
+            raise PersonNotFoundError(f"Staff {subject_id} not found in foundation {foundation_id}")
+        person = staff.person
+        return {
+            'identity': {
+                'subject_type': 'STAFF', 'full_name': person.full_name, 'nik': person.nik,
+                'dob': _serialize_date(person.dob), 'gender': person.gender, 'address': person.address,
+                'nip': staff.nip, 'nuptk': staff.nuptk, 'status': staff.status,
+            },
+            'academic_enrollments': [],
+            'academic_report_cards': [],
+            'attendance_days': [],
+            'period_attendances': [],
+            'invoices': [],
+            'payments': [],
+        }
+
+    raise PersonNotFoundError(f"Unknown subject_type: {subject_type}")
+
+
+# --- Right to erasure (CMP-012) ---
+
+class PersonNotErasableError(ValueError):
+    """Raised when erasure is requested for a subject that is not yet in a
+    departed/terminal status (CMP-012: "processing erasure requests for
+    departed students/staff"), or that doesn't exist."""
+
+
+_STUDENT_ERASABLE_STATUSES = {Student.STATUS_GRADUATED, Student.STATUS_TRANSFERRED_OUT}
+_STAFF_ERASABLE_STATUSES = {Staff.STATUS_OFFBOARDED}
+
+
+def _anonymize_person(person) -> None:
+    person.full_name = f"[ERASED-{person.id}]"
+    person.nik = None
+    person.dob = None
+    person.address = ''
+    person.birth_city = ''
+    person.birth_certificate_number = ''
+    person.religion = ''
+    person.rt = ''
+    person.rw = ''
+    person.dusun = ''
+    person.kelurahan = ''
+    person.kecamatan = ''
+    person.kabupaten_kota = ''
+    person.provinsi = ''
+    person.postal_code = ''
+    person.save()
+
+
+def _anonymize_user(user) -> None:
+    """Anonymize the identifying PII on a Staff member's linked login account.
+
+    Only identity fields — is_active/status/permissions are deliberately left
+    alone: account deactivation is a separate lifecycle concern from erasure.
+    phone_e164 is UNIQUE and NOT NULL, so it gets an id-based placeholder
+    rather than a bare empty string (which would collide on the second erasure).
+    """
+    if user is None:
+        return
+    user.full_name = f"[ERASED-{user.id}]"
+    user.phone_e164 = f"[ERASED-{user.id}]"
+    user.email = None
+    user.save(update_fields=['full_name', 'phone_e164', 'email'])
+
+
+def _erase_subject_photos(subject_type, subject) -> None:
+    """Blank the erased subject's facial imagery immediately (CMP-012).
+
+    The CMP-013 retention sweeper only purges gate photos past their own
+    90-day window; an accepted erasure request must not wait for it.
+    all_tenants is used deliberately: erase_person may run outside any
+    thread-local tenant context (management commands, services), and the
+    queryset is already pinned to this one subject's rows.
+    """
+    from apps.attendance.models import GateEvent
+
+    if subject_type == DataSubjectRequestSubjectType.STUDENT:
+        if getattr(subject, 'photo_key', ''):
+            subject.photo_key = ''
+            subject.save(update_fields=['photo_key'])
+        GateEvent.all_tenants.filter(student=subject).exclude(photo_key='').update(photo_key='')
+    else:
+        GateEvent.all_tenants.filter(staff=subject).exclude(photo_key='').update(photo_key='')
+
+
+def erase_person(subject_type, subject_id, foundation_id, requested_by, requested_by_name) -> DataSubjectRequest:
+    """CMP-012 right to erasure. Refuses on anyone not already departed, or
+    unknown. Anonymizes the Person PII-vault row only — Student/Staff/
+    academic/financial rows keep their FK to the now-anonymized Person, so
+    retention obligations (10yr financial, permanent-default academic) are
+    preserved with zero special-casing."""
+    if subject_type == DataSubjectRequestSubjectType.STUDENT:
+        subject = Student.objects.filter(foundation_id=foundation_id, id=subject_id).select_related('person').first()
+        erasable_statuses = _STUDENT_ERASABLE_STATUSES
+    elif subject_type == DataSubjectRequestSubjectType.STAFF:
+        subject = (
+            Staff.objects.filter(foundation_id=foundation_id, id=subject_id)
+            .select_related('person', 'user')
+            .first()
+        )
+        erasable_statuses = _STAFF_ERASABLE_STATUSES
+    else:
+        subject = None
+        erasable_statuses = set()
+
+    if subject is None:
+        DataSubjectRequest.objects.create(
+            foundation_id=foundation_id, subject_type=subject_type, subject_id=subject_id,
+            status=DataSubjectRequestStatus.REFUSED, requested_by=requested_by,
+            requested_by_name=requested_by_name,
+            refusal_reason=f"{subject_type} {subject_id} tidak ditemukan di yayasan {foundation_id}.",
+        )
+        raise PersonNotErasableError(f"{subject_type} {subject_id} not found in foundation {foundation_id}")
+
+    if subject.status not in erasable_statuses:
+        refusal_reason = (
+            f"Tidak dapat menghapus data: status saat ini '{subject.status}' bukan status "
+            f"keluar/lulus (CMP-012 hanya mengizinkan penghapusan untuk yang sudah keluar)."
+        )
+        DataSubjectRequest.objects.create(
+            foundation_id=foundation_id, subject_type=subject_type, subject_id=subject_id,
+            status=DataSubjectRequestStatus.REFUSED, requested_by=requested_by,
+            requested_by_name=requested_by_name, refusal_reason=refusal_reason,
+        )
+        raise PersonNotErasableError(refusal_reason)
+
+    person = subject.person
+    person_id = person.id
+    _anonymize_person(person)
+    _erase_subject_photos(subject_type, subject)
+    if subject_type == DataSubjectRequestSubjectType.STAFF:
+        _anonymize_user(subject.user)
+
+    audit(
+        action='compliance.person.erase',
+        entity_type='Person',
+        entity_id=str(person_id),
+        actor_id=requested_by,
+        foundation_id=foundation_id,
+        diff={'erased': True, 'subject_type': subject_type, 'subject_id': subject_id},
+    )
+
+    return DataSubjectRequest.objects.create(
+        foundation_id=foundation_id, subject_type=subject_type, subject_id=subject_id,
+        status=DataSubjectRequestStatus.COMPLETED, requested_by=requested_by,
+        requested_by_name=requested_by_name,
+    )

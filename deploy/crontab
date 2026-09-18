@@ -23,6 +23,7 @@
 0 20 * * *     python /app/manage.py refresh_reporting --scope=full
 0 21 * * *     python /app/manage.py run_arrears_ladder
 0 22 * * *     python /app/manage.py enforce_retention --retention-days=7  # idempotency key purge (spec/18 §4)
+0 22 * * *     python /app/manage.py purge_gate_photos --retention-days=90     # CMP-013: gate photo retention (spec/14 §3/§7)
 0 23 * * *     python /app/manage.py backup_database
 0 1 * * *      python /app/manage.py invoice_stale_reconciliations      # 7d handover to arrears (spec/17 REC-013)
 25 2 25 * *    python /app/manage.py generate_invoices --next-period

@@ -9,7 +9,13 @@ import io
 import logging
 
 from apps.compliance.models import PiiExportAccessLog, StatutorySystem
-from apps.compliance.services import StatutoryExportError, get_exporter, validate_statutory_export
+from apps.compliance.services import (
+    PersonNotFoundError,
+    StatutoryExportError,
+    collect_person_data_bundle,
+    get_exporter,
+    validate_statutory_export,
+)
 from apps.core.models import ExportJob
 from apps.core.services import (
     register_export_formats,
@@ -119,6 +125,67 @@ register_export_formats(REPORT_KEY_DAPODIK, {ExportJob.FORMAT_XLSX, ExportJob.FO
 register_export_formats(REPORT_KEY_EMIS, {ExportJob.FORMAT_XLSX, ExportJob.FORMAT_CSV})
 register_export_pii(REPORT_KEY_DAPODIK)
 register_export_pii(REPORT_KEY_EMIS)
+
+
+REPORT_KEY_DSAR_ACCESS = 'dsar_access'
+
+_DSAR_SHEET_ORDER = [
+    'academic_enrollments', 'academic_report_cards',
+    'attendance_days', 'period_attendances',
+    'invoices', 'payments',
+]
+
+
+def _dsar_bundle_to_xlsx(bundle: dict) -> bytes:
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    wb.remove(wb.active)
+
+    for sheet_name in _DSAR_SHEET_ORDER:
+        rows = bundle.get(sheet_name, [])
+        ws = wb.create_sheet(title=sheet_name[:31])
+        if rows:
+            columns = list(rows[0].keys())
+            ws.append(columns)
+            for row in rows:
+                ws.append([row.get(col) for col in columns])
+        else:
+            ws.append(['(kosong / empty)'])
+
+    # Deliberately NOT titled 'Info': apps/core/watermark.py excludes an
+    # 'Info' sheet from its record count (that title is reserved for the
+    # statutory exporters' metadata sheet) and appends its audit block into
+    # it. Naming the subject's identity sheet 'Info' would both zero out
+    # PiiExportAccessLog.record_count and mix the watermark block into real
+    # subject PII rows.
+    identity = bundle.get('identity', {})
+    info = wb.create_sheet(title='Identity', index=0)
+    for key, value in identity.items():
+        info.append([key, value])
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()
+
+
+@register_export_renderer(REPORT_KEY_DSAR_ACCESS)
+def render_dsar_access_export(job: ExportJob):
+    """CMP-011 DSAR access export, riding the CMP-016 PII-export pipeline
+    (run_export_job watermarks + logs to PiiExportAccessLog automatically
+    because dsar_access is registered via register_export_pii below)."""
+    filters = job.filters or {}
+    subject_type = filters.get('subject_type')
+    subject_id = filters.get('subject_id')
+    bundle = collect_person_data_bundle(subject_type, subject_id, job.foundation_id)
+    data = _dsar_bundle_to_xlsx(bundle)
+    filename = f'dsar_{str(subject_type).lower()}_{subject_id}_{job.id}.xlsx'
+    return data, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', filename
+
+
+register_export_formats(REPORT_KEY_DSAR_ACCESS, {ExportJob.FORMAT_XLSX})
+register_export_permission(REPORT_KEY_DSAR_ACCESS, 'school_config.write')
+register_export_pii(REPORT_KEY_DSAR_ACCESS)
 
 
 @register_pii_export_logger

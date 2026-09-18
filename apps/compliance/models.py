@@ -164,3 +164,45 @@ class PiiExportAccessLog(TenantModel):
 
     def __str__(self):
         return f"PiiExportAccessLog#{self.id} {self.report_key} by {self.exported_by_name or self.exported_by_id} at {self.created_at}"
+
+
+class DataSubjectRequestSubjectType(models.TextChoices):
+    """Who the request is about (CMP-011/012)."""
+    STUDENT = 'STUDENT', _('Siswa')
+    STAFF = 'STAFF', _('Staf')
+
+
+class DataSubjectRequestStatus(models.TextChoices):
+    COMPLETED = 'COMPLETED', _('Selesai')
+    REFUSED = 'REFUSED', _('Ditolak')
+
+
+class DataSubjectRequest(TenantModel):
+    """Right-to-erasure request audit trail (CMP-012): the "admin tool, not a
+    manual SQL task" spec/14 §3 requires. Runs synchronously to a terminal
+    outcome (COMPLETED or REFUSED) in one call — there is no PENDING state.
+
+    Access-export requests (CMP-011) are NOT tracked here: they reuse the
+    existing ExportJob + PiiExportAccessLog pipeline (CMP-016), which already
+    is that domain's "admin tool, not manual SQL" audit trail — see
+    apps/compliance/exports.py's `dsar_access` report_key (Task 2).
+    """
+    subject_type = models.CharField(max_length=16, choices=DataSubjectRequestSubjectType.choices, db_index=True)
+    subject_id = models.BigIntegerField(
+        help_text="Student.id or Staff.id — a plain integer, not an FK, so this row "
+                   "survives the subject's Person row being anonymized."
+    )
+    status = models.CharField(max_length=16, choices=DataSubjectRequestStatus.choices, db_index=True)
+    requested_by = models.CharField(max_length=64, blank=True, default='')
+    requested_by_name = models.CharField(max_length=128, blank=True, default='')
+    refusal_reason = models.CharField(max_length=255, blank=True, default='')
+
+    class Meta:
+        db_table = 'data_subject_erasure_requests'
+        indexes = [
+            models.Index(fields=['foundation_id', 'subject_type', 'subject_id']),
+            models.Index(fields=['foundation_id', 'status']),
+        ]
+
+    def __str__(self):
+        return f"Erasure {self.subject_type}#{self.subject_id} ({self.status})"
