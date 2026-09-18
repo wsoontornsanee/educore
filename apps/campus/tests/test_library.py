@@ -284,7 +284,7 @@ class LibraryAPITests(TestCase):
         self.client.force_authenticate(user=self.admin_user)
         item = make_book(self.fx, copies_total=1)
 
-        res = self.client.post('/api/v1/library/loans/', {
+        res = self.client.post('/api/v1/campus/library/loans/', {
             'item_id': item.id,
             'borrower_type': LoanBorrowerType.STUDENT,
             'borrower_id': self.fx['student'].id,
@@ -295,7 +295,7 @@ class LibraryAPITests(TestCase):
         item.refresh_from_db()
         self.assertEqual(item.copies_available, 0)
 
-        res_return = self.client.post(f'/api/v1/library/loans/{loan_id}/return/', {})
+        res_return = self.client.post(f'/api/v1/campus/library/loans/{loan_id}/return/', {})
         self.assertEqual(res_return.status_code, status.HTTP_200_OK)
         self.assertEqual(res_return.data['status'], LoanStatus.RETURNED)
 
@@ -312,7 +312,7 @@ class LibraryAPITests(TestCase):
         loan.due_at = timezone.now() - datetime.timedelta(days=2)
         loan.save(update_fields=['due_at'])
 
-        res = self.client.get('/api/v1/library/overdue?school_id=%s' % self.fx['school'].id)
+        res = self.client.get('/api/v1/campus/library/overdue?school_id=%s' % self.fx['school'].id)
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         loan_ids = [row['id'] for row in res.data]
         self.assertIn(loan.id, loan_ids)
