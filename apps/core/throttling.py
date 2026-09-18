@@ -51,7 +51,26 @@ def _record_violation(scope: str, ident: str):
 
 
 class SecurityScopedThrottle(ScopedRateThrottle):
-    """ScopedRateThrottle plus header info for the 429 response and repeated-violation audit logging."""
+    """ScopedRateThrottle plus header info for the 429 response and repeated-violation audit logging.
+
+    Overrides get_ident() to prefer CF-Connecting-IP: this deploy sits behind
+    Cloudflare -> nginx, and nginx's `X-Forwarded-For: $proxy_add_x_forwarded_for`
+    appends nginx's own upstream peer (Cloudflare's anycast edge IP, which
+    varies per request/connection) as the LAST hop. DRF's default get_ident,
+    with NUM_PROXIES unset, uses the *entire* X-Forwarded-For string as the
+    identity key — so the same real client got a different throttle key on
+    almost every request, and the bucket count never accumulated (confirmed
+    live on PRD: 11 requests from one real client all returned 201 instead of
+    the 11th being throttled). CF-Connecting-IP is Cloudflare's own
+    single-value "real client IP" header, stable for the same client and
+    accurate whenever traffic is actually proxied through Cloudflare.
+    """
+
+    def get_ident(self, request):
+        cf_ip = request.META.get('HTTP_CF_CONNECTING_IP')
+        if cf_ip:
+            return cf_ip.strip()
+        return super().get_ident(request)
 
     def allow_request(self, request, view):
         allowed = super().allow_request(request, view)

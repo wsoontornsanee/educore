@@ -84,6 +84,29 @@ class OtpRequestIPThrottleTests(TestCase):
         self.assertEqual(response.status_code, 429)
         self.assertEqual(response['X-RateLimit-Limit'], '10')
 
+    def test_ident_prefers_cf_connecting_ip_over_shifting_x_forwarded_for(self):
+        """Regression: this deploy sits behind Cloudflare -> nginx, and nginx's
+        X-Forwarded-For appends its own upstream peer (Cloudflare's anycast edge
+        IP, which varies per request) as the last hop. With DRF's default
+        get_ident (whole XFF string, NUM_PROXIES unset) the same real client got
+        a different throttle identity on almost every request and NEVER got
+        throttled — confirmed live on PRD before this fix. CF-Connecting-IP must
+        be used instead whenever present."""
+        for i in range(10):
+            response = self.client.post(
+                '/api/v1/auth/otp/request/', {'phone_e164': f"+62811100{i:05d}"}, format='json',
+                HTTP_CF_CONNECTING_IP='203.0.113.7',
+                HTTP_X_FORWARDED_FOR=f"203.0.113.7, 198.51.100.{i}",  # last hop shifts every request
+            )
+            self.assertEqual(response.status_code, 201)
+
+        response = self.client.post(
+            '/api/v1/auth/otp/request/', {'phone_e164': "+6281110099999"}, format='json',
+            HTTP_CF_CONNECTING_IP='203.0.113.7',
+            HTTP_X_FORWARDED_FOR='203.0.113.7, 198.51.100.250',
+        )
+        self.assertEqual(response.status_code, 429)
+
 
 class PaymentWebhookThrottleTests(TestCase):
     def setUp(self):
