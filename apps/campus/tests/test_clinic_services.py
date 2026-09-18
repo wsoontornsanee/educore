@@ -320,6 +320,28 @@ class ClinicVisitAttendanceAndNotificationTests(TestCase):
         att_day = AttendanceDay.objects.get(student=self.fx['student'], date=visit.occurred_at.date())
         self.assertEqual(att_day.status, AttendanceStatus.SAKIT)
 
+    def test_sent_home_survives_notification_dispatch_failure(self):
+        from unittest.mock import patch
+
+        with patch(
+            'apps.notifications.services.dispatch_intent',
+            side_effect=RuntimeError('boom'),
+        ):
+            visit = record_clinic_visit(
+                foundation_id=self.fx['foundation'].id, school=self.fx['school'], student=self.fx['student'],
+                handled_by=self.fx['teacher'], complaint='Demam tinggi', outcome=ClinicOutcome.SENT_HOME,
+            )
+
+        visit.refresh_from_db()
+        self.assertIsNotNone(visit.id)
+        self.assertIsNone(visit.guardian_notified_at)
+
+        att_day = AttendanceDay.objects.get(student=self.fx['student'], date=visit.occurred_at.date())
+        self.assertEqual(att_day.status, AttendanceStatus.SAKIT)
+        self.assertTrue(att_day.is_override)
+
+        self.assertFalse(NotificationIntent.objects.filter(category=NotificationCategory.CLINIC_INCIDENT).exists())
+
     def test_sent_home_overrides_existing_attendance_day(self):
         AttendanceDay.objects.create(
             foundation_id=self.fx['foundation'].id, school=self.fx['school'], student=self.fx['student'],

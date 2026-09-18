@@ -196,69 +196,77 @@ def _apply_sakit_override(visit: ClinicVisit) -> None:
 
 def _dispatch_clinic_incident_notifications(visit: ClinicVisit) -> int:
     """LIF-003: notify all guardians + homeroom teacher immediately."""
-    from apps.identity.models import GuardianLink
-    from apps.notifications.models import NotificationCategory, NotificationPriority
-    from apps.notifications.services import dispatch_intent
+    try:
+        from apps.identity.models import GuardianLink
+        from apps.notifications.models import NotificationCategory, NotificationPriority
+        from apps.notifications.services import dispatch_intent
 
-    student = visit.student
-    school = visit.school
-    foundation_id = visit.foundation_id
+        student = visit.student
+        school = visit.school
+        foundation_id = visit.foundation_id
 
-    guardian_links = GuardianLink.objects.filter(
-        foundation_id=foundation_id,
-        student=student,
-        deleted_at__isnull=True,
-    ).select_related('guardian__person', 'guardian__user')
-
-    student_name = student.person.full_name if (student.person and student.person.full_name) else (student.nis or 'Siswa')
-    school_name = school.name if school else 'Sekolah'
-    outcome_label = visit.get_outcome_display()
-
-    recipients = []
-    for link in guardian_links:
-        guardian = link.guardian
-        recipient_name = guardian.person.full_name if (guardian.person and guardian.person.full_name) else 'Wali Murid'
-        recipients.append((guardian.user, recipient_name))
-
-    homeroom_teacher = _get_homeroom_teacher(student)
-    if homeroom_teacher and homeroom_teacher.user:
-        teacher_name = homeroom_teacher.person.full_name if (homeroom_teacher.person and homeroom_teacher.person.full_name) else 'Wali Kelas'
-        recipients.append((homeroom_teacher.user, teacher_name))
-
-    dispatched = 0
-    for user, recipient_name in recipients:
-        if not user:
-            continue
-        phone = getattr(user, 'phone_e164', '') or ''
-        email = getattr(user, 'email', '') or ''
-        dedupe_key = f"clinic_incident:{visit.id}:{user.id}"
-        payload = {
-            'type': NotificationCategory.CLINIC_INCIDENT,
-            'student_id': student.id,
-            'student_name': student_name,
-            'school_name': school_name,
-            'outcome': visit.outcome,
-            'outcome_label': outcome_label,
-            'visit_id': visit.id,
-        }
-        dispatch_intent(
+        guardian_links = GuardianLink.objects.filter(
             foundation_id=foundation_id,
-            school_id=school.id,
-            recipient_user=user,
-            recipient_phone=phone,
-            recipient_email=email,
-            recipient_name=recipient_name,
-            category=NotificationCategory.CLINIC_INCIDENT,
-            template_key='clinic.incident',
-            payload=payload,
-            priority=NotificationPriority.HIGH,
-            dedupe_key=dedupe_key,
-            immediate=True,
+            student=student,
+            deleted_at__isnull=True,
+        ).select_related('guardian__person', 'guardian__user')
+
+        student_name = student.person.full_name if (student.person and student.person.full_name) else (student.nis or 'Siswa')
+        school_name = school.name if school else 'Sekolah'
+        outcome_label = visit.get_outcome_display()
+
+        recipients = []
+        for link in guardian_links:
+            guardian = link.guardian
+            recipient_name = guardian.person.full_name if (guardian.person and guardian.person.full_name) else 'Wali Murid'
+            recipients.append((guardian.user, recipient_name))
+
+        homeroom_teacher = _get_homeroom_teacher(student)
+        if homeroom_teacher and homeroom_teacher.user:
+            teacher_name = homeroom_teacher.person.full_name if (homeroom_teacher.person and homeroom_teacher.person.full_name) else 'Wali Kelas'
+            recipients.append((homeroom_teacher.user, teacher_name))
+
+        dispatched = 0
+        for user, recipient_name in recipients:
+            if not user:
+                continue
+            phone = getattr(user, 'phone_e164', '') or ''
+            email = getattr(user, 'email', '') or ''
+            dedupe_key = f"clinic_incident:{visit.id}:{user.id}"
+            payload = {
+                'type': NotificationCategory.CLINIC_INCIDENT,
+                'student_id': student.id,
+                'student_name': student_name,
+                'school_name': school_name,
+                'outcome': visit.outcome,
+                'outcome_label': outcome_label,
+                'visit_id': visit.id,
+            }
+            dispatch_intent(
+                foundation_id=foundation_id,
+                school_id=school.id,
+                recipient_user=user,
+                recipient_phone=phone,
+                recipient_email=email,
+                recipient_name=recipient_name,
+                category=NotificationCategory.CLINIC_INCIDENT,
+                template_key='clinic.incident',
+                payload=payload,
+                priority=NotificationPriority.HIGH,
+                dedupe_key=dedupe_key,
+                immediate=True,
+            )
+            dispatched += 1
+
+        if dispatched:
+            visit.guardian_notified_at = timezone.now()
+            visit.save(update_fields=['guardian_notified_at', 'updated_at'])
+
+        return dispatched
+    except Exception as exc:
+        logger.warning(
+            "Failed to dispatch clinic incident notifications for visit %s: %s",
+            visit.id,
+            exc,
         )
-        dispatched += 1
-
-    if dispatched:
-        visit.guardian_notified_at = timezone.now()
-        visit.save(update_fields=['guardian_notified_at', 'updated_at'])
-
-    return dispatched
+        return 0
