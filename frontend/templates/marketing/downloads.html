@@ -1,12 +1,13 @@
 {% extends "marketing/base.html" %}
+{% load i18n %}
 
-{% block title %}Unduh Aplikasi — EduCore{% endblock %}
+{% block title %}{% translate "Unduh Aplikasi — EduCore" %}{% endblock %}
 
 {% block content %}
 <section class="site-container" style="padding: 56px 0 32px;">
-  <span class="site-eyebrow">Unduh</span>
-  <h1 class="site-hero-title" style="font-size: 2.5rem;">Aplikasi EduCore untuk setiap peran.</h1>
-  <p class="site-hero-lede" style="max-width: 56ch;">Dibangun untuk ponsel Android kelas bawah dan jaringan 3G. Rilis stabil dites di Android 9 ke atas dan iOS 15 ke atas.</p>
+  <span class="site-eyebrow">{% translate "Unduh" %}</span>
+  <h1 class="site-hero-title" style="font-size: 2.5rem;">{% translate "Aplikasi EduCore untuk setiap peran." %}</h1>
+  <p class="site-hero-lede" style="max-width: 56ch;">{% translate "Dibangun untuk ponsel Android kelas bawah dan jaringan 3G. Rilis stabil dites di Android 9 ke atas dan iOS 15 ke atas." %}</p>
 </section>
 
 <section class="site-container" style="padding-bottom: 56px;">
@@ -17,13 +18,13 @@
       <p class="text-body" style="color: var(--color-ink-700); margin: 8px 0 20px;">{{ app.body }}</p>
       {% if app.stores %}
       <div style="display: flex; flex-direction: column; gap: 8px; max-width: 260px;">
-        <a href="mailto:demo@educore.id?subject=Unduh {{ app.title }}" class="btn btn-primary" style="justify-content: center;">Google Play</a>
-        <a href="mailto:demo@educore.id?subject=Unduh {{ app.title }}" class="btn btn-secondary" style="justify-content: center;">App Store</a>
+        <a href="mailto:demo@educore.id?subject={% blocktranslate with app_title=app.title %}Unduh {{ app_title }}{% endblocktranslate %}" class="btn btn-primary" style="justify-content: center;">Google Play</a>
+        <a href="mailto:demo@educore.id?subject={% blocktranslate with app_title=app.title %}Unduh {{ app_title }}{% endblocktranslate %}" class="btn btn-secondary" style="justify-content: center;">App Store</a>
       </div>
       {% else %}
       <div style="display: flex; flex-direction: column; gap: 8px; max-width: 260px;">
-        <a href="mailto:demo@educore.id?subject=Unduh {{ app.title }}" class="btn btn-primary" style="justify-content: center;">Unduh APK terkelola</a>
-        <a href="mailto:demo@educore.id?subject=Panduan pemasangan {{ app.title }}" class="btn btn-secondary" style="justify-content: center;">Panduan pemasangan</a>
+        <a href="mailto:demo@educore.id?subject={% blocktranslate with app_title=app.title %}Unduh {{ app_title }}{% endblocktranslate %}" class="btn btn-primary" style="justify-content: center;">{% translate "Unduh APK terkelola" %}</a>
+        <a href="mailto:demo@educore.id?subject={% blocktranslate with app_title=app.title %}Panduan pemasangan {{ app_title }}{% endblocktranslate %}" class="btn btn-secondary" style="justify-content: center;">{% translate "Panduan pemasangan" %}</a>
       </div>
       {% endif %}
       <div class="text-body-sm text-ink-500 font-mono" style="margin-top: 16px;">{{ app.version }} · {{ app.size }} · {{ app.os }}</div>
@@ -49,26 +50,26 @@
 
 <section class="site-section site-section-alt">
   <div class="site-container">
-    <h2 class="site-section-title">Pasang lewat kode QR</h2>
-    <p class="site-section-lede">Orang tua memindai kode di surat aktivasi sekolah dan langsung masuk ke toko aplikasi yang benar.</p>
+    <h2 class="site-section-title">{% translate "Pasang lewat kode QR" %}</h2>
+    <p class="site-section-lede">{% translate "Orang tua memindai kode di surat aktivasi sekolah dan langsung masuk ke toko aplikasi yang benar." %}</p>
     <div class="qr-grid">
       <figure class="qr-card">
-        <img src="/static/img/qr-orang-tua.png" alt="Kode QR unduh aplikasi orang tua" width="120" height="120">
-        <figcaption>ORANG TUA</figcaption>
+        <img src="/static/img/qr-orang-tua.png" alt="{% translate "Kode QR unduh aplikasi orang tua" %}" width="120" height="120">
+        <figcaption>{% translate "ORANG TUA" %}</figcaption>
       </figure>
       <figure class="qr-card">
-        <img src="/static/img/qr-guru.png" alt="Kode QR unduh aplikasi guru" width="120" height="120">
-        <figcaption>GURU</figcaption>
+        <img src="/static/img/qr-guru.png" alt="{% translate "Kode QR unduh aplikasi guru" %}" width="120" height="120">
+        <figcaption>{% translate "GURU" %}</figcaption>
       </figure>
     </div>
 
-    <h2 class="site-section-title">Dukungan rilis</h2>
+    <h2 class="site-section-title">{% translate "Dukungan rilis" %}</h2>
     <table class="release-table">
       {% for r in releases %}
       <tr>
         <td>{{ r.label }}</td>
         <td class="font-mono">{{ r.version }}</td>
-        <td class="{% if r.support == 'Aktif' %}support-active{% else %}support-eol{% endif %}">{{ r.support }}</td>
+        <td class="{% if r.support_active %}support-active{% else %}support-eol{% endif %}">{{ r.support }}</td>
       </tr>
       {% endfor %}
     </table>

@@ -71,6 +71,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -97,6 +98,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'django.template.context_processors.i18n',
             ],
         },
     },
@@ -149,8 +151,15 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-# Internationalization (spec/01 §2, spec/appendix §2.10: id-ID first)
+# Internationalization (spec/01 §2, spec/appendix §2.10: id-ID first).
+# Indonesian is the source language everywhere; English is a translation,
+# switchable only where a LocaleMiddleware-based UI exposes it (currently
+# the public marketing site) via django.views.i18n.set_language.
 LANGUAGE_CODE = 'id'
+LANGUAGES = [
+    ('id', 'Bahasa Indonesia'),
+    ('en', 'English'),
+]
 TIME_ZONE = 'Asia/Jakarta'
 USE_I18N = True
 USE_TZ = True
