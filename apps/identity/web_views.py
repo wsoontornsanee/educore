@@ -35,11 +35,20 @@ class WebLoginView(View):
             return redirect(next_url)
 
         next_url = request.GET.get('next', '')
-        return render(request, 'pages/login.html', {
+        return self._render_login(request, {
             'next': next_url,
             'error_message': None,
             **self._sso_context(),
         })
+
+    def _render_login(self, request, context, status=200):
+        # SecurityMiddleware defaults Cross-Origin-Opener-Policy to same-origin,
+        # which severs window.opener on the Google Sign-In popup this page opens —
+        # it can never postMessage the credential back, so the popup hangs blank
+        # forever at accounts.google.com/gsi/transform. Relax it on this page only.
+        response = render(request, 'pages/login.html', context, status=status)
+        response['Cross-Origin-Opener-Policy'] = 'same-origin-allow-popups'
+        return response
 
     def _sso_context(self):
         from django.conf import settings
@@ -71,7 +80,7 @@ class WebLoginView(View):
         next_url = request.POST.get('next') or DEFAULT_REDIRECT_URL
 
         if not identifier or not password:
-            return render(request, 'pages/login.html', {
+            return self._render_login(request, {
                 'next': next_url,
                 'identifier': identifier,
                 'error_message': _("Nomor HP / Email dan kata sandi wajib diisi."),
@@ -85,7 +94,7 @@ class WebLoginView(View):
             try:
                 found_user = User.all_tenants.get(Q(phone_e164=identifier) | Q(email__iexact=identifier))
                 if not found_user.is_active and found_user.check_password(password):
-                    return render(request, 'pages/login.html', {
+                    return self._render_login(request, {
                         'next': next_url,
                         'identifier': identifier,
                         'error_message': _("Akun pengguna tidak aktif. Hubungi Tata Usaha."),
@@ -94,7 +103,7 @@ class WebLoginView(View):
             except (User.DoesNotExist, User.MultipleObjectsReturned):
                 pass
 
-            return render(request, 'pages/login.html', {
+            return self._render_login(request, {
                 'next': next_url,
                 'identifier': identifier,
                 'error_message': _("Kredensial tidak valid atau akun terkunci. Periksa kembali data Anda."),
@@ -102,7 +111,7 @@ class WebLoginView(View):
             }, status=401)
 
         if not user.is_active:
-            return render(request, 'pages/login.html', {
+            return self._render_login(request, {
                 'next': next_url,
                 'identifier': identifier,
                 'error_message': _("Akun pengguna tidak aktif. Hubungi Tata Usaha."),
