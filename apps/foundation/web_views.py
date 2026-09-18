@@ -8,16 +8,33 @@ import json
 from django.contrib import messages
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect
+from django.urls import reverse
 from django.utils.dateparse import parse_date
 from django.utils.translation import gettext as _
+from django.views import View
 from django.views.generic import TemplateView
 
-from apps.core.services import audit
+from apps.core.models import ExportJob
+from apps.core.services import audit, create_export_job, get_export_job_status
 from apps.foundation.forms import FoundationProfileForm, SchoolSettingsForm
-from apps.foundation.services import filter_foundation_audit_events
+from apps.foundation.services import REPORT_KEY_FOUNDATION_AUDIT, filter_foundation_audit_events
 from apps.identity.console_access import ConsolePermissionMixin, accessible_school_ids, paginate_queryset
 from apps.identity.models import Foundation, School, User
 from apps.identity.rbac import is_foundation_admin
+
+
+AUDIT_FILTER_KEYS = ('module', 'action', 'school', 'from', 'to')
+
+
+def read_audit_filters(params):
+    """The viewer's filter set from a GET/POST querystring, shared by the
+    page and its export so both mean the same thing. Returns
+    (filters, invalid_dates); an unparseable date is dropped and reported."""
+    filters = {key: params.get(key, '').strip() for key in AUDIT_FILTER_KEYS}
+    invalid_dates = [key for key in ('from', 'to') if filters[key] and not parse_date(filters[key])]
+    for key in invalid_dates:
+        filters[key] = ''
+    return filters, invalid_dates
 
 
 class AuditLogView(ConsolePermissionMixin, TemplateView):
@@ -39,11 +56,7 @@ class AuditLogView(ConsolePermissionMixin, TemplateView):
             schools = schools.filter(id__in=school_ids)
         schools = list(schools.order_by('name'))
 
-        params = self.request.GET
-        filters = {key: params.get(key, '').strip() for key in ('module', 'action', 'school', 'from', 'to')}
-        invalid_dates = [key for key in ('from', 'to') if filters[key] and not parse_date(filters[key])]
-        for key in invalid_dates:
-            filters[key] = ''
+        filters, invalid_dates = read_audit_filters(self.request.GET)
 
         events = filter_foundation_audit_events(
             foundation_id,
@@ -52,9 +65,8 @@ class AuditLogView(ConsolePermissionMixin, TemplateView):
             action=filters['action'] or None,
             from_date=filters['from'] or None,
             to_date=filters['to'] or None,
+            school_ids=school_ids,
         )
-        if school_ids is not None:
-            events = events.filter(school_id__in=school_ids)
 
         page_obj, query_string = paginate_queryset(self.request, events, per_page=50)
         rows = list(page_obj)
@@ -77,8 +89,57 @@ class AuditLogView(ConsolePermissionMixin, TemplateView):
             'schools': schools,
             'filters': filters,
             'invalid_dates': invalid_dates,
+            'recent_exports': self._recent_exports(),
         })
         return ctx
+
+    def _recent_exports(self):
+        """The viewer's own latest exports, each with a fresh signed
+        download link once COMPLETED (links are 24h-expiring, so they are
+        minted per render rather than stored)."""
+        jobs = ExportJob.all_tenants.filter(
+            foundation_id=self.foundation_id, report_key=REPORT_KEY_FOUNDATION_AUDIT,
+            requested_by=str(self.request.user.id), deleted_at__isnull=True,
+        ).order_by('-id')[:5]
+        exports = []
+        for job in jobs:
+            status = get_export_job_status(job.id, foundation_id=self.foundation_id)
+            exports.append({
+                'id': job.id, 'created_at': job.created_at, 'status': job.status,
+                'download_url': status['download_url'], 'error': status.get('error', ''),
+            })
+        return exports
+
+
+class AuditExportView(ConsolePermissionMixin, View):
+    """POST /web/admin/audit/export/?<filters> — queue a CSV export of the
+    audit events the viewer's current filters select. A school-scoped viewer's
+    school ceiling is applied server-side into the job, so the export can
+    never contain more than the page shows."""
+    http_method_names = ['post']
+    required_permission = 'audit_log.read'
+
+    def post(self, request):
+        filters, _invalid = read_audit_filters(request.GET)
+        job_filters = {key: value for key, value in {
+            'module': filters['module'], 'action': filters['action'],
+            'school': int(filters['school']) if filters['school'].isdigit() else None,
+            'from': filters['from'], 'to': filters['to'],
+        }.items() if value not in ('', None)}
+        school_ids = accessible_school_ids(request.user, self.foundation_id, self.required_permission)
+        if school_ids is not None:
+            job_filters['school_ids'] = sorted(school_ids)
+        create_export_job(
+            report_key=REPORT_KEY_FOUNDATION_AUDIT,
+            export_format=ExportJob.FORMAT_CSV,
+            filters=job_filters,
+            foundation_id=self.foundation_id,
+            requested_by=str(request.user.id),
+            requested_by_name=request.user.full_name or '',
+        )
+        messages.success(request, _("Ekspor diminta. Muat ulang halaman ini dalam beberapa menit untuk mengunduh berkasnya."))
+        query = request.GET.urlencode()
+        return redirect(f"{reverse('admin-audit')}{'?' + query if query else ''}")
 
 
 class _SettingsAccessMixin(ConsolePermissionMixin):
