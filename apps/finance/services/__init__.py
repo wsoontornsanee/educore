@@ -43,6 +43,7 @@ from apps.finance.services.payments import (
     process_payment_webhook,
     record_cash_payment,
     submit_manual_transfer,
+    sync_payment_status,
     verify_manual_transfer,
 )
 from apps.finance.services.qris_config import (
