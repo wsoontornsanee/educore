@@ -70,6 +70,10 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # Wraps almost the entire stack so its duration_ms covers the full
+    # request, and assigns request_id early enough for later middleware/error
+    # handlers to reference it via request.request_id.
+    'educore.middleware.logging.RequestLoggingMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -275,3 +279,58 @@ CALENDAR_SYNC_REDIRECT_URI = os.environ.get(
 # Fernet key (same pattern as EDUCORE_PARTNER_FERNET_KEY; derived from
 # SECRET_KEY when unset — production must set an explicit key).
 EDUCORE_CALENDAR_FERNET_KEY = os.environ.get('EDUCORE_CALENDAR_FERNET_KEY', '')
+
+# Structured JSON logging + universal PII scrubbing (AGENTS Red Line #5:
+# NIK/NISN/phone/passwords/tokens must never reach raw logs). Every handler
+# runs PIIScrubbingFilter before JSONFormatter renders the line — see
+# apps/core/logging.py for the scrubbing engine shared with Sentry below.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'filters': {
+        'pii_scrub': {'()': 'apps.core.logging.PIIScrubbingFilter'},
+        'require_debug_false': {'()': 'django.utils.log.RequireDebugFalse'},
+    },
+    'formatters': {
+        'json': {'()': 'apps.core.logging.JSONFormatter'},
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'filters': ['pii_scrub'],
+            'formatter': 'json',
+        },
+        # Replaces Django's own LOGGING dict wholesale, so its default
+        # mail_admins-on-unhandled-500 wiring has to be re-declared here or
+        # it silently disappears the moment ADMINS is ever configured.
+        'mail_admins': {
+            'level': 'ERROR',
+            'filters': ['require_debug_false', 'pii_scrub'],
+            'class': 'django.utils.log.AdminEmailHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': os.environ.get('DJANGO_LOG_LEVEL', 'INFO'),
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'mail_admins'],
+            'level': os.environ.get('DJANGO_LOG_LEVEL', 'INFO'),
+            'propagate': False,
+        },
+    },
+}
+
+# Sentry error tracking — optional. sentry_sdk is NOT a hard dependency
+# (absent from requirements.txt), so this stays a no-op unless both SENTRY_DSN
+# is set AND sentry_sdk is installed. before_send reuses the exact same
+# scrub_value() engine as application logs so Sentry never receives raw PII.
+SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
+if SENTRY_DSN:
+    try:
+        import sentry_sdk
+        from apps.core.logging import sentry_before_send
+        sentry_sdk.init(dsn=SENTRY_DSN, before_send=sentry_before_send)
+    except ImportError:
+        pass
