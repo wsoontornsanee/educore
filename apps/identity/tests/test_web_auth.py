@@ -48,11 +48,14 @@ class WebAuthViewsTests(TestCase):
         self.assertContains(response, 'ATAU MASUK DENGAN SSO')
 
     def test_get_login_page_redirects_if_already_authenticated(self):
-        """GET /web/login/ redirects to permission slips if user already has an active session."""
+        """GET /web/login/ redirects to the Teacher role's own landing page (agenda) if
+        user already has an active session — Teacher now has a dedicated landing URL
+        under ROLE_LANDING_URLS rather than falling back to the grades.read check that
+        used to send every grades.read holder to the permission-slip console."""
         self.client.login(username='+6281234567890', password=self.password)
         response = self.client.get('/web/login/')
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, '/web/academic/permission-slips/')
+        self.assertEqual(response.url, '/web/home/agenda/')
 
     def test_post_login_success(self):
         """POST /web/login/ with valid credentials creates session and redirects."""

@@ -12,6 +12,7 @@ from django.utils.translation import gettext as _
 from django.views import View
 
 from educore.middleware.tenancy import set_current_foundation_id
+from .landing import resolve_post_login_redirect
 from .models import RoleAssignment
 from .rbac import has_permission, SCOPE_SCHOOL
 from .social_auth import (
@@ -66,7 +67,7 @@ class WebLoginView(View):
 
     def get(self, request):
         if request.user.is_authenticated:
-            next_url = request.GET.get('next') or _default_landing_url(
+            next_url = request.GET.get('next') or resolve_post_login_redirect(
                 request.user, getattr(request.user, 'foundation_id', None),
             )
             return redirect(next_url)
@@ -161,7 +162,7 @@ class WebLoginView(View):
             set_current_foundation_id(user.foundation_id)
 
         if not request.POST.get('next'):
-            next_url = _default_landing_url(user, user.foundation_id)
+            next_url = resolve_post_login_redirect(user, user.foundation_id)
 
         return redirect(next_url)
 
@@ -222,7 +223,7 @@ class WebSSOLoginView(View):
 
         return JsonResponse({
             'success': True,
-            'redirect_url': requested_next or _default_landing_url(user, user.foundation_id),
+            'redirect_url': requested_next or resolve_post_login_redirect(user, user.foundation_id),
             'user': {
                 'id': user.id,
                 'full_name': user.full_name,
