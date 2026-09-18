@@ -91,6 +91,7 @@ from apps.academic.serializers import (
 )
 from apps.academic.calendar_services import sync_external_calendar_events_to_academic
 from apps.academic.services import (
+    publish_exam,
     AttemptAlreadySubmittedError,
     BroadcastNotAllowedError,
     BroadcastRateLimitedError,
@@ -662,9 +663,7 @@ class ExamViewSet(TenantScopedModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='publish')
     def publish(self, request, pk=None):
-        exam = self.get_object()
-        exam.published = True
-        exam.save(update_fields=['published', 'updated_at'])
+        exam = publish_exam(self.get_object(), actor=request.user)
         return Response(self.get_serializer(exam).data)
 
     @action(detail=True, methods=['post'], url_path='attempts')
