@@ -46,7 +46,8 @@ Four independent PRs, in this order: roster, schedule, grading queue, rapor. Eac
 
 ## PR 2: Jadwal
 
-- `GET /web/academic/timetable/`: weekly grid (Mon-Sat columns, period rows) from `TimetableSlot` with subject, teacher and room. `?class_group=<id>` or `?teacher=<staff id>` selects the lens; default is the first class of the current year. Grid built from the school's `PeriodGridSlot` rows where present, falling back to distinct slot period numbers.
+- `GET /web/academic/timetable/` (`academic-timetable-page`): weekly grid (Mon-Sat columns, Sunday only if a slot exists; one row per period number) from `TimetableSlot`. `?lens=class:<id>` or `?lens=teacher:<staff id>` picks the view via one grouped select; default is the first class of an active academic year. Class view cells show subject, teacher, room; teacher view cells show class, subject, room. Unknown or cross-tenant lens ids 404; a malformed lens falls back to the default.
+- Rows come from the slots themselves (period number, earliest start / latest end), not `PeriodGridSlot`, so break periods are not shown. No term filter: like `StudentTimetableView`, all non-deleted slots are shown (`TimetableSlot` has no term column).
 - Nav: `schedule` flipped, `requires_staff_profile=True`.
 
 ## PR 3: Antrean penilaian
