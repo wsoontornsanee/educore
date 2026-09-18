@@ -1,0 +1,75 @@
+{% extends "marketing/base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Changelog — EduCore" %}{% endblock %}
+
+{% block content %}
+<section class="site-container" style="padding-top: 40px;">
+  <span class="site-eyebrow">Changelog</span>
+  <h1 class="site-hero-title" style="font-size: 2.5rem;">{% translate "Apa yang berubah, dan apa yang perlu Anda lakukan." %}</h1>
+  <p class="site-hero-lede" style="max-width: 62ch;">{% translate "Setiap rilis mencantumkan tindakan yang dibutuhkan integrator. Perubahan yang memutus kontrak selalu diumumkan minimal 90 hari sebelumnya." %}</p>
+
+  <div class="changelog-filters" data-changelog-filters>
+    {% for c in categories %}
+    <button type="button" class="changelog-filter{% if forloop.first %} active{% endif %}" data-changelog-filter="{{ c.key }}">{{ c.label }}</button>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="site-container" style="padding-bottom: 48px;">
+  <div class="changelog-list" data-changelog-list>
+    {% for e in entries %}
+    <article class="changelog-entry" data-changelog-category="{{ e.category }}">
+      <div class="changelog-entry-head">
+        <div class="changelog-entry-title">
+          <span class="changelog-version">{{ e.version }}</span>
+          <span class="changelog-category">{{ e.category_label }}</span>
+        </div>
+        <span class="changelog-date">{{ e.date }}</span>
+      </div>
+      <p class="changelog-summary">{{ e.summary }}</p>
+      <div class="changelog-changes">
+        {% for c in e.changes %}
+        <div class="changelog-change">
+          <span class="changelog-tag changelog-tag-{{ c.type }}">
+            {% if c.type == 'new' %}{% translate "BARU" %}{% elif c.type == 'fix' %}{% translate "PERBAIKAN" %}{% else %}{% translate "PERUBAHAN" %}{% endif %}
+          </span>
+          <span class="changelog-change-text">{% if c.code %}<code>{{ c.code }}</code> — {% endif %}{{ c.text }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% if e.action %}
+      <div class="doc-callout doc-callout-warning changelog-action">
+        <span class="doc-callout-label">{% translate "TINDAKAN" %}</span>
+        {{ e.action }}
+      </div>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+
+  <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 32px;">
+    <a href="mailto:support@makan.live?subject=RSS%20changelog" class="btn btn-secondary">RSS</a>
+    <a href="{% url 'marketing:partner-api' %}#docs" class="btn btn-primary">{% translate "Dokumentasi" %}</a>
+  </div>
+</section>
+
+<script>
+  (function () {
+    var filters = document.querySelector('[data-changelog-filters]');
+    var list = document.querySelector('[data-changelog-list]');
+    if (!filters || !list) return;
+    var entries = list.querySelectorAll('[data-changelog-category]');
+    filters.addEventListener('click', function (event) {
+      var btn = event.target.closest('[data-changelog-filter]');
+      if (!btn) return;
+      filters.querySelectorAll('.changelog-filter').forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      var key = btn.getAttribute('data-changelog-filter');
+      entries.forEach(function (entry) {
+        entry.style.display = (key === 'all' || entry.getAttribute('data-changelog-category') === key) ? '' : 'none';
+      });
+    });
+  })();
+</script>
+{% endblock %}
