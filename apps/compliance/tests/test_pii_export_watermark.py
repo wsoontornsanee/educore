@@ -166,6 +166,7 @@ class PiiExportWatermarkTests(StatutoryExportFixtures):
         self.assertIsNotNone(audit_event)
         self.assertEqual(audit_event.foundation_id, self.foundation.id)
         self.assertEqual(audit_event.diff['report_key'], REPORT_KEY_DAPODIK)
+        self.assertEqual(sorted(audit_event.diff['pii_types']), ['NIK', 'NISN'])
 
     @mock.patch('apps.core.storage.upload_bytes')
     def test_no_nik_in_access_log_or_audit(self, mock_upload):

@@ -5,12 +5,16 @@ from django.core.management import call_command
 from django.test import TestCase
 
 from apps.core.models import ExportJob, TaskQueue
+from apps.core.pii import PIIType
 from apps.core.services import (
     create_export_job,
     get_export_job_status,
     get_export_notifier,
+    get_export_pii_types,
     get_export_renderer,
+    is_export_pii,
     register_export_notifier,
+    register_export_pii,
     register_export_renderer,
 )
 
@@ -117,3 +121,26 @@ class GetExportJobStatusTests(TestCase):
     def test_unknown_job_returns_none(self):
         result = get_export_job_status(999999, foundation_id=101)
         self.assertIsNone(result)
+
+
+class RegisterExportPiiTests(TestCase):
+    """register_export_pii's pii_types param consumes the apps.core.pii canonical
+    registry so a new PII type only needs to be added in one place to be
+    covered by both live log scrubbing and export audit trails."""
+
+    def test_register_without_pii_types_still_marks_pii(self):
+        register_export_pii('test.export_job.no_types')
+        self.assertTrue(is_export_pii('test.export_job.no_types'))
+        self.assertEqual(get_export_pii_types('test.export_job.no_types'), frozenset())
+
+    def test_register_with_pii_types_records_them(self):
+        register_export_pii('test.export_job.typed', {PIIType.NIK, PIIType.NISN})
+        self.assertTrue(is_export_pii('test.export_job.typed'))
+        self.assertEqual(get_export_pii_types('test.export_job.typed'), {PIIType.NIK, PIIType.NISN})
+
+    def test_unregistered_report_key_has_no_pii_types(self):
+        self.assertEqual(get_export_pii_types('test.export_job.never_registered'), frozenset())
+
+    def test_non_pii_type_member_raises(self):
+        with self.assertRaises(ValueError):
+            register_export_pii('test.export_job.bad_type', {'NIK'})

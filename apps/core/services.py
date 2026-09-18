@@ -16,6 +16,7 @@ from django.utils import timezone
 from educore.middleware.tenancy import get_current_foundation_id
 from educore.middleware.audit import get_current_actor, get_current_ip
 from .models import AuditEvent, DomainEvent, ExportJob, StoredFile, TaskQueue
+from .pii import PIIType
 from . import storage
 
 logger = logging.getLogger(__name__)
@@ -65,6 +66,7 @@ def get_export_notifier(report_key):
 _EXPORT_FORMATS = {}
 _EXPORT_PERMISSIONS = {}
 _EXPORT_PII = set()
+_EXPORT_PII_TYPES = {}
 _EXPORT_PII_LOGGERS = []
 
 def register_export_formats(report_key, formats):
@@ -87,13 +89,32 @@ def register_export_permission(report_key, permission_key):
 def get_export_permission(report_key, default):
     return _EXPORT_PERMISSIONS.get(report_key, default)
 
-def register_export_pii(report_key):
+def register_export_pii(report_key, pii_types=frozenset()):
     """Mark a report_key as PII-bearing (spec/14 §3 CMP-016, spec/15 §2 RPT-004).
-    PII-bearing exports are automatically watermarked and audited upon generation."""
+    PII-bearing exports are automatically watermarked and audited upon generation.
+
+    ``pii_types`` optionally declares which canonical ``apps.core.pii.PIIType``
+    values report_key's renderer *can* emit (apps.core.pii is the single
+    shared registry with apps.core.logging's live log scrubber). This is a
+    registry-level declaration, not a per-invocation guarantee: a filtered
+    invocation of the same report_key (e.g. a sheet/subject selection that
+    happens to carry none of the declared types) still records the full
+    declared set on its EXPORT_PII audit event, the same coarse-grained
+    trade-off is_export_pii already makes for watermarking/logging triggers.
+    Fails fast on a typo'd/non-canonical type, before any registry state is
+    mutated, so a bad call leaves nothing half-registered."""
+    for pii_type in pii_types:
+        if not isinstance(pii_type, PIIType):
+            raise ValueError(f"register_export_pii({report_key!r}): {pii_type!r} is not a PIIType member")
     _EXPORT_PII.add(report_key)
+    if pii_types:
+        _EXPORT_PII_TYPES[report_key] = frozenset(pii_types)
 
 def is_export_pii(report_key) -> bool:
     return report_key in _EXPORT_PII
+
+def get_export_pii_types(report_key):
+    return _EXPORT_PII_TYPES.get(report_key, frozenset())
 
 def register_pii_export_logger(fn):
     """Register a callback fn(job: ExportJob, filename: str, data: bytes, watermark_text: str, record_count: int) -> None."""
@@ -396,6 +417,7 @@ def run_export_job(payload: dict):
                     'format': job.format,
                     'record_count': record_count,
                     'filename': filename,
+                    'pii_types': sorted(t.value for t in get_export_pii_types(job.report_key)),
                 },
             )
 
