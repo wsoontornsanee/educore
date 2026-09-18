@@ -3,7 +3,14 @@ import re
 from abc import ABC, abstractmethod
 
 from apps.academic.models import ClassEnrollment, ClassGroup
-from apps.compliance.models import StatutoryExportSchema, StatutorySystem
+from apps.compliance.models import (
+    DataSubjectRequest,
+    DataSubjectRequestStatus,
+    DataSubjectRequestSubjectType,
+    StatutoryExportSchema,
+    StatutorySystem,
+)
+from apps.core.services import audit
 from apps.identity.models import Person, School, Staff, Student
 
 
@@ -555,3 +562,91 @@ def collect_person_data_bundle(subject_type: str, subject_id: int, foundation_id
         }
 
     raise PersonNotFoundError(f"Unknown subject_type: {subject_type}")
+
+
+# --- Right to erasure (CMP-012) ---
+
+class PersonNotErasableError(ValueError):
+    """Raised when erasure is requested for a subject that is not yet in a
+    departed/terminal status (CMP-012: "processing erasure requests for
+    departed students/staff"), or that doesn't exist."""
+
+
+_STUDENT_ERASABLE_STATUSES = {Student.STATUS_GRADUATED, Student.STATUS_TRANSFERRED_OUT}
+_STAFF_ERASABLE_STATUSES = {Staff.STATUS_OFFBOARDED}
+
+
+def _anonymize_person(person) -> None:
+    person.full_name = f"[ERASED-{person.id}]"
+    person.nik = None
+    person.dob = None
+    person.address = ''
+    person.birth_city = ''
+    person.birth_certificate_number = ''
+    person.religion = ''
+    person.rt = ''
+    person.rw = ''
+    person.dusun = ''
+    person.kelurahan = ''
+    person.kecamatan = ''
+    person.kabupaten_kota = ''
+    person.provinsi = ''
+    person.postal_code = ''
+    person.save()
+
+
+def erase_person(subject_type, subject_id, foundation_id, requested_by, requested_by_name) -> DataSubjectRequest:
+    """CMP-012 right to erasure. Refuses on anyone not already departed, or
+    unknown. Anonymizes the Person PII-vault row only — Student/Staff/
+    academic/financial rows keep their FK to the now-anonymized Person, so
+    retention obligations (10yr financial, permanent-default academic) are
+    preserved with zero special-casing."""
+    if subject_type == DataSubjectRequestSubjectType.STUDENT:
+        subject = Student.objects.filter(foundation_id=foundation_id, id=subject_id).select_related('person').first()
+        erasable_statuses = _STUDENT_ERASABLE_STATUSES
+    elif subject_type == DataSubjectRequestSubjectType.STAFF:
+        subject = Staff.objects.filter(foundation_id=foundation_id, id=subject_id).select_related('person').first()
+        erasable_statuses = _STAFF_ERASABLE_STATUSES
+    else:
+        subject = None
+        erasable_statuses = set()
+
+    if subject is None:
+        DataSubjectRequest.objects.create(
+            foundation_id=foundation_id, subject_type=subject_type, subject_id=subject_id,
+            status=DataSubjectRequestStatus.REFUSED, requested_by=requested_by,
+            requested_by_name=requested_by_name,
+            refusal_reason=f"{subject_type} {subject_id} tidak ditemukan di yayasan {foundation_id}.",
+        )
+        raise PersonNotErasableError(f"{subject_type} {subject_id} not found in foundation {foundation_id}")
+
+    if subject.status not in erasable_statuses:
+        refusal_reason = (
+            f"Tidak dapat menghapus data: status saat ini '{subject.status}' bukan status "
+            f"keluar/lulus (CMP-012 hanya mengizinkan penghapusan untuk yang sudah keluar)."
+        )
+        DataSubjectRequest.objects.create(
+            foundation_id=foundation_id, subject_type=subject_type, subject_id=subject_id,
+            status=DataSubjectRequestStatus.REFUSED, requested_by=requested_by,
+            requested_by_name=requested_by_name, refusal_reason=refusal_reason,
+        )
+        raise PersonNotErasableError(refusal_reason)
+
+    person = subject.person
+    person_id = person.id
+    _anonymize_person(person)
+
+    audit(
+        action='compliance.person.erase',
+        entity_type='Person',
+        entity_id=str(person_id),
+        actor_id=requested_by,
+        foundation_id=foundation_id,
+        diff={'erased': True, 'subject_type': subject_type, 'subject_id': subject_id},
+    )
+
+    return DataSubjectRequest.objects.create(
+        foundation_id=foundation_id, subject_type=subject_type, subject_id=subject_id,
+        status=DataSubjectRequestStatus.COMPLETED, requested_by=requested_by,
+        requested_by_name=requested_by_name,
+    )
