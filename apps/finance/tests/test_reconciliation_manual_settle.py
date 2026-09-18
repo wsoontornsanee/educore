@@ -1,8 +1,9 @@
-"""Manual settlement of a payment discrepancy must reach AR and the ledger.
+"""Reconciliation settlements (manual resolution and the cron's auto-settle) must
+reach AR and the ledger.
 
-resolve_discrepancy(MANUAL_SETTLED) used to flip Payment.status to SETTLED and
-stop: the money never got a receipt, an invoice allocation or a ledger journal.
-It now runs the same settlement path a gateway webhook does.
+Both used to flip Payment.status to SETTLED and stop: the money never got a
+receipt, an invoice allocation or a ledger journal. They now run the same
+settlement path a gateway webhook does.
 """
 import datetime
 from decimal import Decimal
@@ -18,12 +19,14 @@ from apps.finance.models import (
     LedgerJournal, Payment, PaymentAllocation, PaymentDiscrepancy, PaymentMethod, PaymentStatus,
     SettlementBatchStatus,
 )
-from apps.finance.services.reconciliation import resolve_discrepancy
+from apps.finance.services.reconciliation import reconcile_gateway_settlement, resolve_discrepancy
 from apps.identity.models import Foundation, Person, School, Student, User
 from educore.middleware.tenancy import clear_current_foundation_id, set_current_foundation_id
 
 
-class ManualSettleTests(TestCase):
+class ReconFixture(TestCase):
+    """Foundation, school, student, one ISSUED invoice, one PENDING payment and a batch."""
+
     def setUp(self):
         clear_current_foundation_id()
         self.foundation = Foundation.objects.create(legal_name='Yayasan Rekon', brand_name='Rekon', npwp='01.777.666.5-444.000')
@@ -85,6 +88,8 @@ class ManualSettleTests(TestCase):
         totals = LedgerEntry.objects.filter(journal=journal).aggregate(debit=Sum('debit'), credit=Sum('credit'))
         return totals['debit'], totals['credit']
 
+
+class ManualSettleTests(ReconFixture):
     def test_manual_settle_allocates_to_invoice_and_posts_a_balanced_journal(self):
         self._resolve(self._discrepancy())
         self.payment.refresh_from_db()
@@ -158,3 +163,85 @@ class ManualSettleTests(TestCase):
         result = self._resolve(discrepancy)
         self.assertEqual(result.resolution, DiscrepancyResolution.MANUAL_SETTLED)
         self.assertFalse(LedgerJournal.objects.filter(ref_type='PAYMENT').exists())
+
+
+class AutoSettleTests(ReconFixture):
+    """The reconciliation cron's matched-and-not-yet-settled branch."""
+
+    SETTLED_AT = datetime.datetime(2026, 9, 14, 3, 0, tzinfo=datetime.timezone.utc)
+
+    def _record(self, external_id='EXT-1', amount=Decimal('500000.00'), fee=Decimal('3000.00')):
+        return {
+            'external_id': external_id, 'amount': amount, 'fee': fee, 'net': amount - fee,
+            'settled_at': self.SETTLED_AT, 'channel': 'BCA_VA', 'bank': 'BCA', 'raw': {},
+        }
+
+    def _run(self, records, dry_run=False):
+        provider = mock.MagicMock()
+        provider.fetch_settlement.return_value = records
+        with mock.patch('apps.finance.services.reconciliation.get_payment_provider', return_value=provider):
+            return reconcile_gateway_settlement('MOCK', datetime.date(2026, 9, 14), self.foundation.id, dry_run=dry_run)
+
+    def test_matched_pending_payment_is_settled_through_the_full_path(self):
+        result = self._run([self._record()])
+        self.assertEqual((result['matched'], result['errors']), (1, 0))
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.status, PaymentStatus.SETTLED)
+        self.assertEqual(self.payment.settled_at, self.SETTLED_AT)  # the gateway's own settlement time
+        self.assertTrue(self.payment.receipt_number)
+        self.assertEqual(PaymentAllocation.objects.get(payment=self.payment).amount, Decimal('500000.00'))
+        journal = LedgerJournal.objects.get(ref_type='PAYMENT', ref_id=str(self.payment.id))
+        totals = LedgerEntry.objects.filter(journal=journal).aggregate(debit=Sum('debit'), credit=Sum('credit'))
+        self.assertEqual(totals['debit'], totals['credit'])
+        event = AuditEvent.objects.get(action='finance.payment.settled', entity_id=str(self.payment.id))
+        self.assertEqual(event.role, 'RECONCILIATION_AUTO')
+
+    def test_sub_tolerance_amount_difference_still_balances(self):
+        # within AMOUNT_TOLERANCE (1.00): matched, but gateway net + fee != the recorded amount
+        record = self._record(amount=Decimal('500000.50'), fee=Decimal('3000.00'))
+        self._run([record])
+        journal = LedgerJournal.objects.get(ref_type='PAYMENT', ref_id=str(self.payment.id))
+        totals = LedgerEntry.objects.filter(journal=journal).aggregate(debit=Sum('debit'), credit=Sum('credit'))
+        self.assertEqual(totals['debit'], totals['credit'])
+
+    def test_a_pending_discrepancy_for_the_record_is_cleared(self):
+        discrepancy = self._discrepancy()
+        self._run([self._record()])
+        discrepancy.refresh_from_db()
+        self.assertEqual(discrepancy.resolution, DiscrepancyResolution.AUTO_SETTLED)
+
+    def test_dry_run_settles_nothing(self):
+        self._run([self._record()], dry_run=True)
+        self.payment.refresh_from_db()
+        self.assertEqual(self.payment.status, PaymentStatus.PENDING)
+        self.assertFalse(PaymentAllocation.objects.exists())
+
+    def test_already_settled_payment_is_left_alone(self):
+        self.payment.status = PaymentStatus.SETTLED
+        self.payment.save(update_fields=['status'])
+        result = self._run([self._record()])
+        self.assertEqual(result['matched'], 1)
+        self.assertFalse(PaymentAllocation.objects.exists())
+
+    def test_one_failing_record_does_not_abort_the_batch_and_is_retried_later(self):
+        other = self._payment('EXT-2', Decimal('100000.00'))
+        real_finalize = __import__(
+            'apps.finance.services.payments', fromlist=['_finalize_payment_settlement'],
+        )._finalize_payment_settlement
+
+        def flaky(payment, **kwargs):
+            if payment.external_id == 'EXT-1':
+                raise RuntimeError('ledger down')
+            return real_finalize(payment, **kwargs)
+
+        with mock.patch('apps.finance.services.payments._finalize_payment_settlement', side_effect=flaky):
+            result = self._run([self._record('EXT-1'), self._record('EXT-2', Decimal('100000.00'), Decimal('1000.00'))])
+
+        self.assertEqual((result['matched'], result['errors']), (1, 1))
+        self.payment.refresh_from_db()
+        other.refresh_from_db()
+        self.assertEqual(self.payment.status, PaymentStatus.PENDING)  # untouched, rolled back
+        self.assertEqual(other.status, PaymentStatus.SETTLED)         # the rest of the batch still ran
+        batch = GatewaySettlementBatch.all_tenants.get(foundation_id=self.foundation.id, provider='MOCK')
+        self.assertEqual(batch.status, SettlementBatchStatus.PARTIAL)  # not COMPLETED -> retried next run
+        self.assertIn('could not be settled', batch.error_message)

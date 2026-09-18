@@ -83,6 +83,7 @@ def _finalize_batch_with_records(
     matched = 0
     missing = 0
     mismatch = 0
+    errors = 0
 
     for record in records:
         result = _process_settlement_record(record, batch, foundation_id, dry_run=dry_run)
@@ -92,11 +93,13 @@ def _finalize_batch_with_records(
             missing += 1
         elif result == 'mismatch':
             mismatch += 1
+        elif result == 'error':
+            errors += 1
 
     total = len(records)
     batch_status = (
         SettlementBatchStatus.COMPLETED
-        if missing == 0 and mismatch == 0
+        if missing == 0 and mismatch == 0 and errors == 0
         else SettlementBatchStatus.PARTIAL
     )
 
@@ -107,9 +110,11 @@ def _finalize_batch_with_records(
         batch.matched_count = matched
         batch.missing_count = missing
         batch.mismatch_count = mismatch
+        if errors:
+            batch.error_message = f"{errors} record(s) matched but could not be settled; will retry on the next run."
         batch.save(update_fields=[
             'status', 'fetched_at', 'total_records',
-            'matched_count', 'missing_count', 'mismatch_count',
+            'matched_count', 'missing_count', 'mismatch_count', 'error_message',
         ])
 
     logger.info(
@@ -124,6 +129,7 @@ def _finalize_batch_with_records(
         'matched': matched,
         'missing': missing,
         'mismatch': mismatch,
+        'errors': errors,
         'dry_run': dry_run,
     }
 
@@ -148,6 +154,7 @@ def reconcile_gateway_settlement(
         'matched': int,
         'missing': int,
         'mismatch': int,
+        'errors': int,   # matched payments whose settlement failed (retried next run)
         'dry_run': bool,
     }
     """
@@ -245,7 +252,8 @@ def _process_settlement_record(
 ) -> str:
     """Reconcile a single gateway settlement record.
 
-    Returns one of: 'matched', 'missing', 'mismatch'.
+    Returns one of: 'matched', 'missing', 'mismatch', 'error' (a matched
+    payment whose settlement failed; left PENDING for the next run).
     """
     external_id = record['external_id']
     gateway_amount: Decimal = record['amount']
@@ -310,23 +318,29 @@ def _process_settlement_record(
             )
         return 'mismatch'
 
-    # Auto-settle: update payment if not already settled
+    # Auto-settle: run the full settlement path if the payment is not already
+    # settled. A failure here is confined to this one record (own savepoint)
+    # so a single bad payment cannot abort the rest of the batch; it stays
+    # PENDING and is retried on the next run because the batch is not
+    # COMPLETED.
     if not dry_run and payment.status != PaymentStatus.SETTLED:
-        payment.status = PaymentStatus.SETTLED
-        payment.settled_at = settled_at or timezone.now()
-        payment.fee = gateway_fee
-        payment.net = gateway_net
-        payment.save(update_fields=['status', 'settled_at', 'fee', 'net'])
-
-        # Clear any prior PENDING discrepancy for this external_id
-        PaymentDiscrepancy.all_tenants.filter(
-            foundation_id=foundation_id,
-            external_id=external_id,
-            resolution=DiscrepancyResolution.PENDING,
-        ).update(
-            resolution=DiscrepancyResolution.AUTO_SETTLED,
-            resolved_at=timezone.now(),
-        )
+        try:
+            with transaction.atomic():
+                _settle_payment(
+                    payment, gateway_fee, foundation_id, actor_role='RECONCILIATION_AUTO', settled_at=settled_at,
+                )
+                # Clear any prior PENDING discrepancy for this external_id
+                PaymentDiscrepancy.all_tenants.filter(
+                    foundation_id=foundation_id,
+                    external_id=external_id,
+                    resolution=DiscrepancyResolution.PENDING,
+                ).update(
+                    resolution=DiscrepancyResolution.AUTO_SETTLED,
+                    resolved_at=timezone.now(),
+                )
+        except Exception:
+            logger.exception("AUTO_SETTLE_FAILED: external_id=%s payment_id=%s", external_id, payment.id)
+            return 'error'
 
     return 'matched'
 
@@ -377,32 +391,45 @@ def resolve_discrepancy(
     return discrepancy
 
 
-def _settle_payment_manually(discrepancy: 'PaymentDiscrepancy', resolved_by) -> None:
-    """Settle the discrepancy's linked Payment through the SAME path a gateway
-    webhook uses (receipt number, invoice allocation, balanced ledger journal,
-    settlement events), instead of only flipping its status — which would mark
-    money settled without it ever reaching AR or the double-entry ledger.
+def _settle_payment(
+    payment: Payment, gateway_fee, foundation_id: int, *, actor_role: str, actor_id: str = None, settled_at=None,
+) -> None:
+    """Settle `payment` through the SAME path a gateway webhook uses (receipt
+    number, invoice allocation, balanced ledger journal, settlement events),
+    instead of only flipping its status — which would mark money settled
+    without it ever reaching AR or the double-entry ledger.
 
-    The Payment's own recorded amount is what gets allocated (so an
-    AMOUNT_MISMATCH settles at the amount EduCore holds, not the gateway's);
-    the gateway's reported fee is kept when there is one and net is derived,
-    so `net + fee == amount` and the journal balances.
+    The Payment's own recorded amount is what gets allocated; the gateway's
+    reported fee is kept when there is one and net is derived, so
+    `net + fee == amount` and the journal balances even when the gateway
+    amount differs from the recorded one by up to AMOUNT_TOLERANCE.
     """
     from apps.finance.services.payments import _finalize_payment_settlement
     from educore.middleware.tenancy import tenant_context
 
-    payment = discrepancy.payment
-    if payment.status == PaymentStatus.SETTLED:
-        return
-    fee = discrepancy.gateway_fee or payment.fee or Decimal('0.00')
-    with tenant_context(discrepancy.foundation_id):
+    fee = gateway_fee or payment.fee or Decimal('0.00')
+    with tenant_context(foundation_id):
         _finalize_payment_settlement(
             payment,
             fee=fee,
             net=payment.amount - fee,
-            actor_role='MANUAL_RECONCILIATION',
-            actor_id=str(resolved_by.id) if resolved_by is not None else None,
+            actor_role=actor_role,
+            actor_id=actor_id,
+            settled_at=settled_at,
         )
+
+
+def _settle_payment_manually(discrepancy: 'PaymentDiscrepancy', resolved_by) -> None:
+    """A finance user's MANUAL_SETTLED resolution: settle the discrepancy's
+    linked Payment (an AMOUNT_MISMATCH therefore settles at the amount EduCore
+    holds, not the gateway's)."""
+    payment = discrepancy.payment
+    if payment.status == PaymentStatus.SETTLED:
+        return
+    _settle_payment(
+        payment, discrepancy.gateway_fee, discrepancy.foundation_id,
+        actor_role='MANUAL_RECONCILIATION', actor_id=str(resolved_by.id) if resolved_by is not None else None,
+    )
 
 
 def _batch_summary(batch: 'GatewaySettlementBatch', dry_run: bool) -> dict:
