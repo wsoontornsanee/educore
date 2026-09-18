@@ -7,12 +7,17 @@ from .models import (
     BehaviourReason,
     BehaviourRecord,
     CaseStatus,
+    ClinicOutcome,
+    ClinicPolicy,
+    ClinicVisit,
     CounsellingConfidentiality,
     CounsellingSession,
     CounsellingSessionType,
+    HealthProfile,
     LibraryItem,
     Loan,
     LoanBorrowerType,
+    MedicationStock,
 )
 
 
@@ -319,3 +324,80 @@ class ReturnLoanInputSerializer(serializers.Serializer):
 class MarkLoanLostInputSerializer(serializers.Serializer):
     approved_by_staff_id = serializers.IntegerField(required=True)
     occurred_at = serializers.DateTimeField(required=False, allow_null=True)
+
+
+class ClinicPolicySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ClinicPolicy
+        fields = ['id', 'school', 'teacher_sees_allergies', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'school', 'created_at', 'updated_at']
+
+
+class HealthProfileSerializer(serializers.ModelSerializer):
+    has_medical_alert = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = HealthProfile
+        fields = [
+            'id', 'student', 'blood_type', 'allergies', 'chronic_conditions',
+            'medications', 'emergency_contacts', 'has_medical_alert',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'student', 'created_at', 'updated_at']
+
+
+class MedicationStockSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MedicationStock
+        fields = ['id', 'school', 'name', 'unit', 'quantity', 'expiry_date', 'reorder_level', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class ClinicVisitSerializer(serializers.ModelSerializer):
+    student_name = serializers.SerializerMethodField()
+    handled_by_name = serializers.SerializerMethodField()
+    medication_name = serializers.CharField(source='medication_given.name', read_only=True, default=None)
+    complaint = serializers.SerializerMethodField()
+    treatment = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ClinicVisit
+        fields = [
+            'id', 'school', 'student', 'student_name', 'occurred_at', 'complaint', 'treatment',
+            'vitals', 'medication_given', 'medication_name', 'medication_quantity_used', 'outcome',
+            'handled_by', 'handled_by_name', 'guardian_consent_confirmed', 'guardian_consent_note',
+            'guardian_notified_at', 'created_at', 'updated_at',
+        ]
+        read_only_fields = fields
+
+    def get_student_name(self, obj):
+        return obj.student.person.full_name if (obj.student.person and obj.student.person.full_name) else obj.student.nis
+
+    def get_handled_by_name(self, obj):
+        return obj.handled_by.person.full_name if (obj.handled_by and obj.handled_by.person) else ''
+
+    def get_complaint(self, obj):
+        from .crypto import decrypt_note
+        return decrypt_note(obj.complaint_encrypted) if obj.complaint_encrypted else ''
+
+    def get_treatment(self, obj):
+        from .crypto import decrypt_note
+        return decrypt_note(obj.treatment_encrypted) if obj.treatment_encrypted else ''
+
+
+class RecordClinicVisitInputSerializer(serializers.Serializer):
+    student_id = serializers.IntegerField(required=True)
+    complaint = serializers.CharField(required=True, min_length=1)
+    treatment = serializers.CharField(required=False, allow_blank=True, default='')
+    vitals = serializers.DictField(required=False, default=dict)
+    outcome = serializers.ChoiceField(choices=ClinicOutcome.choices, required=True)
+    medication_id = serializers.IntegerField(required=False, allow_null=True)
+    medication_quantity = serializers.IntegerField(required=False, allow_null=True)
+    guardian_consent_confirmed = serializers.BooleanField(required=False, default=False)
+    guardian_consent_note = serializers.CharField(required=False, allow_blank=True, default='')
+    occurred_at = serializers.DateTimeField(required=False, allow_null=True)
+
+
+class StudentMedicalAlertSerializer(serializers.Serializer):
+    has_medical_alert = serializers.BooleanField()
+    allergies = serializers.ListField(child=serializers.CharField(), required=False, default=list)
