@@ -2,6 +2,12 @@
 
 {% block title %}Masuk — EduCore{% endblock %}
 
+{% block extra_head %}
+{% if google_client_id %}
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+{% endif %}
+{% endblock %}
+
 {% block content %}
 <div style="display: flex; justify-content: center; align-items: center; min-height: 70vh; padding: 24px;">
   <div style="background: #FFFFFF; border: 1px solid var(--color-line, #E2E8F0); width: 100%; max-width: 440px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); border-radius: 0px;">
@@ -96,6 +102,7 @@
           </svg>
           Masuk dengan Google Workspace
         </button>
+        <div id="g_id_real_button" style="display: none;"></div>
 
         <!-- Microsoft SSO Button -->
         <button
@@ -136,32 +143,17 @@ function showSSOError(message) {
   }
 }
 
-async function handleSSOClick(provider) {
-  const nextParam = new URLSearchParams(window.location.search).get('next') || '{{ next }}';
+const GOOGLE_CLIENT_ID = '{{ google_client_id|escapejs }}';
 
-  // If a global provider client exists (e.g. google.accounts.id or msalInstance),
-  // it can be invoked here. In demo or test mode, a prompt is provided.
-  let idToken = window.__EDUCORE_MOCK_SSO_TOKEN__;
-  if (!idToken) {
-    // Check if custom provider callback hook exists
-    if (typeof window.requestProviderToken === 'function') {
-      try {
-        idToken = await window.requestProviderToken(provider);
-      } catch (err) {
-        showSSOError('Gagal memperoleh token autentikasi dari ' + provider);
-        return;
-      }
-    }
-  }
-
-  if (!idToken) {
-    // Prompt fallback for development or browser testing
-    idToken = prompt('Masukkan ID Token ' + (provider === 'google' ? 'Google' : 'Microsoft') + ' untuk pengujian SSO:');
-    if (!idToken) return;
-  }
-
+async function exchangeSSOToken(provider, idToken, nextParam) {
   const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
     document.querySelector('input[name="csrfmiddlewaretoken"]')?.value;
+
+  const foundationId = {{ sso_foundation_id|default:"null" }};
+  if (!foundationId) {
+    showSSOError('Login SSO belum tersedia: tidak dapat menentukan yayasan secara otomatis. Hubungi Tata Usaha.');
+    return;
+  }
 
   try {
     const response = await fetch('/web/auth/sso/login/', {
@@ -174,6 +166,7 @@ async function handleSSOClick(provider) {
         provider: provider,
         id_token: idToken,
         next: nextParam,
+        foundation_id: foundationId,
       }),
     });
 
@@ -190,6 +183,57 @@ async function handleSSOClick(provider) {
   } catch (err) {
     showSSOError('Terjadi kesalahan jaringan saat menghubungkan ke server.');
   }
+}
+
+// Real Google Identity Services wiring — only active when a client ID is configured.
+function handleGoogleCredential(response) {
+  const nextParam = new URLSearchParams(window.location.search).get('next') || '{{ next }}';
+  exchangeSSOToken('google', response.credential, nextParam);
+}
+
+if (GOOGLE_CLIENT_ID) {
+  window.addEventListener('load', function() {
+    if (!window.google || !window.google.accounts || !window.google.accounts.id) return;
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleGoogleCredential,
+    });
+    google.accounts.id.renderButton(document.getElementById('g_id_real_button'), {
+      theme: 'outline', size: 'large', width: 380, text: 'signin_with',
+    });
+  });
+}
+
+async function handleSSOClick(provider) {
+  // Real Google Identity Services is configured: proxy the click to Google's
+  // own rendered button so the actual account picker / consent popup runs.
+  if (provider === 'google' && GOOGLE_CLIENT_ID) {
+    const realBtn = document.querySelector('#g_id_real_button div[role="button"]');
+    if (realBtn) {
+      realBtn.click();
+      return;
+    }
+  }
+
+  const nextParam = new URLSearchParams(window.location.search).get('next') || '{{ next }}';
+
+  // No real provider SDK wired for this button (e.g. Microsoft, or Google
+  // not yet configured): fall back to a manual token prompt for dev testing.
+  let idToken = window.__EDUCORE_MOCK_SSO_TOKEN__;
+  if (!idToken && typeof window.requestProviderToken === 'function') {
+    try {
+      idToken = await window.requestProviderToken(provider);
+    } catch (err) {
+      showSSOError('Gagal memperoleh token autentikasi dari ' + provider);
+      return;
+    }
+  }
+  if (!idToken) {
+    idToken = prompt('Masukkan ID Token ' + (provider === 'google' ? 'Google' : 'Microsoft') + ' untuk pengujian SSO:');
+    if (!idToken) return;
+  }
+
+  exchangeSSOToken(provider, idToken, nextParam);
 }
 </script>
 {% endblock %}

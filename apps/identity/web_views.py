@@ -38,7 +38,32 @@ class WebLoginView(View):
         return render(request, 'pages/login.html', {
             'next': next_url,
             'error_message': None,
+            **self._sso_context(),
         })
+
+    def _sso_context(self):
+        from django.conf import settings
+        return {
+            'sso_foundation_id': self._resolve_pre_auth_foundation_id(),
+            'google_client_id': settings.SOCIAL_AUTH_GOOGLE_CLIENT_ID,
+        }
+
+    def _resolve_pre_auth_foundation_id(self):
+        """Best-effort foundation for the SSO button before the user is known.
+
+        There is no per-foundation subdomain/slug in this single-host deployment,
+        so a pre-auth SSO click can only pass a foundation_id when the whole
+        install currently serves exactly one active Foundation (true today —
+        the P0 pilot only seeds one). A genuine multi-foundation SaaS rollout
+        needs a real tenant-selection step before this button is usable and is
+        out of scope here.
+        """
+        from apps.identity.models import Foundation
+
+        active = Foundation.objects.filter(status=Foundation.STATUS_ACTIVE)[:2]
+        if len(active) == 1:
+            return active[0].id
+        return None
 
     def post(self, request):
         identifier = request.POST.get('identifier', '').strip()
@@ -50,6 +75,7 @@ class WebLoginView(View):
                 'next': next_url,
                 'identifier': identifier,
                 'error_message': _("Nomor HP / Email dan kata sandi wajib diisi."),
+                **self._sso_context(),
             }, status=400)
 
         user = authenticate(request, username=identifier, password=password)
@@ -63,6 +89,7 @@ class WebLoginView(View):
                         'next': next_url,
                         'identifier': identifier,
                         'error_message': _("Akun pengguna tidak aktif. Hubungi Tata Usaha."),
+                        **self._sso_context(),
                     }, status=403)
             except (User.DoesNotExist, User.MultipleObjectsReturned):
                 pass
@@ -71,6 +98,7 @@ class WebLoginView(View):
                 'next': next_url,
                 'identifier': identifier,
                 'error_message': _("Kredensial tidak valid atau akun terkunci. Periksa kembali data Anda."),
+                **self._sso_context(),
             }, status=401)
 
         if not user.is_active:
@@ -78,6 +106,7 @@ class WebLoginView(View):
                 'next': next_url,
                 'identifier': identifier,
                 'error_message': _("Akun pengguna tidak aktif. Hubungi Tata Usaha."),
+                **self._sso_context(),
             }, status=403)
 
         # Establish Django session
