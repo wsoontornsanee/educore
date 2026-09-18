@@ -18,6 +18,7 @@ from django.views.generic import TemplateView
 from apps.attendance.models import AttendanceDay, AttendanceStatus
 from apps.finance.models import Invoice, InvoiceStatus
 from educore.middleware.tenancy import get_current_foundation_id, set_current_foundation_id, tenant_context
+from .inbox import get_inbox_for_user
 from .landing import resolve_post_login_redirect
 from .models import RoleAssignment, Student
 from .nav import get_nav_for_user
@@ -523,3 +524,18 @@ class TeacherAgendaLandingView(_ConsoleLandingView):
 class FinanceBillingLandingView(_ConsoleLandingView):
     page_title = _lazy('Tagihan & pembayaran')
     required_permission = 'finance.invoice.read'
+
+
+class ConsoleInboxView(LoginRequiredMixin, TemplateView):
+    """GET /web/home/inbox/ — the user's own "Kotak tugas": pending items
+    they can act on, aggregated by apps.identity.inbox. No RBAC gate of its
+    own: every source in get_inbox_for_user applies its own permission /
+    ownership predicate, so a user with nothing to act on just sees the
+    empty state."""
+    template_name = 'pages/console_inbox.html'
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        foundation_id = get_current_foundation_id() or getattr(self.request.user, 'foundation_id', None)
+        ctx['sections'] = get_inbox_for_user(self.request.user, foundation_id) if foundation_id else []
+        return ctx

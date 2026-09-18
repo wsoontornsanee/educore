@@ -7,12 +7,12 @@ per-role item list drifts from what a role can actually reach (see the
 Notion investigation that found Finance Officer/Canteen Operator/Clinic
 Officer lacked grades.read despite the source mockup's role lists implying
 otherwise). permission=None means "always shown to any authenticated
-staff user" (used only for the placeholder task inbox item, which has no
-real backing feature yet either).
+staff user" (used only for the task inbox item: every source it lists
+applies its own permission/ownership check, see apps.identity.inbox).
 
-Only 'permission_slips' has a real destination (permission-slip-console-page).
-Every other item still routes to the 'console:coming_soon' placeholder in
-this table (kept so a future task can flip one item's url_name the moment
+Only 'inbox' and 'permission_slips' have real destinations (console-inbox,
+permission-slip-console-page). Every other item still routes to the
+'console:coming_soon' placeholder in this table (kept so a future task can flip one item's url_name the moment
 its real page ships), but get_nav_for_user hides every coming_soon item
 from the rendered nav — reported as a bug (2026-09-19): a user with full
 permissions saw the whole menu, clicked into modules that only ever showed
@@ -39,7 +39,7 @@ COMING_SOON_URL_NAME = "console:coming_soon"
 
 NAV_GROUPS = [
     {"label": _("Beranda"), "items": [
-        {"id": "inbox", "label": _("Kotak tugas"), "permission": None, "url_name": "console:coming_soon"},
+        {"id": "inbox", "label": _("Kotak tugas"), "permission": None, "url_name": "console-inbox"},
     ]},
     {"label": _("Akademik"), "items": [
         {"id": "roster", "label": _("Siswa & kelas"), "permission": "student_records.read", "url_name": "console:coming_soon"},
