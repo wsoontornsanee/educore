@@ -14,6 +14,7 @@ from apps.attendance.models import (
     AttendanceStatus,
 )
 from apps.attendance.services import approve_absence_request, reject_absence_request, submit_absence_request
+from apps.core.models import AuditEvent
 from apps.identity.models import Foundation, Guardian, GuardianLink, Person, RoleAssignment, School, Staff, Student, User
 from apps.identity.rbac import assign_role
 from educore.middleware.tenancy import set_current_foundation_id
@@ -343,6 +344,68 @@ class AbsenceRequestTestCase(TestCase):
         day22 = AttendanceDay.all_tenants.get(student=self.student, date=datetime.date(2026, 9, 22))
         self.assertEqual(day22.status, AttendanceStatus.SAKIT)
         self.assertTrue(day22.is_override)
+
+        # approve_absence_request now delegates each date's day-level override to the
+        # shared override_attendance_day service instead of hand-rolling it, so one
+        # 'attendance.day.overridden' AuditEvent must exist per covered date (20, 21, 22),
+        # in addition to the existing per-request 'attendance.absence_request.approved'
+        # summary event.
+        day_override_events = AuditEvent.objects.filter(
+            action='attendance.day.overridden', entity_type='AttendanceDay',
+        ).order_by('diff__date')
+        self.assertEqual(day_override_events.count(), 3)
+        self.assertEqual(day_override_events[0].diff['date'], '2026-09-20')
+        self.assertEqual(day_override_events[0].diff['old_status'], AttendanceStatus.ALPA)
+        self.assertEqual(day_override_events[0].diff['new_status'], AttendanceStatus.SAKIT)
+        self.assertEqual(day_override_events[1].diff['date'], '2026-09-21')
+        self.assertEqual(day_override_events[1].diff['old_status'], AttendanceStatus.ALPA)
+        self.assertEqual(day_override_events[2].diff['date'], '2026-09-22')
+
+        summary_event = AuditEvent.objects.get(action='attendance.absence_request.approved', entity_id=req.id)
+        self.assertEqual(summary_event.diff['date_from'], '2026-09-20')
+
+    def test_staff_approval_flips_gate_sourced_day_to_manual(self):
+        # A day that already has a GATE-derived AttendanceDay (e.g. the student badged in
+        # that morning before the absence request was approved) must still flip to
+        # source=MANUAL on approval, matching apps.campus.services_clinic's identical
+        # override_attendance_day-consolidation precedent — override_attendance_day itself
+        # never touches `source`, so the caller must set it explicitly.
+        AttendanceDay.objects.create(
+            foundation_id=self.foundation.id,
+            school=self.school,
+            student=self.student,
+            date=datetime.date(2026, 9, 20),
+            status=AttendanceStatus.HADIR,
+            source=AttendanceSource.GATE,
+        )
+
+        req = AbsenceRequest.objects.create(
+            foundation_id=self.foundation.id,
+            school=self.school,
+            student=self.student,
+            requested_by=self.parent_user,
+            date_from=datetime.date(2026, 9, 20),
+            date_to=datetime.date(2026, 9, 20),
+            type=AbsenceType.SAKIT,
+            reason="Sakit demam",
+            status=AbsenceRequestStatus.PENDING,
+        )
+
+        self.client.force_authenticate(user=self.teacher_user)
+        response = self.client.post(
+            f"/api/v1/attendance/absence-requests/{req.id}/approve/",
+            {'note': 'Surat dokter terverifikasi'},
+            format='json',
+            HTTP_X_FOUNDATION_ID=str(self.foundation.id),
+        )
+        self.assertEqual(response.status_code, 200)
+
+        set_current_foundation_id(self.foundation.id)
+        day20 = AttendanceDay.all_tenants.get(student=self.student, date=datetime.date(2026, 9, 20))
+        self.assertEqual(day20.status, AttendanceStatus.SAKIT)
+        self.assertEqual(day20.source, AttendanceSource.MANUAL)
+        self.assertEqual(day20.original_status, AttendanceStatus.HADIR)
+        self.assertTrue(day20.is_override)
 
     def test_staff_rejection_does_not_modify_attendance(self):
         req = AbsenceRequest.objects.create(

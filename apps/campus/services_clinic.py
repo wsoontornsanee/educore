@@ -170,31 +170,20 @@ def _apply_sakit_override(visit: ClinicVisit) -> None:
     """LIF-003: get-or-create today's AttendanceDay for the visit's student, then reuse the
     shared day-level override service (design doc §6) so the mutation is audited the same
     way as any other staff attendance override."""
-    from apps.attendance.models import AttendanceDay, AttendanceSource, AttendanceStatus
-    from apps.attendance.services import override_attendance_day
+    from apps.attendance.models import AttendanceStatus
+    from apps.attendance.services import get_or_flip_attendance_day_to_manual, override_attendance_day
 
     note_text, user = _clinic_override_note_and_user(visit)
     visit_date = visit.occurred_at.date()
+    actor_id = str(user.id) if user and getattr(user, 'id', None) else ''
 
-    att_day = AttendanceDay.all_tenants.filter(
+    att_day = get_or_flip_attendance_day_to_manual(
         foundation_id=visit.foundation_id,
         school=visit.school,
         student=visit.student,
         date=visit_date,
-        deleted_at__isnull=True,
-    ).first()
-
-    if not att_day:
-        att_day = AttendanceDay.objects.create(
-            foundation_id=visit.foundation_id,
-            school=visit.school,
-            student=visit.student,
-            date=visit_date,
-            source=AttendanceSource.MANUAL,
-        )
-    elif att_day.source != AttendanceSource.MANUAL:
-        att_day.source = AttendanceSource.MANUAL
-        att_day.save(update_fields=['source', 'updated_at'])
+        actor_id=actor_id,
+    )
 
     override_attendance_day(
         foundation_id=visit.foundation_id,
