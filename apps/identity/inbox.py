@@ -17,6 +17,11 @@ corresponding decide endpoint:
   - timetable substitutions: personal — the ones assigned to the user's own
     Staff row, no permission needed.
 
+Every source returns (total, items): total is a COUNT over the pending
+rows and items only the first `limit` of them, so a long queue never loads
+every row — and the nav badge (get_inbox_count) reuses the exact same
+sources with limit=0, so its number can never drift from the page's.
+
 Other apps' models are imported lazily inside each source (the same
 leaf-to-leaf pattern apps.foundation.approvals uses) so apps.identity keeps
 no import-time dependency on them.
@@ -64,9 +69,9 @@ def _money(amount, currency):
     return f"{currency} {formats.number_format(amount, decimal_pos=0, force_grouping=True)}"
 
 
-def _finance_approvals(user, foundation_id):
+def _finance_approvals(user, foundation_id, limit):
     if not is_foundation_admin(user, foundation_id):
-        return []
+        return 0, []
     from apps.foundation.approvals import (
         APPROVAL_TYPE_DISCOUNT, APPROVAL_TYPE_REFUND, APPROVAL_TYPE_WAIVER, list_foundation_approvals,
     )
@@ -76,8 +81,9 @@ def _finance_approvals(user, foundation_id):
         APPROVAL_TYPE_WAIVER: _("Keringanan"),
         APPROVAL_TYPE_REFUND: _("Pengembalian dana"),
     }
+    rows = list_foundation_approvals(foundation_id, status='pending')
     items = []
-    for row in list_foundation_approvals(foundation_id, status='pending'):
+    for row in rows[:limit]:
         if row['type'] == APPROVAL_TYPE_DISCOUNT:
             amount = f"{row['amount']}%"
         else:
@@ -87,18 +93,18 @@ def _finance_approvals(user, foundation_id):
             detail=f"{amount} · {row['reason']}",
             requested_at=parse_datetime(row['requested_at']),
         ))
-    return items
+    return len(rows), items
 
 
-def _write_offs(user, foundation_id):
+def _write_offs(user, foundation_id, limit):
     if not is_foundation_admin(user, foundation_id):
-        return []
+        return 0, []
     from apps.finance.models import InvoiceWriteOffRequest, InvoiceWriteOffStatus
 
     qs = InvoiceWriteOffRequest.objects.filter(
         foundation_id=foundation_id, status=InvoiceWriteOffStatus.PENDING, deleted_at__isnull=True,
     ).select_related('invoice__student__person').order_by('-created_at')
-    return [
+    return qs.count(), [
         InboxItem(
             title=_("Hapus buku %(number)s — %(student)s") % {
                 'number': r.invoice.number, 'student': r.invoice.student.person.full_name,
@@ -106,40 +112,42 @@ def _write_offs(user, foundation_id):
             detail=f"{_money(r.amount, r.currency)} · {r.reason}",
             requested_at=r.created_at,
         )
-        for r in qs
+        for r in qs[:limit]
     ]
 
 
-def _absence_requests(user, foundation_id):
+def _absence_requests(user, foundation_id, limit):
     scope = _school_scope(user, foundation_id, 'attendance.write')
     if scope is not None and not scope:
-        return []
+        return 0, []
     from apps.attendance.models import AbsenceRequest, AbsenceRequestStatus
 
     qs = AbsenceRequest.objects.filter(
         foundation_id=foundation_id, status=AbsenceRequestStatus.PENDING, deleted_at__isnull=True,
     ).select_related('student__person').order_by('-created_at')
-    return [
+    qs = _in_scope(qs, scope, 'school_id')
+    return qs.count(), [
         InboxItem(
             title=f"{r.student.person.full_name} — {r.get_type_display()}",
             detail=f"{r.date_from:%d/%m/%Y} – {r.date_to:%d/%m/%Y} · {r.reason}",
             requested_at=r.created_at,
         )
-        for r in _in_scope(qs, scope, 'school_id')
+        for r in qs[:limit]
     ]
 
 
-def _report_cards(user, foundation_id):
+def _report_cards(user, foundation_id, limit):
     scope = _school_scope(user, foundation_id, 'school_config.write')
     if scope is not None and not scope:
-        return []
+        return 0, []
     from apps.academic.models import ReportCard, ReportCardStatus
 
     qs = ReportCard.objects.filter(
         foundation_id=foundation_id, status=ReportCardStatus.PENDING_REVIEW, is_current=True,
         deleted_at__isnull=True,
     ).select_related('student__person', 'class_group', 'term').order_by('-created_at')
-    return [
+    qs = _in_scope(qs, scope, 'class_group__school_id')
+    return qs.count(), [
         InboxItem(
             title=_("Rapor %(student)s — %(class_group)s") % {
                 'student': r.student.person.full_name, 'class_group': r.class_group.name,
@@ -147,16 +155,16 @@ def _report_cards(user, foundation_id):
             detail=r.term.name,
             requested_at=r.created_at,
         )
-        for r in _in_scope(qs, scope, 'class_group__school_id')
+        for r in qs[:limit]
     ]
 
 
-def _substitutions(user, foundation_id):
+def _substitutions(user, foundation_id, limit):
     staff_ids = list(Staff.all_tenants.filter(
         foundation_id=foundation_id, user=user, deleted_at__isnull=True,
     ).values_list('id', flat=True))
     if not staff_ids:
-        return []
+        return 0, []
     from apps.academic.models import SubstitutionStatus, TimetableSubstitution
 
     qs = TimetableSubstitution.objects.filter(
@@ -165,7 +173,7 @@ def _substitutions(user, foundation_id):
     ).select_related(
         'slot__class_subject__class_group', 'slot__class_subject__subject', 'original_teacher__person',
     ).order_by('date', 'slot__period_no')
-    return [
+    return qs.count(), [
         InboxItem(
             title=_("Pengganti %(subject)s — %(class_group)s") % {
                 'subject': s.slot.class_subject.subject.name, 'class_group': s.slot.class_subject.class_group.name,
@@ -176,7 +184,7 @@ def _substitutions(user, foundation_id):
             },
             requested_at=s.created_at,
         )
-        for s in qs
+        for s in qs[:limit]
     ]
 
 
@@ -199,12 +207,13 @@ def get_inbox_for_user(user, foundation_id):
     sections = []
     with tenant_context(foundation_id):
         for section_id, label, source in _SOURCES:
-            items = source(user, foundation_id)
-            if items:
-                sections.append({
-                    'id': section_id,
-                    'label': label,
-                    'total': len(items),
-                    'items': items[:ITEMS_PER_SECTION],
-                })
+            total, items = source(user, foundation_id, ITEMS_PER_SECTION)
+            if total:
+                sections.append({'id': section_id, 'label': label, 'total': total, 'items': items})
     return sections
+
+
+def get_inbox_count(user, foundation_id):
+    """Total pending items across every source, for the nav badge."""
+    with tenant_context(foundation_id):
+        return sum(source(user, foundation_id, 0)[0] for _id, _label, source in _SOURCES)
