@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from apps.core.services import audit
 
-from .models import ComponentHeartbeat, DailyComponentStatus, ServiceComponent, StatusIncident
+from .models import ComponentHeartbeat, DailyComponentStatus, ServiceComponent, StatusIncident, StatusSubscriber
 
 BAR_COLORS = {
     ServiceComponent.STATUS_OPERATIONAL: '#0E7A4F',
@@ -165,3 +165,9 @@ def update_incident(incident, *, actor, **fields):
 def list_published_incidents():
     """Published incidents, newest occurred_at first (StatusIncident.Meta.ordering)."""
     return StatusIncident.objects.filter(published=True).prefetch_related('affected_components')
+
+
+def subscribe_email(email):
+    """Idempotently capture an email for incident-update notifications (no delivery built yet)."""
+    subscriber, _created = StatusSubscriber.objects.get_or_create(email=email)
+    return subscriber

@@ -5,6 +5,7 @@ matching apps.core.AuditEvent/DomainEvent/JobRun/IdempotencyRecord and
 apps.identity.OTPChallenge. See
 docs/superpowers/specs/2026-09-18-service-status-page-design.md.
 """
+import uuid
 from django.db import models
 
 
@@ -109,3 +110,17 @@ class StatusIncident(models.Model):
 
     def __str__(self):
         return f"[{self.severity}] {self.title_id}"
+
+
+class StatusSubscriber(models.Model):
+    email = models.EmailField(unique=True)
+    subscribed_at = models.DateTimeField(auto_now_add=True)
+    unsubscribe_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+
+    class Meta:
+        db_table = 'status_subscribers'
+        verbose_name = 'Pelanggan Pembaruan Status'
+        verbose_name_plural = 'Daftar Pelanggan Pembaruan Status'
+
+    def __str__(self):
+        return self.email
