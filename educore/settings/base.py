@@ -103,6 +103,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'django.template.context_processors.i18n',
+                'educore.context_processors.static_version',
             ],
         },
     },
@@ -173,6 +174,27 @@ LOCALE_PATHS = [BASE_DIR / 'locale']
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'frontend' / 'collected_static'
 STATICFILES_DIRS = [BASE_DIR / 'frontend' / 'static'] if (BASE_DIR / 'frontend' / 'static').exists() else []
+
+# Cache-busting query string for hand-linked static assets (base.html's <link>
+# tags aren't run through {% static %}/ManifestStaticFilesStorage). Without
+# this, a deploy that changes site.css/app.css keeps serving the previous
+# version from the browser and CDN edge cache until it naturally expires.
+# Derived from the deployed commit so it changes exactly once per deploy;
+# falls back to process start time in an environment with no .git (e.g. a
+# tarball deploy) so it still busts cache across restarts.
+def _static_version():
+    import subprocess
+    try:
+        return subprocess.run(
+            ['git', 'rev-parse', '--short=12', 'HEAD'],
+            cwd=BASE_DIR, capture_output=True, text=True, check=True, timeout=5,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        import time
+        return str(int(time.time()))
+
+
+STATIC_VERSION = _static_version()
 
 # Media files
 MEDIA_URL = '/media/'
