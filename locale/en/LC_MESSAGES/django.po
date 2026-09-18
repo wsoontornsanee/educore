@@ -6874,3 +6874,171 @@ msgstr "Awaiting verification"
 
 msgid "Berhasil"
 msgstr "Successful"
+
+#: frontend/templates/pages/gate_console_page.html:13
+msgid "Kehadiran & gerbang — EduCore"
+msgstr "Attendance & gate — EduCore"
+
+#: frontend/templates/pages/gate_console_page.html:30
+msgid "Memuat data gerbang…"
+msgstr "Loading gate data…"
+
+#: frontend/templates/pages/gate_console_page.html:34
+msgid "Belum ada sekolah yang dapat Anda akses."
+msgstr "No school is available to you yet."
+
+#: frontend/templates/components/_gate_live_feed.html:9
+msgid "Hadir"
+msgstr "Present"
+
+#: frontend/templates/components/_gate_live_feed.html:11
+msgid "Sakit"
+msgstr "Sick"
+
+#: frontend/templates/components/_gate_live_feed.html:12
+msgid "Izin"
+msgstr "Excused"
+
+#: frontend/templates/components/_gate_live_feed.html:13
+msgid "Alpa"
+msgstr "Unexcused"
+
+#: frontend/templates/components/_gate_live_feed.html:14
+msgid "Pindai ditolak"
+msgstr "Rejected scans"
+
+#: frontend/templates/components/_gate_live_feed.html:18
+msgid "Perangkat gerbang"
+msgstr "Gate devices"
+
+#: frontend/templates/components/_gate_live_feed.html:22
+msgid "Perangkat"
+msgstr "Device"
+
+#: frontend/templates/components/_gate_live_feed.html:22
+msgid "Arah"
+msgstr "Direction"
+
+#: frontend/templates/components/_gate_live_feed.html:22
+msgid "Detak terakhir"
+msgstr "Last heartbeat"
+
+#: frontend/templates/components/_gate_live_feed.html:36
+msgid "Belum ada perangkat gerbang terdaftar untuk sekolah ini."
+msgstr "No gate devices are registered for this school yet."
+
+#: frontend/templates/components/_gate_live_feed.html:41
+msgid "Pindai hari ini"
+msgstr "Today's scans"
+
+#: frontend/templates/components/_gate_live_feed.html:46
+msgid "Nama"
+msgstr "Name"
+
+#: frontend/templates/components/_gate_live_feed.html:55
+msgid "Tidak dikenali"
+msgstr "Unrecognised"
+
+#: frontend/templates/components/_gate_live_feed.html:66
+msgid "Pindai ganda"
+msgstr "Duplicate scan"
+
+#: frontend/templates/components/_gate_live_feed.html:77
+msgid "Belum ada pindai gerbang hari ini."
+msgstr "No gate scans yet today."
+
+#: frontend/templates/pages/canteen_console_page.html:13
+msgid "Kantin & dompet — EduCore"
+msgstr "Canteen & wallet — EduCore"
+
+#: frontend/templates/pages/canteen_console_page.html:28
+msgid "Penjualan hari ini"
+msgstr "Sales today"
+
+#: frontend/templates/pages/canteen_console_page.html:29
+msgid "Transaksi hari ini"
+msgstr "Transactions today"
+
+#: frontend/templates/pages/canteen_console_page.html:30
+msgid "Dibuat offline"
+msgstr "Created offline"
+
+#: frontend/templates/pages/canteen_console_page.html:31
+msgid "Dompet aktif"
+msgstr "Active wallets"
+
+#: frontend/templates/pages/canteen_console_page.html:32
+msgid "Dompet dibekukan"
+msgstr "Frozen wallets"
+
+#: frontend/templates/pages/canteen_console_page.html:33
+msgid "Total saldo dompet"
+msgstr "Total wallet balance"
+
+#: frontend/templates/pages/canteen_console_page.html:37
+msgid "Merchant"
+msgstr "Merchant"
+
+#: frontend/templates/pages/canteen_console_page.html:43
+msgid "Terminal aktif"
+msgstr "Active terminals"
+
+#: frontend/templates/pages/canteen_console_page.html:43
+msgid "Transaksi"
+msgstr "Transactions"
+
+#: frontend/templates/pages/canteen_console_page.html:43
+msgid "Penjualan"
+msgstr "Sales"
+
+#: frontend/templates/pages/canteen_console_page.html:60
+msgid "Belum ada merchant terdaftar untuk sekolah ini."
+msgstr "No merchants are registered for this school yet."
+
+#: frontend/templates/pages/canteen_console_page.html:64
+msgid "Transaksi POS terbaru"
+msgstr "Recent POS transactions"
+
+#: frontend/templates/pages/canteen_console_page.html:90
+msgid "Belum ada transaksi POS."
+msgstr "No POS transactions yet."
+
+#: frontend/templates/pages/exam_mode_console_page.html:13
+msgid "Mode ujian — EduCore"
+msgstr "Exam mode — EduCore"
+
+#: frontend/templates/pages/exam_mode_console_page.html:30
+msgid "Daftar ujian"
+msgstr "Exams"
+
+#: frontend/templates/pages/exam_mode_console_page.html:36
+msgid "Jendela waktu"
+msgstr "Time window"
+
+#: frontend/templates/pages/exam_mode_console_page.html:47
+msgid "menit"
+msgstr "min"
+
+#: frontend/templates/pages/exam_mode_console_page.html:54
+msgid "Berlangsung"
+msgstr "In progress"
+
+#: frontend/templates/pages/exam_mode_console_page.html:55
+msgid "Akan datang"
+msgstr "Upcoming"
+
+#: frontend/templates/pages/exam_mode_console_page.html:64
+msgid "Pantau"
+msgstr "Monitor"
+
+#: frontend/templates/pages/exam_mode_console_page.html:70
+msgid "Belum ada ujian untuk sekolah ini."
+msgstr "No exams for this school yet."
+
+#: frontend/templates/pages/exam_proctor_console_page.html:14
+msgid "Konsol Pengawas Ujian — EduCore"
+msgstr "Exam proctor console — EduCore"
+
+#: frontend/templates/components/_console_school_select.html:9
+msgid "Sekolah"
+msgstr "School"

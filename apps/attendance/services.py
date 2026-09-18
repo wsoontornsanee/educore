@@ -717,7 +717,7 @@ def get_live_gate_feed(
     if since_dt:
         qs = qs.filter(created_at__gt=since_dt).order_by('created_at')
     else:
-        today = timezone.now().date()
+        today = timezone.localdate()
         qs = qs.filter(occurred_at__date=today).order_by('-created_at')
 
     raw_events = list(qs[:limit])
@@ -736,7 +736,7 @@ def get_live_gate_feed(
         next_cursor = now_dt.isoformat()
 
     # Map today's daily attendance for students to enrich status badge
-    today = timezone.now().date()
+    today = timezone.localdate()
     student_ids = [e.student_id for e in raw_events if e.student_id]
     att_map = {}
     if student_ids:
@@ -2010,3 +2010,22 @@ def mark_absent_students_for_school(
     }
 
 
+
+
+def get_today_attendance_counts(foundation_id, school, on_date=None) -> Dict[str, int]:
+    """Per-status headcount of the school's AttendanceDay rows for `on_date`
+    (default: today in the school's own timezone) — the daily-attendance strip
+    on the web gate console. Every AttendanceStatus key is always present."""
+    from django.db.models import Count
+
+    from apps.attendance.models import AttendanceDay, AttendanceStatus
+
+    if on_date is None:
+        on_date = timezone.now().astimezone(get_school_timezone(school)).date()
+    counts = {status: 0 for status in AttendanceStatus.values}
+    rows = AttendanceDay.objects.filter(
+        foundation_id=foundation_id, school=school, date=on_date, deleted_at__isnull=True,
+    ).values('status').annotate(n=Count('id'))
+    for row in rows:
+        counts[row['status']] = row['n']
+    return counts

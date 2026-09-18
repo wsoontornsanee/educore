@@ -1,0 +1,31 @@
+{% comment %}
+Shared visual primitives for the school-side console pages (spec/17: flag-saturated
+Merah, 0px radii, Plus Jakarta Sans / IBM Plex Mono). Include once per page.
+{% endcomment %}
+<style>
+  .cn-page { display: flex; flex-direction: column; gap: 20px; max-width: 1080px; }
+  .cn-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .cn-eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: #8E8178; }
+  .cn-title { margin: 4px 0 0; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 26px; letter-spacing: -.03em; }
+  .cn-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .cn-card { background: #fff; border: 1px solid #E5DDD9; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; }
+  .cn-kpi-value { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 24px; }
+  .cn-kpi-value.is-danger { color: #C8102E; }
+  .cn-section { background: #fff; border: 1px solid #E5DDD9; }
+  .cn-section > h2 { margin: 0; padding: 12px 16px; border-bottom: 1px solid #E5DDD9; font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 14px; }
+  .cn-table-wrap { overflow-x: auto; }
+  .cn-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .cn-table th { text-align: left; padding: 10px 16px; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: #8E8178; border-bottom: 1px solid #E5DDD9; white-space: nowrap; }
+  .cn-table td { padding: 10px 16px; border-bottom: 1px solid #F1EBE8; vertical-align: top; }
+  .cn-table tr:last-child td { border-bottom: 0; }
+  .cn-num { text-align: right; font-family: 'IBM Plex Mono', monospace; white-space: nowrap; }
+  .cn-badge { display: inline-block; padding: 2px 8px; border: 1px solid #E5DDD9; font-size: 12px; font-weight: 600; background: #F9F6F4; color: #5C514A; }
+  .cn-badge.is-ok { background: #ECFDF5; border-color: #A7F3D0; color: #047857; }
+  .cn-badge.is-warn { background: #FFFBEB; border-color: #FDE68A; color: #92400E; }
+  .cn-badge.is-danger { background: #FEF2F2; border-color: #FECACA; color: #B91C1C; }
+  .cn-empty { padding: 28px 16px; text-align: center; color: #8E8178; font-size: 14px; }
+  .cn-muted { color: #8E8178; }
+  .cn-select { padding: 8px 10px; border: 1px solid #E5DDD9; background: #fff; font: inherit; border-radius: 0; }
+  .cn-link { color: #C8102E; font-weight: 600; text-decoration: none; }
+  .cn-link:hover { text-decoration: underline; }
+</style>

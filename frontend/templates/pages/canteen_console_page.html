@@ -1,0 +1,93 @@
+{% extends "base_console.html" %}
+{% load i18n console_format %}
+
+{% comment %}
+Page: Kantin & dompet (spec/07 §5, §6). Read-only school-side monitor.
+Served by apps.wallet.web_views.CanteenConsolePageView at /web/wallet/canteen/.
+All money totals are computed server-side (CUR-026); this page only formats them.
+{% endcomment %}
+
+{% block title %}{% translate "Kantin & dompet — EduCore" %}{% endblock %}
+
+{% block console_content %}
+{% include "components/_console_ui.html" %}
+<main class="cn-page">
+  <div class="cn-head">
+    <div>
+      <span class="cn-eyebrow">{% translate "Operasional" %}</span>
+      <h1 class="cn-title">{% translate "Kantin & dompet" %}</h1>
+    </div>
+    {% include "components/_console_school_select.html" with schools=schools school=school %}
+  </div>
+
+  {% if snapshot %}
+    <div class="cn-kpis">
+      <div class="cn-card"><span class="cn-eyebrow">{% translate "Penjualan hari ini" %}</span><span class="cn-kpi-value">{{ snapshot.sales_total|money:snapshot.currency }}</span></div>
+      <div class="cn-card"><span class="cn-eyebrow">{% translate "Transaksi hari ini" %}</span><span class="cn-kpi-value">{{ snapshot.sales_count }}</span></div>
+      <div class="cn-card"><span class="cn-eyebrow">{% translate "Dibuat offline" %}</span><span class="cn-kpi-value">{{ snapshot.offline_count }}</span></div>
+      <div class="cn-card"><span class="cn-eyebrow">{% translate "Dompet aktif" %}</span><span class="cn-kpi-value">{{ snapshot.wallets_active }}</span></div>
+      <div class="cn-card"><span class="cn-eyebrow">{% translate "Dompet dibekukan" %}</span><span class="cn-kpi-value{% if snapshot.wallets_frozen %} is-danger{% endif %}">{{ snapshot.wallets_frozen }}</span></div>
+      <div class="cn-card"><span class="cn-eyebrow">{% translate "Total saldo dompet" %}</span><span class="cn-kpi-value">{{ snapshot.wallets_balance|money:snapshot.currency }}</span></div>
+    </div>
+
+    <section class="cn-section" aria-labelledby="canteen-merchants-h">
+      <h2 id="canteen-merchants-h">{% translate "Merchant" %}</h2>
+      {% if snapshot.merchants %}
+        <div class="cn-table-wrap">
+          <table class="cn-table">
+            <thead><tr>
+              <th>{% translate "Nama" %}</th><th>{% translate "Jenis" %}</th><th>{% translate "Status" %}</th>
+              <th class="cn-num">{% translate "Terminal aktif" %}</th><th class="cn-num">{% translate "Transaksi" %}</th><th class="cn-num">{% translate "Penjualan" %}</th>
+            </tr></thead>
+            <tbody>
+              {% for m in snapshot.merchants %}
+                <tr>
+                  <td>{{ m.name }}</td>
+                  <td>{{ m.type_label }}</td>
+                  <td>{% if m.is_active %}<span class="cn-badge is-ok">{% translate "Aktif" %}</span>{% else %}<span class="cn-badge">{% translate "Nonaktif" %}</span>{% endif %}</td>
+                  <td class="cn-num">{{ m.active_terminals }}</td>
+                  <td class="cn-num">{{ m.sales_count }}</td>
+                  <td class="cn-num">{{ m.sales_total|money:snapshot.currency }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="cn-empty">{% translate "Belum ada merchant terdaftar untuk sekolah ini." %}</div>
+      {% endif %}
+    </section>
+
+    <section class="cn-section" aria-labelledby="canteen-recent-h">
+      <h2 id="canteen-recent-h">{% translate "Transaksi POS terbaru" %}</h2>
+      {% if snapshot.recent_transactions %}
+        <div class="cn-table-wrap">
+          <table class="cn-table">
+            <thead><tr>
+              <th>{% translate "Waktu" %}</th><th>{% translate "Siswa" %}</th><th>{% translate "Merchant" %}</th><th>{% translate "Status" %}</th><th class="cn-num">{% translate "Total" %}</th>
+            </tr></thead>
+            <tbody>
+              {% for t in snapshot.recent_transactions %}
+                <tr>
+                  <td class="cn-num">{{ t.occurred_at|date:"d M H:i" }}</td>
+                  <td>{{ t.student.person.full_name|default:t.student.nis }}</td>
+                  <td>{{ t.merchant.name }}</td>
+                  <td>
+                    <span class="cn-badge{% if t.status == 'COMPLETED' %} is-ok{% elif t.status == 'REJECTED' %} is-danger{% else %} is-warn{% endif %}">{{ t.get_status_display }}</span>
+                    {% if t.offline_created %}<span class="cn-badge">{% translate "Offline" %}</span>{% endif %}
+                  </td>
+                  <td class="cn-num">{{ t.total|money:snapshot.currency }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="cn-empty">{% translate "Belum ada transaksi POS." %}</div>
+      {% endif %}
+    </section>
+  {% else %}
+    <div class="cn-section"><div class="cn-empty">{% translate "Belum ada sekolah yang dapat Anda akses." %}</div></div>
+  {% endif %}
+</main>
+{% endblock %}
