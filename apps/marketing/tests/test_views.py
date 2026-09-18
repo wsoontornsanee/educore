@@ -63,6 +63,20 @@ class MarketingPagesTests(TestCase):
             response = self.client.get(reverse(name))
             self.assertNotIn(response.status_code, (301, 302, 401, 403))
 
+    def test_compliance_pages_translate_to_english(self):
+        self.client.cookies['django_language'] = 'en'
+        cases = {
+            'marketing:privacy-policy': ('Privacy Policy', 'data controller'),
+            'marketing:dpa': ('Data Processing Agreement', 'Data Processor'),
+            'marketing:data-retention': ('Data Retention', '90 days by default'),
+        }
+        for name, (heading, body_text) in cases.items():
+            response = self.client.get(reverse(name))
+            self.assertEqual(response.headers.get('Content-Language'), 'en')
+            self.assertContains(response, heading)
+            self.assertContains(response, body_text)
+            self.assertNotContains(response, 'Kebijakan Privasi')
+
     def test_defaults_to_indonesian_regardless_of_browser_language(self):
         # A first-time visitor with no django_language cookie must see id-ID
         # (spec/appendix §2.10) even if their browser prefers English —
