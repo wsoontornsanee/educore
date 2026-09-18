@@ -246,3 +246,89 @@ class RecordClinicVisitTests(TestCase):
         self.stock.refresh_from_db()
         self.assertEqual(self.stock.quantity, 49)
         self.assertEqual(visit.medication_quantity_used, 1)
+
+
+from apps.academic.models import ClassEnrollment
+from apps.attendance.models import AttendanceDay, AttendanceStatus
+from apps.identity.models import Guardian, GuardianLink, Person, User
+from apps.notifications.models import NotificationCategory, NotificationIntent
+
+
+def enroll_student_in_class(fx):
+    return ClassEnrollment.objects.create(
+        foundation_id=fx['foundation'].id,
+        student=fx['student'],
+        class_group=fx['class_group'],
+        enrolled_at=_dt.date(2026, 7, 1),
+        is_active=True,
+    )
+
+
+def attach_guardian_to(fx, nik="3471010101019999", full_name="Pak Joko"):
+    person = Person.all_tenants.create(foundation_id=fx['foundation'].id, nik=nik, full_name=full_name)
+    user = User.objects.create(
+        foundation_id=fx['foundation'].id,
+        phone_e164=f"+62818{nik[-7:]}",
+        email=f"{nik}@wali.sch.id",
+        full_name=full_name,
+    )
+    guardian = Guardian.all_tenants.create(foundation_id=fx['foundation'].id, person=person, user=user)
+    GuardianLink.all_tenants.create(
+        foundation_id=fx['foundation'].id, guardian=guardian, student=fx['student'],
+        relation=GuardianLink.RELATION_FATHER, financial_responsible=True,
+    )
+    return guardian
+
+
+class ClinicVisitAttendanceAndNotificationTests(TestCase):
+    def setUp(self):
+        self.fx = build_academic_fixture()
+        enroll_student_in_class(self.fx)
+        self.guardian = attach_guardian_to(self.fx)
+
+    def test_returned_to_class_does_not_touch_attendance_or_notify(self):
+        visit = record_clinic_visit(
+            foundation_id=self.fx['foundation'].id, school=self.fx['school'], student=self.fx['student'],
+            handled_by=self.fx['teacher'], complaint='Pusing ringan', outcome=ClinicOutcome.RETURNED_TO_CLASS,
+        )
+        self.assertIsNone(visit.guardian_notified_at)
+        self.assertFalse(AttendanceDay.objects.filter(student=self.fx['student']).exists())
+        self.assertFalse(NotificationIntent.objects.filter(category=NotificationCategory.CLINIC_INCIDENT).exists())
+
+    def test_sent_home_creates_sakit_override_and_notifies_guardian_and_homeroom(self):
+        visit = record_clinic_visit(
+            foundation_id=self.fx['foundation'].id, school=self.fx['school'], student=self.fx['student'],
+            handled_by=self.fx['teacher'], complaint='Demam tinggi', outcome=ClinicOutcome.SENT_HOME,
+        )
+        visit.refresh_from_db()
+        self.assertIsNotNone(visit.guardian_notified_at)
+
+        att_day = AttendanceDay.objects.get(student=self.fx['student'], date=visit.occurred_at.date())
+        self.assertEqual(att_day.status, AttendanceStatus.SAKIT)
+        self.assertTrue(att_day.is_override)
+
+        intents = NotificationIntent.objects.filter(category=NotificationCategory.CLINIC_INCIDENT)
+        recipient_users = set(intents.values_list('recipient_user_id', flat=True))
+        self.assertIn(self.guardian.user_id, recipient_users)
+        self.assertIn(self.fx['teacher_user'].id, recipient_users)
+
+    def test_referred_also_creates_sakit_override(self):
+        visit = record_clinic_visit(
+            foundation_id=self.fx['foundation'].id, school=self.fx['school'], student=self.fx['student'],
+            handled_by=self.fx['teacher'], complaint='Cedera serius', outcome=ClinicOutcome.REFERRED,
+        )
+        att_day = AttendanceDay.objects.get(student=self.fx['student'], date=visit.occurred_at.date())
+        self.assertEqual(att_day.status, AttendanceStatus.SAKIT)
+
+    def test_sent_home_overrides_existing_attendance_day(self):
+        AttendanceDay.objects.create(
+            foundation_id=self.fx['foundation'].id, school=self.fx['school'], student=self.fx['student'],
+            date=timezone.now().date(), status=AttendanceStatus.HADIR,
+        )
+        record_clinic_visit(
+            foundation_id=self.fx['foundation'].id, school=self.fx['school'], student=self.fx['student'],
+            handled_by=self.fx['teacher'], complaint='Demam', outcome=ClinicOutcome.SENT_HOME,
+        )
+        att_day = AttendanceDay.objects.get(student=self.fx['student'], date=timezone.now().date())
+        self.assertEqual(att_day.status, AttendanceStatus.SAKIT)
+        self.assertEqual(att_day.original_status, AttendanceStatus.HADIR)

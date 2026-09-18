@@ -136,4 +136,129 @@ def record_clinic_visit(
             payload={'visit_id': visit.id, 'student_id': student.id, 'outcome': outcome},
         )
 
+    if outcome in (ClinicOutcome.SENT_HOME, ClinicOutcome.REFERRED):
+        _apply_sakit_override(visit)
+        _dispatch_clinic_incident_notifications(visit)
+
     return visit
+
+
+def _get_homeroom_teacher(student: Student):
+    from apps.academic.models import ClassEnrollment
+
+    enrollment = ClassEnrollment.objects.filter(
+        foundation_id=student.foundation_id,
+        student=student,
+        is_active=True,
+        deleted_at__isnull=True,
+    ).select_related('class_group__homeroom_teacher__person', 'class_group__homeroom_teacher__user').first()
+    return enrollment.class_group.homeroom_teacher if (enrollment and enrollment.class_group) else None
+
+
+def _apply_sakit_override(visit: ClinicVisit) -> None:
+    """LIF-003: create/override today's AttendanceDay to SAKIT for the visit's student."""
+    from apps.attendance.models import AttendanceDay, AttendanceSource, AttendanceStatus
+
+    actor_id = str(visit.handled_by.user_id) if visit.handled_by else ''
+    note_text = f"Klinik: {visit.get_outcome_display()} (kunjungan #{visit.id})"
+    visit_date = visit.occurred_at.date()
+
+    att_day = AttendanceDay.all_tenants.filter(
+        foundation_id=visit.foundation_id,
+        school=visit.school,
+        student=visit.student,
+        date=visit_date,
+        deleted_at__isnull=True,
+    ).first()
+
+    if att_day:
+        if not att_day.is_override:
+            att_day.original_status = att_day.status
+        att_day.status = AttendanceStatus.SAKIT
+        att_day.source = AttendanceSource.MANUAL
+        att_day.is_override = True
+        att_day.note = note_text
+        att_day.updated_by = actor_id
+        att_day.save(update_fields=['status', 'original_status', 'source', 'is_override', 'note', 'updated_by', 'updated_at'])
+    else:
+        AttendanceDay.objects.create(
+            foundation_id=visit.foundation_id,
+            school=visit.school,
+            student=visit.student,
+            date=visit_date,
+            status=AttendanceStatus.SAKIT,
+            source=AttendanceSource.MANUAL,
+            is_override=True,
+            note=note_text,
+            created_by=actor_id,
+        )
+
+
+def _dispatch_clinic_incident_notifications(visit: ClinicVisit) -> int:
+    """LIF-003: notify all guardians + homeroom teacher immediately."""
+    from apps.identity.models import GuardianLink
+    from apps.notifications.models import NotificationCategory, NotificationPriority
+    from apps.notifications.services import dispatch_intent
+
+    student = visit.student
+    school = visit.school
+    foundation_id = visit.foundation_id
+
+    guardian_links = GuardianLink.objects.filter(
+        foundation_id=foundation_id,
+        student=student,
+        deleted_at__isnull=True,
+    ).select_related('guardian__person', 'guardian__user')
+
+    student_name = student.person.full_name if (student.person and student.person.full_name) else (student.nis or 'Siswa')
+    school_name = school.name if school else 'Sekolah'
+    outcome_label = visit.get_outcome_display()
+
+    recipients = []
+    for link in guardian_links:
+        guardian = link.guardian
+        recipient_name = guardian.person.full_name if (guardian.person and guardian.person.full_name) else 'Wali Murid'
+        recipients.append((guardian.user, recipient_name))
+
+    homeroom_teacher = _get_homeroom_teacher(student)
+    if homeroom_teacher and homeroom_teacher.user:
+        teacher_name = homeroom_teacher.person.full_name if (homeroom_teacher.person and homeroom_teacher.person.full_name) else 'Wali Kelas'
+        recipients.append((homeroom_teacher.user, teacher_name))
+
+    dispatched = 0
+    for user, recipient_name in recipients:
+        if not user:
+            continue
+        phone = getattr(user, 'phone_e164', '') or ''
+        email = getattr(user, 'email', '') or ''
+        dedupe_key = f"clinic_incident:{visit.id}:{user.id}"
+        payload = {
+            'type': NotificationCategory.CLINIC_INCIDENT,
+            'student_id': student.id,
+            'student_name': student_name,
+            'school_name': school_name,
+            'outcome': visit.outcome,
+            'outcome_label': outcome_label,
+            'visit_id': visit.id,
+        }
+        dispatch_intent(
+            foundation_id=foundation_id,
+            school_id=school.id,
+            recipient_user=user,
+            recipient_phone=phone,
+            recipient_email=email,
+            recipient_name=recipient_name,
+            category=NotificationCategory.CLINIC_INCIDENT,
+            template_key='clinic.incident',
+            payload=payload,
+            priority=NotificationPriority.HIGH,
+            dedupe_key=dedupe_key,
+            immediate=True,
+        )
+        dispatched += 1
+
+    if dispatched:
+        visit.guardian_notified_at = timezone.now()
+        visit.save(update_fields=['guardian_notified_at', 'updated_at'])
+
+    return dispatched
