@@ -630,6 +630,7 @@
   position: sticky;
   top: 24px;
   align-self: start;
+  min-width: 0;
 }
 
 .doc-toc-eyebrow {
@@ -658,6 +659,14 @@
 
 .doc-toc li a:hover {
   color: var(--color-brand-600);
+}
+
+.doc-content {
+  min-width: 0;
+}
+
+.doc-content table {
+  overflow-x: auto;
 }
 
 .doc-content h2 {
