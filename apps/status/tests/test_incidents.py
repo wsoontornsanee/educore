@@ -150,3 +150,32 @@ class IncidentServiceTests(TestCase):
         self.assertEqual(
             TaskQueue.objects.filter(task_type='status.subscriber_email.send').count(), 0,
         )
+
+    def test_create_incident_subscriber_email_tasks_never_carry_actors_own_foundation_id(self):
+        # Same leak class as test_create_incident_audit_event_never_carries_actors_own_foundation_id
+        # above, but for the TaskQueue rows enqueue_task() writes. Simulate
+        # TenancyMiddleware having set the ambient thread-local foundation_id
+        # from the platform operator's own (unrelated) User record. The
+        # resulting TaskQueue rows must NOT inherit it — status subscriber
+        # email delivery is platform-wide, non-tenant data and must stay
+        # NULL, or drain_tasks would run the handler inside the wrong
+        # tenant's context at drain time.
+        from apps.core.models import TaskQueue
+        from apps.status.models import StatusSubscriber
+
+        StatusSubscriber.objects.create(email='a@example.com')
+        StatusSubscriber.objects.create(email='b@example.com')
+
+        self.assertIsNotNone(self.actor.foundation_id)
+        with tenant_context(self.actor.foundation_id):
+            incident = create_incident(
+                severity=StatusIncident.SEVERITY_MAJOR, title_id='X', title_en='X',
+                body_id='X', body_en='X', occurred_at=timezone.now(), duration_minutes=10,
+                affected_component_ids=[], published=True, actor=self.actor,
+            )
+
+        tasks = TaskQueue.objects.filter(task_type='status.subscriber_email.send', payload__incident_id=incident.id)
+        self.assertEqual(tasks.count(), 2)
+        for t in tasks:
+            self.assertIsNone(t.foundation_id)
+            self.assertNotEqual(t.foundation_id, self.actor.foundation_id)

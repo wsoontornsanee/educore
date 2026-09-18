@@ -178,16 +178,23 @@ def create_incident(*, severity, title_id, title_en, body_id, body_en, occurred_
             action='status.incident.created', entity_type='StatusIncident', entity_id=str(incident.id),
             actor_id=str(actor.id) if actor else None, role='platform_operator',
         )
-    if published:
-        # One TaskQueue row per subscriber (not one row for the whole
-        # incident) so a single bad address retries/dead-letters
-        # independently instead of blocking the rest of the batch (ARC-012).
-        for subscriber_id in StatusSubscriber.objects.values_list('id', flat=True):
-            enqueue_task(
-                'status.subscriber_email.send',
-                payload={'incident_id': incident.id, 'subscriber_id': subscriber_id},
-                foundation_id=None,
-            )
+        if published:
+            # One TaskQueue row per subscriber (not one row for the whole
+            # incident) so a single bad address retries/dead-letters
+            # independently instead of blocking the rest of the batch (ARC-012).
+            #
+            # Also platform-wide, non-tenant data — same leak class as the
+            # audit() call above. enqueue_task(foundation_id=None) falls back
+            # to the ambient thread-local foundation_id when None is passed
+            # (apps/core/services.py), so this loop must stay inside the same
+            # tenant_context(None) block or each TaskQueue row would silently
+            # inherit the acting operator's own unrelated foundation_id.
+            for subscriber_id in StatusSubscriber.objects.values_list('id', flat=True):
+                enqueue_task(
+                    'status.subscriber_email.send',
+                    payload={'incident_id': incident.id, 'subscriber_id': subscriber_id},
+                    foundation_id=None,
+                )
     return incident
 
 
