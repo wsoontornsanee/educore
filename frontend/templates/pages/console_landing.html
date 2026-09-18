@@ -1,0 +1,26 @@
+{% extends "base_console.html" %}
+{% load i18n %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block console_content %}
+<div style="display:flex;flex-direction:column;gap:24px;max-width:960px">
+  <h1 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:28px;letter-spacing:-.03em">
+    {% blocktranslate with name=request.user.full_name %}Selamat pagi, {{ name }}.{% endblocktranslate %}
+  </h1>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px">
+    <div style="background:#fff;border:1px solid #E5DDD9;padding:20px;display:flex;flex-direction:column;gap:6px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:#8E8178">{% translate "Siswa aktif" %}</span>
+      <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:26px">{{ stats.student_count }}</span>
+    </div>
+    <div style="background:#fff;border:1px solid #E5DDD9;padding:20px;display:flex;flex-direction:column;gap:6px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:#8E8178">{% translate "Tagihan jatuh tempo" %}</span>
+      <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:26px">{{ stats.overdue_invoice_count }}</span>
+    </div>
+    <div style="background:#fff;border:1px solid #E5DDD9;padding:20px;display:flex;flex-direction:column;gap:6px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:#8E8178">{% translate "Alpa hari ini" %}</span>
+      <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:26px">{{ stats.alpa_today_count }}</span>
+    </div>
+  </div>
+</div>
+{% endblock %}

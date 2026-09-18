@@ -12,4 +12,18 @@
     {% translate "Belum ada halaman konsol web khusus untuk peran Anda saat ini. Hubungi Tata Usaha (TU) sekolah jika Anda memerlukan akses ke fitur tertentu." %}
   </p>
 </div>
+{% if nav_groups %}
+<div style="max-width: 640px; margin: 0 auto 64px; display:flex; flex-direction:column; gap:20px;">
+  {% for group in nav_groups %}
+  <div>
+    <h2 style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8E8178;margin-bottom:8px">{{ group.label }}</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">
+      {% for item in group.items %}
+      <a href="{% url item.url_name %}" style="padding:14px 12px;border:1px solid #E5DDD9;background:#fff;color:#16110F;text-decoration:none;font-family:'IBM Plex Sans',sans-serif;font-size:13.5px;font-weight:600">{{ item.label }}</a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 {% endblock %}

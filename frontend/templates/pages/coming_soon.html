@@ -1,0 +1,15 @@
+{% extends "base_console.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Modul belum tersedia" %}{% endblock %}
+
+{% block console_content %}
+<div style="max-width: 560px; margin: 64px auto; text-align: center;">
+  <h1 class="font-display text-h2" style="margin-bottom: 12px;">
+    {% translate "Modul ini belum tersedia" %}
+  </h1>
+  <p class="text-body-sm text-ink-700">
+    {% translate "Fitur ini sedang dalam pengembangan. Hubungi Tata Usaha (TU) sekolah jika Anda memerlukan akses ke fitur tertentu." %}
+  </p>
+</div>
+{% endblock %}

@@ -106,6 +106,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'django.template.context_processors.i18n',
                 'educore.context_processors.static_version',
+                'apps.identity.context_processors.console_nav',
             ],
         },
     },
@@ -219,6 +220,11 @@ AUTHENTICATION_BACKENDS = [
     'apps.identity.backends.DualAuthBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
+
+# Web console session-auth login redirect target (spec: web-console-nav-and-landing).
+# LoginRequiredMixin-based views (e.g. apps.core.views.ComingSoonView) redirect
+# anonymous users here instead of Django's default '/accounts/login/'.
+LOGIN_URL = '/web/login/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

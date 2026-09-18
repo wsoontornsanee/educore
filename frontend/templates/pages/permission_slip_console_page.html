@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base_console.html" %}
 {% load i18n %}
 
 {% comment %}
@@ -10,8 +10,8 @@ apps.academic.views.PermissionSlipConsolePageView at /web/academic/permission-sl
 
 {% block title %}{% translate "Konsol Izin Digital — EduCore" %}{% endblock %}
 
-{% block content %}
-  <main style="padding: 24px 16px;">
+{% block console_content %}
+  <main>
     {% include "components/permission_slip_console.html" with staff=staff class_groups=class_groups slips=slips create_url=create_url tally_url_prefix=tally_url_prefix form_error=form_error %}
   </main>
 {% endblock %}

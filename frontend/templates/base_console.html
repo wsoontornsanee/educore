@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="display:flex;align-items:stretch;min-height:calc(100vh - 140px)">
+  {% include "components/console_nav.html" %}
+  <div style="flex:1;min-width:0;padding:24px">
+    {% block console_content %}{% endblock %}
+  </div>
+</div>
+{% endblock %}

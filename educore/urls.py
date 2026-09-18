@@ -3,7 +3,15 @@ from django.contrib import admin
 from django.urls import include, path
 
 from apps.calendar_sync.views import CalendarOAuthCallbackView
-from apps.identity.web_views import FoundationMicrosoftTenantSettingsView, WebConsoleHomeView, WebLoginView
+from apps.identity.web_views import (
+    FoundationMicrosoftTenantSettingsView,
+    FoundationOverviewLandingView,
+    SchoolAdminTodayLandingView,
+    TeacherAgendaLandingView,
+    FinanceBillingLandingView,
+    WebConsoleHomeView,
+    WebLoginView,
+)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -32,9 +40,14 @@ urlpatterns = [
     path('web/auth/', include('apps.identity.web_urls')),
     path('web/login/', WebLoginView.as_view(), name='login'),
     path('web/home/', WebConsoleHomeView.as_view(), name='web-console-home'),
+    path('web/home/overview/', FoundationOverviewLandingView.as_view(), name='console-home-overview'),
+    path('web/home/today/', SchoolAdminTodayLandingView.as_view(), name='console-home-today'),
+    path('web/home/agenda/', TeacherAgendaLandingView.as_view(), name='console-home-agenda'),
+    path('web/home/billing/', FinanceBillingLandingView.as_view(), name='console-home-billing'),
     path('web/foundation/settings/microsoft-tenant/', FoundationMicrosoftTenantSettingsView.as_view(), name='web-foundation-ms-tenant-settings'),
     path('web/academic/', include('apps.academic.web_urls')),
     path('web/status/', include('apps.status.web_urls')),
+    path('web/', include('apps.core.web_urls')),
     # Language switch (django.views.i18n.set_language) — POST target for the
     # marketing site's ID/EN toggle. Not under /api/v1/: it's a browser-only,
     # session-cookie-setting form post, not a JSON API.
