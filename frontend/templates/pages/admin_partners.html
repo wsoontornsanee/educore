@@ -1,0 +1,113 @@
+{% extends "base_console.html" %}
+{% load i18n %}
+
+{% comment %}
+Page: Administrasi > Mitra & kunci API. Issue / rotate / revoke partner API
+keys. Served by apps.partners.web_views at /web/admin/partners/ (foundation
+admins only). A new key's secret is rendered exactly once, in the response to
+the POST that created it.
+{% endcomment %}
+
+{% block title %}{% translate "Mitra & kunci API — EduCore" %}{% endblock %}
+
+{% block console_content %}
+<main style="display:flex;flex-direction:column;gap:20px;max-width:1080px">
+  <header>
+    <div class="text-label text-ink-500" style="margin-bottom:2px">{% translate "Administrasi" %}</div>
+    <h1 class="text-h2 font-display text-ink-900" style="margin:0">{% translate "Mitra & kunci API" %}</h1>
+    <p class="text-body-sm text-ink-500" style="margin:6px 0 0">{% blocktranslate %}Kelola kunci API untuk mitra dan integrasi vendor. Maksimal {{ max_active_keys }} kunci aktif per yayasan.{% endblocktranslate %}</p>
+  </header>
+
+  {% include "components/_console_flash.html" %}
+
+  {% if new_secret %}
+  <div class="card" role="alert" style="border-left:4px solid var(--color-success);padding:16px 20px;display:flex;flex-direction:column;gap:8px">
+    <h2 class="text-h3 text-ink-900" style="margin:0">{% translate "Kunci baru dibuat" %}</h2>
+    <p class="text-body-sm text-ink-700" style="margin:0">{% translate "Simpan rahasia ini sekarang. Rahasia tidak akan ditampilkan lagi setelah halaman ini ditutup." %}</p>
+    <div><span class="text-label text-ink-500">{% translate "ID KUNCI" %}</span><br><code class="font-mono text-ink-900" style="word-break:break-all">{{ new_key_id }}</code></div>
+    <div><span class="text-label text-ink-500">{% translate "RAHASIA" %}</span><br><code class="font-mono text-ink-900" style="word-break:break-all">{{ new_secret }}</code></div>
+  </div>
+  {% endif %}
+
+  {% if form_error %}
+  <div class="card" role="alert" style="border-left:4px solid var(--color-danger);padding:12px 16px">
+    <p class="text-body text-ink-900">{{ form_error }}</p>
+  </div>
+  {% endif %}
+
+  <section class="card" aria-label="{% translate 'Buat kunci baru' %}" style="padding:24px">
+    <h2 class="text-h3 font-display text-ink-900" style="margin:0 0 14px">{% translate "Buat kunci baru" %}</h2>
+    <form method="post" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">
+      {% csrf_token %}
+      <div class="form-group" style="grid-column:1/-1">
+        <label class="form-label" for="key-label">{% translate "Nama mitra / integrasi" %} <span class="text-danger">*</span></label>
+        <input class="form-input" type="text" id="key-label" name="label" maxlength="128" required value="{{ form_values.label }}">
+      </div>
+      <fieldset class="form-group" style="border:0;padding:0;margin:0">
+        <legend class="form-label">{% translate "Cakupan akses" %} <span class="text-danger">*</span></legend>
+        {% for scope in allowed_scopes %}
+        <label style="display:flex;align-items:center;gap:8px;padding:2px 0"><input type="checkbox" name="scopes" value="{{ scope }}" {% if scope in form_values.scopes %}checked{% endif %}> <span class="font-mono text-body-sm">{{ scope }}</span></label>
+        {% endfor %}
+      </fieldset>
+      <div class="form-group">
+        <label class="form-label" for="key-schools">{% translate "Sekolah (kosong = semua sekolah)" %}</label>
+        <select class="form-input" id="key-schools" name="school_ids" multiple size="5">
+          {% for school in schools %}<option value="{{ school.id }}" {% if school.id in form_values.school_ids %}selected{% endif %}>{{ school.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="key-ips">{% translate "Daftar IP yang diizinkan (satu per baris)" %}</label>
+        <textarea class="form-input font-mono" id="key-ips" name="ip_allowlist" rows="4" placeholder="203.0.113.0/24">{{ form_values.ip_allowlist }}</textarea>
+        <p class="text-body-sm text-ink-500" style="margin:4px 0 0">{% translate "Wajib untuk cakupan payroll.write." %}</p>
+      </div>
+      <div style="grid-column:1/-1"><button type="submit" class="btn btn-primary">{% translate "Buat kunci" %}</button></div>
+    </form>
+  </section>
+
+  {% if keys %}
+  <div class="card" style="padding:0;overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;min-width:720px">
+      <thead>
+        <tr style="text-align:left;border-bottom:1px solid var(--color-line)">
+          <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Mitra" %}</th>
+          <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "ID kunci" %}</th>
+          <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Cakupan" %}</th>
+          <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Status" %}</th>
+          <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Terakhir dipakai" %}</th>
+          <th class="text-label text-ink-500" style="padding:12px 16px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for key in keys %}
+        <tr style="border-bottom:1px solid var(--color-line);vertical-align:top">
+          <td class="text-body-sm text-ink-900 font-medium" style="padding:12px 16px">{{ key.label }}</td>
+          <td class="text-body-sm font-mono text-ink-700" style="padding:12px 16px">{{ key.key_id }}</td>
+          <td class="text-body-sm font-mono text-ink-700" style="padding:12px 16px">{{ key.scopes|join:", " }}</td>
+          <td class="text-body-sm text-ink-700" style="padding:12px 16px">
+            {% if key.status == "REVOKED" %}{% translate "Dicabut" %}
+            {% elif not key.is_active %}{% translate "Kedaluwarsa" %}
+            {% elif key.is_read_only %}{% translate "Hanya-baca" %}
+            {% elif key.expires_at %}{% blocktranslate with d=key.expires_at|date:"d M Y" %}Aktif hingga {{ d }}{% endblocktranslate %}
+            {% else %}{% translate "Aktif" %}{% endif %}
+          </td>
+          <td class="text-body-sm font-mono text-ink-700" style="padding:12px 16px">{% if key.last_used_at %}{{ key.last_used_at|date:"d M Y H:i" }}{% else %}—{% endif %}</td>
+          <td style="padding:12px 16px;white-space:nowrap">
+            {% if key.can_rotate %}
+            <form method="post" action="{% url 'admin-partner-key-rotate' key.key_id %}" style="display:inline" onsubmit="return confirm('{% translate "Putar kunci ini? Kunci lama tetap berlaku 30 hari." %}')">{% csrf_token %}<button type="submit" class="btn btn-secondary text-body-sm">{% translate "Putar" %}</button></form>
+            {% endif %}
+            {% if key.can_revoke %}
+            <form method="post" action="{% url 'admin-partner-key-revoke' key.key_id %}" style="display:inline" onsubmit="return confirm('{% translate "Cabut kunci ini? Kunci langsung berhenti berfungsi." %}')">{% csrf_token %}<button type="submit" class="btn btn-secondary text-body-sm">{% translate "Cabut" %}</button></form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card" style="padding:32px;text-align:center">
+    <p class="text-body text-ink-500">{% translate "Belum ada kunci API." %}</p>
+  </div>
+  {% endif %}
+</main>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base_console.html" %}
+{% load i18n %}
+
+{% comment %}
+Page: Administrasi > Pengaturan sekolah > edit one school's profile. Served by
+apps.foundation.web_views.SchoolSettingsUpdateView.
+{% endcomment %}
+
+{% block title %}{% blocktranslate with name=school.name %}Pengaturan {{ name }} — EduCore{% endblocktranslate %}{% endblock %}
+
+{% block console_content %}
+<main style="display:flex;flex-direction:column;gap:20px;max-width:1080px">
+  <header>
+    <a class="text-body-sm text-ink-500" href="{% url 'admin-settings' %}">← {% translate "Pengaturan sekolah" %}</a>
+    <h1 class="text-h2 font-display text-ink-900" style="margin:6px 0 0">{{ school.name }}</h1>
+    <p class="text-body-sm text-ink-500" style="margin:6px 0 0">{% blocktranslate with npsn=school.npsn %}NPSN {{ npsn }} (tidak dapat diubah dari halaman ini).{% endblocktranslate %}</p>
+  </header>
+
+  <section class="card" style="padding:24px">
+    <form method="post" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">
+      {% csrf_token %}
+      {% include "components/_console_form_fields.html" with form=form %}
+      <div style="grid-column:1/-1;display:flex;gap:12px">
+        <button type="submit" class="btn btn-primary">{% translate "Simpan" %}</button>
+        <a class="btn btn-secondary" href="{% url 'admin-settings' %}">{% translate "Batal" %}</a>
+      </div>
+    </form>
+  </section>
+</main>
+{% endblock %}

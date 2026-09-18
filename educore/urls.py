@@ -52,6 +52,9 @@ urlpatterns = [
     path('web/attendance/', include('apps.attendance.web_urls')),
     path('web/wallet/', include('apps.wallet.web_urls')),
     path('web/status/', include('apps.status.web_urls')),
+    path('web/admin/staff/', include('apps.identity.web_admin_urls')),
+    path('web/admin/partners/', include('apps.partners.web_urls')),
+    path('web/admin/', include('apps.foundation.web_urls')),
     path('web/', include('apps.core.web_urls')),
     # Language switch (django.views.i18n.set_language) — POST target for the
     # marketing site's ID/EN toggle. Not under /api/v1/: it's a browser-only,

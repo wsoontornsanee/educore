@@ -6844,6 +6844,109 @@ msgstr "No write-offs awaiting approval."
 msgid "Umur piutang per %(date)s"
 msgstr "Receivables aging as of %(date)s"
 
+msgid "Zona waktu"
+msgstr "Time zone"
+
+msgid "Gunakan kode mata uang ISO-4217 tiga huruf besar, mis. IDR."
+msgstr "Use a three-letter uppercase ISO-4217 currency code, e.g. IDR."
+
+msgid "Nama hukum yayasan"
+msgstr "Foundation legal name"
+
+msgid "Nama merek"
+msgstr "Brand name"
+
+msgid "NPWP"
+msgstr "NPWP (tax ID)"
+
+msgid "Alamat terdaftar"
+msgstr "Registered address"
+
+msgid "Mata uang pelaporan"
+msgstr "Reporting currency"
+
+msgid "Ambang batas persetujuan (Rp)"
+msgstr "Approval threshold (Rp)"
+
+msgid "Ambang batas persetujuan tidak boleh negatif."
+msgstr "The approval threshold cannot be negative."
+
+msgid "Nama sekolah"
+msgstr "School name"
+
+msgid "Jenjang"
+msgstr "Level"
+
+msgid "Kurikulum"
+msgstr "Curriculum"
+
+msgid "Mata uang dasar"
+msgstr "Base currency"
+
+msgid "Status kepemilikan"
+msgstr "Ownership status"
+
+msgid "Akreditasi"
+msgstr "Accreditation"
+
+msgid "NSS"
+msgstr "NSS"
+
+msgid "NSM"
+msgstr "NSM"
+
+msgid "Tanggal pendirian"
+msgstr "Date established"
+
+msgid "Alamat jalan"
+msgstr "Street address"
+
+msgid "Kelurahan / Desa"
+msgstr "Village / Sub-district"
+
+msgid "Kecamatan"
+msgstr "District"
+
+msgid "Kabupaten / Kota"
+msgstr "Regency / City"
+
+msgid "Provinsi"
+msgstr "Province"
+
+msgid "Kode pos"
+msgstr "Postal code"
+
+msgid "Pengaturan yayasan disimpan."
+msgstr "Foundation settings saved."
+
+msgid "Pengaturan sekolah disimpan."
+msgstr "School settings saved."
+
+msgid "Nama mitra wajib diisi."
+msgstr "Partner name is required."
+
+msgid "Sekolah yang dipilih tidak valid."
+msgstr "The selected school is not valid."
+
+msgid "Daftar IP tidak valid. Gunakan alamat IP atau CIDR, satu per baris."
+msgstr "Invalid IP list. Use IP addresses or CIDR ranges, one per line."
+
+msgid "Batas kunci aktif tercapai. Cabut atau putar kunci yang ada terlebih dahulu."
+msgstr "Active key limit reached. Revoke or rotate an existing key first."
+
+msgid "Kunci ini tidak dapat diputar."
+msgstr "This key cannot be rotated."
+
+msgid "Batas kunci aktif tercapai. Cabut salah satu kunci terlebih dahulu."
+msgstr "Active key limit reached. Revoke one of the keys first."
+
+msgid "Kunci ini tidak dapat dicabut."
+msgstr "This key cannot be revoked."
+
+#, python-format
+msgid "Kunci %(key_id)s dicabut."
+msgstr "Key %(key_id)s revoked."
+
 msgid "Halaman"
 msgstr "Page"
 
@@ -6938,9 +7041,6 @@ msgid "Pindai hari ini"
 msgstr "Today's scans"
 
 #: frontend/templates/components/_gate_live_feed.html:46
-msgid "Nama"
-msgstr "Name"
-
 #: frontend/templates/components/_gate_live_feed.html:55
 msgid "Tidak dikenali"
 msgstr "Unrecognised"
@@ -7046,5 +7146,165 @@ msgid "Konsol Pengawas Ujian — EduCore"
 msgstr "Exam proctor console — EduCore"
 
 #: frontend/templates/components/_console_school_select.html:9
+msgid "Jejak audit — EduCore"
+msgstr "Audit trail — EduCore"
+
+msgid "Catatan permanen setiap perubahan data. Data tidak dapat diubah atau dihapus."
+msgstr "A permanent record of every data change. Entries cannot be edited or deleted."
+
+msgid "Format tanggal tidak valid (gunakan YYYY-MM-DD); filter tanggal tersebut diabaikan."
+msgstr "Invalid date format (use YYYY-MM-DD); that date filter was ignored."
+
+msgid "Semua sekolah"
+msgstr "All schools"
+
+msgid "Dari tanggal"
+msgstr "From date"
+
+msgid "Sampai tanggal"
+msgstr "To date"
+
+msgid "Aktor"
+msgstr "Actor"
+
+msgid "Entitas"
+msgstr "Entity"
+
+msgid "Perubahan"
+msgstr "Changes"
+
+msgid "Belum ada catatan audit yang cocok dengan filter ini."
+msgstr "No audit entries match these filters."
+
+msgid "Mitra & kunci API — EduCore"
+msgstr "Partners & API keys — EduCore"
+
+#, python-format
+msgid "Kelola kunci API untuk mitra dan integrasi vendor. Maksimal %(max_active_keys)s kunci aktif per yayasan."
+msgstr "Manage API keys for partners and vendor integrations. At most %(max_active_keys)s active keys per foundation."
+
+msgid "Kunci baru dibuat"
+msgstr "New key created"
+
+msgid "Simpan rahasia ini sekarang. Rahasia tidak akan ditampilkan lagi setelah halaman ini ditutup."
+msgstr "Save this secret now. It will not be shown again once you leave this page."
+
+msgid "ID KUNCI"
+msgstr "KEY ID"
+
+msgid "RAHASIA"
+msgstr "SECRET"
+
+msgid "Buat kunci baru"
+msgstr "Create a new key"
+
+msgid "Nama mitra / integrasi"
+msgstr "Partner / integration name"
+
+msgid "Cakupan akses"
+msgstr "Access scopes"
+
+msgid "Sekolah (kosong = semua sekolah)"
+msgstr "Schools (empty = all schools)"
+
+msgid "Daftar IP yang diizinkan (satu per baris)"
+msgstr "Allowed IP list (one per line)"
+
+msgid "Wajib untuk cakupan payroll.write."
+msgstr "Required for the payroll.write scope."
+
+msgid "Buat kunci"
+msgstr "Create key"
+
+msgid "Mitra"
+msgstr "Partner"
+
+msgid "ID kunci"
+msgstr "Key ID"
+
+msgid "Terakhir dipakai"
+msgstr "Last used"
+
+msgid "Dicabut"
+msgstr "Revoked"
+
+msgid "Hanya-baca"
+msgstr "Read-only"
+
+#, python-format
+msgid "Aktif hingga %(d)s"
+msgstr "Active until %(d)s"
+
+msgid "Putar kunci ini? Kunci lama tetap berlaku 30 hari."
+msgstr "Rotate this key? The old key stays valid for 30 days."
+
+msgid "Putar"
+msgstr "Rotate"
+
+msgid "Cabut kunci ini? Kunci langsung berhenti berfungsi."
+msgstr "Revoke this key? It stops working immediately."
+
+msgid "Cabut"
+msgstr "Revoke"
+
+msgid "Belum ada kunci API."
+msgstr "No API keys yet."
+
+msgid "Simpan"
+msgstr "Save"
+
+msgid "Pengaturan sekolah — EduCore"
+msgstr "School settings — EduCore"
+
+msgid "Profil yayasan dan profil setiap sekolah. Setiap perubahan tercatat di jejak audit."
+msgstr "Foundation profile and each school's profile. Every change is recorded in the audit trail."
+
+msgid "Profil yayasan"
+msgstr "Foundation profile"
+
+msgid "NPSN"
+msgstr "NPSN"
+
+msgid "Ubah"
+msgstr "Edit"
+
+msgid "Belum ada sekolah."
+msgstr "No schools yet."
+
+#, python-format
+msgid "Pengaturan %(name)s — EduCore"
+msgstr "%(name)s settings — EduCore"
+
+#, python-format
+msgid "NPSN %(npsn)s (tidak dapat diubah dari halaman ini)."
+msgstr "NPSN %(npsn)s (cannot be changed from this page)."
+
+msgid "Staf & jabatan — EduCore"
+msgstr "Staff & roles — EduCore"
+
+msgid "Direktori staf dan peran (jabatan) akses yang ditugaskan kepada masing-masing."
+msgstr "Staff directory and the access roles assigned to each person."
+
+msgid "Cari nama / NIP"
+msgstr "Search name / NIP"
+
+msgid "Semua status"
+msgstr "All statuses"
+
+msgid "NIP"
+msgstr "NIP"
+
+msgid "Peran"
+msgstr "Role"
+
+msgid "Yayasan"
+msgstr "Foundation"
+
+msgid "Tidak ada staf yang cocok dengan filter ini."
+msgstr "No staff match these filters."
+
 msgid "Sekolah"
 msgstr "School"
+
+msgid "Nama"
+msgstr "Name"

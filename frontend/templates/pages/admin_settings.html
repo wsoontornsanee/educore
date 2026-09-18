@@ -1,0 +1,63 @@
+{% extends "base_console.html" %}
+{% load i18n %}
+
+{% comment %}
+Page: Administrasi > Pengaturan sekolah. Foundation profile (foundation admins)
+and the list of schools the viewer may configure. Served by
+apps.foundation.web_views.SettingsView at /web/admin/settings/.
+{% endcomment %}
+
+{% block title %}{% translate "Pengaturan sekolah — EduCore" %}{% endblock %}
+
+{% block console_content %}
+<main style="display:flex;flex-direction:column;gap:20px;max-width:1080px">
+  <header>
+    <div class="text-label text-ink-500" style="margin-bottom:2px">{% translate "Administrasi" %}</div>
+    <h1 class="text-h2 font-display text-ink-900" style="margin:0">{% translate "Pengaturan sekolah" %}</h1>
+    <p class="text-body-sm text-ink-500" style="margin:6px 0 0">{% translate "Profil yayasan dan profil setiap sekolah. Setiap perubahan tercatat di jejak audit." %}</p>
+  </header>
+
+  {% include "components/_console_flash.html" %}
+
+  {% if foundation_form %}
+  <section class="card" style="padding:24px">
+    <h2 class="text-h3 font-display text-ink-900" style="margin:0 0 14px">{% translate "Profil yayasan" %}</h2>
+    <form method="post" action="{% url 'admin-settings-foundation' %}" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">
+      {% csrf_token %}
+      {% include "components/_console_form_fields.html" with form=foundation_form %}
+      <div style="grid-column:1/-1"><button type="submit" class="btn btn-primary">{% translate "Simpan" %}</button></div>
+    </form>
+  </section>
+  {% endif %}
+
+  <section class="card" style="padding:0;overflow-x:auto">
+    <h2 class="text-h3 font-display text-ink-900" style="margin:0;padding:20px 24px 12px">{% translate "Sekolah" %}</h2>
+    {% if schools %}
+    <table style="width:100%;border-collapse:collapse;min-width:560px">
+      <thead>
+        <tr style="text-align:left;border-bottom:1px solid var(--color-line)">
+          <th class="text-label text-ink-500" style="padding:12px 24px">{% translate "Nama" %}</th>
+          <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "NPSN" %}</th>
+          <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Jenjang" %}</th>
+          <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Status" %}</th>
+          <th style="padding:12px 24px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for school in schools %}
+        <tr style="border-bottom:1px solid var(--color-line)">
+          <td class="text-body-sm text-ink-900 font-medium" style="padding:12px 24px">{{ school.name }}</td>
+          <td class="text-body-sm font-mono text-ink-700" style="padding:12px 16px">{{ school.npsn }}</td>
+          <td class="text-body-sm text-ink-700" style="padding:12px 16px">{{ school.level }}</td>
+          <td class="text-body-sm text-ink-700" style="padding:12px 16px">{% if school.is_active %}{% translate "Aktif" %}{% else %}{% translate "Nonaktif" %}{% endif %}</td>
+          <td style="padding:12px 24px;text-align:right"><a class="btn btn-secondary text-body-sm" href="{% url 'admin-settings-school' school.id %}">{% translate "Ubah" %}</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-body text-ink-500" style="padding:0 24px 24px">{% translate "Belum ada sekolah." %}</p>
+    {% endif %}
+  </section>
+</main>
+{% endblock %}

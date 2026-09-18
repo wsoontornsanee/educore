@@ -108,7 +108,9 @@ class GetNavForUserTests(TestCase):
         1 (assigned-schools list) + 1 (foundation-scope permissions) +
         2 (one per assigned school) + 1 (the single Staff-profile existence
         check, run once regardless of how many items declare
-        requires_staff_profile) — regardless of NAV_GROUPS' 16 items."""
+        requires_staff_profile) + 1 (the single is_foundation_admin check,
+        likewise once for all requires_foundation_admin items) — regardless
+        of NAV_GROUPS' 16 items."""
         school_2 = School.objects.create(
             foundation_id=self.foundation.id, name='S2', npsn='87654321', level=School.LEVEL_SMA,
         )
@@ -116,5 +118,39 @@ class GetNavForUserTests(TestCase):
             foundation_id=self.foundation.id, user=self.teacher, role=RoleAssignment.ROLE_TEACHER,
             scope_type=RoleAssignment.SCOPE_SCHOOL, scope_id=school_2.id,
         )
-        with self.assertNumQueries(5):
+        with self.assertNumQueries(6):
             get_nav_for_user(self.teacher, self.foundation.id)
+
+
+class AdministrasiNavTests(TestCase):
+    """The four Administrasi items now have real destinations, each gated by
+    its own permission — and the partner-key console additionally requires
+    foundation-admin authority (its backing API's actual gate)."""
+
+    def setUp(self):
+        self.foundation = Foundation.objects.create(legal_name='F', brand_name='F')
+        self.school = School.objects.create(foundation_id=self.foundation.id, name='S', npsn='12345678', level=School.LEVEL_SMA)
+
+    def _nav_urls(self, role, scope_type, scope_id):
+        user = User.objects.create(phone_e164='+6281300009001', full_name='U', foundation_id=self.foundation.id)
+        RoleAssignment.objects.create(
+            foundation_id=self.foundation.id, user=user, role=role, scope_type=scope_type, scope_id=scope_id,
+        )
+        nav = get_nav_for_user(user, self.foundation.id)
+        return {item['id']: item['url_name'] for group in nav for item in group['items']}
+
+    def test_foundation_admin_sees_all_four_administrasi_items(self):
+        urls = self._nav_urls(
+            RoleAssignment.ROLE_FOUNDATION_ADMIN, RoleAssignment.SCOPE_FOUNDATION, self.foundation.id,
+        )
+        self.assertEqual(urls['staff'], 'admin-staff')
+        self.assertEqual(urls['partners'], 'admin-partners')
+        self.assertEqual(urls['settings'], 'admin-settings')
+        self.assertEqual(urls['audit'], 'admin-audit')
+
+    def test_school_admin_sees_admin_items_except_partner_keys(self):
+        urls = self._nav_urls(RoleAssignment.ROLE_SCHOOL_ADMIN, RoleAssignment.SCOPE_SCHOOL, self.school.id)
+        self.assertIn('staff', urls)
+        self.assertIn('settings', urls)
+        self.assertIn('audit', urls)
+        self.assertNotIn('partners', urls)

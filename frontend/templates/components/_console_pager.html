@@ -1,0 +1,16 @@
+{% load i18n %}
+{% comment %}
+Component: Prev/next pager for console list pages (page-number based).
+Usage: {% include "components/_console_pager.html" with page_obj=page_obj query_string=query_string %}
+{% endcomment %}
+{% if page_obj.paginator.num_pages > 1 %}
+<nav aria-label="{% translate 'Halaman' %}" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0">
+  {% if page_obj.has_previous %}
+    <a class="btn btn-secondary text-body-sm" href="?{% if query_string %}{{ query_string }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">{% translate "Sebelumnya" %}</a>
+  {% else %}<span></span>{% endif %}
+  <span class="text-body-sm text-ink-500">{% blocktranslate with n=page_obj.number total=page_obj.paginator.num_pages %}Halaman {{ n }} dari {{ total }}{% endblocktranslate %}</span>
+  {% if page_obj.has_next %}
+    <a class="btn btn-secondary text-body-sm" href="?{% if query_string %}{{ query_string }}&amp;{% endif %}page={{ page_obj.next_page_number }}">{% translate "Berikutnya" %}</a>
+  {% else %}<span></span>{% endif %}
+</nav>
+{% endif %}
