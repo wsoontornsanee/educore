@@ -12,7 +12,7 @@ Write actions (resolving discrepancies, approving discounts/write-offs,
 cash entry) stay on the JSON API for now.
 """
 import re
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -48,7 +48,9 @@ from apps.finance.services.invoicing import (
     reject_discount,
     reject_invoice_write_off,
 )
+from apps.finance.services.payments import record_cash_payment
 from apps.finance.services.reconciliation import resolve_discrepancy
+from apps.identity.models import Student
 from apps.identity.nav import has_staff_profile
 from apps.identity.rbac import has_permission_in_any_scope, is_foundation_admin
 from educore.middleware.tenancy import get_current_foundation_id, tenant_context
@@ -220,12 +222,58 @@ class BillingConsoleView(FinanceConsoleView):
             'page': page,
             'totals': totals,
             'payments': payments,
+            'can_record_cash': has_permission_in_any_scope(self.request.user, 'finance.invoice.write', self.foundation_id),
             'status_choices': [(value, INVOICE_BADGES[value][1]) for value in InvoiceStatus.values],
             'filters': {'status': status, 'period': period, 'q': q},
             'filter_querystring': '&'.join(
                 f'{key}={value}' for key, value in (('status', status), ('period', period), ('q', q)) if value
             ),
         }
+
+
+class CashPaymentView(FinanceActionView):
+    """POST: record a cash payment for a student found by NIS within the
+    caller's schools. The service allocates to open invoices oldest-first,
+    posts the ledger journal and audits. A NIS matching more than one student
+    (possible across schools) is refused rather than guessed."""
+    required_permission = 'finance.invoice.write'
+
+    def redirect_url(self, obj):
+        return reverse('finance-console-billing')
+
+    def _parse_amount(self, raw):
+        try:
+            amount = Decimal(raw.strip())
+        except (InvalidOperation, AttributeError):
+            raise ValueError(_('Jumlah tidak valid.'))
+        if not amount.is_finite() or amount <= 0 or amount != amount.quantize(Decimal('0.01')):
+            raise ValueError(_('Jumlah harus lebih dari nol dengan maksimal dua desimal.'))
+        return amount
+
+    def _find_student(self, nis):
+        students = Student.all_tenants.filter(
+            foundation_id=self.foundation_id, deleted_at__isnull=True, nis=nis,
+        ).select_related('school')
+        if self.school_ids is not None:
+            students = students.filter(school_id__in=self.school_ids)
+        matches = list(students[:2])
+        if not matches:
+            raise ValueError(_('Siswa dengan NIS tersebut tidak ditemukan.'))
+        if len(matches) > 1:
+            raise ValueError(_('NIS cocok dengan lebih dari satu siswa. Gunakan API keuangan untuk memilih siswa.'))
+        return matches[0]
+
+    def perform(self, obj):
+        amount = self._parse_amount(self.request.POST.get('amount', ''))
+        student = self._find_student(self.request.POST.get('nis', '').strip())
+        payment = record_cash_payment(
+            school=student.school,
+            student=student,
+            amount=amount,
+            received_by=self.request.user,
+            notes=self.request.POST.get('notes', '').strip(),
+        )
+        return _('Pembayaran tunai tercatat. No. kwitansi: %(receipt)s') % {'receipt': payment.receipt_number}
 
 
 class ReconciliationConsoleView(FinanceConsoleView):

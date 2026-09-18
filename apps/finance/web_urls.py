@@ -2,6 +2,7 @@
 from django.urls import path
 
 from apps.finance.web_views import (
+    CashPaymentView,
     DiscountDecisionView,
     DiscrepancyResolveView,
     WriteOffDecisionView,
@@ -12,6 +13,7 @@ from apps.finance.web_views import (
 
 urlpatterns = [
     path('billing/', BillingConsoleView.as_view(), name='finance-console-billing'),
+    path('billing/cash/', CashPaymentView.as_view(), name='finance-console-cash-payment'),
     path('reconciliation/', ReconciliationConsoleView.as_view(), name='finance-console-reconciliation'),
     path('receivables/', ReceivablesConsoleView.as_view(), name='finance-console-receivables'),
     path('reconciliation/discrepancies/<int:pk>/resolve/', DiscrepancyResolveView.as_view(),

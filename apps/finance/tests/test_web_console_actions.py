@@ -8,7 +8,7 @@ from django.urls import reverse
 from apps.core.models import AuditEvent
 from apps.finance.models import (
     DiscrepancyResolution, Discount, DiscountStatus, GatewaySettlementBatch, InvoiceStatus,
-    InvoiceWriteOffRequest, InvoiceWriteOffStatus, PaymentDiscrepancy,
+    InvoiceWriteOffRequest, InvoiceWriteOffStatus, Payment, PaymentDiscrepancy, PaymentMethod,
 )
 from apps.finance.tests.test_web_console import make_foundation, make_invoice, make_student, make_user
 from apps.identity.models import RoleAssignment
@@ -300,3 +300,77 @@ class WriteOffDecisionTests(ActionTestBase):
         self.assertContains(self.client.get(reverse('finance-console-receivables')), self.approve_url)
         self.client.force_login(self.officer)
         self.assertNotContains(self.client.get(reverse('finance-console-receivables')), self.approve_url)
+
+
+class CashPaymentTests(ActionTestBase):
+    def setUp(self):
+        super().setUp()
+        self.url = reverse('finance-console-cash-payment')
+        self.invoice = make_invoice(self.foundation, self.s1, 'INV/A1/2026/000001')
+
+    def _post(self, **data):
+        data.setdefault('nis', '0001')
+        data.setdefault('amount', '500000')
+        return self.client.post(self.url, data, follow=True)
+
+    def test_records_cash_payment_and_allocates_to_open_invoice(self):
+        self.client.force_login(self.officer)
+        response = self._post(notes='setoran tunai')
+        payment = Payment.all_tenants.get(student=self.s1)
+        self.assertEqual(payment.method, PaymentMethod.CASH)
+        self.assertEqual(payment.amount, Decimal('500000.00'))
+        self.assertEqual(payment.received_by, self.officer)
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.paid, Decimal('500000.00'))
+        self.assertEqual(response.redirect_chain[-1][0], reverse('finance-console-billing'))
+        self.assertIn(payment.receipt_number, flashes(response)[0])
+
+    def test_bad_amounts_create_nothing(self):
+        self.client.force_login(self.officer)
+        for bad in ('0', '-5', 'abc', '10.999', 'NaN', 'Infinity', ''):
+            response = self._post(amount=bad)
+            self.assertEqual(len(flashes(response)), 1, bad)
+        self.assertFalse(Payment.all_tenants.exists())
+
+    def test_unknown_nis_creates_nothing(self):
+        self.client.force_login(self.officer)
+        response = self._post(nis='9999')
+        self.assertEqual(len(flashes(response)), 1)
+        self.assertFalse(Payment.all_tenants.exists())
+
+    def test_school_scoped_officer_cannot_pay_for_another_school(self):
+        self.client.force_login(self.scoped_officer)  # school1 only; s2 is school2
+        response = self._post(nis='0002')
+        self.assertEqual(len(flashes(response)), 1)
+        self.assertFalse(Payment.all_tenants.exists())
+
+    def test_other_tenants_nis_is_not_found(self):
+        other, (other_school, _) = make_foundation('B')
+        make_student(other, other_school, 'Orang Lain', '7777')
+        self.client.force_login(self.admin)
+        response = self._post(nis='7777')
+        self.assertEqual(len(flashes(response)), 1)
+        self.assertFalse(Payment.all_tenants.exists())
+
+    def test_ambiguous_nis_across_schools_is_refused(self):
+        make_student(self.foundation, self.school2, 'Kembar NIS', '0001')  # same NIS, other school
+        self.client.force_login(self.officer)  # foundation-wide: sees both
+        response = self._post(nis='0001')
+        self.assertEqual(len(flashes(response)), 1)
+        self.assertFalse(Payment.all_tenants.exists())
+
+    def test_get_is_405_anonymous_redirects_no_permission_403(self):
+        self.client.force_login(self.officer)
+        self.assertEqual(self.client.get(self.url).status_code, 405)
+        self.client.logout()
+        self.assertEqual(self.client.post(self.url, {}).status_code, 302)
+        teacher = make_user(
+            self.foundation, '+6281300008040', RoleAssignment.ROLE_TEACHER,
+            RoleAssignment.SCOPE_SCHOOL, self.school1.id, staff_school=self.school1, name='Guru',
+        )
+        self.client.force_login(teacher)
+        self.assertEqual(self.client.post(self.url, {'nis': '0001', 'amount': '1'}).status_code, 403)
+
+    def test_cash_form_shown_on_billing_page_for_writers_only(self):
+        self.client.force_login(self.officer)
+        self.assertContains(self.client.get(reverse('finance-console-billing')), self.url)
