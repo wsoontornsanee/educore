@@ -7,6 +7,7 @@
 {% include "components/_finance_console_styles.html" %}
 <div class="fin-page">
   <h1 class="fin-title">{{ page_title }}</h1>
+  {% include "components/_console_messages.html" %}
   <p class="fin-note">{% translate "Batch penyelesaian gateway pembayaran per hari. Penyelesaian selisih dilakukan melalui API keuangan." %}</p>
 
   <section>

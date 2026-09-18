@@ -7,6 +7,7 @@
 {% include "components/_finance_console_styles.html" %}
 <div class="fin-page">
   <h1 class="fin-title">{{ page_title }}</h1>
+  {% include "components/_console_messages.html" %}
 
   <section>
     <h2 class="fin-h2">{% blocktranslate with date=report.as_of %}Umur piutang per {{ date }}{% endblocktranslate %}</h2>

@@ -7,6 +7,7 @@
 {% include "components/_finance_console_styles.html" %}
 <div class="fin-page">
   <h1 class="fin-title">{{ page_title }}</h1>
+  {% include "components/_console_messages.html" %}
 
   {% for total in totals %}
   <div class="fin-tiles">

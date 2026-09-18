@@ -14,13 +14,17 @@ cash entry) stay on the JSON API for now.
 import re
 from decimal import Decimal
 
+from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import F, Q, Sum
+from django.http import Http404  # noqa: F401  (used by get_object_or_404 callers)
+from django.shortcuts import get_object_or_404, redirect  # noqa: F401
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from django.views.generic import TemplateView
+from django.views.generic import TemplateView, View
 
 from apps.finance.models import (
     Discount,
@@ -38,7 +42,7 @@ from apps.finance.scope import staff_school_scope
 from apps.finance.services.ar_aging import AGING_BUCKETS, get_ar_aging_report
 from apps.identity.nav import has_staff_profile
 from apps.identity.rbac import has_permission_in_any_scope
-from educore.middleware.tenancy import get_current_foundation_id
+from educore.middleware.tenancy import get_current_foundation_id, tenant_context
 
 PAGE_SIZE = 25
 RECENT_PAYMENTS = 20
@@ -74,24 +78,25 @@ PAYMENT_BADGES = {
 }
 
 
-class FinanceConsoleView(LoginRequiredMixin, TemplateView):
-    """Base: login + permission + Staff-profile gate, then foundation-scoped
-    context. Subclasses declare `required_permission` and build their context
-    in `build_context`. Failing the gate is a 403 (the nav already hides the
-    item from anyone who'd fail it, so this is only reachable by URL)."""
+class FinanceConsoleGateMixin(LoginRequiredMixin):
+    """Login + permission (any scope) + Staff-profile gate shared by every
+    finance console view, read or write. Failing the gate is a 403 (the nav
+    already hides items from users who'd fail it, so this is only reachable
+    by URL). After dispatch passes, `foundation_id` and `school_ids` (None =
+    unrestricted, else the caller's school ids) are set."""
     required_permission = None
-    page_title = ''
 
-    def get(self, request, *args, **kwargs):
-        self.foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
-        if not (
-            self.foundation_id
-            and has_permission_in_any_scope(request.user, self.required_permission, self.foundation_id)
-            and has_staff_profile(request.user, self.foundation_id)
-        ):
-            raise PermissionDenied
-        self.school_ids = staff_school_scope(request.user, self.foundation_id)
-        return super().get(request, *args, **kwargs)
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated:
+            self.foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+            if not (
+                self.foundation_id
+                and has_permission_in_any_scope(request.user, self.required_permission, self.foundation_id)
+                and has_staff_profile(request.user, self.foundation_id)
+            ):
+                raise PermissionDenied
+            self.school_ids = staff_school_scope(request.user, self.foundation_id)
+        return super().dispatch(request, *args, **kwargs)
 
     def scoped(self, model, school_field='school_id'):
         """Undeleted rows of `model` for this foundation, limited to the
@@ -101,6 +106,11 @@ class FinanceConsoleView(LoginRequiredMixin, TemplateView):
             qs = qs.filter(**{f'{school_field}__in': self.school_ids})
         return qs
 
+
+class FinanceConsoleView(FinanceConsoleGateMixin, TemplateView):
+    """Read pages: subclasses build their context in `build_context`."""
+    page_title = ''
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx['page_title'] = self.page_title
@@ -109,6 +119,42 @@ class FinanceConsoleView(LoginRequiredMixin, TemplateView):
 
     def build_context(self):
         raise NotImplementedError
+
+
+class FinanceActionView(FinanceConsoleGateMixin, View):
+    """POST-only write action: look up the (scoped) object, call an existing
+    service inside the tenant context, flash the outcome, redirect back.
+
+    Subclasses set `required_permission` and implement `get_object` (default:
+    no object), `perform` (returns the success message; raises ValueError /
+    ValidationError / PermissionDenied for user-facing failures) and
+    `redirect_url`. A service PermissionDenied is shown as a flash error, not
+    a 403 page: the user was allowed to reach the view."""
+    http_method_names = ['post']
+
+    def get_object(self, **url_kwargs):
+        return None
+
+    def perform(self, obj):
+        raise NotImplementedError
+
+    def redirect_url(self, obj):
+        raise NotImplementedError
+
+    def post(self, request, *args, **kwargs):
+        obj = self.get_object(**kwargs)
+        try:
+            with transaction.atomic(), tenant_context(self.foundation_id):
+                message = self.perform(obj)
+        except PermissionDenied:
+            messages.error(request, _('Anda tidak berwenang melakukan tindakan ini.'))
+        except ValidationError as exc:
+            messages.error(request, ' '.join(exc.messages))
+        except ValueError as exc:
+            messages.error(request, str(exc))
+        else:
+            messages.success(request, message)
+        return redirect(self.redirect_url(obj))
 
 
 class BillingConsoleView(FinanceConsoleView):
