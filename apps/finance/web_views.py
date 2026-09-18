@@ -1,4 +1,4 @@
-"""Keuangan (finance) pages of the web console — read-only, server-rendered.
+"""Keuangan (finance) pages of the web console — server-rendered.
 
 Thin views over existing finance models/services (no new domain logic). Each
 page is gated by the SAME RBAC permission key its nav item declares
@@ -8,8 +8,11 @@ if a role mistake grants them finance.* (same reasoning as the permission
 slip console). School-scoped staff only see their own schools' records
 (apps.finance.scope.staff_school_scope), matching the JSON API.
 
-Write actions (resolving discrepancies, approving discounts/write-offs,
-cash entry) stay on the JSON API for now.
+The read pages are read-only views. Write actions (resolving discrepancies,
+approving/rejecting discounts and write-offs, cash entry) are POST-only views
+(FinanceActionView subclasses) that call the existing services, flash a
+message and redirect back to the page. Approve/reject authority (foundation
+admin) is enforced by the services, not by the views.
 """
 import re
 from decimal import Decimal, InvalidOperation

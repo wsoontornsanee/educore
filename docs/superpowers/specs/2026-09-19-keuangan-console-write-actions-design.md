@@ -111,7 +111,7 @@ New user-facing strings use `gettext`/`{% translate %}` with Indonesian source t
 
 ## Known limitations (not addressed here)
 
-- `resolve_discrepancy(MANUAL_SETTLED)` flips a linked payment to SETTLED without allocating it to invoices or posting a ledger journal. This is existing service behavior; the console exposes it but does not change it. To be logged as a Notion Todo for a ledger-correctness follow-up.
+- `resolve_discrepancy(MANUAL_SETTLED)` flips a linked payment to SETTLED without allocating it to invoices or posting a ledger journal. This was existing service behavior when this spec was written; it was fixed independently in PRs #220 and #222 (allocation and ledger journal now happen). The console dropdown still forces a deliberate choice (placeholder option, `required`) because settling is money-affecting.
 - No student search widget: cash entry requires knowing the NIS.
 - Cash payments target open invoices oldest-first; the operator cannot choose specific invoices from the console.
 
