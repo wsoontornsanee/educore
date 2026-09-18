@@ -453,3 +453,105 @@ def get_exporter(system: str, school: School) -> StatutoryExporter:
     if exporter_cls is None:
         raise StatutoryExportError(f"Unknown statutory system: {system}")
     return exporter_cls(school=school, schema=get_active_schema(school.foundation_id, system))
+
+
+# --- DSAR access export bundle (CMP-011) ---
+
+class PersonNotFoundError(ValueError):
+    """Raised when a DSAR request targets a subject that doesn't exist in this foundation."""
+
+
+def _serialize_date(value):
+    return value.isoformat() if value else None
+
+
+def collect_person_data_bundle(subject_type: str, subject_id: int, foundation_id: int) -> dict:
+    """DSAR access-export bundle (CMP-011): Identity + Academic + Attendance +
+    Finance for one Student or Staff. Notifications/wallet/campus-life data
+    are a documented follow-up, not pulled in here. Shape is sheet-ready:
+    every key except 'identity' is a flat list of row-dicts, consumed
+    directly by apps/compliance/exports.py's dsar_access renderer."""
+    from apps.attendance.models import AttendanceDay, PeriodAttendance
+    from apps.finance.models import Invoice, Payment
+
+    if subject_type == 'STUDENT':
+        student = Student.objects.filter(foundation_id=foundation_id, id=subject_id).select_related('person').first()
+        if student is None:
+            raise PersonNotFoundError(f"Student {subject_id} not found in foundation {foundation_id}")
+        person = student.person
+
+        from apps.academic.models import ReportCard
+
+        academic_enrollments = [
+            {
+                'class_group': e.class_group.name,
+                'enrolled_at': _serialize_date(e.enrolled_at),
+                'is_active': e.is_active,
+            }
+            for e in ClassEnrollment.objects.filter(student=student).select_related('class_group')
+        ]
+        report_cards = [
+            {
+                'term_id': rc.term_id,
+                'status': rc.status,
+                'published_at': rc.published_at.isoformat() if rc.published_at else None,
+            }
+            for rc in ReportCard.objects.filter(student=student, is_current=True)
+        ]
+        attendance_days = [
+            {'date': _serialize_date(a.date), 'status': a.status}
+            for a in AttendanceDay.objects.filter(student=student).order_by('date')
+        ]
+        period_attendances = [
+            {'date': _serialize_date(p.date), 'status': p.status, 'source': p.source}
+            for p in PeriodAttendance.objects.filter(student=student).order_by('date')
+        ]
+        invoices = [
+            {
+                'number': inv.number, 'period': inv.period, 'total': str(inv.total),
+                'currency': inv.currency, 'status': inv.status,
+            }
+            for inv in Invoice.objects.filter(student=student)
+        ]
+        payments = [
+            {
+                'reference': p.reference, 'amount': str(p.amount), 'currency': p.currency,
+                'status': p.status, 'paid_at': p.paid_at.isoformat() if p.paid_at else None,
+            }
+            for p in Payment.objects.filter(student=student)
+        ]
+
+        return {
+            'identity': {
+                'subject_type': 'STUDENT', 'full_name': person.full_name, 'nik': person.nik,
+                'dob': _serialize_date(person.dob), 'gender': person.gender, 'address': person.address,
+                'nis': student.nis, 'nisn': student.nisn, 'status': student.status,
+            },
+            'academic_enrollments': academic_enrollments,
+            'academic_report_cards': report_cards,
+            'attendance_days': attendance_days,
+            'period_attendances': period_attendances,
+            'invoices': invoices,
+            'payments': payments,
+        }
+
+    if subject_type == 'STAFF':
+        staff = Staff.objects.filter(foundation_id=foundation_id, id=subject_id).select_related('person').first()
+        if staff is None:
+            raise PersonNotFoundError(f"Staff {subject_id} not found in foundation {foundation_id}")
+        person = staff.person
+        return {
+            'identity': {
+                'subject_type': 'STAFF', 'full_name': person.full_name, 'nik': person.nik,
+                'dob': _serialize_date(person.dob), 'gender': person.gender, 'address': person.address,
+                'nip': staff.nip, 'nuptk': staff.nuptk, 'status': staff.status,
+            },
+            'academic_enrollments': [],
+            'academic_report_cards': [],
+            'attendance_days': [],
+            'period_attendances': [],
+            'invoices': [],
+            'payments': [],
+        }
+
+    raise PersonNotFoundError(f"Unknown subject_type: {subject_type}")
