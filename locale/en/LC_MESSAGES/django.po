@@ -7302,3 +7302,9 @@ msgstr "Foundation"
 
 msgid "Tidak ada staf yang cocok dengan filter ini."
 msgstr "No staff match these filters."
+
+msgid "Sekolah"
+msgstr "School"
+
+msgid "Nama"
+msgstr "Name"
