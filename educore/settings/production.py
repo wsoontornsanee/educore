@@ -6,6 +6,8 @@ DEBUG = False
 
 ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'app.educore.id').split(',')
 
+EDUCORE_PUBLIC_BASE_URL = os.environ.get('EDUCORE_PUBLIC_BASE_URL', 'https://app.educore.id')
+
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SECURE_SSL_REDIRECT = True
 SESSION_COOKIE_SECURE = True

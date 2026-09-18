@@ -278,6 +278,24 @@ EDUCORE_CLINIC_FERNET_KEY = os.environ.get('EDUCORE_CLINIC_FERNET_KEY', '')
 # set an explicit key; the SECRET_KEY-derived fallback is dev/test-only.
 EDUCORE_COUNSELLING_FERNET_KEY = os.environ.get('EDUCORE_COUNSELLING_FERNET_KEY', '')
 
+# Status page subscriber incident email (Notion: "Status page: subscriber
+# email delivery") — Django's built-in SMTP backend, not a provider SDK.
+# Defaults to the console backend so local/dev/test never attempts a real
+# SMTP connection unless EMAIL_BACKEND is explicitly overridden.
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+EMAIL_HOST = os.environ.get('EMAIL_HOST', '')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() == 'true'
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'status@educore.id')
+
+# Public base URL for building absolute links (e.g. the status-email
+# unsubscribe link) from contexts with no `request` object, such as the
+# drain_tasks cron. apps.marketing uses request.build_absolute_uri() where a
+# request is available; this is the equivalent for cron/task contexts.
+EDUCORE_PUBLIC_BASE_URL = os.environ.get('EDUCORE_PUBLIC_BASE_URL', 'http://localhost:8000')
+
 
 # Single cron host enforcement (spec/01 §7, ARC-013): production runs exactly one
 # dedicated cron host, identified by EDUCORE_CRON_HOST=1. Off by default — local and
