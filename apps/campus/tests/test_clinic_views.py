@@ -10,8 +10,8 @@ from apps.academic.tests.base import build_academic_fixture
 from apps.attendance.models import Credential, CredentialStatus, CredentialType
 from apps.campus.models import ClinicOutcome, ClinicVisit, HealthProfile, MedicationStock
 from apps.core.models import AuditEvent
-from apps.identity.models import Person, RoleAssignment, School, Staff, Student, User
-from apps.identity.rbac import ROLE_CLINIC_OFFICER, ROLE_SCHOOL_ADMIN, ROLE_TEACHER
+from apps.identity.models import Guardian, GuardianLink, Person, RoleAssignment, School, Staff, Student, User
+from apps.identity.rbac import ROLE_CLINIC_OFFICER, ROLE_PARENT, ROLE_SCHOOL_ADMIN, ROLE_TEACHER
 from educore.middleware.tenancy import set_current_foundation_id
 
 
@@ -456,3 +456,91 @@ class MedicationStockSchoolScopingTests(TestCase):
         resp = self.client.get('/api/v1/campus/medication-stock/')
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(resp.data['results'], [])
+
+
+class GuardianClinicReadScopingTests(TestCase):
+    """[Open Item] Parent App: Guardian Read Scoping for Clinic Visit History.
+
+    No parent client exists anywhere in this repo (same recurring precedent as
+    report cards/homework/wallet refund), so the item's own client-UI scope stays
+    deferred. But the guardian-scoping mechanism it depends on
+    (get_guardian_student_ids / can_guardian_access_student) was already wired
+    into these endpoints during PR #147's task review and had zero test coverage
+    calling them as a ROLE_PARENT user — this closes that verification gap directly
+    against the real endpoints, exactly as any client (parent app included) would.
+    """
+
+    def setUp(self):
+        self.fx = build_academic_fixture()
+        set_current_foundation_id(self.fx['foundation'].id)
+
+        self.other_person = Person.all_tenants.create(
+            foundation_id=self.fx['foundation'].id, nik='3471010101019992', full_name='Andi Wijaya',
+        )
+        self.other_student = Student.all_tenants.create(
+            foundation_id=self.fx['foundation'].id,
+            school=self.fx['school'],
+            person=self.other_person,
+            nisn='1122334488',
+            nis='C-001',
+            status=Student.STATUS_ACTIVE,
+        )
+
+        parent_person = Person.all_tenants.create(
+            foundation_id=self.fx['foundation'].id, nik='3471010101019993', full_name='Bu Sari',
+        )
+        self.parent_user = User.objects.create(
+            foundation_id=self.fx['foundation'].id, phone_e164='+62817000002', email='sari@wali.sch.id', full_name='Bu Sari',
+        )
+        guardian = Guardian.all_tenants.create(
+            foundation_id=self.fx['foundation'].id, person=parent_person, user=self.parent_user,
+        )
+        GuardianLink.all_tenants.create(
+            foundation_id=self.fx['foundation'].id, guardian=guardian, student=self.fx['student'],
+            relation=GuardianLink.RELATION_MOTHER, financial_responsible=True,
+        )
+        assign(self.fx, self.parent_user, ROLE_PARENT, scope_type=RoleAssignment.SCOPE_FOUNDATION, scope_id=self.fx['foundation'].id)
+
+        from apps.campus.crypto import encrypt_note
+
+        self.own_visit = ClinicVisit.objects.create(
+            foundation_id=self.fx['foundation'].id, school=self.fx['school'], student=self.fx['student'],
+            complaint_encrypted=encrypt_note('Demam'), outcome=ClinicOutcome.RETURNED_TO_CLASS, handled_by=self.fx['teacher'],
+        )
+        self.other_visit = ClinicVisit.objects.create(
+            foundation_id=self.fx['foundation'].id, school=self.fx['school'], student=self.other_student,
+            complaint_encrypted=encrypt_note('Pusing'), outcome=ClinicOutcome.RETURNED_TO_CLASS, handled_by=self.fx['teacher'],
+        )
+
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.parent_user)
+
+    def test_guardian_lists_own_childs_clinic_visits_only(self):
+        resp = self.client.get('/api/v1/campus/clinic-visits/')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.content)
+        visit_ids = {row['id'] for row in resp.data['results']}
+        self.assertIn(self.own_visit.id, visit_ids)
+        self.assertNotIn(self.other_visit.id, visit_ids)
+
+    def test_guardian_cannot_retrieve_other_students_clinic_visit_by_id(self):
+        resp = self.client.get(f'/api/v1/campus/clinic-visits/{self.other_visit.id}/')
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_guardian_can_retrieve_own_childs_clinic_visit_by_id(self):
+        resp = self.client.get(f'/api/v1/campus/clinic-visits/{self.own_visit.id}/')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.content)
+
+    def test_guardian_can_get_own_childs_health_profile(self):
+        HealthProfile.objects.create(
+            foundation_id=self.fx['foundation'].id, student=self.fx['student'], allergies=['Debu'],
+        )
+        resp = self.client.get(f"/api/v1/campus/students/{self.fx['student'].id}/health-profile/")
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.content)
+        self.assertEqual(resp.data['allergies'], ['Debu'])
+
+    def test_guardian_cannot_get_other_students_health_profile(self):
+        HealthProfile.objects.create(
+            foundation_id=self.fx['foundation'].id, student=self.other_student, allergies=['Kacang'],
+        )
+        resp = self.client.get(f"/api/v1/campus/students/{self.other_student.id}/health-profile/")
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
