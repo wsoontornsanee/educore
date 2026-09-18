@@ -1,0 +1,79 @@
+{% extends "marketing/base.html" %}
+
+{% block title %}{{ t.st_h1 }}{% endblock %}
+
+{% block content %}
+<section style="background:#fff;border-bottom:1px solid #E5DDD9">
+  <div style="max-width:1100px;margin:0 auto;padding:64px 24px 56px;display:flex;flex-direction:column;gap:26px">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#C8102E">{{ t.st_eyebrow }}</span>
+      <h1 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:clamp(28px,4.6vw,42px);letter-spacing:-.03em">{{ t.st_h1 }}</h1>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:{% if banner_ok %}#E6F4EE{% else %}#FDF1E0{% endif %};border-left:3px solid {% if banner_ok %}#0E7A4F{% else %}#B56A00{% endif %};padding:20px 22px">
+      <span style="width:12px;height:12px;border-radius:50%;background:{% if banner_ok %}#0E7A4F{% else %}#B56A00{% endif %};flex:none"></span>
+      <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:19px;color:{% if banner_ok %}#0B5B3B{% else %}#7A4400{% endif %}">{{ banner_text }}</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:20px">
+      <div style="background:#F7F4F2;border:1px solid #E5DDD9;padding:20px;display:flex;flex-direction:column;gap:5px"><span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:28px">{% if uptime_pct is not None %}{{ uptime_pct }}%{% else %}—{% endif %}</span><span style="font-size:13.5px;color:#6B615C">{{ t.st_m1 }}</span></div>
+      <div style="background:#F7F4F2;border:1px solid #E5DDD9;padding:20px;display:flex;flex-direction:column;gap:5px"><span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:28px">{% if avg_latency_ms is not None %}{{ avg_latency_ms }} ms{% else %}—{% endif %}</span><span style="font-size:13.5px;color:#6B615C">{{ t.st_m2 }}</span></div>
+      <div style="background:#F7F4F2;border:1px solid #E5DDD9;padding:20px;display:flex;flex-direction:column;gap:5px"><span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:28px">{{ open_component_count }}</span><span style="font-size:13.5px;color:#6B615C">{{ t.st_m3 }}</span></div>
+    </div>
+  </div>
+</section>
+
+<section style="background:#F7F4F2;border-bottom:1px solid #E5DDD9">
+  <div style="max-width:1100px;margin:0 auto;padding:56px 24px;display:flex;flex-direction:column;gap:22px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap">
+      <h2 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:clamp(23px,3.2vw,28px);letter-spacing:-.02em">{{ t.st_comp_h }}</h2>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:#6B615C">{{ t.st_legend }}</span>
+    </div>
+    <div style="background:#fff;border:1px solid #E5DDD9;display:flex;flex-direction:column">
+      {% for c in components %}
+      <div style="padding:18px 20px;border-bottom:1px solid #E5DDD9;display:flex;flex-wrap:wrap;align-items:center;gap:14px">
+        <span style="display:flex;flex-direction:column;gap:3px;flex:1 1 200px;min-width:0">
+          <span style="font-size:15px;font-weight:600">{{ c.name }}</span>
+          <span style="font-size:13px;color:#6B615C;line-height:1.5">{{ c.note }}</span>
+        </span>
+        <span style="display:flex;gap:2px;align-items:flex-end;height:26px;flex:none">
+          {% for b in c.bars %}<span style="width:5px;height:26px;background:{{ b.color }};display:block"></span>{% endfor %}
+        </span>
+        <span style="display:flex;align-items:center;gap:8px;flex:none;min-width:116px;justify-content:flex-end">
+          <span style="width:9px;height:9px;border-radius:50%;background:{{ c.dot }};display:block"></span>
+          <span style="font-size:13.5px;font-weight:600;color:{{ c.dot }}">{{ c.status }}</span>
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    <p style="margin:0;font-size:13.5px;line-height:1.6;color:#6B615C">{{ t.st_window }}</p>
+  </div>
+</section>
+
+<section style="background:#fff">
+  <div style="max-width:1100px;margin:0 auto;padding:56px 24px;display:flex;flex-direction:column;gap:24px">
+    <h2 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:clamp(23px,3.2vw,28px);letter-spacing:-.02em">{{ t.st_inc_h }}</h2>
+    <div style="display:flex;flex-direction:column;gap:0">
+      {% for i in incidents %}
+      <div style="display:grid;grid-template-columns:minmax(0,1fr);gap:10px;padding:24px 0;border-top:1px solid #E5DDD9">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;padding:4px 9px;background:#F7F4F2;color:#3A302C">{{ i.severity }}</span>
+          <span style="font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:17px">{{ i.title }}</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#6B615C;margin-left:auto">{{ i.occurred_at|date:"d M Y" }} · {{ i.duration_minutes }} min</span>
+        </div>
+        <p style="margin:0;font-size:14.5px;line-height:1.65;color:#3A302C;max-width:82ch">{{ i.body }}</p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          {% for a in i.affected %}<span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;background:#F7F4F2;border:1px solid #E5DDD9;padding:5px 9px;color:#3A302C">{{ a }}</span>{% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div style="border-top:1px solid #E5DDD9;padding-top:24px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between">
+      <p style="margin:0;font-size:14px;color:#6B615C;max-width:56ch;line-height:1.6">{{ t.st_sub_note }}</p>
+      <form method="post" action="{% url 'status:subscribe' %}" style="display:flex;gap:8px;flex-wrap:wrap">
+        {% csrf_token %}
+        <input type="email" name="email" required placeholder="{{ t.st_sub_placeholder }}" style="font-family:'IBM Plex Sans',sans-serif;font-size:14px;padding:12px 14px;border:1px solid #E5DDD9">
+        <button type="submit" style="font-family:'IBM Plex Sans',sans-serif;font-size:14px;font-weight:600;padding:13px 20px;border:1px solid #16110F;background:#fff;color:#16110F;cursor:pointer;white-space:nowrap">{{ t.st_sub_cta }}</button>
+      </form>
+    </div>
+  </div>
+</section>
+{% endblock %}

@@ -40,4 +40,6 @@ urlpatterns = [
     path('i18n/', include('django.conf.urls.i18n')),
     # Public marketing website — no auth, no tenancy, root-mounted
     path('', include('apps.marketing.urls')),
+    # Public service status page — no auth, no tenancy, non-tenant apps.status models
+    path('status/', include('apps.status.urls')),
 ]
