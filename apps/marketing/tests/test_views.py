@@ -63,6 +63,18 @@ class MarketingPagesTests(TestCase):
             response = self.client.get(reverse(name))
             self.assertNotIn(response.status_code, (301, 302, 401, 403))
 
+    def test_compliance_pages_render_indonesian_by_default(self):
+        cases = {
+            'marketing:privacy-policy': ('Kebijakan Privasi', 'pengendali data'),
+            'marketing:dpa': ('Perjanjian Pemrosesan Data', 'Pemroses Data'),
+            'marketing:data-retention': ('Retensi Data', '90 hari secara default'),
+        }
+        for name, (heading, body_text) in cases.items():
+            response = self.client.get(reverse(name))
+            self.assertEqual(response.headers.get('Content-Language'), 'id')
+            self.assertContains(response, heading)
+            self.assertContains(response, body_text)
+
     def test_compliance_pages_translate_to_english(self):
         self.client.cookies['django_language'] = 'en'
         cases = {
