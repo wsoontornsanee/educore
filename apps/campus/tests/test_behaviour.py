@@ -411,7 +411,7 @@ class BehaviourAPITests(TestCase):
     def test_list_and_create_behaviour_reason(self):
         self.client.force_authenticate(user=self.admin_user)
         # Create reason
-        res = self.client.post('/api/v1/behaviour-reasons/', {
+        res = self.client.post('/api/v1/campus/behaviour-reasons/', {
             'school': self.fx['school'].id,
             'code': 'HONOR-01',
             'label': 'Juara Olimpiade Sains',
@@ -422,14 +422,14 @@ class BehaviourAPITests(TestCase):
         self.assertEqual(res.data['code'], 'HONOR-01')
 
         # List reasons
-        res_list = self.client.get(f'/api/v1/behaviour-reasons/?school_id={self.fx["school"].id}')
+        res_list = self.client.get(f'/api/v1/campus/behaviour-reasons/?school_id={self.fx["school"].id}')
         self.assertEqual(res_list.status_code, status.HTTP_200_OK)
         codes = [item['code'] for item in res_list.data['results']]
         self.assertIn('HONOR-01', codes)
 
     def test_record_behaviour_via_api(self):
         self.client.force_authenticate(user=self.fx['teacher_user'])
-        res = self.client.post('/api/v1/behaviour-records/', {
+        res = self.client.post('/api/v1/campus/behaviour-records/', {
             'student_id': self.fx['student'].id,
             'reason_id': self.reasons['pos'].id,
             'term_id': self.fx['term'].id,
@@ -450,7 +450,7 @@ class BehaviourAPITests(TestCase):
             term=self.fx['term'],
         )
         self.client.force_authenticate(user=self.admin_user)
-        res = self.client.delete(f'/api/v1/behaviour-records/{rec.id}/')
+        res = self.client.delete(f'/api/v1/campus/behaviour-records/{rec.id}/')
         self.assertEqual(res.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
     def test_supersede_record_via_api(self):
@@ -464,7 +464,7 @@ class BehaviourAPITests(TestCase):
             points=-10,
         )
         self.client.force_authenticate(user=self.fx['teacher_user'])
-        res = self.client.post(f'/api/v1/behaviour-records/{rec.id}/supersede/', {
+        res = self.client.post(f'/api/v1/campus/behaviour-records/{rec.id}/supersede/', {
             'reason_id': self.reasons['pos'].id,
             'correction_reason': 'Keliru mencatat siswa, yang bersangkutan berprestasi',
             'points': 10,
@@ -497,7 +497,7 @@ class BehaviourAPITests(TestCase):
         )
 
         self.client.force_authenticate(user=self.fx['teacher_user'])
-        res = self.client.get(f'/api/v1/students/{self.fx["student"].id}/behaviour/?term_id={self.fx["term"].id}')
+        res = self.client.get(f'/api/v1/campus/students/{self.fx["student"].id}/behaviour/?term_id={self.fx["term"].id}')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data['term_positive_points'], 10)
         self.assertEqual(res.data['term_negative_points'], -5)
@@ -523,17 +523,17 @@ class BehaviourAPITests(TestCase):
         )
 
         self.client.force_authenticate(user=guardian.user)
-        res = self.client.post(f'/api/v1/behaviour-records/{rec.id}/acknowledge/')
+        res = self.client.post(f'/api/v1/campus/behaviour-records/{rec.id}/acknowledge/')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertIsNotNone(res.data['acknowledged_by_guardian_at'])
 
     def test_behaviour_policy_get_and_put(self):
         self.client.force_authenticate(user=self.admin_user)
-        res_get = self.client.get(f'/api/v1/schools/{self.fx["school"].id}/behaviour-policy/')
+        res_get = self.client.get(f'/api/v1/campus/schools/{self.fx["school"].id}/behaviour-policy/')
         self.assertEqual(res_get.status_code, status.HTTP_200_OK)
         self.assertEqual(res_get.data['escalation_negative_threshold'], -25)
 
-        res_put = self.client.put(f'/api/v1/schools/{self.fx["school"].id}/behaviour-policy/', {
+        res_put = self.client.put(f'/api/v1/campus/schools/{self.fx["school"].id}/behaviour-policy/', {
             'escalation_negative_threshold': -30,
             'rapor_includes_behaviour': True,
         })
@@ -564,5 +564,5 @@ class BehaviourAPITests(TestCase):
         # Authenticate as user from other foundation
         self.client.force_authenticate(user=other_admin_user)
         # Attempting to fetch behaviour summary of student in first foundation returns 404
-        res = self.client.get(f'/api/v1/students/{self.fx["student"].id}/behaviour/')
+        res = self.client.get(f'/api/v1/campus/students/{self.fx["student"].id}/behaviour/')
         self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)

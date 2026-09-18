@@ -76,6 +76,12 @@ class MarketingPagesTests(TestCase):
         self.assertContains(response, 'data-changelog-category="portal-web"')
         self.assertContains(response, 'data-changelog-category="aplikasi-seluler"')
 
+    def test_footer_links_status_to_the_real_page(self):
+        # apps.status owns the real status page (PR #184); marketing only
+        # links to it, it doesn't render its own copy.
+        response = self.client.get(reverse('marketing:home'))
+        self.assertContains(response, reverse('status:page'))
+
     def test_footer_no_longer_mailtos_compliance_pages(self):
         response = self.client.get(reverse('marketing:home'))
         self.assertContains(response, reverse('marketing:privacy-policy'))
