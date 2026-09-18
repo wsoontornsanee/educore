@@ -1,6 +1,7 @@
 # apps/status/tests/test_models.py
 from django.test import TestCase
-from apps.status.models import ServiceComponent
+from apps.status.models import ServiceComponent, ComponentHeartbeat
+from django.utils import timezone
 
 
 class ServiceComponentTests(TestCase):
@@ -36,3 +37,17 @@ class NotificationsSeedNoteMigrationTests(TestCase):
         self.assertEqual(notifications.note_en, 'Push, SMS, and email')
         self.assertNotIn('tertunda', notifications.note_id)
         self.assertNotIn('delayed', notifications.note_en)
+
+
+class ComponentHeartbeatStatusFieldTests(TestCase):
+    def test_status_field_accepts_null_and_status_choices(self):
+        component = ServiceComponent.objects.create(key='c1', name_id='C1', name_en='C1')
+        hb_null = ComponentHeartbeat.objects.create(
+            component=component, checked_at=timezone.now(), is_up=True, latency_ms=10,
+        )
+        self.assertIsNone(hb_null.status)
+        hb_degraded = ComponentHeartbeat.objects.create(
+            component=component, checked_at=timezone.now(), is_up=True, latency_ms=10,
+            status=ServiceComponent.STATUS_DEGRADED,
+        )
+        self.assertEqual(hb_degraded.status, ServiceComponent.STATUS_DEGRADED)

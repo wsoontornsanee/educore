@@ -1,5 +1,6 @@
 """Domain services for apps.status: heartbeat recording, rollup, and metric queries."""
 import datetime
+import logging
 import time
 
 from django.db import connection
@@ -10,6 +11,7 @@ from apps.core.services import audit, enqueue_task
 from educore.middleware.tenancy import tenant_context
 
 from .models import ComponentHeartbeat, DailyComponentStatus, ServiceComponent, StatusIncident, StatusSubscriber
+from .probes import PROBES
 
 BAR_COLOR_UNKNOWN = '#D9D2CD'
 
@@ -18,6 +20,8 @@ BAR_COLORS = {
     ServiceComponent.STATUS_DEGRADED: '#B56A00',
     ServiceComponent.STATUS_DOWN: '#B3261E',
 }
+
+logger = logging.getLogger(__name__)
 
 
 def _probe_database():
@@ -50,17 +54,37 @@ def _probe_database():
 def record_heartbeats():
     """Probe the platform once and write one ComponentHeartbeat per ServiceComponent.
 
+    A component with a registered probe (apps.status.probes.PROBES) uses that
+    probe's real signal; every other component (and a probed one whose probe
+    returns None, meaning "no real signal for this deployment") falls back to
+    the shared DB-connectivity probe, exactly as before this change. A probe
+    that raises is caught here too (on top of each probe catching its own
+    requests.RequestException internally) so a bug in one provider
+    integration can never prevent this cycle's heartbeat from being recorded
+    for any component, probed or not.
+
     A manual_status=DOWN override forces that component's heartbeat down
-    regardless of the shared DB probe result; other overrides don't affect
-    the heartbeat itself (they're applied at rollup/read time instead).
+    regardless of the probe/DB result; other overrides don't affect the
+    heartbeat itself (they're applied at rollup/read time instead).
     """
-    is_up, latency_ms = _probe_database()
+    db_is_up, db_latency_ms = _probe_database()
+    db_status = ServiceComponent.STATUS_OPERATIONAL if db_is_up else ServiceComponent.STATUS_DOWN
     checked_at = timezone.now()
     created = 0
     for component in ServiceComponent.objects.all():
-        component_is_up = False if component.manual_status == ServiceComponent.STATUS_DOWN else is_up
+        probe = PROBES.get(component.key)
+        result = None
+        if probe is not None:
+            try:
+                result = probe()
+            except Exception:
+                logger.warning("status probe for %s failed", component.key, exc_info=True)
+        status, latency_ms = result if result is not None else (db_status, db_latency_ms)
+        if component.manual_status == ServiceComponent.STATUS_DOWN:
+            status = ServiceComponent.STATUS_DOWN
         ComponentHeartbeat.objects.create(
-            component=component, checked_at=checked_at, is_up=component_is_up, latency_ms=latency_ms,
+            component=component, checked_at=checked_at,
+            is_up=(status != ServiceComponent.STATUS_DOWN), status=status, latency_ms=latency_ms,
         )
         created += 1
     return created
@@ -70,8 +94,11 @@ def rollup_daily_status(date=None):
     """Upsert today's (or `date`'s) DailyComponentStatus per component from its heartbeats.
 
     Idempotent — safe to call repeatedly within the same day. manual_status
-    always wins; otherwise DOWN if any heartbeat that day was down, else
-    OPERATIONAL (no automatic DEGRADED signal exists without a manual override).
+    always wins; otherwise the worst status seen that day (DOWN > DEGRADED >
+    OPERATIONAL). A heartbeat with status=NULL (written before the status
+    field existed) is treated as DOWN if is_up=False else OPERATIONAL —
+    identical to this function's pre-migration behavior, so historical rows
+    keep rolling up exactly as they always did.
     """
     date = date or timezone.localdate()
     day_start = timezone.make_aware(datetime.datetime.combine(date, datetime.time.min))
@@ -84,7 +111,13 @@ def rollup_daily_status(date=None):
             heartbeats = ComponentHeartbeat.objects.filter(
                 component=component, checked_at__gte=day_start, checked_at__lte=day_end,
             )
-            status = ServiceComponent.STATUS_DOWN if heartbeats.filter(is_up=False).exists() else ServiceComponent.STATUS_OPERATIONAL
+            if heartbeats.filter(status=ServiceComponent.STATUS_DOWN).exists() or \
+                    heartbeats.filter(status__isnull=True, is_up=False).exists():
+                status = ServiceComponent.STATUS_DOWN
+            elif heartbeats.filter(status=ServiceComponent.STATUS_DEGRADED).exists():
+                status = ServiceComponent.STATUS_DEGRADED
+            else:
+                status = ServiceComponent.STATUS_OPERATIONAL
         DailyComponentStatus.objects.update_or_create(
             component=component, date=date, defaults={'status': status},
         )

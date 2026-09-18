@@ -11,8 +11,8 @@ class ServiceComponentAdmin(admin.ModelAdmin):
 
 @admin.register(ComponentHeartbeat)
 class ComponentHeartbeatAdmin(admin.ModelAdmin):
-    list_display = ('component', 'checked_at', 'is_up', 'latency_ms')
-    list_filter = ('component', 'is_up')
+    list_display = ('component', 'checked_at', 'is_up', 'status', 'latency_ms')
+    list_filter = ('component', 'is_up', 'status')
 
 
 @admin.register(DailyComponentStatus)

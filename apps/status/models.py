@@ -45,6 +45,11 @@ class ComponentHeartbeat(models.Model):
     checked_at = models.DateTimeField(db_index=True)
     is_up = models.BooleanField()
     latency_ms = models.PositiveIntegerField(null=True, blank=True)
+    status = models.CharField(
+        max_length=16, choices=ServiceComponent.STATUS_CHOICES, null=True, blank=True,
+        help_text="Full OPERATIONAL/DEGRADED/DOWN probe signal. Null on pre-migration rows — "
+                   "read as DOWN if is_up=False else OPERATIONAL for backward compatibility.",
+    )
 
     class Meta:
         db_table = 'status_component_heartbeats'

@@ -1,4 +1,6 @@
 import datetime
+from unittest.mock import patch
+
 from django.test import TestCase
 from django.utils import timezone
 from apps.status.models import ServiceComponent, ComponentHeartbeat, DailyComponentStatus
@@ -7,6 +9,7 @@ from apps.status.services import (
     get_component_bars, get_uptime_percentage, get_average_latency_ms,
     get_open_component_count,
 )
+from apps.status import probes as status_probes
 
 
 class RecordHeartbeatsTests(TestCase):
@@ -28,6 +31,59 @@ class RecordHeartbeatsTests(TestCase):
         self.c1.save()
         record_heartbeats()
         hb = ComponentHeartbeat.objects.get(component=self.c1)
+        self.assertFalse(hb.is_up)
+
+
+class RecordHeartbeatsProbeDispatchTests(TestCase):
+    def setUp(self):
+        self.payments = ServiceComponent.objects.get(key='payments')
+        self.notifications = ServiceComponent.objects.get(key='notifications')
+        self.canteen_pos = ServiceComponent.objects.get(key='canteen_pos')
+        self.web_portal = ServiceComponent.objects.get(key='web_portal')
+
+    def test_probed_component_uses_probe_result(self):
+        with patch.object(status_probes, 'probe_payments', return_value=(ServiceComponent.STATUS_DEGRADED, 42)):
+            with patch.dict(status_probes.PROBES, {'payments': status_probes.probe_payments}):
+                record_heartbeats()
+        hb = ComponentHeartbeat.objects.get(component=self.payments)
+        self.assertEqual(hb.status, ServiceComponent.STATUS_DEGRADED)
+        self.assertEqual(hb.latency_ms, 42)
+        self.assertTrue(hb.is_up)
+
+    def test_probe_returning_none_falls_back_to_db_signal(self):
+        with patch.object(status_probes, 'probe_payments', return_value=None):
+            with patch.dict(status_probes.PROBES, {'payments': status_probes.probe_payments}):
+                with patch('apps.status.services._probe_database', return_value=(True, 5)):
+                    record_heartbeats()
+        hb = ComponentHeartbeat.objects.get(component=self.payments)
+        self.assertEqual(hb.status, ServiceComponent.STATUS_OPERATIONAL)
+        self.assertEqual(hb.latency_ms, 5)
+
+    def test_probe_raising_falls_back_to_db_signal_without_crashing(self):
+        with patch.object(status_probes, 'probe_whatsapp', side_effect=RuntimeError("boom")):
+            with patch.dict(status_probes.PROBES, {'notifications': status_probes.probe_whatsapp}):
+                with patch('apps.status.services._probe_database', return_value=(True, 7)):
+                    created = record_heartbeats()
+        self.assertEqual(created, ServiceComponent.objects.count())
+        hb = ComponentHeartbeat.objects.get(component=self.notifications)
+        self.assertEqual(hb.status, ServiceComponent.STATUS_OPERATIONAL)
+        self.assertEqual(hb.latency_ms, 7)
+
+    def test_unprobed_component_uses_db_signal_as_before(self):
+        with patch('apps.status.services._probe_database', return_value=(False, None)):
+            record_heartbeats()
+        hb = ComponentHeartbeat.objects.get(component=self.web_portal)
+        self.assertEqual(hb.status, ServiceComponent.STATUS_DOWN)
+        self.assertFalse(hb.is_up)
+
+    def test_manual_down_override_still_wins_over_probe_result(self):
+        self.payments.manual_status = ServiceComponent.STATUS_DOWN
+        self.payments.save()
+        with patch.object(status_probes, 'probe_payments', return_value=(ServiceComponent.STATUS_OPERATIONAL, 10)):
+            with patch.dict(status_probes.PROBES, {'payments': status_probes.probe_payments}):
+                record_heartbeats()
+        hb = ComponentHeartbeat.objects.get(component=self.payments)
+        self.assertEqual(hb.status, ServiceComponent.STATUS_DOWN)
         self.assertFalse(hb.is_up)
 
 
@@ -67,6 +123,64 @@ class RollupDailyStatusTests(TestCase):
         rollup_daily_status(self.today)
         daily = DailyComponentStatus.objects.get(component=self.component, date=self.today)
         self.assertEqual(daily.status, ServiceComponent.STATUS_OPERATIONAL)
+
+
+class RollupDailyStatusDegradedTierTests(TestCase):
+    def setUp(self):
+        self.component = ServiceComponent.objects.create(key='c3', name_id='C3', name_en='C3')
+        self.today = timezone.localdate()
+
+    def test_degraded_heartbeat_rolls_up_degraded(self):
+        ComponentHeartbeat.objects.create(
+            component=self.component, checked_at=timezone.now(), is_up=True, latency_ms=10,
+            status=ServiceComponent.STATUS_DEGRADED,
+        )
+        rollup_daily_status(self.today)
+        daily = DailyComponentStatus.objects.get(component=self.component, date=self.today)
+        self.assertEqual(daily.status, ServiceComponent.STATUS_DEGRADED)
+
+    def test_down_beats_degraded_same_day(self):
+        ComponentHeartbeat.objects.create(
+            component=self.component, checked_at=timezone.now(), is_up=True, latency_ms=10,
+            status=ServiceComponent.STATUS_DEGRADED,
+        )
+        ComponentHeartbeat.objects.create(
+            component=self.component, checked_at=timezone.now(), is_up=False, latency_ms=None,
+            status=ServiceComponent.STATUS_DOWN,
+        )
+        rollup_daily_status(self.today)
+        daily = DailyComponentStatus.objects.get(component=self.component, date=self.today)
+        self.assertEqual(daily.status, ServiceComponent.STATUS_DOWN)
+
+    def test_degraded_beats_operational_same_day(self):
+        ComponentHeartbeat.objects.create(
+            component=self.component, checked_at=timezone.now(), is_up=True, latency_ms=10,
+            status=ServiceComponent.STATUS_OPERATIONAL,
+        )
+        ComponentHeartbeat.objects.create(
+            component=self.component, checked_at=timezone.now(), is_up=True, latency_ms=10,
+            status=ServiceComponent.STATUS_DEGRADED,
+        )
+        rollup_daily_status(self.today)
+        daily = DailyComponentStatus.objects.get(component=self.component, date=self.today)
+        self.assertEqual(daily.status, ServiceComponent.STATUS_DEGRADED)
+
+    def test_null_status_heartbeats_roll_up_same_as_before_migration(self):
+        # Pre-migration-style rows: status=NULL, only is_up set.
+        ComponentHeartbeat.objects.create(
+            component=self.component, checked_at=timezone.now(), is_up=True, latency_ms=10, status=None,
+        )
+        rollup_daily_status(self.today)
+        daily = DailyComponentStatus.objects.get(component=self.component, date=self.today)
+        self.assertEqual(daily.status, ServiceComponent.STATUS_OPERATIONAL)
+
+    def test_null_status_down_heartbeat_still_rolls_up_down(self):
+        ComponentHeartbeat.objects.create(
+            component=self.component, checked_at=timezone.now(), is_up=False, latency_ms=None, status=None,
+        )
+        rollup_daily_status(self.today)
+        daily = DailyComponentStatus.objects.get(component=self.component, date=self.today)
+        self.assertEqual(daily.status, ServiceComponent.STATUS_DOWN)
 
 
 class ComponentStatusQueryTests(TestCase):
