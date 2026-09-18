@@ -157,4 +157,5 @@ class PartnerApiView(TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx['active_page'] = 'partner-api'
+        ctx['api_base_url'] = self.request.build_absolute_uri('/api/v1/')
         return ctx
