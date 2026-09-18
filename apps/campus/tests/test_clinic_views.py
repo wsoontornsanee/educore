@@ -186,3 +186,39 @@ class StudentHealthProfileViewCrossSchoolTests(TestCase):
         )
         self.assertEqual(put_resp.status_code, status.HTTP_200_OK, put_resp.content)
         self.assertEqual(put_resp.data['allergies'], ['Debu', 'Kacang'])
+
+
+class ClinicCrossTenantIsolationTests(TestCase):
+    def setUp(self):
+        self.fx_a = build_academic_fixture(foundation_name="Yayasan A")
+        self.fx_b = build_academic_fixture(foundation_name="Yayasan B")
+        set_current_foundation_id(self.fx_a['foundation'].id)
+        assign(self.fx_a, self.fx_a['teacher_user'], ROLE_CLINIC_OFFICER)
+
+        self.visit_b = ClinicVisit.objects.create(
+            foundation_id=self.fx_b['foundation'].id,
+            school=self.fx_b['school'],
+            student=self.fx_b['student'],
+            complaint_encrypted='x',
+            outcome=ClinicOutcome.RETURNED_TO_CLASS,
+            handled_by=self.fx_b['teacher'],
+        )
+
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.fx_a['teacher_user'])
+
+    def test_cannot_read_other_foundation_clinic_visit(self):
+        set_current_foundation_id(self.fx_a['foundation'].id)
+        resp = self.client.get(f'/api/v1/campus/clinic-visits/{self.visit_b.id}/')
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_medication_stock_alerts_scoped_to_own_school(self):
+        MedicationStock.objects.create(
+            foundation_id=self.fx_b['foundation'].id, school=self.fx_b['school'],
+            name='Obat B', unit='tablet', quantity=1, reorder_level=100,
+            expiry_date=_dt.date(2030, 1, 1),
+        )
+        set_current_foundation_id(self.fx_a['foundation'].id)
+        resp = self.client.get(f"/api/v1/campus/schools/{self.fx_a['school'].id}/medication-stock/alerts/")
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data, [])
