@@ -32,11 +32,11 @@ total_count, late_count, shown_count, class_subjects, selected_class_subject_id.
   </header>
 
   <div style="display:flex;gap:16px;flex-wrap:wrap">
-    <div class="card" style="padding:16px 20px;min-width:160px">
+    <div class="card" style="padding:16px 20px;flex:1 1 140px">
       <span class="text-label text-ink-500">{% translate "Menunggu dinilai" %}</span>
       <div class="font-display text-ink-900" style="font-weight:800;font-size:26px">{{ total_count }}</div>
     </div>
-    <div class="card" style="padding:16px 20px;min-width:160px">
+    <div class="card" style="padding:16px 20px;flex:1 1 140px">
       <span class="text-label text-ink-500">{% translate "Terlambat" %}</span>
       <div class="font-display" style="font-weight:800;font-size:26px;color:var(--color-warning)">{{ late_count }}</div>
     </div>
@@ -44,7 +44,7 @@ total_count, late_count, shown_count, class_subjects, selected_class_subject_id.
 
   {% if submissions %}
     <div class="card" style="overflow-x:auto">
-      <table style="width:100%;min-width:720px;border-collapse:collapse;font-family:'IBM Plex Sans',sans-serif;font-size:0.8125rem">
+      <table style="width:100%;border-collapse:collapse;font-family:'IBM Plex Sans',sans-serif;font-size:0.8125rem">
         <thead>
           <tr style="border-bottom:2px solid var(--color-line);text-align:left">
             <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Siswa" %}</th>
