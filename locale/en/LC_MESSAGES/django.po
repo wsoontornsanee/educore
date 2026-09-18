@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: EduCore 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-18 17:39+0700\n"
+"POT-Creation-Date: 2026-09-18 18:15+0700\n"
 "PO-Revision-Date: 2026-09-16 11:00+0700\n"
 "Last-Translator: EduCore Team\n"
 "Language-Team: English\n"
@@ -128,14 +128,20 @@ msgid "Ditolak"
 msgstr ""
 
 #: apps/academic/models.py:375 apps/academic/models.py:513
+#: frontend/templates/components/exam_proctor_console.html:97
+#: frontend/templates/components/exam_proctor_console.html:238
+#: frontend/templates/components/exam_proctor_console.html:353
+#: frontend/templates/components/homework_completion_bar.html:86
 msgid "Terkumpul"
 msgstr ""
 
 #: apps/academic/models.py:376 apps/campus/models.py:216
+#: frontend/templates/components/homework_completion_bar.html:97
 msgid "Terlambat"
 msgstr "Late"
 
 #: apps/academic/models.py:377
+#: frontend/templates/components/homework_completion_bar.html:75
 #, fuzzy
 #| msgid "Nilai"
 msgid "Dinilai"
@@ -313,7 +319,8 @@ msgid ""
 msgstr ""
 
 #: apps/academic/models.py:867
-msgid "Opt-in: otomatis buat entri Exam draf jika acara kalender bertipe UJIAN"
+msgid ""
+"Opt-in: otomatis buat entri Exam draf jika acara kalender bertipe UJIAN"
 msgstr ""
 
 #: apps/academic/models.py:873
@@ -333,6 +340,7 @@ msgid "Daftar Kebijakan Sinkronisasi Kalender Akademik"
 msgstr ""
 
 #: apps/academic/services.py:1226
+#: frontend/templates/components/teacher_agenda.html:271
 msgid "Alasan penolakan wajib diisi."
 msgstr ""
 
@@ -376,11 +384,11 @@ msgstr ""
 #: apps/academic/views.py:1793 apps/academic/views.py:1797
 #: apps/academic/views.py:1835 apps/academic/views.py:1843
 #: apps/finance/views.py:772 apps/finance/views.py:800
-#: apps/finance/views.py:830 apps/finance/views.py:950 apps/wallet/views.py:115
-#: apps/wallet/views.py:130 apps/wallet/views.py:152 apps/wallet/views.py:181
-#: apps/wallet/views.py:210 apps/wallet/views.py:239 apps/wallet/views.py:254
-#: apps/wallet/views.py:302 apps/wallet/views.py:310 apps/wallet/views.py:483
-#: apps/wallet/views.py:723
+#: apps/finance/views.py:830 apps/finance/views.py:950
+#: apps/wallet/views.py:115 apps/wallet/views.py:130 apps/wallet/views.py:152
+#: apps/wallet/views.py:181 apps/wallet/views.py:210 apps/wallet/views.py:239
+#: apps/wallet/views.py:254 apps/wallet/views.py:302 apps/wallet/views.py:310
+#: apps/wallet/views.py:483 apps/wallet/views.py:723
 msgid "Siswa tidak ditemukan."
 msgstr ""
 
@@ -774,7 +782,8 @@ msgid "Credential must be assigned to either a student or a staff member."
 msgstr ""
 
 #: apps/attendance/services.py:58
-msgid "Credential cannot be simultaneously assigned to both student and staff."
+msgid ""
+"Credential cannot be simultaneously assigned to both student and staff."
 msgstr ""
 
 #: apps/attendance/services.py:63
@@ -946,7 +955,9 @@ msgstr ""
 msgid "Terselesaikan"
 msgstr ""
 
-#: apps/campus/models.py:23 apps/finance/models.py:556 apps/wallet/models.py:14
+#: apps/campus/models.py:23 apps/finance/models.py:556
+#: apps/wallet/models.py:14
+#: frontend/templates/components/_permission_slip_list.html:27
 msgid "Ditutup"
 msgstr ""
 
@@ -998,6 +1009,10 @@ msgstr ""
 
 #: apps/campus/models.py:209 apps/compliance/models.py:172
 #: apps/hardware/models.py:129
+#: frontend/templates/components/_permission_slip_roster.html:13
+#: frontend/templates/components/gradebook_grid.html:114
+#: frontend/templates/components/gradebook_grid.html:282
+#: frontend/templates/components/grading_queue.html:100
 msgid "Siswa"
 msgstr ""
 
@@ -1080,7 +1095,8 @@ msgstr ""
 
 #: apps/campus/models.py:378
 msgid ""
-"RESTRICTED hanya terlihat oleh konselor penulis dan kepala sekolah (LIF-015)."
+"RESTRICTED hanya terlihat oleh konselor penulis dan kepala sekolah "
+"(LIF-015)."
 msgstr ""
 
 #: apps/campus/models.py:382
@@ -1231,6 +1247,8 @@ msgstr ""
 
 #: apps/compliance/models.py:177 apps/wallet/models.py:47
 #: apps/wallet/models.py:176 apps/wallet/models.py:343
+#: frontend/templates/components/exam_proctor_console.html:302
+#: frontend/templates/components/exam_proctor_console.html:360
 msgid "Selesai"
 msgstr ""
 
@@ -1464,8 +1482,8 @@ msgstr ""
 
 #: apps/finance/models.py:239
 msgid ""
-"Set when a FIXED-type discount (waiver) is approved against this line (spec/"
-"03 FND-007 AC#2, spec/06 §2)"
+"Set when a FIXED-type discount (waiver) is approved against this line "
+"(spec/03 FND-007 AC#2, spec/06 §2)"
 msgstr ""
 
 #: apps/finance/models.py:252 apps/finance/models.py:312
@@ -1681,8 +1699,8 @@ msgstr ""
 
 #: apps/finance/models.py:689
 msgid ""
-"Fixed amount (in the invoice's currency) or percentage (e.g. 1.50 for 1.5%), "
-"per fee_type"
+"Fixed amount (in the invoice's currency) or percentage (e.g. 1.50 for 1.5%),"
+" per fee_type"
 msgstr ""
 
 #: apps/finance/models.py:701
@@ -2025,7 +2043,8 @@ msgstr ""
 
 #: apps/finance/services/refunds.py:68
 msgid ""
-"Hanya pembayaran dengan status SETTLED yang dapat diajukan pengembalian dana."
+"Hanya pembayaran dengan status SETTLED yang dapat diajukan pengembalian "
+"dana."
 msgstr ""
 
 #: apps/finance/services/refunds.py:74
@@ -2180,6 +2199,9 @@ msgid "Dua Arah (Bidirectional)"
 msgstr ""
 
 #: apps/hardware/models.py:24
+#: frontend/templates/components/parent_nutrition_dashboard.html:38
+#: frontend/templates/components/pos_kiosk.html:46
+#: frontend/templates/components/teacher_agenda.html:36
 msgid "Online"
 msgstr ""
 
@@ -2239,8 +2261,8 @@ msgstr ""
 
 #: apps/hardware/models.py:160
 msgid ""
-"Enrollment device class — always FACE_TERMINAL today; kept general per spec/"
-"12 §2"
+"Enrollment device class — always FACE_TERMINAL today; kept general per "
+"spec/12 §2"
 msgstr ""
 
 #: apps/hardware/models.py:163
@@ -2306,43 +2328,43 @@ msgstr ""
 msgid "User is inactive"
 msgstr ""
 
-#: apps/identity/web_views.py:52
+#: apps/identity/web_views.py:77
 msgid "Nomor HP / Email dan kata sandi wajib diisi."
 msgstr ""
 
-#: apps/identity/web_views.py:65 apps/identity/web_views.py:80
+#: apps/identity/web_views.py:91 apps/identity/web_views.py:108
 msgid "Akun pengguna tidak aktif. Hubungi Tata Usaha."
 msgstr ""
 
-#: apps/identity/web_views.py:73
+#: apps/identity/web_views.py:100
 msgid "Kredensial tidak valid atau akun terkunci. Periksa kembali data Anda."
 msgstr ""
 
-#: apps/identity/web_views.py:101
+#: apps/identity/web_views.py:130
 msgid "Format data tidak valid."
 msgstr ""
 
-#: apps/identity/web_views.py:109
+#: apps/identity/web_views.py:138
 msgid "Provider dan id_token wajib diisi."
 msgstr ""
 
-#: apps/identity/web_views.py:126
+#: apps/identity/web_views.py:155
 msgid "Akun Google/Microsoft belum terhubung dengan akun staf EduCore."
 msgstr ""
 
-#: apps/identity/web_views.py:136
+#: apps/identity/web_views.py:165
 msgid "Akun pengguna tidak aktif."
 msgstr ""
 
-#: apps/identity/web_views.py:241 apps/identity/web_views.py:244
+#: apps/identity/web_views.py:270 apps/identity/web_views.py:273
 msgid "Hanya Administrator Yayasan yang berwenang mengakses pengaturan ini."
 msgstr ""
 
-#: apps/identity/web_views.py:302
+#: apps/identity/web_views.py:331
 msgid "Penyematan tenant Microsoft Entra berhasil disimpan."
 msgstr ""
 
-#: apps/identity/web_views.py:331
+#: apps/identity/web_views.py:360
 msgid ""
 "Penyematan tenant Microsoft Entra berhasil dilepas. SSO kembali menggunakan "
 "mode multi-tenant standar."
@@ -2365,8 +2387,8 @@ msgstr "Attendance & gate"
 
 #: apps/marketing/views.py:13
 msgid ""
-"Absensi per sesi, pemindaian gerbang, dan notifikasi kedatangan ke orang tua "
-"dalam hitungan detik."
+"Absensi per sesi, pemindaian gerbang, dan notifikasi kedatangan ke orang tua"
+" dalam hitungan detik."
 msgstr ""
 "Per-session attendance, gate scanning, and arrival notifications to parents "
 "within seconds."
@@ -2377,8 +2399,8 @@ msgstr "Finance & billing"
 
 #: apps/marketing/views.py:14
 msgid ""
-"Tagihan SPP otomatis, VA dan QRIS, alokasi pembayaran, serta buku besar yang "
-"selalu seimbang."
+"Tagihan SPP otomatis, VA dan QRIS, alokasi pembayaran, serta buku besar yang"
+" selalu seimbang."
 msgstr ""
 "Automatic tuition billing, VA and QRIS, payment allocation, and a ledger "
 "that always balances."
@@ -2404,7 +2426,7 @@ msgid ""
 "Agenda mengajar, antrean penilaian, dan catatan kelas di web maupun ponsel."
 msgstr "Teaching agenda, a grading queue, and class notes on web and mobile."
 
-#: apps/marketing/views.py:17
+#: apps/marketing/views.py:17 apps/marketing/views.py:239
 msgid "Aplikasi orang tua"
 msgstr "Parent app"
 
@@ -2460,11 +2482,11 @@ msgstr "Foundation chair"
 
 #: apps/marketing/views.py:27
 msgid ""
-"Bandingkan sekolah, pantau kolektibilitas, dan setujui keringanan dalam satu "
-"antrean."
+"Bandingkan sekolah, pantau kolektibilitas, dan setujui keringanan dalam satu"
+" antrean."
 msgstr ""
-"Compare schools, monitor collectibility, and approve fee waivers in a single "
-"queue."
+"Compare schools, monitor collectibility, and approve fee waivers in a single"
+" queue."
 
 #: apps/marketing/views.py:28
 msgid "Admin sekolah"
@@ -2486,8 +2508,8 @@ msgid ""
 "Absen satu sentuh, nilai tanpa menunggu jaringan, dan rapor yang terisi "
 "sendiri."
 msgstr ""
-"One-tap attendance, grading without waiting on the network, and report cards "
-"that fill themselves in."
+"One-tap attendance, grading without waiting on the network, and report cards"
+" that fill themselves in."
 
 #: apps/marketing/views.py:30
 msgid "Orang tua"
@@ -2649,8 +2671,8 @@ msgstr "Canteen POS"
 
 #: apps/marketing/views.py:99
 msgid ""
-"Terminal kantin dan kiosk. Dipasang oleh tim penerapan; pembaruan diturunkan "
-"per sekolah."
+"Terminal kantin dan kiosk. Dipasang oleh tim penerapan; pembaruan diturunkan"
+" per sekolah."
 msgstr ""
 "Canteen and kiosk terminal. Installed by the implementation team; updates "
 "are rolled out per school."
@@ -2720,8 +2742,8 @@ msgid ""
 "Tagihan, alokasi pembayaran, AR aging, dan statement per siswa. Uang selalu "
 "string 2dp dengan mata uang."
 msgstr ""
-"Invoices, payment allocation, AR aging, and per-student statements. Money is "
-"always a 2dp string with its currency."
+"Invoices, payment allocation, AR aging, and per-student statements. Money is"
+" always a 2dp string with its currency."
 
 #: apps/marketing/views.py:156
 msgid "Kehadiran"
@@ -2764,8 +2786,8 @@ msgstr "Safe to retry"
 
 #: apps/marketing/views.py:162
 msgid ""
-"Setiap endpoint mutasi menerima Idempotency-Key. Kirim ulang permintaan yang "
-"sama dan Anda mendapat respons yang sama."
+"Setiap endpoint mutasi menerima Idempotency-Key. Kirim ulang permintaan yang"
+" sama dan Anda mendapat respons yang sama."
 msgstr ""
 "Every mutating endpoint accepts an Idempotency-Key. Replay the same request "
 "and you get the same response, not a double effect."
@@ -2779,8 +2801,111 @@ msgid ""
 "Webhook bertanda tangan untuk kejadian domain, lima kali coba ulang — dan "
 "endpoint events bila penerima Anda pernah mati."
 msgstr ""
-"Signed webhooks for domain events with five retries — and an events endpoint "
-"for when your receiver was down."
+"Signed webhooks for domain events with five retries — and an events endpoint"
+" for when your receiver was down."
+
+#: apps/marketing/views.py:211
+msgid "Semua"
+msgstr "All"
+
+#: apps/marketing/views.py:212 apps/marketing/views.py:226
+#: apps/marketing/views.py:251
+#, fuzzy
+#| msgid "Kunci sandbox Partner API"
+msgid "Partner API"
+msgstr "Partner API sandbox key"
+
+#: apps/marketing/views.py:213 apps/marketing/views.py:263
+msgid "Portal web"
+msgstr "Web portal"
+
+#: apps/marketing/views.py:214
+msgid "Aplikasi seluler"
+msgstr "Mobile apps"
+
+#: apps/marketing/views.py:227
+msgid "12 Sep 2026"
+msgstr "12 Sep 2026"
+
+#: apps/marketing/views.py:228
+msgid ""
+"Endpoint staf kini memaparkan riwayat jabatan, dan aliran kejadian menerima "
+"filter per sekolah."
+msgstr ""
+"The staff endpoint now exposes position history, and the event stream "
+"accepts a per-school filter."
+
+#: apps/marketing/views.py:230
+msgid "riwayat jabatan dan status kepegawaian"
+msgstr "position history and employment status"
+
+#: apps/marketing/views.py:231
+msgid "Filter baru pada /partner/events"
+msgstr "New filter on /partner/events"
+
+#: apps/marketing/views.py:232
+msgid "Kursor paginasi tidak lagi kedaluwarsa lebih cepat dari 24 jam"
+msgstr "Pagination cursors no longer expire sooner than 24 hours"
+
+#: apps/marketing/views.py:240
+msgid "5 Sep 2026"
+msgstr "5 Sep 2026"
+
+#: apps/marketing/views.py:241
+msgid "Perbaikan sinkronisasi untuk perangkat dengan jaringan tidak stabil."
+msgstr "Sync fix for devices on unstable networks."
+
+#: apps/marketing/views.py:243
+msgid "Saldo kantin tidak lagi tampil basi setelah pembayaran offline"
+msgstr "Canteen balance no longer shows stale after an offline payment"
+
+#: apps/marketing/views.py:244
+msgid "Ukuran unduhan turun 3 MB"
+msgstr "Download size down 3 MB"
+
+#: apps/marketing/views.py:252
+msgid "22 Agu 2026"
+msgstr "22 Aug 2026"
+
+#: apps/marketing/views.py:253
+msgid "Kontrak error diselaraskan ke RFC 9457 di seluruh endpoint mitra."
+msgstr "Error contract aligned to RFC 9457 across every partner endpoint."
+
+#: apps/marketing/views.py:255
+msgid "Semua error kini application/problem+json dengan field code"
+msgstr "All errors are now application/problem+json with a code field"
+
+#: apps/marketing/views.py:256
+msgid "Header baru pada seluruh respons 429"
+msgstr "New header on every 429 response"
+
+#: apps/marketing/views.py:258
+msgid ""
+"Parser yang membaca field message pada error harus beralih ke code sebelum "
+"20 November 2026."
+msgstr ""
+"Parsers that read the error's message field must switch to code before 20 "
+"November 2026."
+
+#: apps/marketing/views.py:264
+msgid "14 Agu 2026"
+msgstr "14 Aug 2026"
+
+#: apps/marketing/views.py:265
+msgid "Antrean penilaian dan rekonsiliasi dompet masuk ke portal utama."
+msgstr "Grading queue and wallet reconciliation landed in the main portal."
+
+#: apps/marketing/views.py:267
+msgid "Antrean penilaian dengan penyimpanan otomatis per sel"
+msgstr "Grading queue with autosave per cell"
+
+#: apps/marketing/views.py:268
+msgid "Rekonsiliasi dompet dengan penandaan selisih"
+msgstr "Wallet reconciliation with discrepancy flagging"
+
+#: apps/marketing/views.py:269
+msgid "Rapor cetak tidak lagi memotong nama panjang"
+msgstr "Printed report cards no longer truncate long names"
 
 #: apps/notifications/models.py:13
 msgid "WhatsApp"
@@ -3231,6 +3356,7 @@ msgid "List of {sku, name, qty, unit_price}"
 msgstr ""
 
 #: apps/wallet/models.py:218 apps/wallet/models.py:305
+#: frontend/templates/components/_permission_slip_roster.html:30
 msgid "Menunggu"
 msgstr ""
 
@@ -3330,6 +3456,10 @@ msgstr ""
 msgid "Parameter 'from' tidak boleh melebihi 'to'."
 msgstr ""
 
+#: frontend/templates/base.html:9 frontend/templates/marketing/base.html:7
+msgid "EduCore — Sistem Operasi Sekolah"
+msgstr "EduCore — School Operating System"
+
 #: frontend/templates/base.html:49
 msgid "Bahasa Indonesia"
 msgstr "Bahasa Indonesia"
@@ -3342,9 +3472,1780 @@ msgstr "English"
 msgid "Keluar"
 msgstr "Log out"
 
-#: frontend/templates/marketing/base.html:7
-msgid "EduCore — Sistem Operasi Sekolah"
-msgstr "EduCore — School Operating System"
+#: frontend/templates/base.html:71
+#, python-format
+msgid ""
+"&copy; %(current_year)s EduCore Indonesia · Beroperasi sesuai UU PDP No. "
+"27/2022"
+msgstr ""
+"&copy; %(current_year)s EduCore Indonesia · Operating in compliance with UU "
+"PDP No. 27/2022"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:22
+msgid "STATUS OPERASIONAL SSO"
+msgstr "SSO OPERATIONAL STATUS"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:23
+msgid "Status Penyematan Direktori"
+msgstr "Directory Pinning Status"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:27
+msgid "Tersemat ke Entra ID Yayasan"
+msgstr "Pinned to Foundation Entra ID"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:30
+msgid "Mode Standar (Multi-Tenant: common)"
+msgstr "Standard Mode (Multi-Tenant: common)"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:39
+msgid "DIRECTORY (TENANT) ID AKTIF"
+msgstr "ACTIVE DIRECTORY (TENANT) ID"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:46
+msgid "KEBIJAKAN VALIDASI LOGIN"
+msgstr "LOGIN VALIDATION POLICY"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:49
+msgid "Ketat (Hanya akun staf dari tenant ini)"
+msgstr "Strict (Staff accounts from this tenant only)"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:51
+msgid "Terbuka (Semua tenant Microsoft 365)"
+msgstr "Open (Any Microsoft 365 tenant)"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:57
+msgid "TERAKHIR DIPERBARUI"
+msgstr "LAST UPDATED"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:60
+#, python-format
+msgid "%(updated_at)s WIB"
+msgstr "%(updated_at)s WIB"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:62
+msgid "Bawaan Sistem (Fallback Global)"
+msgstr "System Default (Global Fallback)"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:74
+msgid ""
+"<strong>Proteksi Direktori Aktif:</strong> Hanya akun staf yang terdaftar "
+"pada Microsoft Entra ID (Azure AD) yayasan ini yang dapat masuk melalui SSO."
+" Login menggunakan akun Microsoft personal (@outlook.com, @hotmail.com) atau"
+" tenant luar akan ditolak oleh sistem demi menjaga kerahasiaan data yayasan."
+msgstr ""
+"<strong>Directory Protection Active:</strong> Only staff accounts registered"
+" in this foundation's Microsoft Entra ID (Azure AD) can sign in via SSO. "
+"Signing in with a personal Microsoft account (@outlook.com, @hotmail.com) or"
+" an external tenant will be rejected by the system to protect the "
+"foundation's data confidentiality."
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:76
+msgid ""
+"<strong>Mode Multi-Tenant Terbuka:</strong> Saat ini SSO Microsoft menerima "
+"akun staf dari organisasi Microsoft mana pun selama email pengguna telah "
+"didaftarkan di EduCore. Untuk meningkatkan keamanan dan mencegah penautan "
+"dari akun luar, sematkan Directory ID resmi yayasan Anda di bawah ini."
+msgstr ""
+"<strong>Open Multi-Tenant Mode:</strong> Microsoft SSO currently accepts "
+"staff accounts from any Microsoft organization as long as the user's email "
+"is already registered in EduCore. To improve security and prevent linking "
+"from external accounts, pin your foundation's official Directory ID below."
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:86
+msgid "PENGATURAN"
+msgstr "SETTINGS"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:87
+msgid "Konfigurasi Microsoft Entra Tenant"
+msgstr "Microsoft Entra Tenant Configuration"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:89
+msgid ""
+"Sematkan GUID Directory ID yayasan atau nama domain terdaftar untuk mengunci"
+" autentikasi SSO Microsoft 365."
+msgstr ""
+"Pin your foundation's Directory ID GUID or registered domain name to lock "
+"down Microsoft 365 SSO authentication."
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:103
+msgid "Microsoft Entra Directory (Tenant) ID atau Domain Terdaftar"
+msgstr "Microsoft Entra Directory (Tenant) ID or Registered Domain"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:110
+msgid "Contoh: 11111111-1111-1111-1111-111111111111 atau yayasan.sch.id"
+msgstr "Example: 11111111-1111-1111-1111-111111111111 or yayasan.sch.id"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:115
+msgid ""
+"Format yang diterima: <strong>GUID 36-karakter</strong> (misal: <code>xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</code>) atau <strong>nama domain</strong> (misal: <code>sekolah.sch.id</code> atau <code>yayasan.onmicrosoft.com</code>).\n"
+"          Dapat dilihat pada <em>Azure Portal &gt; Microsoft Entra ID &gt; Overview &gt; Directory (tenant) ID</em>."
+msgstr ""
+"Accepted format: <strong>36-character GUID</strong> (e.g. <code>xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</code>) or <strong>domain name</strong> (e.g. <code>sekolah.sch.id</code> or <code>yayasan.onmicrosoft.com</code>).\n"
+"          Found under <em>Azure Portal &gt; Microsoft Entra ID &gt; Overview &gt; Directory (tenant) ID</em>."
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:132
+msgid "Simpan Pengaturan"
+msgstr "Save Settings"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:141
+msgid ""
+"Apakah Anda yakin ingin melepas penyematan tenant Microsoft Entra? SSO staf "
+"akan kembali menerima login dari direktori Microsoft mana pun."
+msgstr ""
+"Are you sure you want to unpin the Microsoft Entra tenant? Staff SSO will "
+"revert to accepting logins from any Microsoft directory."
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:142
+msgid "Lepas Penyematan (Kembalikan ke Standar)"
+msgstr "Unpin (Revert to Standard)"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:152
+msgid "JEJAK AUDIT (UU PDP NO. 27/2022)"
+msgstr "AUDIT TRAIL (UU PDP NO. 27/2022)"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:153
+msgid "Riwayat Perubahan Pengaturan SSO"
+msgstr "SSO Settings Change History"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:155
+msgid ""
+"Pencatatan terenkripsi dan tidak dapat diubah atas seluruh mutasi "
+"konfigurasi tenant Microsoft untuk yayasan ini."
+msgstr ""
+"Encrypted, immutable log of every Microsoft tenant configuration change for "
+"this foundation."
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:163
+msgid "WAKTU (WIB)"
+msgstr "TIME (WIB)"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:164
+msgid "STAF / PELAKU"
+msgstr "STAFF / ACTOR"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:165
+#| msgid "TRANSAKSI"
+msgid "AKSI"
+msgstr "ACTION"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:166
+#| msgid "PERUBAHAN"
+msgid "DETAIL PERUBAHAN"
+msgstr "CHANGE DETAIL"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:167
+msgid "ALAMAT IP"
+msgstr "IP ADDRESS"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:181
+msgid "Disematkan"
+msgstr "Pinned"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:184
+msgid "Dilepas"
+msgstr "Unpinned"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:199
+msgid "Penyematan dilepas (kembali ke common)"
+msgstr "Pinning removed (reverted to common)"
+
+#: frontend/templates/components/_microsoft_tenant_settings.html:212
+msgid ""
+"Belum ada riwayat perubahan pengaturan tenant Microsoft untuk yayasan ini."
+msgstr "No Microsoft tenant setting change history yet for this foundation."
+
+#: frontend/templates/components/_permission_slip_list.html:22
+msgid "Acara:"
+msgstr "Event:"
+
+#: frontend/templates/components/_permission_slip_list.html:23
+msgid "Lokasi:"
+msgstr "Location:"
+
+#: frontend/templates/components/_permission_slip_list.html:26
+msgid "Batas respon:"
+msgstr "Response deadline:"
+
+#: frontend/templates/components/_permission_slip_list.html:26
+msgid "Tanpa batas waktu"
+msgstr "No deadline"
+
+#: frontend/templates/components/_permission_slip_list.html:43
+#, python-format
+msgid "Diterbitkan oleh %(name)s"
+msgstr "Issued by %(name)s"
+
+#: frontend/templates/components/_permission_slip_list.html:50
+msgid "Lihat Rincian Siswa"
+msgstr "View Student Detail"
+
+#: frontend/templates/components/_permission_slip_list.html:59
+msgid "Belum Ada Izin"
+msgstr "No Permission Slips Yet"
+
+#: frontend/templates/components/_permission_slip_list.html:61
+msgid "Terbitkan izin pertama Anda melalui formulir di atas."
+msgstr "Issue your first permission slip using the form above."
+
+#: frontend/templates/components/_permission_slip_roster.html:14
+msgid "NIS"
+msgstr "NIS"
+
+#: frontend/templates/components/_permission_slip_roster.html:15
+msgid "Respon"
+msgstr "Response"
+
+#: frontend/templates/components/_permission_slip_roster.html:16
+msgid "Waktu Tanda Tangan"
+msgstr "Signed At"
+
+#: frontend/templates/components/_permission_slip_roster.html:26
+msgid "Setuju"
+msgstr "Agree"
+
+#: frontend/templates/components/_permission_slip_roster.html:28
+msgid "Tolak"
+msgstr "Decline"
+
+#: frontend/templates/components/_permission_slip_roster.html:42
+msgid "Belum ada siswa terdaftar di kelas ini."
+msgstr "No students enrolled in this class yet."
+
+#: frontend/templates/components/_permission_slip_tally.html:9
+msgid "Tally"
+msgstr "Tally"
+
+#: frontend/templates/components/_permission_slip_tally.html:12
+#, python-format
+msgid "Setuju: %(approved)s"
+msgstr "Agree: %(approved)s"
+
+#: frontend/templates/components/_permission_slip_tally.html:16
+#, python-format
+msgid "Tolak: %(declined)s"
+msgstr "Decline: %(declined)s"
+
+#: frontend/templates/components/_permission_slip_tally.html:20
+#, python-format
+msgid "Menunggu: %(pending)s"
+msgstr "Pending: %(pending)s"
+
+#: frontend/templates/components/_permission_slip_tally.html:23
+#, python-format
+msgid "/ %(total)s siswa"
+msgstr "/ %(total)s students"
+
+#: frontend/templates/components/banner.html:57
+msgid ""
+"<strong>Koneksi Terputus:</strong> Sistem beroperasi dalam mode luring "
+"(offline). Transaksi akan disimpan secara lokal dan disinkronkan otomatis "
+"saat kembali terhubung."
+msgstr ""
+"<strong>Connection Lost:</strong> The system is operating in offline mode. "
+"Transactions will be stored locally and synced automatically once "
+"reconnected."
+
+#: frontend/templates/components/banner.html:59
+msgid ""
+"Data di-cache untuk performa tinggi. Diperbarui beberapa saat yang lalu."
+msgstr "Data is cached for fast performance. Last updated a moment ago."
+
+#: frontend/templates/components/banner.html:61
+msgid ""
+"Terjadi kendala saat memuat data. Silakan periksa koneksi atau ulangi "
+"proses."
+msgstr ""
+"A problem occurred while loading data. Please check your connection or try "
+"again."
+
+#: frontend/templates/components/banner.html:63
+msgid "Belum ada data yang tersedia untuk periode atau filter ini."
+msgstr "No data available for this period or filter yet."
+
+#: frontend/templates/components/banner.html:65
+msgid "Memuat data dari server..."
+msgstr "Loading data from server..."
+
+#: frontend/templates/components/exam_lockdown.html:26
+msgid "Mode Layar Penuh Diwajibkan"
+msgstr "Fullscreen Mode Required"
+
+#: frontend/templates/components/exam_lockdown.html:29
+msgid ""
+"Ujian ini berada dalam pengawasan integritas lockdown. Untuk memulai dan "
+"melanjutkan ujian, Anda harus masuk ke mode layar penuh. Keluar dari layar "
+"penuh atau berpindah aplikasi akan dicatat sebagai kehilangan fokus."
+msgstr ""
+"This exam is under lockdown integrity monitoring. To start and continue the "
+"exam, you must enter fullscreen mode. Exiting fullscreen or switching "
+"applications will be logged as a focus loss."
+
+#: frontend/templates/components/exam_lockdown.html:35
+msgid "Masuk Layar Penuh & Mulai Ujian"
+msgstr "Enter Fullscreen & Start Exam"
+
+#: frontend/templates/components/exam_lockdown.html:49
+msgid "Peringatan: Kehilangan Fokus Terdeteksi ("
+msgstr "Warning: Focus Loss Detected ("
+
+#: frontend/templates/components/exam_lockdown.html:49
+msgid "x)"
+msgstr "x)"
+
+#: frontend/templates/components/exam_lockdown.html:52
+msgid ""
+"Aplikasi mencatat perpindahan jendela/layar. Insiden ini terekam di konsol "
+"pengawas ujian. Harap tetap berada pada jendela ujian hingga selesai."
+msgstr ""
+"The app recorded a window/screen switch. This incident is logged in the exam"
+" proctor console. Please stay on the exam window until you finish."
+
+#: frontend/templates/components/exam_lockdown.html:58
+msgid "Tutup Peringatan"
+msgstr "Close Warning"
+
+#: frontend/templates/components/exam_lockdown.html:87
+#: frontend/templates/components/exam_lockdown.html:386
+#: frontend/templates/components/gradebook_grid.html:158
+#: frontend/templates/components/gradebook_grid.html:278
+msgid "Tersimpan"
+msgstr "Saved"
+
+#: frontend/templates/components/exam_lockdown.html:93
+msgid "Fokus:"
+msgstr "Focus:"
+
+#: frontend/templates/components/exam_lockdown.html:100
+msgid "SISA WAKTU"
+msgstr "TIME REMAINING"
+
+#: frontend/templates/components/exam_lockdown.html:109
+#: frontend/templates/components/exam_lockdown.html:388
+msgid "Kumpulkan Ujian"
+msgstr "Submit Exam"
+
+#: frontend/templates/components/exam_lockdown.html:124
+#| msgid "Daftar isi"
+msgid "Daftar Soal"
+msgstr "Question List"
+
+#: frontend/templates/components/exam_lockdown.html:127
+msgid "Terjawab"
+msgstr "Answered"
+
+#: frontend/templates/components/exam_lockdown.html:135
+msgid "Navigasi Nomor Soal"
+msgstr "Question Number Navigation"
+
+#: frontend/templates/components/exam_lockdown.html:152
+msgid "Sudah Terjawab"
+msgstr "Answered"
+
+#: frontend/templates/components/exam_lockdown.html:156
+msgid "Sedang Dibuka"
+msgstr "Currently Open"
+
+#: frontend/templates/components/exam_lockdown.html:160
+msgid "Belum Dijawab"
+msgstr "Not Answered"
+
+#: frontend/templates/components/exam_lockdown.html:183
+#, python-format
+msgid "Soal No. %(num)s"
+msgstr "Question No. %(num)s"
+
+#: frontend/templates/components/exam_lockdown.html:190
+#, python-format
+msgid "Bobot: %(pts)s Poin"
+msgstr "Weight: %(pts)s Points"
+
+#: frontend/templates/components/exam_lockdown.html:250
+msgid "BENAR"
+msgstr "TRUE"
+
+#: frontend/templates/components/exam_lockdown.html:260
+msgid "SALAH"
+msgstr "FALSE"
+
+#: frontend/templates/components/exam_lockdown.html:271
+msgid "Tuliskan jawaban singkat Anda di sini..."
+msgstr "Write your short answer here..."
+
+#: frontend/templates/components/exam_lockdown.html:282
+msgid "Uraikan jawaban esai Anda secara lengkap..."
+msgstr "Write your full essay answer..."
+
+#: frontend/templates/components/exam_lockdown.html:297
+msgid "-- Pilih Pasangan --"
+msgstr "-- Select a Match --"
+
+#: frontend/templates/components/exam_lockdown.html:321
+msgid "Soal Sebelumnya"
+msgstr "Previous Question"
+
+#: frontend/templates/components/exam_lockdown.html:325
+#: frontend/templates/components/exam_proctor_console.html:356
+msgid "Soal"
+msgstr "Question"
+
+#: frontend/templates/components/exam_lockdown.html:325
+msgid "dari"
+msgstr "of"
+
+#: frontend/templates/components/exam_lockdown.html:333
+#: frontend/templates/components/exam_lockdown.html:389
+msgid "Soal Selanjutnya"
+msgstr "Next Question"
+
+#: frontend/templates/components/exam_lockdown.html:345
+msgid "Konfirmasi Pengumpulan Ujian"
+msgstr "Confirm Exam Submission"
+
+#: frontend/templates/components/exam_lockdown.html:348
+#, python-format
+msgid ""
+"Anda telah menjawab <strong id=\"modal-answered-count\">0</strong> dari "
+"<strong>%(total)s</strong> soal. Apakah Anda yakin ingin mengumpulkan lembar"
+" jawaban sekarang? Tindakan ini bersifat final."
+msgstr ""
+"You have answered <strong id=\"modal-answered-count\">0</strong> of "
+"<strong>%(total)s</strong> questions. Are you sure you want to submit your "
+"answer sheet now? This action is final."
+
+#: frontend/templates/components/exam_lockdown.html:354
+msgid "Kembali Mengerjakan"
+msgstr "Back to Exam"
+
+#: frontend/templates/components/exam_lockdown.html:359
+msgid "Ya, Kumpulkan Sekarang"
+msgstr "Yes, Submit Now"
+
+#: frontend/templates/components/exam_lockdown.html:370
+msgid "Waktu Ujian Telah Habis"
+msgstr "Exam Time Has Ended"
+
+#: frontend/templates/components/exam_lockdown.html:373
+msgid ""
+"Batas waktu pengerjaan telah tercapai. Seluruh jawaban Anda yang telah "
+"tersimpan sedang dikumpulkan secara otomatis ke server."
+msgstr ""
+"The time limit has been reached. All your saved answers are being "
+"automatically submitted to the server."
+
+#: frontend/templates/components/exam_lockdown.html:376
+msgid "Memproses pengumpulan..."
+msgstr "Processing submission..."
+
+#: frontend/templates/components/exam_lockdown.html:384
+msgid "Navigasi kembali ke soal sebelumnya dinonaktifkan pada ujian ini."
+msgstr "Navigating back to previous questions is disabled for this exam."
+
+#: frontend/templates/components/exam_lockdown.html:385
+#: frontend/templates/components/gradebook_grid.html:153
+#: frontend/templates/components/gradebook_grid.html:277
+#: frontend/templates/components/grading_queue.html:275
+#: frontend/templates/components/teacher_agenda.html:278
+msgid "Menyimpan..."
+msgstr "Saving..."
+
+#: frontend/templates/components/exam_lockdown.html:387
+#: frontend/templates/components/gradebook_grid.html:163
+msgid "Gagal menyimpan"
+msgstr "Failed to save"
+
+#: frontend/templates/components/exam_lockdown.html:390
+msgid "Ujian Anda berhasil dikumpulkan! Terima kasih."
+msgstr "Your exam was submitted successfully! Thank you."
+
+#: frontend/templates/components/exam_lockdown.html:391
+msgid "Terjadi kesalahan saat mengumpulkan ujian. Hubungi pengawas."
+msgstr "An error occurred while submitting the exam. Contact the proctor."
+
+#: frontend/templates/components/exam_proctor_console.html:19
+#, python-format
+msgid "Konsol Pengawas Ujian · %(class_group)s"
+msgstr "Exam Proctor Console · %(class_group)s"
+
+#: frontend/templates/components/exam_proctor_console.html:24
+#, python-format
+msgid "(%(duration)s Menit · %(question_count)s Soal)"
+msgstr "(%(duration)s Minutes · %(question_count)s Questions)"
+
+#: frontend/templates/components/exam_proctor_console.html:38
+#: frontend/templates/components/exam_proctor_console.html:349
+#| msgid "sekolah aktif"
+msgid "Sinkron aktif"
+msgstr "Sync active"
+
+#: frontend/templates/components/exam_proctor_console.html:47
+#: frontend/templates/components/exam_proctor_console.html:348
+msgid "Jeda Sinkron"
+msgstr "Pause Sync"
+
+#: frontend/templates/components/exam_proctor_console.html:55
+msgid "Segarkan Data ⟳"
+msgstr "Refresh Data ⟳"
+
+#: frontend/templates/components/exam_proctor_console.html:69
+msgid "Total Peserta"
+msgstr "Total Participants"
+
+#: frontend/templates/components/exam_proctor_console.html:76
+msgid "Terdaftar dalam rombel"
+msgstr "Enrolled in class group"
+
+#: frontend/templates/components/exam_proctor_console.html:83
+msgid "Sedang Mengerjakan"
+msgstr "In Progress"
+
+#: frontend/templates/components/exam_proctor_console.html:90
+msgid "Sesi aktif berlangsung"
+msgstr "Active session in progress"
+
+#: frontend/templates/components/exam_proctor_console.html:104
+msgid "Selesai atau auto-submit"
+msgstr "Completed or auto-submitted"
+
+#: frontend/templates/components/exam_proctor_console.html:111
+msgid "Perlu Perhatian"
+msgstr "Needs Attention"
+
+#: frontend/templates/components/exam_proctor_console.html:118
+msgid "Kehilangan fokus ≥ 3 kali"
+msgstr "Focus loss ≥ 3 times"
+
+#: frontend/templates/components/exam_proctor_console.html:133
+msgid "Semua (<span id=\"count-filter-all\">0</span>)"
+msgstr "All (<span id=\"count-filter-all\">0</span>)"
+
+#: frontend/templates/components/exam_proctor_console.html:139
+msgid "Sedang Mengerjakan (<span id=\"count-filter-progress\">0</span>)"
+msgstr "In Progress (<span id=\"count-filter-progress\">0</span>)"
+
+#: frontend/templates/components/exam_proctor_console.html:145
+msgid "Perlu Perhatian (<span id=\"count-filter-flagged\">0</span>)"
+msgstr "Needs Attention (<span id=\"count-filter-flagged\">0</span>)"
+
+#: frontend/templates/components/exam_proctor_console.html:151
+msgid "Terkumpul (<span id=\"count-filter-submitted\">0</span>)"
+msgstr "Submitted (<span id=\"count-filter-submitted\">0</span>)"
+
+#: frontend/templates/components/exam_proctor_console.html:159
+msgid "Cari Nama / NIS siswa..."
+msgstr "Search student Name / NIS..."
+
+#: frontend/templates/components/exam_proctor_console.html:172
+msgid "Tabel Pemantauan Pengawas Ujian"
+msgstr "Exam Proctor Monitoring Table"
+
+#: frontend/templates/components/exam_proctor_console.html:180
+msgid "Siswa (NIS & Nama)"
+msgstr "Student (NIS & Name)"
+
+#: frontend/templates/components/exam_proctor_console.html:185
+#| msgid "Status layanan"
+msgid "Status"
+msgstr "Status"
+
+#: frontend/templates/components/exam_proctor_console.html:190
+msgid "Progres Soal"
+msgstr "Question Progress"
+
+#: frontend/templates/components/exam_proctor_console.html:195
+msgid "Kehilangan Fokus"
+msgstr "Focus Loss"
+
+#: frontend/templates/components/exam_proctor_console.html:200
+msgid "Aktivitas Terakhir"
+msgstr "Last Activity"
+
+#: frontend/templates/components/exam_proctor_console.html:205
+msgid "Aksi"
+msgstr "Action"
+
+#: frontend/templates/components/exam_proctor_console.html:233
+#: frontend/templates/components/exam_proctor_console.html:352
+msgid "Mengerjakan"
+msgstr "In Progress"
+
+#: frontend/templates/components/exam_proctor_console.html:243
+#: frontend/templates/components/exam_proctor_console.html:354
+msgid "Auto-Submit"
+msgstr "Auto-Submit"
+
+#: frontend/templates/components/exam_proctor_console.html:247
+#: frontend/templates/components/exam_proctor_console.html:355
+msgid "Belum Mulai"
+msgstr "Not Started"
+
+#: frontend/templates/components/exam_proctor_console.html:255
+#, python-format
+msgid "%(answered)s/%(total)s Soal"
+msgstr "%(answered)s/%(total)s Questions"
+
+#: frontend/templates/components/exam_proctor_console.html:279
+#, python-format
+msgid "Tersimpan: %(saved_time)s"
+msgstr "Saved: %(saved_time)s"
+
+#: frontend/templates/components/exam_proctor_console.html:286
+#, python-format
+msgid "Sisa: %(remaining)sd"
+msgstr "Remaining: %(remaining)sd"
+
+#: frontend/templates/components/exam_proctor_console.html:299
+#: frontend/templates/components/exam_proctor_console.html:359
+#| msgid "Data yang dikumpulkan"
+msgid "Paksa Kumpulkan"
+msgstr "Force Submit"
+
+#: frontend/templates/components/exam_proctor_console.html:312
+msgid "Belum ada data siswa untuk ujian ini."
+msgstr "No student data for this exam yet."
+
+#: frontend/templates/components/exam_proctor_console.html:326
+msgid "Paksa Pengumpulan Ujian?"
+msgstr "Force Submit Exam?"
+
+#: frontend/templates/components/exam_proctor_console.html:329
+msgid ""
+"Apakah Anda yakin ingin menghentikan dan mengumpulkan lembar ujian milik "
+"siswa <strong id=\"force-submit-target-name\">-</strong>? Jawaban terakhir "
+"yang tersimpan akan difinalisasi."
+msgstr ""
+"Are you sure you want to stop and submit the exam sheet for student <strong "
+"id=\"force-submit-target-name\">-</strong>? Their last saved answers will be"
+" finalized."
+
+#: frontend/templates/components/exam_proctor_console.html:335
+#: frontend/templates/components/gradebook_grid.html:42
+#: frontend/templates/components/gradebook_grid.html:256
+#: frontend/templates/components/teacher_agenda.html:116
+#: frontend/templates/components/teacher_agenda.html:251
+#| msgid "Batas"
+msgid "Batal"
+msgstr "Cancel"
+
+#: frontend/templates/components/exam_proctor_console.html:340
+#: frontend/templates/components/exam_proctor_console.html:363
+#| msgid "Data yang dikumpulkan"
+msgid "Ya, Paksa Kumpulkan"
+msgstr "Yes, Force Submit"
+
+#: frontend/templates/components/exam_proctor_console.html:350
+msgid "Lanjutkan Sinkron"
+msgstr "Resume Sync"
+
+#: frontend/templates/components/exam_proctor_console.html:351
+msgid "Dijeda"
+msgstr "Paused"
+
+#: frontend/templates/components/exam_proctor_console.html:357
+msgid "Tersimpan:"
+msgstr "Saved:"
+
+#: frontend/templates/components/exam_proctor_console.html:358
+msgid "Sisa:"
+msgstr "Remaining:"
+
+#: frontend/templates/components/exam_proctor_console.html:361
+msgid "siswa"
+msgstr "students"
+
+#: frontend/templates/components/exam_proctor_console.html:362
+msgid "Memproses..."
+msgstr "Processing..."
+
+#: frontend/templates/components/exam_proctor_console.html:364
+msgid "Gagal memproses pengumpulan paksa."
+msgstr "Failed to process force submission."
+
+#: frontend/templates/components/gradebook_grid.html:18
+#, python-format
+msgid "Buku Nilai Guru · %(class_group)s"
+msgstr "Teacher Gradebook · %(class_group)s"
+
+#: frontend/templates/components/gradebook_grid.html:23
+msgid "Semester Aktif"
+msgstr "Active Semester"
+
+#: frontend/templates/components/gradebook_grid.html:36
+msgid "Tersimpan otomatis"
+msgstr "Auto-saved"
+
+#: frontend/templates/components/gradebook_grid.html:40
+msgid "Navigasi:"
+msgstr "Navigation:"
+
+#: frontend/templates/components/gradebook_grid.html:55
+msgid "Tabel Buku Nilai Siswa"
+msgstr "Student Gradebook Table"
+
+#: frontend/templates/components/gradebook_grid.html:69
+#: frontend/templates/components/parent_nutrition_dashboard.html:55
+#: frontend/templates/components/pos_kiosk.html:106
+msgid "Nama Siswa"
+msgstr "Student Name"
+
+#: frontend/templates/components/gradebook_grid.html:74
+#, python-format
+msgid "%(title)s (Maks: %(max_score)s, Bobot: %(weight)s%%)"
+msgstr "%(title)s (Max: %(max_score)s, Weight: %(weight)s%%)"
+
+#: frontend/templates/components/gradebook_grid.html:75
+msgid "NILAI"
+msgstr "GRADE"
+
+#: frontend/templates/components/gradebook_grid.html:88
+msgid "Belum ada asesmen yang dikonfigurasi untuk kelas ini."
+msgstr "No assessments configured for this class yet."
+
+#: frontend/templates/components/gradebook_grid.html:95
+#| msgid "Nilai"
+msgid "Nilai Akhir"
+msgstr "Final Grade"
+
+#: frontend/templates/components/gradebook_grid.html:137
+#: frontend/templates/components/gradebook_grid.html:283
+msgid "Asesmen"
+msgstr "Assessment"
+
+#: frontend/templates/components/gradebook_grid.html:168
+#| msgid "Nilai"
+msgid "Konflik nilai"
+msgstr "Grade conflict"
+
+#: frontend/templates/components/gradebook_grid.html:184
+msgid "Belum ada siswa yang terdaftar di kelas ini."
+msgstr "No students enrolled in this class yet."
+
+#: frontend/templates/components/gradebook_grid.html:208
+msgid "Konflik Penyuntingan Nilai"
+msgstr "Grade Editing Conflict"
+
+#: frontend/templates/components/gradebook_grid.html:213
+msgid "KONFLIK"
+msgstr "CONFLICT"
+
+#: frontend/templates/components/gradebook_grid.html:219
+msgid ""
+"Nilai untuk siswa <strong id=\"modal-student-name\" class=\"text-ink-900\">—</strong> pada penilaian\n"
+"        <strong id=\"modal-assessment-title\" class=\"text-ink-900\">—</strong> telah diperbarui oleh pengguna lain saat Anda melakukan penyuntingan."
+msgstr ""
+"The grade for student <strong id=\"modal-student-name\" class=\"text-ink-900\">—</strong> on assessment\n"
+"        <strong id=\"modal-assessment-title\" class=\"text-ink-900\">—</strong> was updated by another user while you were editing."
+
+#: frontend/templates/components/gradebook_grid.html:228
+msgid "Nilai Anda (Input Lokal)"
+msgstr "Your Grade (Local Input)"
+
+#: frontend/templates/components/gradebook_grid.html:232
+msgid "Penyunting saat ini"
+msgstr "Current editor"
+
+#: frontend/templates/components/gradebook_grid.html:237
+msgid "Nilai di Server"
+msgstr "Grade on Server"
+
+#: frontend/templates/components/gradebook_grid.html:242
+msgid "Oleh:"
+msgstr "By:"
+
+#: frontend/templates/components/gradebook_grid.html:263
+msgid "Gunakan Nilai Server"
+msgstr "Use Server Grade"
+
+#: frontend/templates/components/gradebook_grid.html:270
+msgid "Gunakan Nilai Saya (Timpa)"
+msgstr "Use My Grade (Overwrite)"
+
+#: frontend/templates/components/gradebook_grid.html:279
+msgid "Gagal menyimpan (Koneksi terganggu)"
+msgstr "Failed to save (Connection disrupted)"
+
+#: frontend/templates/components/gradebook_grid.html:280
+msgid "Konflik data terdeteksi"
+msgstr "Data conflict detected"
+
+#: frontend/templates/components/gradebook_grid.html:281
+#| msgid "Guru — saat ini"
+msgid "Guru Lain"
+msgstr "Another Teacher"
+
+#: frontend/templates/components/gradebook_grid.html:284
+msgid "Kosong"
+msgstr "Empty"
+
+#: frontend/templates/components/gradebook_grid.html:285
+msgid "Baru saja"
+msgstr "Just now"
+
+#: frontend/templates/components/grading_queue.html:21
+msgid "ANTREAN PENILAIAN"
+msgstr "GRADING QUEUE"
+
+#: frontend/templates/components/grading_queue.html:24
+msgid "Penilaian Tugas"
+msgstr "Homework Grading"
+
+#: frontend/templates/components/grading_queue.html:37
+#, python-format
+msgid ""
+"Pengajuan <span id=\"queue-current-num\">1</span> dari <span id=\"queue-"
+"total-num\">%(total)s</span>"
+msgstr ""
+"Submission <span id=\"queue-current-num\">1</span> of <span id=\"queue-"
+"total-num\">%(total)s</span>"
+
+#: frontend/templates/components/grading_queue.html:39
+msgid "0 Antrean"
+msgstr "0 in Queue"
+
+#: frontend/templates/components/grading_queue.html:46
+msgid "Pengajuan Sebelumnya (Shortcut: [ )"
+msgstr "Previous Submission (Shortcut: [ )"
+
+#: frontend/templates/components/grading_queue.html:50
+msgid "Sebelumnya"
+msgstr "Previous"
+
+#: frontend/templates/components/grading_queue.html:55
+msgid "Pengajuan Berikutnya (Shortcut: ] )"
+msgstr "Next Submission (Shortcut: ] )"
+
+#: frontend/templates/components/grading_queue.html:59
+msgid "Berikutnya"
+msgstr "Next"
+
+#: frontend/templates/components/grading_queue.html:74
+msgid "Semua Pengajuan Telah Dinilai"
+msgstr "All Submissions Graded"
+
+#: frontend/templates/components/grading_queue.html:77
+msgid ""
+"Tidak ada pengajuan tugas tertunda yang membutuhkan penilaian saat ini."
+msgstr "No pending homework submissions need grading right now."
+
+#: frontend/templates/components/grading_queue.html:97
+#: frontend/templates/components/pos_kiosk.html:107
+#: frontend/templates/components/teacher_agenda.html:483
+msgid "NIS:"
+msgstr "NIS:"
+
+#: frontend/templates/components/grading_queue.html:105
+msgid "Tugas"
+msgstr "Assignment"
+
+#: frontend/templates/components/grading_queue.html:106
+msgid "Tugas:"
+msgstr "Assignment:"
+
+#: frontend/templates/components/grading_queue.html:116
+msgid "TERLAMBAT"
+msgstr "LATE"
+
+#: frontend/templates/components/grading_queue.html:120
+#, python-format
+msgid "DINILAI (%(item.score)s)"
+msgstr "GRADED (%(item.score)s)"
+
+#: frontend/templates/components/grading_queue.html:124
+msgid "TERKUMPUL"
+msgstr "SUBMITTED"
+
+#: frontend/templates/components/grading_queue.html:128
+#, python-format
+msgid "Dikumpulkan: %(submitted)s"
+msgstr "Submitted: %(submitted)s"
+
+#: frontend/templates/components/grading_queue.html:140
+msgid "Jawaban / Catatan Siswa"
+msgstr "Student Answer / Notes"
+
+#: frontend/templates/components/grading_queue.html:146
+msgid "(Tidak ada teks jawaban tertulis)"
+msgstr "(No written answer text)"
+
+#: frontend/templates/components/grading_queue.html:155
+#, python-format
+msgid "Berkas Lampiran (%(count)s)"
+msgstr "Attachments (%(count)s)"
+
+#: frontend/templates/components/grading_queue.html:157
+msgid "Berkas Lampiran (0)"
+msgstr "Attachments (0)"
+
+#: frontend/templates/components/grading_queue.html:166
+msgid "FILE"
+msgstr "FILE"
+
+#: frontend/templates/components/grading_queue.html:177
+msgid "Buka"
+msgstr "Open"
+
+#: frontend/templates/components/grading_queue.html:184
+msgid "Tidak ada berkas yang dilampirkan."
+msgstr "No files attached."
+
+#: frontend/templates/components/grading_queue.html:195
+msgid "Nilai Siswa (Skala 0 - 100)"
+msgstr "Student Score (Scale 0 - 100)"
+
+#: frontend/templates/components/grading_queue.html:197
+msgid "Maksimal 100"
+msgstr "Maximum 100"
+
+#: frontend/templates/components/grading_queue.html:211
+msgid "Umpan Balik / Catatan Guru"
+msgstr "Feedback / Teacher Notes"
+
+#: frontend/templates/components/grading_queue.html:216
+msgid "Tuliskan masukan atau evaluasi untuk siswa ini..."
+msgstr "Write feedback or evaluation for this student..."
+
+#: frontend/templates/components/grading_queue.html:227
+msgid "Simpan & Lanjut"
+msgstr "Save & Continue"
+
+#: frontend/templates/components/grading_queue.html:234
+msgid "Kembalikan pengajuan untuk perbaikan (Shortcut: Alt+R)"
+msgstr "Return submission for revision (Shortcut: Alt+R)"
+
+#: frontend/templates/components/grading_queue.html:236
+msgid "Kembalikan"
+msgstr "Return"
+
+#: frontend/templates/components/grading_queue.html:244
+msgid "Lewati tanpa simpan"
+msgstr "Skip without saving"
+
+#: frontend/templates/components/grading_queue.html:261
+msgid "<strong>[ / ]</strong> : Pengajuan Sebelumnya / Berikutnya"
+msgstr "<strong>[ / ]</strong> : Previous / Next Submission"
+
+#: frontend/templates/components/grading_queue.html:262
+msgid "<strong>Ctrl+Enter</strong> : Simpan & Lanjut"
+msgstr "<strong>Ctrl+Enter</strong> : Save & Continue"
+
+#: frontend/templates/components/grading_queue.html:263
+msgid "<strong>Alt+R</strong> : Kembalikan Revisi"
+msgstr "<strong>Alt+R</strong> : Return for Revision"
+
+#: frontend/templates/components/grading_queue.html:274
+msgid "Semua Selesai"
+msgstr "All Done"
+
+#: frontend/templates/components/grading_queue.html:276
+#| msgid "8 tugas menunggu nilai"
+msgid "Gagal menyimpan nilai"
+msgstr "Failed to save grade"
+
+#: frontend/templates/components/grading_queue.html:277
+msgid "Tersimpan ✓"
+msgstr "Saved ✓"
+
+#: frontend/templates/components/grading_queue.html:278
+msgid "Gagal: "
+msgstr "Failed: "
+
+#: frontend/templates/components/grading_queue.html:279
+msgid ""
+"Mohon tuliskan instruksi perbaikan pada kolom catatan guru sebelum "
+"mengembalikan pengajuan."
+msgstr ""
+"Please write revision instructions in the teacher notes field before "
+"returning the submission."
+
+#: frontend/templates/components/grading_queue.html:280
+#| msgid "Pengembang"
+msgid "Mengembalikan..."
+msgstr "Returning..."
+
+#: frontend/templates/components/grading_queue.html:281
+msgid "Gagal mengembalikan pengajuan"
+msgstr "Failed to return submission"
+
+#: frontend/templates/components/grading_queue.html:282
+msgid "Dikembalikan ke siswa ✓"
+msgstr "Returned to student ✓"
+
+#: frontend/templates/components/homework_completion_bar.html:19
+msgid "Penyelesaian Tugas Kelas"
+msgstr "Class Homework Completion"
+
+#: frontend/templates/components/homework_completion_bar.html:24
+msgid "Total Siswa:"
+msgstr "Total Students:"
+
+#: frontend/templates/components/homework_completion_bar.html:28
+msgid "Tenggat:"
+msgstr "Deadline:"
+
+#: frontend/templates/components/homework_completion_bar.html:44
+#, python-format
+msgid "Dinilai: %(graded)s siswa (%(pct)s%%)"
+msgstr "Graded: %(graded)s students (%(pct)s%%)"
+
+#: frontend/templates/components/homework_completion_bar.html:50
+#, python-format
+msgid "Terkumpul (Tepat Waktu): %(submitted)s siswa (%(pct)s%%)"
+msgstr "Submitted (On Time): %(submitted)s students (%(pct)s%%)"
+
+#: frontend/templates/components/homework_completion_bar.html:56
+#, python-format
+msgid "Terlambat: %(late)s siswa (%(pct)s%%)"
+msgstr "Late: %(late)s students (%(pct)s%%)"
+
+#: frontend/templates/components/homework_completion_bar.html:62
+#, python-format
+msgid "Belum Mengumpulkan: %(missing)s siswa (%(pct)s%%)"
+msgstr "Not Submitted: %(missing)s students (%(pct)s%%)"
+
+#: frontend/templates/components/homework_completion_bar.html:108
+msgid "Belum Mengumpulkan"
+msgstr "Not Submitted"
+
+#: frontend/templates/components/homework_completion_bar.html:126
+#, python-format
+msgid "Ingatkan Siswa Belum Mengumpulkan (%(missing)s)"
+msgstr "Remind Students Who Haven't Submitted (%(missing)s)"
+
+#: frontend/templates/components/homework_completion_bar.html:129
+msgid "Mengirim pengingat ke wali murid..."
+msgstr "Sending reminders to guardians..."
+
+#: frontend/templates/components/homework_completion_bar.html:134
+msgid "Semua siswa telah mengumpulkan tugas."
+msgstr "All students have submitted their homework."
+
+#: frontend/templates/components/homework_completion_bar.html:145
+msgid "Status Pengiriman Pengingat"
+msgstr "Reminder Delivery Status"
+
+#: frontend/templates/components/pagination.html:10
+msgid "Muat Lebih Banyak"
+msgstr "Load More"
+
+#: frontend/templates/components/pagination.html:22
+msgid "Memuat data berikutnya..."
+msgstr "Loading more data..."
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:23
+msgid "PORTAL ORANG TUA · KANTIN & KESEHATAN SISWA"
+msgstr "PARENT PORTAL · CANTEEN & STUDENT HEALTH"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:26
+msgid "Nutrisi & Asupan Harian"
+msgstr "Nutrition & Daily Intake"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:29
+msgid ""
+"Pantau asupan gizi, kalori harian, konsumsi gula, dan deteksi alergen dari "
+"transaksi kantin sekolah."
+msgstr ""
+"Monitor nutritional intake, daily calories, sugar consumption, and allergen "
+"detection from school canteen transactions."
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:42
+msgid "Diperbarui: Baru saja"
+msgstr "Updated: Just now"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:59
+msgid "NISN:"
+msgstr "NISN:"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:68
+msgid "Ganti Anak:"
+msgstr "Switch Child:"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:87
+msgid "Filter Periode Analisis"
+msgstr "Analysis Period Filter"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:92
+msgid "Hari Ini"
+msgstr "Today"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:98
+msgid "7 Hari Terakhir"
+msgstr "Last 7 Days"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:104
+msgid "30 Hari Terakhir"
+msgstr "Last 30 Days"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:114
+msgid "Mode Data Tersimpan (Luring)"
+msgstr "Cached Data Mode (Offline)"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:116
+msgid ""
+"Koneksi internet terputus. Menampilkan data ringkasan nutrisi tersimpan "
+"terakhir."
+msgstr "Internet connection lost. Showing the last cached nutrition summary."
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:123
+msgid "Segarkan"
+msgstr "Refresh"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:131
+msgid "Gagal Memuat Analisis Nutrisi"
+msgstr "Failed to Load Nutrition Analysis"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:133
+msgid "Terjadi kendala saat mengambil data nutrisi siswa."
+msgstr "A problem occurred while fetching student nutrition data."
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:138
+msgid "Coba Lagi"
+msgstr "Try Again"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:149
+msgid "Belum Ada Riwayat Konsumsi Kantin"
+msgstr "No Canteen Consumption History Yet"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:152
+msgid "terpilih"
+msgstr "selected"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:153
+#| msgid "Bayar sekarang"
+msgid "sekarang"
+msgstr "now"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:154
+#, python-format
+msgid ""
+"Tidak ada transaksi pembelian makanan atau minuman oleh siswa pada periode\n"
+"        <strong>%(from_date)s</strong> hingga <strong>%(to_date)s</strong>."
+msgstr ""
+"There were no food or drink purchase transactions by the student in the period\n"
+"        <strong>%(from_date)s</strong> to <strong>%(to_date)s</strong>."
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:160
+msgid "Lihat Riwayat 30 Hari Terakhir"
+msgstr "View Last 30 Days History"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:173
+msgid "TOTAL KALORI"
+msgstr "TOTAL CALORIES"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:176
+msgid "kkal"
+msgstr "kcal"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:179
+#, python-format
+msgid "%(day_count)s hari aktif konsumsi"
+msgstr "%(day_count)s active consumption days"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:187
+msgid "ASUPAN GULA"
+msgstr "SUGAR INTAKE"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:190
+msgid "TERPANTAU"
+msgstr "MONITORED"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:194
+msgid "gram"
+msgstr "grams"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:197
+msgid "Anjuran Kemenkes: maks. 25 g/hari"
+msgstr "Ministry of Health recommendation: max. 25 g/day"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:204
+msgid "PILIHAN SEHAT"
+msgstr "HEALTHY CHOICES"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:207
+#, python-format
+msgid "/ %(total_items)s item"
+msgstr "/ %(total_items)s items"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:210
+msgid "Makanan & minuman berkategori sehat"
+msgstr "Food & drinks categorized as healthy"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:217
+msgid "ALERGEN TERDETEKSI"
+msgstr "ALLERGENS DETECTED"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:221
+#, python-format
+msgid "%(allergen_count)s Jenis"
+msgstr "%(allergen_count)s Types"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:223
+msgid "Nihil"
+msgstr "None"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:230
+msgid "Aman dari alergen terdaftar"
+msgstr "Safe from registered allergens"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:243
+msgid "Peringatan Kandungan Alergen pada Makanan Siswa"
+msgstr "Allergen Content Warning in Student's Food"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:247
+msgid ""
+"Siswa mengonsumsi produk kantin yang mengandung bahan-bahan berikut pada "
+"periode ini. Pastikan siswa tidak memiliki riwayat hipersensitivitas atau "
+"alergi:"
+msgstr ""
+"The student consumed canteen products containing the following ingredients "
+"during this period. Please make sure the student has no history of "
+"hypersensitivity or allergy:"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:264
+msgid "Tren Kalori Harian"
+msgstr "Daily Calorie Trend"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:267
+msgid "Grafik asupan kalori (kkal) per tanggal konsumsi"
+msgstr "Calorie intake chart (kcal) by consumption date"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:271
+#, python-format
+msgid "Periode: %(from_date)s s/d %(to_date)s"
+msgstr "Period: %(from_date)s to %(to_date)s"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:297
+msgid "Riwayat Asupan Terperinci"
+msgstr "Detailed Intake History"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:300
+msgid "Daftar transaksi dan kandungan nutrisi per makanan/minuman"
+msgstr "List of transactions and nutritional content per food/drink item"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:308
+#: frontend/templates/marketing/partner_api.html:98
+msgid "Waktu"
+msgstr "Time"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:309
+msgid "Menu Makanan / Minuman"
+msgstr "Food / Drink Item"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:310
+msgid "Jumlah"
+msgstr "Quantity"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:311
+msgid "Harga"
+msgstr "Price"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:312
+msgid "Kalori"
+msgstr "Calories"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:313
+msgid "Gula (g)"
+msgstr "Sugar (g)"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:314
+msgid "Alergen"
+msgstr "Allergens"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:328
+msgid "SEHAT"
+msgstr "HEALTHY"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:333
+#, python-format
+msgid "SKU: %(sku)s"
+msgstr "SKU: %(sku)s"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:343
+#, python-format
+msgid "%(calories)s kkal"
+msgstr "%(calories)s kcal"
+
+#: frontend/templates/components/parent_nutrition_dashboard.html:346
+#, python-format
+msgid "%(sugar_g)s g"
+msgstr "%(sugar_g)s g"
+
+#: frontend/templates/components/permission_slip_console.html:26
+msgid "Kesiswaan & Wali Murid"
+msgstr "Student Affairs & Guardians"
+
+#: frontend/templates/components/permission_slip_console.html:27
+msgid "Konsol Izin Digital"
+msgstr "Digital Permission Slip Console"
+
+#: frontend/templates/components/permission_slip_console.html:29
+msgid ""
+"Terbitkan permintaan izin (karyawisata, kegiatan, dsb.) dan pantau persetujuan digital wali murid secara langsung —\n"
+"        setiap tanda tangan tercatat dengan waktu oleh sistem (PAR-012)."
+msgstr ""
+"Issue permission requests (field trips, activities, etc.) and monitor guardian digital approvals in real time —\n"
+"        every signature is timestamped by the system (PAR-012)."
+
+#: frontend/templates/components/permission_slip_console.html:37
+msgid "Terbitkan Izin Baru"
+msgstr "Issue New Permission Slip"
+
+#: frontend/templates/components/permission_slip_console.html:39
+msgid ""
+"Wali murid dari seluruh siswa aktif di kelas yang dipilih akan menerima "
+"pemberitahuan."
+msgstr ""
+"Guardians of all active students in the selected class will receive a "
+"notification."
+
+#: frontend/templates/components/permission_slip_console.html:49
+msgid "Judul Izin"
+msgstr "Permission Slip Title"
+
+#: frontend/templates/components/permission_slip_console.html:51
+msgid "cth. Kunjungan Museum Nasional"
+msgstr "e.g. National Museum Visit"
+
+#: frontend/templates/components/permission_slip_console.html:54
+msgid "Kelas"
+msgstr "Class"
+
+#: frontend/templates/components/permission_slip_console.html:56
+#| msgid "Pilih bahasa"
+msgid "Pilih kelas…"
+msgstr "Select class…"
+
+#: frontend/templates/components/permission_slip_console.html:63
+msgid "Tanggal Acara"
+msgstr "Event Date"
+
+#: frontend/templates/components/permission_slip_console.html:67
+msgid "Batas Respon"
+msgstr "Response Deadline"
+
+#: frontend/templates/components/permission_slip_console.html:71
+msgid "Lokasi"
+msgstr "Location"
+
+#: frontend/templates/components/permission_slip_console.html:73
+msgid "cth. Museum Nasional, Jakarta"
+msgstr "e.g. National Museum, Jakarta"
+
+#: frontend/templates/components/permission_slip_console.html:76
+msgid "Deskripsi"
+msgstr "Description"
+
+#: frontend/templates/components/permission_slip_console.html:78
+msgid "Rincian kegiatan, perlengkapan, biaya, dsb."
+msgstr "Activity details, equipment, cost, etc."
+
+#: frontend/templates/components/permission_slip_console.html:91
+msgid "Terbitkan Izin"
+msgstr "Issue Permission Slip"
+
+#: frontend/templates/components/permission_slip_console.html:93
+msgid "Menerbitkan…"
+msgstr "Issuing…"
+
+#: frontend/templates/components/permission_slip_console.html:102
+msgid "Daftar Izin & Tally Persetujuan"
+msgstr "Permission Slip List & Approval Tally"
+
+#: frontend/templates/components/permission_slip_console.html:103
+msgid "Tally diperbarui otomatis setiap 15 detik"
+msgstr "Tally updates automatically every 15 seconds"
+
+#: frontend/templates/components/pos_kiosk.html:34
+msgid "Transaksi Offline"
+msgstr "Offline Transactions"
+
+#: frontend/templates/components/pos_kiosk.html:38
+#| msgid "Bayar sekarang"
+msgid "Sync Sekarang"
+msgstr "Sync Now"
+
+#: frontend/templates/components/pos_kiosk.html:54
+msgid "Batalkan (Void) Terakhir"
+msgstr "Void Last Transaction"
+
+#: frontend/templates/components/pos_kiosk.html:69
+msgid "Cari produk berdasarkan nama atau SKU..."
+msgstr "Search products by name or SKU..."
+
+#: frontend/templates/components/pos_kiosk.html:79
+#: frontend/templates/components/pos_kiosk.html:244
+#| msgid "Semua"
+msgid "Semua Menu"
+msgstr "All Items"
+
+#: frontend/templates/components/pos_kiosk.html:113
+msgid "Ganti Siswa"
+msgstr "Switch Student"
+
+#: frontend/templates/components/pos_kiosk.html:120
+msgid "Saldo Dompet"
+msgstr "Wallet Balance"
+
+#: frontend/templates/components/pos_kiosk.html:124
+msgid "Limit Harian"
+msgstr "Daily Limit"
+
+#: frontend/templates/components/pos_kiosk.html:125
+#: frontend/templates/components/pos_kiosk.html:274
+msgid "Tidak Ada Limit"
+msgstr "No Limit"
+
+#: frontend/templates/components/pos_kiosk.html:133
+msgid "Tap Kartu Pelajar (NFC / Barcode)"
+msgstr "Tap Student Card (NFC / Barcode)"
+
+#: frontend/templates/components/pos_kiosk.html:136
+msgid ""
+"Tempelkan kartu siswa pada reader atau masukkan NIS/NISN di bawah sebelum "
+"konfirmasi belanja."
+msgstr ""
+"Tap the student card on the reader or enter NIS/NISN below before confirming"
+" the purchase."
+
+#: frontend/templates/components/pos_kiosk.html:141
+msgid "Scan kartu / ketik NIS..."
+msgstr "Scan card / type NIS..."
+
+#: frontend/templates/components/pos_kiosk.html:147
+msgid "Pilih"
+msgstr "Select"
+
+#: frontend/templates/components/pos_kiosk.html:156
+msgid "Keranjang (0 Item)"
+msgstr "Cart (0 Items)"
+
+#: frontend/templates/components/pos_kiosk.html:161
+msgid "Kosongkan"
+msgstr "Clear"
+
+#: frontend/templates/components/pos_kiosk.html:168
+#: frontend/templates/components/pos_kiosk.html:247
+msgid "Keranjang Belanja Kosong"
+msgstr "Cart is Empty"
+
+#: frontend/templates/components/pos_kiosk.html:169
+#: frontend/templates/components/pos_kiosk.html:248
+msgid "Pilih menu makanan/minuman dari katalog di sebelah kiri."
+msgstr "Select food/drink items from the catalog on the left."
+
+#: frontend/templates/components/pos_kiosk.html:176
+msgid "Aturan belanja terlanggar."
+msgstr "Spending rule violated."
+
+#: frontend/templates/components/pos_kiosk.html:182
+msgid "Total Tagihan:"
+msgstr "Total Bill:"
+
+#: frontend/templates/components/pos_kiosk.html:193
+#| msgid "Bayar sekarang"
+msgid "Bayar Sekarang (Rp 0)"
+msgstr "Pay Now (Rp 0)"
+
+#: frontend/templates/components/pos_kiosk.html:205
+msgid "STRUK PEMBELIAN KANTIN"
+msgstr "CANTEEN PURCHASE RECEIPT"
+
+#: frontend/templates/components/pos_kiosk.html:214
+msgid "Siswa:"
+msgstr "Student:"
+
+#: frontend/templates/components/pos_kiosk.html:226
+msgid "TOTAL:"
+msgstr "TOTAL:"
+
+#: frontend/templates/components/pos_kiosk.html:231
+#| msgid "Sisa saldo"
+msgid "Sisa Saldo:"
+msgstr "Remaining Balance:"
+
+#: frontend/templates/components/pos_kiosk.html:238
+msgid "Selesai / Transaksi Baru"
+msgstr "Done / New Transaction"
+
+#: frontend/templates/components/pos_kiosk.html:245
+#| msgid "Keterangan"
+msgid "Keranjang ("
+msgstr "Cart ("
+
+#: frontend/templates/components/pos_kiosk.html:246
+msgid " Item)"
+msgstr " Items)"
+
+#: frontend/templates/components/pos_kiosk.html:249
+msgid "Sehat"
+msgstr "Healthy"
+
+#: frontend/templates/components/pos_kiosk.html:250
+msgid "Siswa dengan kartu/NIS \\"
+msgstr "Student with card/NIS \\"
+
+#: frontend/templates/components/pos_kiosk.html:251
+#: frontend/templates/components/pos_kiosk.html:255
+msgid "\\"
+msgstr "\\"
+
+#: frontend/templates/components/pos_kiosk.html:252
+msgid "Di luar jam belanja ("
+msgstr "Outside shopping hours ("
+
+#: frontend/templates/components/pos_kiosk.html:253
+msgid ")."
+msgstr ")."
+
+#: frontend/templates/components/pos_kiosk.html:254
+#| msgid "Kategori data"
+msgid "Kategori \\"
+msgstr "Category \\"
+
+#: frontend/templates/components/pos_kiosk.html:256
+msgid "Batas belanja harian Rp "
+msgstr "Daily spending limit Rp "
+
+#: frontend/templates/components/pos_kiosk.html:257
+msgid " terlampaui."
+msgstr " exceeded."
+
+#: frontend/templates/components/pos_kiosk.html:258
+msgid "Melebihi batas saldo minimum offline (Rp 50.000)."
+msgstr "Exceeds the minimum offline balance limit (Rp 50,000)."
+
+#: frontend/templates/components/pos_kiosk.html:259
+#| msgid "Bayar sekarang"
+msgid "Bayar Sekarang"
+msgstr "Pay Now"
+
+#: frontend/templates/components/pos_kiosk.html:260
+msgid "Transaksi ditolak: "
+msgstr "Transaction rejected: "
+
+#: frontend/templates/components/pos_kiosk.html:261
+msgid "OFFLINE (Tersimpan di Kiosk)"
+msgstr "OFFLINE (Stored on Kiosk)"
+
+#: frontend/templates/components/pos_kiosk.html:262
+msgid "Batalkan transaksi #"
+msgstr "Void transaction #"
+
+#: frontend/templates/components/pos_kiosk.html:263
+msgid "? Masukkan alasan:"
+msgstr "? Enter reason:"
+
+#: frontend/templates/components/pos_kiosk.html:264
+msgid "Salah input menu"
+msgstr "Wrong item entered"
+
+#: frontend/templates/components/pos_kiosk.html:265
+msgid "Transaksi berhasil dibatalkan dan saldo dikembalikan."
+msgstr "Transaction voided successfully and balance refunded."
+
+#: frontend/templates/components/pos_kiosk.html:266
+msgid "Gagal void: "
+msgstr "Void failed: "
+
+#: frontend/templates/components/pos_kiosk.html:267
+msgid "Batas waktu pembatalan terlampaui."
+msgstr "Void time limit exceeded."
+
+#: frontend/templates/components/pos_kiosk.html:268
+msgid "Gagal menghubungi server untuk pembatalan."
+msgstr "Failed to reach the server to void the transaction."
+
+#: frontend/templates/components/pos_kiosk.html:269
+msgid "Berhasil sinkronisasi: "
+msgstr "Sync successful: "
+
+#: frontend/templates/components/pos_kiosk.html:270
+msgid " transaksi diproses."
+msgstr " transactions processed."
+
+#: frontend/templates/components/pos_kiosk.html:271
+msgid "Server menolak sinkronisasi batch."
+msgstr "Server rejected the batch sync."
+
+#: frontend/templates/components/pos_kiosk.html:272
+msgid "Koneksi gagal: "
+msgstr "Connection failed: "
+
+#: frontend/templates/components/pos_kiosk.html:273
+msgid "NIS: "
+msgstr "NIS: "
+
+#: frontend/templates/components/teacher_agenda.html:21
+msgid "Agenda Mengajar Harian"
+msgstr "Daily Teaching Agenda"
+
+#: frontend/templates/components/teacher_agenda.html:26
+#| msgid "Guru"
+msgid "Guru:"
+msgstr "Teacher:"
+
+#: frontend/templates/components/teacher_agenda.html:42
+msgid "Aktifkan Notifikasi Push"
+msgstr "Enable Push Notifications"
+
+#: frontend/templates/components/teacher_agenda.html:59
+msgid "PERMINTAAN GURU PENGGANTI"
+msgstr "SUBSTITUTE TEACHER REQUEST"
+
+#: frontend/templates/components/teacher_agenda.html:65
+msgid "Guru Reguler"
+msgstr "Regular Teacher"
+
+#: frontend/templates/components/teacher_agenda.html:66
+msgid "Menggantikan:"
+msgstr "Substituting for:"
+
+#: frontend/templates/components/teacher_agenda.html:69
+#, python-format
+msgid "Jam Ke-%(period)s (%(start)s - %(end)s)"
+msgstr "Period %(period)s (%(start)s - %(end)s)"
+
+#: frontend/templates/components/teacher_agenda.html:84
+msgid "Terima"
+msgstr "Accept"
+
+#: frontend/templates/components/teacher_agenda.html:90
+#| msgid "Keterangan"
+msgid "Berhalangan"
+msgstr "Unavailable"
+
+#: frontend/templates/components/teacher_agenda.html:99
+msgid "Alasan Berhalangan / Penolakan (Wajib Diisi):"
+msgstr "Reason for Unavailability / Decline (Required):"
+
+#: frontend/templates/components/teacher_agenda.html:104
+msgid "Contoh: Sedang mendampingi lomba / sakit"
+msgstr "Example: Accompanying a competition / sick"
+
+#: frontend/templates/components/teacher_agenda.html:110
+msgid "Kirim Penolakan"
+msgstr "Send Decline"
+
+#: frontend/templates/components/teacher_agenda.html:130
+msgid "Tidak ada jadwal mengajar pada tanggal ini."
+msgstr "No teaching schedule on this date."
+
+#: frontend/templates/components/teacher_agenda.html:143
+#, python-format
+msgid "Jam %(period)s"
+msgstr "Period %(period)s"
+
+#: frontend/templates/components/teacher_agenda.html:160
+msgid "GURU PENGGANTI"
+msgstr "SUBSTITUTE TEACHER"
+
+#: frontend/templates/components/teacher_agenda.html:167
+msgid "✓ Presensi Selesai"
+msgstr "✓ Attendance Complete"
+
+#: frontend/templates/components/teacher_agenda.html:172
+msgid "○ Belum Presensi"
+msgstr "○ Attendance Not Taken"
+
+#: frontend/templates/components/teacher_agenda.html:184
+msgid "Kelas:"
+msgstr "Class:"
+
+#: frontend/templates/components/teacher_agenda.html:188
+msgid "Pengganti untuk:"
+msgstr "Substitute for:"
+
+#: frontend/templates/components/teacher_agenda.html:199
+msgid "Ubah Presensi"
+msgstr "Edit Attendance"
+
+#: frontend/templates/components/teacher_agenda.html:199
+msgid "Buka Presensi Kelas"
+msgstr "Open Class Attendance"
+
+#: frontend/templates/components/teacher_agenda.html:218
+msgid "Presensi Kelas"
+msgstr "Class Attendance"
+
+#: frontend/templates/components/teacher_agenda.html:230
+msgid "Default: Seluruh siswa dianggap <strong>HADIR</strong>"
+msgstr "Default: All students marked <strong>PRESENT</strong>"
+
+#: frontend/templates/components/teacher_agenda.html:235
+msgid "Setel Semua Hadir"
+msgstr "Set All Present"
+
+#: frontend/templates/components/teacher_agenda.html:242
+msgid "Memuat daftar siswa..."
+msgstr "Loading student list..."
+
+#: frontend/templates/components/teacher_agenda.html:258
+#: frontend/templates/components/teacher_agenda.html:281
+msgid "Simpan Presensi"
+msgstr "Save Attendance"
+
+#: frontend/templates/components/teacher_agenda.html:268
+msgid "Konfirmasi kesediaan Anda untuk mengajar pada jadwal ini?"
+msgstr "Confirm your availability to teach this schedule?"
+
+#: frontend/templates/components/teacher_agenda.html:269
+msgid "Gagal menerima penugasan."
+msgstr "Failed to accept assignment."
+
+#: frontend/templates/components/teacher_agenda.html:270
+msgid "Terjadi kesalahan jaringan."
+msgstr "A network error occurred."
+
+#: frontend/templates/components/teacher_agenda.html:272
+msgid "Gagal menolak penugasan."
+msgstr "Failed to decline assignment."
+
+#: frontend/templates/components/teacher_agenda.html:273
+msgid "Masukkan token FCM / Push Notification perangkat:"
+msgstr "Enter device FCM / Push Notification token:"
+
+#: frontend/templates/components/teacher_agenda.html:274
+msgid "Token perangkat berhasil didaftarkan."
+msgstr "Device token registered successfully."
+
+#: frontend/templates/components/teacher_agenda.html:275
+msgid "Gagal mendaftarkan token."
+msgstr "Failed to register token."
+
+#: frontend/templates/components/teacher_agenda.html:276
+msgid "Terjadi kesalahan koneksi saat mendaftarkan token."
+msgstr "A connection error occurred while registering the token."
+
+#: frontend/templates/components/teacher_agenda.html:277
+msgid "Presensi Tanggal"
+msgstr "Attendance for"
+
+#: frontend/templates/components/teacher_agenda.html:279
+msgid "Gagal menyimpan presensi."
+msgstr "Failed to save attendance."
+
+#: frontend/templates/components/teacher_agenda.html:280
+msgid "Terjadi kesalahan koneksi saat mengirim presensi."
+msgstr "A connection error occurred while submitting attendance."
+
+#: frontend/templates/components/teacher_agenda.html:478
+#| msgid "Daftar isi"
+msgid "Daftar Siswa Kelas"
+msgstr "Class Student List"
+
+#: frontend/templates/components/teacher_agenda.html:486
+msgid "HADIR"
+msgstr "PRESENT"
+
+#: frontend/templates/components/teacher_agenda.html:487
+msgid "SAKIT"
+msgstr "SICK"
+
+#: frontend/templates/components/teacher_agenda.html:488
+msgid "IZIN"
+msgstr "EXCUSED"
+
+#: frontend/templates/components/teacher_agenda.html:489
+msgid "ALPA"
+msgstr "ABSENT"
 
 #: frontend/templates/marketing/base.html:8
 msgid ""
@@ -3389,7 +5290,7 @@ msgstr "Select language"
 #: frontend/templates/marketing/base.html:49
 msgid ""
 "Pilihan ini berlaku untuk seluruh situs dan tersimpan di perangkat Anda."
-msgstr ""
+msgstr "This choice applies site-wide and is saved on your device."
 
 #: frontend/templates/marketing/base.html:51
 msgid "Tutup"
@@ -3420,6 +5321,7 @@ msgid "Pengembang"
 msgstr "Developers"
 
 #: frontend/templates/marketing/base.html:100
+#: frontend/templates/marketing/changelog.html:53
 msgid "Dokumentasi"
 msgstr "Documentation"
 
@@ -3446,6 +5348,38 @@ msgstr "Data processing agreement (UU PDP)"
 #: frontend/templates/marketing/base.html:110
 msgid "Retensi data"
 msgstr "Data retention"
+
+#: frontend/templates/marketing/changelog.html:4
+msgid "Changelog — EduCore"
+msgstr "Changelog — EduCore"
+
+#: frontend/templates/marketing/changelog.html:9
+msgid "Apa yang berubah, dan apa yang perlu Anda lakukan."
+msgstr "What changed, and what you need to do."
+
+#: frontend/templates/marketing/changelog.html:10
+msgid ""
+"Setiap rilis mencantumkan tindakan yang dibutuhkan integrator. Perubahan "
+"yang memutus kontrak selalu diumumkan minimal 90 hari sebelumnya."
+msgstr ""
+"Every release lists the action integrators need to take. Breaking changes "
+"are always announced at least 90 days in advance."
+
+#: frontend/templates/marketing/changelog.html:35
+msgid "BARU"
+msgstr "NEW"
+
+#: frontend/templates/marketing/changelog.html:35
+msgid "PERBAIKAN"
+msgstr "FIX"
+
+#: frontend/templates/marketing/changelog.html:35
+msgid "PERUBAHAN"
+msgstr "CHANGED"
+
+#: frontend/templates/marketing/changelog.html:43
+msgid "TINDAKAN"
+msgstr "ACTION NEEDED"
 
 #: frontend/templates/marketing/data_retention.html:4
 msgid "Retensi Data — EduCore"
@@ -3530,7 +5464,8 @@ msgstr "Biometric templates (face/fingerprint)"
 #: frontend/templates/marketing/data_retention.html:31
 msgid ""
 "Dihapus saat siswa keluar atau saat persetujuan ditarik, maksimal 24 jam"
-msgstr "Deleted when a student leaves or consent is withdrawn, within 24 hours"
+msgstr ""
+"Deleted when a student leaves or consent is withdrawn, within 24 hours"
 
 #: frontend/templates/marketing/data_retention.html:32
 msgid "Foto gerbang / kehadiran"
@@ -3571,8 +5506,8 @@ msgid ""
 "melalui aplikasi orang tua. Penarikan berlaku dalam 24 jam: template "
 "biometrik dihapus dan siswa kembali menggunakan verifikasi kartu."
 msgstr ""
-"Parents/guardians can withdraw consent for biometric use at any time through "
-"the parent app. Withdrawal takes effect within 24 hours: the biometric "
+"Parents/guardians can withdraw consent for biometric use at any time through"
+" the parent app. Withdrawal takes effect within 24 hours: the biometric "
 "template is deleted and the student reverts to card verification."
 
 #: frontend/templates/marketing/data_retention.html:43
@@ -3580,7 +5515,8 @@ msgid ""
 "Permintaan penghapusan data pribadi sebelum periode retensi berakhir "
 "diproses sepanjang tidak bertentangan dengan kewajiban statutori (misalnya "
 "catatan keuangan yang wajib disimpan 10 tahun). Admin sekolah dapat "
-"mengajukan permintaan ini dan menerima hasilnya dalam satu sesi administrasi."
+"mengajukan permintaan ini dan menerima hasilnya dalam satu sesi "
+"administrasi."
 msgstr ""
 "Requests to delete personal data before the retention period ends are "
 "processed as long as they don't conflict with a statutory obligation (for "
@@ -3592,8 +5528,8 @@ msgid ""
 "Pertanyaan mengenai jadwal retensi atau permintaan penghapusan data dapat "
 "dikirim ke"
 msgstr ""
-"Questions about the retention schedule or data deletion requests can be sent "
-"to"
+"Questions about the retention schedule or data deletion requests can be sent"
+" to"
 
 #: frontend/templates/marketing/downloads.html:4
 msgid "Unduh Aplikasi — EduCore"
@@ -3641,8 +5577,8 @@ msgstr "Install via QR code"
 
 #: frontend/templates/marketing/downloads.html:54
 msgid ""
-"Orang tua memindai kode di surat aktivasi sekolah dan langsung masuk ke toko "
-"aplikasi yang benar."
+"Orang tua memindai kode di surat aktivasi sekolah dan langsung masuk ke toko"
+" aplikasi yang benar."
 msgstr ""
 "Parents scan the code on the school's activation letter and go straight to "
 "the correct app store."
@@ -3673,8 +5609,8 @@ msgid ""
 "mengikat setiap kontrak berlangganan EduCore, sesuai UU No. 27 Tahun 2022 "
 "tentang Pelindungan Data Pribadi."
 msgstr ""
-"A summary of the Data Processing Agreement that is attached to every EduCore "
-"subscription contract, per Law No. 27 of 2022 on Personal Data Protection."
+"A summary of the Data Processing Agreement that is attached to every EduCore"
+" subscription contract, per Law No. 27 of 2022 on Personal Data Protection."
 
 #: frontend/templates/marketing/dpa.html:17
 #: frontend/templates/marketing/dpa.html:28
@@ -3776,8 +5712,8 @@ msgid ""
 "insiden terdeteksi."
 msgstr ""
 "EduCore processes personal data only on the foundation's documented "
-"instructions, keeps data confidential, applies TLS 1.3 encryption in transit "
-"and AES-256 at rest, restricts internal staff access to time-boxed and "
+"instructions, keeps data confidential, applies TLS 1.3 encryption in transit"
+" and AES-256 at rest, restricts internal staff access to time-boxed and "
 "audited sessions, and helps the foundation fulfil data subject requests and "
 "the 3×24-hour incident notification obligation from the moment an incident "
 "is detected."
@@ -3801,8 +5737,8 @@ msgid ""
 "satu-satunya pihak yang berwenang menginstruksikan perubahan tujuan "
 "pemrosesan."
 msgstr ""
-"The foundation has the right to request a compliance audit, a copy of access "
-"logs to its personal data, and evidence of security obligations being met. "
+"The foundation has the right to request a compliance audit, a copy of access"
+" logs to its personal data, and evidence of security obligations being met. "
 "The foundation remains the only party authorized to instruct changes to the "
 "purpose of processing."
 
@@ -3994,8 +5930,8 @@ msgid ""
 "tidak pernah mengirim notifikasi ke orang tua. Gunakan itu untuk seluruh "
 "pengembangan."
 msgstr ""
-"Keys prefixed <code>ak_test_</code> always hit synthetic data and never send "
-"notifications to parents. Use it for all development."
+"Keys prefixed <code>ak_test_</code> always hit synthetic data and never send"
+" notifications to parents. Use it for all development."
 
 #: frontend/templates/marketing/partner_api.html:59
 msgid "Referensi"
@@ -4028,9 +5964,9 @@ msgstr "Rate limits"
 
 #: frontend/templates/marketing/partner_api.html:78
 msgid ""
-"Setiap permintaan membawa key-id di header dan tanda tangan HMAC-SHA256 atas "
-"<code>timestamp + method + path + body</code>. Secret tidak pernah dikirim. "
-"Permintaan dengan timestamp lebih dari 300 detik ditolak."
+"Setiap permintaan membawa key-id di header dan tanda tangan HMAC-SHA256 atas"
+" <code>timestamp + method + path + body</code>. Secret tidak pernah dikirim."
+" Permintaan dengan timestamp lebih dari 300 detik ditolak."
 msgstr ""
 "Every request carries a key-id header and an HMAC-SHA256 signature over "
 "<code>timestamp + method + path + body</code>. The secret is never sent. "
@@ -4061,7 +5997,8 @@ msgstr "Rotation"
 msgid ""
 "Dua kunci aktif maksimal 30 hari. Kunci lama jadi read-only saat hari ke-23."
 msgstr ""
-"At most two active keys for 30 days. The old key becomes read-only on day 23."
+"At most two active keys for 30 days. The old key becomes read-only on day "
+"23."
 
 #: frontend/templates/marketing/partner_api.html:87
 msgid "Opsional per kunci, wajib untuk cakupan <code>roster.pii</code>."
@@ -4091,10 +6028,6 @@ msgstr "Pagination"
 msgid "Uang"
 msgstr "Money"
 
-#: frontend/templates/marketing/partner_api.html:98
-msgid "Waktu"
-msgstr "Time"
-
 #: frontend/templates/marketing/partner_api.html:99
 msgid "Idempotensi"
 msgstr "Idempotency"
@@ -4115,8 +6048,8 @@ msgstr ""
 
 #: frontend/templates/marketing/partner_api.html:104
 msgid ""
-"Semua error adalah RFC 9457 <code>application/problem+json</code>. Cabangkan "
-"logika pada <code>code</code> — string SCREAMING_SNAKE yang stabil — bukan "
+"Semua error adalah RFC 9457 <code>application/problem+json</code>. Cabangkan"
+" logika pada <code>code</code> — string SCREAMING_SNAKE yang stabil — bukan "
 "pada prosa <code>detail</code>."
 msgstr ""
 "All errors are RFC 9457 <code>application/problem+json</code>. Branch your "
@@ -4309,8 +6242,8 @@ msgstr ""
 #: frontend/templates/marketing/privacy_policy.html:33
 msgid ""
 "Bergantung pada modul yang diaktifkan yayasan, EduCore dapat memproses: "
-"identitas siswa dan orang tua/wali (nama, NISN, NIK, tanggal lahir, alamat), "
-"data kehadiran dan foto gerbang, template biometrik (opsional, dengan "
+"identitas siswa dan orang tua/wali (nama, NISN, NIK, tanggal lahir, alamat),"
+" data kehadiran dan foto gerbang, template biometrik (opsional, dengan "
 "persetujuan terpisah), data akademik dan rapor, data keuangan dan tagihan, "
 "data kepegawaian dan jabatan staf, serta log komunikasi ke orang tua."
 msgstr ""
@@ -4329,8 +6262,8 @@ msgid ""
 "dicatat dengan versi serta waktu."
 msgstr ""
 "The legal basis for processing is recorded per purpose (delivering the "
-"education service, government reporting obligations, or explicit consent for "
-"biometrics, media, and marketing communication). Consent is requested per "
+"education service, government reporting obligations, or explicit consent for"
+" biometrics, media, and marketing communication). Consent is requested per "
 "purpose, separately — never bundled into one general consent — and recorded "
 "with a version and timestamp."
 
@@ -4339,24 +6272,24 @@ msgid ""
 "Seluruh data produksi — basis data, penyimpanan objek, cadangan, dan log — "
 "berada di pusat data Indonesia, tanpa replikasi lintas negara. Data "
 "terenkripsi TLS 1.3 saat transit dan AES-256 saat tersimpan, dengan kunci "
-"enkripsi terpisah untuk PII umum, template biometrik, dan data kesehatan/"
-"konseling. Akses staf EduCore ke lingkungan produksi dibatasi waktu, "
-"disetujui, dan tercatat — tidak ada kredensial produksi yang berlaku "
+"enkripsi terpisah untuk PII umum, template biometrik, dan data "
+"kesehatan/konseling. Akses staf EduCore ke lingkungan produksi dibatasi "
+"waktu, disetujui, dan tercatat — tidak ada kredensial produksi yang berlaku "
 "permanen."
 msgstr ""
 "All production data — database, object storage, backups, and logs — resides "
 "in Indonesian data centres, with no cross-border replication. Data is "
 "encrypted with TLS 1.3 in transit and AES-256 at rest, with separate "
-"encryption keys for general PII, biometric templates, and health/counselling "
-"data. EduCore staff access to production is time-boxed, approved, and logged "
-"— no standing production credentials exist."
+"encryption keys for general PII, biometric templates, and health/counselling"
+" data. EduCore staff access to production is time-boxed, approved, and "
+"logged — no standing production credentials exist."
 
 #: frontend/templates/marketing/privacy_policy.html:42
 msgid ""
 "Orang tua/wali dan staf dapat mengajukan permintaan akses, koreksi, "
 "penghapusan, pembatasan pemrosesan, atau portabilitas data melalui admin "
-"sekolah. Permintaan yang sah dilayani dalam 30 hari, kecuali data yang wajib "
-"dipertahankan sesuai kewajiban retensi statutori (lihat"
+"sekolah. Permintaan yang sah dilayani dalam 30 hari, kecuali data yang wajib"
+" dipertahankan sesuai kewajiban retensi statutori (lihat"
 msgstr ""
 "Parents/guardians and staff can submit requests for access, correction, "
 "deletion, restriction of processing, or data portability through the school "
@@ -4387,157 +6320,164 @@ msgstr ""
 
 #: frontend/templates/marketing/privacy_policy.html:51
 msgid ""
-"Pertanyaan mengenai kebijakan ini atau permintaan terkait data pribadi dapat "
-"dikirim ke"
+"Pertanyaan mengenai kebijakan ini atau permintaan terkait data pribadi dapat"
+" dikirim ke"
 msgstr ""
-"Questions about this policy or requests related to personal data can be sent "
-"to"
+"Questions about this policy or requests related to personal data can be sent"
+" to"
+
+#: frontend/templates/pages/foundation_microsoft_tenant_page.html:10
+msgid "Pengaturan SSO Microsoft Entra — EduCore"
+msgstr "Microsoft Entra SSO Settings — EduCore"
+
+#: frontend/templates/pages/foundation_microsoft_tenant_page.html:15
+#| msgid "Ketua yayasan"
+msgid "Pengaturan Yayasan"
+msgstr "Foundation Settings"
+
+#: frontend/templates/pages/foundation_microsoft_tenant_page.html:17
+msgid "Integrasi SSO Microsoft"
+msgstr "Microsoft SSO Integration"
+
+#: frontend/templates/pages/foundation_microsoft_tenant_page.html:26
+msgid "Integrasi Microsoft Entra ID"
+msgstr "Microsoft Entra ID Integration"
+
+#: frontend/templates/pages/foundation_microsoft_tenant_page.html:28
+msgid ""
+"Kelola penyematan tenant Microsoft 365 / Azure AD untuk mengontrol akses "
+"Single Sign-On (SSO) staf pada yayasan ini."
+msgstr ""
+"Manage the Microsoft 365 / Azure AD tenant pinning to control staff Single "
+"Sign-On (SSO) access for this foundation."
+
+#: frontend/templates/pages/foundation_microsoft_tenant_page.html:37
+msgid "Akses Ditolak"
+msgstr "Access Denied"
+
+#: frontend/templates/pages/login.html:4
+#| msgid "Changelog — EduCore"
+msgid "Masuk — EduCore"
+msgstr "Sign In — EduCore"
+
+#: frontend/templates/pages/login.html:23
+msgid "Masuk ke Portal"
+msgstr "Sign In to Portal"
+
+#: frontend/templates/pages/login.html:26
+msgid "Akses portal staf, guru, dan administrasi sekolah."
+msgstr "Access the staff, teacher, and school administration portal."
+
+#: frontend/templates/pages/login.html:44
+msgid "Nomor HP atau Email"
+msgstr "Phone Number or Email"
+
+#: frontend/templates/pages/login.html:51
+msgid "08123456789 atau nama@sekolah.sch.id"
+msgstr "08123456789 or name@school.sch.id"
+
+#: frontend/templates/pages/login.html:59
+#| msgid "Data anak"
+msgid "Kata Sandi"
+msgstr "Password"
+
+#: frontend/templates/pages/login.html:75
+msgid "MASUK DENGAN KATA SANDI"
+msgstr "SIGN IN WITH PASSWORD"
+
+#: frontend/templates/pages/login.html:83
+msgid "ATAU MASUK DENGAN SSO"
+msgstr "OR SIGN IN WITH SSO"
+
+#: frontend/templates/pages/login.html:104
+msgid "Masuk dengan Google Workspace"
+msgstr "Sign in with Google Workspace"
+
+#: frontend/templates/pages/login.html:122
+msgid "Masuk dengan Microsoft 365"
+msgstr "Sign in with Microsoft 365"
+
+#: frontend/templates/pages/login.html:129
+msgid ""
+"Belum menautkan akun Google / Microsoft atau lupa kata sandi?<br>\n"
+"          Hubungi Tata Usaha (TU) sekolah Anda."
+msgstr ""
+"Haven't linked your Google / Microsoft account or forgot your password?<br>\n"
+"          Contact your school's administration office (TU)."
+
+#: frontend/templates/pages/login.html:138
+msgid ""
+"Login SSO belum tersedia: tidak dapat menentukan yayasan secara otomatis. "
+"Hubungi Tata Usaha."
+msgstr ""
+"SSO login is not available: could not automatically determine the "
+"foundation. Contact the administration office."
+
+#: frontend/templates/pages/login.html:139
+msgid "Akun "
+msgstr "Account "
+
+#: frontend/templates/pages/login.html:140
+msgid ""
+" belum ditautkan ke akun staf EduCore. Silakan masuk menggunakan kata sandi "
+"terlebih dahulu, lalu tautkan akun di menu profil."
+msgstr ""
+" is not linked to an EduCore staff account yet. Please sign in with your "
+"password first, then link your account from the profile menu."
+
+#: frontend/templates/pages/login.html:141
+msgid "Autentikasi SSO gagal. Periksa kembali akun Anda."
+msgstr "SSO authentication failed. Please check your account again."
+
+#: frontend/templates/pages/login.html:142
+msgid "Terjadi kesalahan jaringan saat menghubungkan ke server."
+msgstr "A network error occurred while connecting to the server."
+
+#: frontend/templates/pages/login.html:143
+msgid "Gagal memperoleh token autentikasi dari "
+msgstr "Failed to obtain authentication token from "
+
+#: frontend/templates/pages/login.html:144
+msgid "Masukkan ID Token "
+msgstr "Enter ID Token "
+
+#: frontend/templates/pages/login.html:145
+msgid " untuk pengujian SSO:"
+msgstr " for SSO testing:"
+
+#: frontend/templates/pages/permission_slip_console_page.html:11
+#| msgid "Retensi Data — EduCore"
+msgid "Konsol Izin Digital — EduCore"
+msgstr "Digital Permission Slip Console — EduCore"
 
 #: frontend/templates/rest_framework/base.html:37
 msgid "navbar"
-msgstr ""
+msgstr "navbar"
 
 #: frontend/templates/rest_framework/base.html:75
 msgid "content"
-msgstr ""
+msgstr "content"
 
 #: frontend/templates/rest_framework/base.html:78
 msgid "request form"
-msgstr ""
+msgstr "request form"
 
 #: frontend/templates/rest_framework/base.html:136
 msgid "Extra Actions"
-msgstr ""
+msgstr "Extra Actions"
 
 #: frontend/templates/rest_framework/base.html:150
 msgid "Filters"
-msgstr ""
+msgstr "Filters"
 
 #: frontend/templates/rest_framework/base.html:157
 msgid "main content"
-msgstr ""
+msgstr "main content"
 
 #: frontend/templates/rest_framework/base.html:173
 msgid "request info"
-msgstr ""
+msgstr "request info"
 
 #: frontend/templates/rest_framework/base.html:177
 msgid "response info"
-msgstr ""
-
-
-#: apps/marketing/views.py:169
-msgid "Portal web"
-msgstr "Web portal"
-
-#: frontend/templates/marketing/changelog.html:4
-msgid "Changelog — EduCore"
-msgstr "Changelog — EduCore"
-
-#: frontend/templates/marketing/changelog.html:9
-msgid "Apa yang berubah, dan apa yang perlu Anda lakukan."
-msgstr "What changed, and what you need to do."
-
-#: frontend/templates/marketing/changelog.html:10
-msgid "Setiap rilis mencantumkan tindakan yang dibutuhkan integrator. Perubahan yang memutus kontrak selalu diumumkan minimal 90 hari sebelumnya."
-msgstr "Every release lists the action integrators need to take. Breaking changes are always announced at least 90 days in advance."
-
-#: apps/marketing/views.py:178
-msgid "Semua"
-msgstr "All"
-
-#: apps/marketing/views.py:180
-msgid "Aplikasi seluler"
-msgstr "Mobile apps"
-
-#: apps/marketing/views.py:191
-msgid "Endpoint staf kini memaparkan riwayat jabatan, dan aliran kejadian menerima filter per sekolah."
-msgstr "The staff endpoint now exposes position history, and the event stream accepts a per-school filter."
-
-#: apps/marketing/views.py:193
-msgid "riwayat jabatan dan status kepegawaian"
-msgstr "position history and employment status"
-
-#: apps/marketing/views.py:194
-msgid "Filter baru pada /partner/events"
-msgstr "New filter on /partner/events"
-
-#: apps/marketing/views.py:195
-msgid "Kursor paginasi tidak lagi kedaluwarsa lebih cepat dari 24 jam"
-msgstr "Pagination cursors no longer expire sooner than 24 hours"
-
-#: apps/marketing/views.py:203
-msgid "Perbaikan sinkronisasi untuk perangkat dengan jaringan tidak stabil."
-msgstr "Sync fix for devices on unstable networks."
-
-#: apps/marketing/views.py:205
-msgid "Saldo kantin tidak lagi tampil basi setelah pembayaran offline"
-msgstr "Canteen balance no longer shows stale after an offline payment"
-
-#: apps/marketing/views.py:206
-msgid "Ukuran unduhan turun 3 MB"
-msgstr "Download size down 3 MB"
-
-#: apps/marketing/views.py:214
-msgid "Kontrak error diselaraskan ke RFC 9457 di seluruh endpoint mitra."
-msgstr "Error contract aligned to RFC 9457 across every partner endpoint."
-
-#: apps/marketing/views.py:216
-msgid "Semua error kini application/problem+json dengan field code"
-msgstr "All errors are now application/problem+json with a code field"
-
-#: apps/marketing/views.py:217
-msgid "Header baru pada seluruh respons 429"
-msgstr "New header on every 429 response"
-
-#: apps/marketing/views.py:219
-msgid "Parser yang membaca field message pada error harus beralih ke code sebelum 20 November 2026."
-msgstr "Parsers that read the error's message field must switch to code before 20 November 2026."
-
-#: apps/marketing/views.py:227
-msgid "Antrean penilaian dan rekonsiliasi dompet masuk ke portal utama."
-msgstr "Grading queue and wallet reconciliation landed in the main portal."
-
-#: apps/marketing/views.py:229
-msgid "Antrean penilaian dengan penyimpanan otomatis per sel"
-msgstr "Grading queue with autosave per cell"
-
-#: apps/marketing/views.py:230
-msgid "Rekonsiliasi dompet dengan penandaan selisih"
-msgstr "Wallet reconciliation with discrepancy flagging"
-
-#: apps/marketing/views.py:231
-msgid "Rapor cetak tidak lagi memotong nama panjang"
-msgstr "Printed report cards no longer truncate long names"
-
-#: apps/marketing/views.py:187
-msgid "12 Sep 2026"
-msgstr "12 Sep 2026"
-
-#: apps/marketing/views.py:199
-msgid "5 Sep 2026"
-msgstr "5 Sep 2026"
-
-#: apps/marketing/views.py:210
-msgid "22 Agu 2026"
-msgstr "22 Aug 2026"
-
-#: apps/marketing/views.py:223
-msgid "14 Agu 2026"
-msgstr "14 Aug 2026"
-
-#: frontend/templates/marketing/changelog.html:29
-msgid "BARU"
-msgstr "NEW"
-
-#: frontend/templates/marketing/changelog.html:29
-msgid "PERBAIKAN"
-msgstr "FIX"
-
-#: frontend/templates/marketing/changelog.html:29
-msgid "PERUBAHAN"
-msgstr "CHANGED"
-
-#: frontend/templates/marketing/changelog.html:35
-msgid "TINDAKAN"
-msgstr "ACTION NEEDED"
+msgstr "response info"

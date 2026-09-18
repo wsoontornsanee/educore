@@ -1,3 +1,4 @@
+{% load i18n %}
 {% comment %}
 Component: 5-State Screen Banner (spec/17 §8.1, UI-003)
 Usage: {% include "components/banner.html" with state="offline" message="Mode luring aktif. 14 scan tersimpan di perangkat lokal." %}
@@ -53,15 +54,15 @@ Parameters:
         {% if message %}
           {{ message }}
         {% elif st == 'offline' %}
-          <strong>Koneksi Terputus:</strong> Sistem beroperasi dalam mode luring (offline). Transaksi akan disimpan secara lokal dan disinkronkan otomatis saat kembali terhubung.
+          {% blocktranslate %}<strong>Koneksi Terputus:</strong> Sistem beroperasi dalam mode luring (offline). Transaksi akan disimpan secara lokal dan disinkronkan otomatis saat kembali terhubung.{% endblocktranslate %}
         {% elif st == 'stale' %}
-          Data di-cache untuk performa tinggi. Diperbarui beberapa saat yang lalu.
+          {% translate "Data di-cache untuk performa tinggi. Diperbarui beberapa saat yang lalu." %}
         {% elif st == 'error' %}
-          Terjadi kendala saat memuat data. Silakan periksa koneksi atau ulangi proses.
+          {% translate "Terjadi kendala saat memuat data. Silakan periksa koneksi atau ulangi proses." %}
         {% elif st == 'empty' %}
-          Belum ada data yang tersedia untuk periode atau filter ini.
+          {% translate "Belum ada data yang tersedia untuk periode atau filter ini." %}
         {% elif st == 'loading' %}
-          Memuat data dari server...
+          {% translate "Memuat data dari server..." %}
         {% endif %}
       </div>
     </div>

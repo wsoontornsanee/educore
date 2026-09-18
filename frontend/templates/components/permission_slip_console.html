@@ -1,3 +1,4 @@
+{% load i18n %}
 {% load l10n %}
 {% comment %}
 Component: Permission Slip School Console (spec/08 PAR-012, spec/17)
@@ -22,20 +23,20 @@ Parameters (full component):
   <!-- Header -->
   <header class="card" style="padding: 20px 24px; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
     <div>
-      <div class="text-label text-ink-500" style="margin-bottom: 2px;">Kesiswaan &amp; Wali Murid</div>
-      <h2 class="text-h2 font-display text-ink-900" style="margin: 0;">Konsol Izin Digital</h2>
+      <div class="text-label text-ink-500" style="margin-bottom: 2px;">{% translate "Kesiswaan & Wali Murid" %}</div>
+      <h2 class="text-h2 font-display text-ink-900" style="margin: 0;">{% translate "Konsol Izin Digital" %}</h2>
       <p class="text-body-sm text-ink-500" style="margin: 6px 0 0 0;">
-        Terbitkan permintaan izin (karyawisata, kegiatan, dsb.) dan pantau persetujuan digital wali murid secara langsung —
-        setiap tanda tangan tercatat dengan waktu oleh sistem (PAR-012).
+        {% blocktranslate %}Terbitkan permintaan izin (karyawisata, kegiatan, dsb.) dan pantau persetujuan digital wali murid secara langsung —
+        setiap tanda tangan tercatat dengan waktu oleh sistem (PAR-012).{% endblocktranslate %}
       </p>
     </div>
   </header>
 
   <!-- Create Form -->
   <section class="card" aria-label="Formulir izin baru" style="padding: 24px;">
-    <h3 class="text-h3 font-display text-ink-900" style="margin: 0 0 4px 0;">Terbitkan Izin Baru</h3>
+    <h3 class="text-h3 font-display text-ink-900" style="margin: 0 0 4px 0;">{% translate "Terbitkan Izin Baru" %}</h3>
     <p class="text-body-sm text-ink-500" style="margin: 0 0 16px 0;">
-      Wali murid dari seluruh siswa aktif di kelas yang dipilih akan menerima pemberitahuan.
+      {% translate "Wali murid dari seluruh siswa aktif di kelas yang dipilih akan menerima pemberitahuan." %}
     </p>
 
     <form id="slip-create-form"
@@ -45,36 +46,36 @@ Parameters (full component):
           hx-indicator="#slip-create-spinner">
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px;">
         <div class="form-group" style="grid-column: 1 / -1;">
-          <label class="form-label" for="slip-title">Judul Izin <span class="text-danger">*</span></label>
+          <label class="form-label" for="slip-title">{% translate "Judul Izin" %} <span class="text-danger">*</span></label>
           <input class="form-input" type="text" id="slip-title" name="title" required
-                 maxlength="128" placeholder="cth. Kunjungan Museum Nasional" />
+                 maxlength="128" placeholder="{% translate "cth. Kunjungan Museum Nasional" %}" />
         </div>
         <div class="form-group">
-          <label class="form-label" for="slip-class-group">Kelas <span class="text-danger">*</span></label>
+          <label class="form-label" for="slip-class-group">{% translate "Kelas" %} <span class="text-danger">*</span></label>
           <select class="form-input" id="slip-class-group" name="class_group_id" required>
-            <option value="" selected disabled>Pilih kelas…</option>
+            <option value="" selected disabled>{% translate "Pilih kelas…" %}</option>
             {% for cg in class_groups %}
               <option value="{{ cg.id }}">{{ cg.name }}</option>
             {% endfor %}
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label" for="slip-event-date">Tanggal Acara</label>
+          <label class="form-label" for="slip-event-date">{% translate "Tanggal Acara" %}</label>
           <input class="form-input" type="date" id="slip-event-date" name="event_date" />
         </div>
         <div class="form-group">
-          <label class="form-label" for="slip-due-at">Batas Respon</label>
+          <label class="form-label" for="slip-due-at">{% translate "Batas Respon" %}</label>
           <input class="form-input" type="datetime-local" id="slip-due-at" name="due_at" />
         </div>
         <div class="form-group">
-          <label class="form-label" for="slip-location">Lokasi</label>
+          <label class="form-label" for="slip-location">{% translate "Lokasi" %}</label>
           <input class="form-input" type="text" id="slip-location" name="location" maxlength="256"
-                 placeholder="cth. Museum Nasional, Jakarta" />
+                 placeholder="{% translate "cth. Museum Nasional, Jakarta" %}" />
         </div>
         <div class="form-group" style="grid-column: 1 / -1;">
-          <label class="form-label" for="slip-description">Deskripsi</label>
+          <label class="form-label" for="slip-description">{% translate "Deskripsi" %}</label>
           <textarea class="form-input" id="slip-description" name="description" rows="3"
-                    placeholder="Rincian kegiatan, perlengkapan, biaya, dsb."></textarea>
+                    placeholder="{% translate "Rincian kegiatan, perlengkapan, biaya, dsb." %}"></textarea>
         </div>
       </div>
 
@@ -87,9 +88,9 @@ Parameters (full component):
       {% endif %}
 
       <div style="display: flex; align-items: center; gap: 12px; margin-top: 16px;">
-        <button type="submit" class="btn btn-primary">Terbitkan Izin</button>
+        <button type="submit" class="btn btn-primary">{% translate "Terbitkan Izin" %}</button>
         <span id="slip-create-spinner" class="htmx-indicator text-body-sm text-ink-500" aria-live="polite">
-          Menerbitkan…
+          {% translate "Menerbitkan…" %}
         </span>
       </div>
     </form>
@@ -98,8 +99,8 @@ Parameters (full component):
   <!-- Slip List + Live Tally -->
   <section aria-label="Daftar izin dan persetujuan" style="display: flex; flex-direction: column; gap: 16px;">
     <div style="display: flex; justify-content: space-between; align-items: baseline;">
-      <h3 class="text-h3 font-display text-ink-900" style="margin: 0;">Daftar Izin &amp; Tally Persetujuan</h3>
-      <span class="text-body-sm text-ink-500">Tally diperbarui otomatis setiap 15 detik</span>
+      <h3 class="text-h3 font-display text-ink-900" style="margin: 0;">{% translate "Daftar Izin & Tally Persetujuan" %}</h3>
+      <span class="text-body-sm text-ink-500">{% translate "Tally diperbarui otomatis setiap 15 detik" %}</span>
     </div>
 
     <div id="slip-list-container">

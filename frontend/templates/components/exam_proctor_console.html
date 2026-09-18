@@ -1,3 +1,4 @@
+{% load i18n %}
 {% load l10n %}
 {% comment %}
 Component: Teacher/Proctor Live Monitoring Console (spec/04 §6 ACD-024, spec/17 §6.3, §7.3, docs/frontend-plan.md M5)
@@ -15,12 +16,12 @@ Usage: {% include "components/exam_proctor_console.html" with exam=exam proctor_
     
     <div>
       <div class="text-label text-ink-500" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; color: #6B7280;">
-        Konsol Pengawas Ujian · {{ exam.class_subject.class_group.name|default:exam.class_subject.class_group }}
+        {% blocktranslate with class_group=exam.class_subject.class_group.name|default:exam.class_subject.class_group %}Konsol Pengawas Ujian · {{ class_group }}{% endblocktranslate %}
       </div>
       <h1 class="font-display" style="font-size: 1.35rem; font-weight: 800; margin: 0; color: #111827;">
         {{ exam.title }}
         <span class="text-body-sm font-mono" style="font-size: 0.85rem; font-weight: normal; color: #6B7280; margin-left: 8px;">
-          ({{ exam.duration_min }} Menit · {{ exam.questions.count|default:0 }} Soal)
+          {% blocktranslate with duration=exam.duration_min question_count=exam.questions.count|default:0 %}({{ duration }} Menit · {{ question_count }} Soal){% endblocktranslate %}
         </span>
       </h1>
     </div>
@@ -34,7 +35,7 @@ Usage: {% include "components/exam_proctor_console.html" with exam=exam proctor_
            style="gap: 8px; padding: 6px 14px; background-color: var(--color-surface-alt, #F9FAFB); border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; font-size: 0.8rem;">
         <span id="sync-indicator-dot"
               style="display: inline-block; width: 8px; height: 8px; border-radius: 0px; background-color: #10B981; transition: background-color 200ms ease;"></span>
-        <span id="sync-status-text" style="color: #374151;">Sinkron aktif</span>
+        <span id="sync-status-text" style="color: #374151;">{% translate "Sinkron aktif" %}</span>
         <span id="last-sync-time" style="color: #9CA3AF; margin-left: 4px;">--:--:--</span>
       </div>
 
@@ -43,7 +44,7 @@ Usage: {% include "components/exam_proctor_console.html" with exam=exam proctor_
               type="button"
               class="font-display"
               style="background-color: #FFFFFF; color: #374151; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; padding: 8px 16px; font-weight: 600; font-size: 0.825rem; cursor: pointer; transition: all 150ms ease;">
-        Jeda Sinkron
+        {% translate "Jeda Sinkron" %}
       </button>
 
       <!-- Manual refresh button -->
@@ -51,7 +52,7 @@ Usage: {% include "components/exam_proctor_console.html" with exam=exam proctor_
               type="button"
               class="font-display"
               style="background-color: #111827; color: #FFFFFF; border: none; border-radius: 0px; padding: 8px 18px; font-weight: 700; font-size: 0.825rem; cursor: pointer; transition: background-color 150ms ease;">
-        Segarkan Data ⟳
+        {% translate "Segarkan Data ⟳" %}
       </button>
 
     </div>
@@ -65,56 +66,56 @@ Usage: {% include "components/exam_proctor_console.html" with exam=exam proctor_
     <div class="kpi-card card"
          style="background-color: var(--color-surface, #FFFFFF); border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; padding: 16px 20px;">
       <span style="font-size: 0.775rem; text-transform: uppercase; letter-spacing: 0.05em; color: #6B7280; font-weight: 600;">
-        Total Peserta
+        {% translate "Total Peserta" %}
       </span>
       <div id="kpi-total"
            class="font-display"
            style="font-size: 1.85rem; font-weight: 800; color: #111827; margin-top: 4px;">
         {{ proctor_data.summary.total_students|default:0 }}
       </div>
-      <span style="font-size: 0.75rem; color: #9CA3AF;">Terdaftar dalam rombel</span>
+      <span style="font-size: 0.75rem; color: #9CA3AF;">{% translate "Terdaftar dalam rombel" %}</span>
     </div>
 
     <!-- Card 2: Sedang Mengerjakan -->
     <div class="kpi-card card"
          style="background-color: var(--color-surface, #FFFFFF); border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; padding: 16px 20px;">
       <span style="font-size: 0.775rem; text-transform: uppercase; letter-spacing: 0.05em; color: #2563EB; font-weight: 600;">
-        Sedang Mengerjakan
+        {% translate "Sedang Mengerjakan" %}
       </span>
       <div id="kpi-in-progress"
            class="font-display"
            style="font-size: 1.85rem; font-weight: 800; color: #2563EB; margin-top: 4px;">
         {{ proctor_data.summary.in_progress|default:0 }}
       </div>
-      <span style="font-size: 0.75rem; color: #9CA3AF;">Sesi aktif berlangsung</span>
+      <span style="font-size: 0.75rem; color: #9CA3AF;">{% translate "Sesi aktif berlangsung" %}</span>
     </div>
 
     <!-- Card 3: Terkumpul -->
     <div class="kpi-card card"
          style="background-color: var(--color-surface, #FFFFFF); border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; padding: 16px 20px;">
       <span style="font-size: 0.775rem; text-transform: uppercase; letter-spacing: 0.05em; color: #059669; font-weight: 600;">
-        Terkumpul
+        {% translate "Terkumpul" %}
       </span>
       <div id="kpi-submitted"
            class="font-display"
            style="font-size: 1.85rem; font-weight: 800; color: #059669; margin-top: 4px;">
         {{ proctor_data.summary.submitted|default:0 }}
       </div>
-      <span style="font-size: 0.75rem; color: #9CA3AF;">Selesai atau auto-submit</span>
+      <span style="font-size: 0.75rem; color: #9CA3AF;">{% translate "Selesai atau auto-submit" %}</span>
     </div>
 
     <!-- Card 4: Perlu Perhatian (High Focus Loss >= 3) -->
     <div class="kpi-card card"
          style="background-color: #FEF2F2; border: 1px solid #FECACA; border-radius: 0px; padding: 16px 20px;">
       <span style="font-size: 0.775rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-brand-600, #C8102E); font-weight: 600;">
-        Perlu Perhatian
+        {% translate "Perlu Perhatian" %}
       </span>
       <div id="kpi-flagged"
            class="font-display"
            style="font-size: 1.85rem; font-weight: 800; color: var(--color-brand-600, #C8102E); margin-top: 4px;">
         {{ proctor_data.summary.flagged_focus_loss|default:0 }}
       </div>
-      <span style="font-size: 0.75rem; color: #991B1B;">Kehilangan fokus ≥ 3 kali</span>
+      <span style="font-size: 0.75rem; color: #991B1B;">{% translate "Kehilangan fokus ≥ 3 kali" %}</span>
     </div>
 
   </div>
@@ -129,25 +130,25 @@ Usage: {% include "components/exam_proctor_console.html" with exam=exam proctor_
               class="filter-tab active font-display"
               data-filter="ALL"
               style="background-color: #111827; color: #FFFFFF; border: none; border-radius: 0px; padding: 6px 14px; font-weight: 600; font-size: 0.8rem; cursor: pointer;">
-        Semua (<span id="count-filter-all">0</span>)
+        {% blocktranslate %}Semua (<span id="count-filter-all">0</span>){% endblocktranslate %}
       </button>
       <button type="button"
               class="filter-tab font-display"
               data-filter="IN_PROGRESS"
               style="background-color: #F3F4F6; color: #374151; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; padding: 6px 14px; font-weight: 600; font-size: 0.8rem; cursor: pointer;">
-        Sedang Mengerjakan (<span id="count-filter-progress">0</span>)
+        {% blocktranslate %}Sedang Mengerjakan (<span id="count-filter-progress">0</span>){% endblocktranslate %}
       </button>
       <button type="button"
               class="filter-tab font-display"
               data-filter="FLAGGED"
               style="background-color: #F3F4F6; color: #374151; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; padding: 6px 14px; font-weight: 600; font-size: 0.8rem; cursor: pointer;">
-        Perlu Perhatian (<span id="count-filter-flagged">0</span>)
+        {% blocktranslate %}Perlu Perhatian (<span id="count-filter-flagged">0</span>){% endblocktranslate %}
       </button>
       <button type="button"
               class="filter-tab font-display"
               data-filter="SUBMITTED"
               style="background-color: #F3F4F6; color: #374151; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; padding: 6px 14px; font-weight: 600; font-size: 0.8rem; cursor: pointer;">
-        Terkumpul (<span id="count-filter-submitted">0</span>)
+        {% blocktranslate %}Terkumpul (<span id="count-filter-submitted">0</span>){% endblocktranslate %}
       </button>
     </div>
 
@@ -155,7 +156,7 @@ Usage: {% include "components/exam_proctor_console.html" with exam=exam proctor_
     <div style="display: flex; align-items: center; gap: 8px;">
       <input id="proctor-search-input"
              type="text"
-             placeholder="Cari Nama / NIS siswa..."
+             placeholder="{% translate "Cari Nama / NIS siswa..." %}"
              style="padding: 6px 12px; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; font-family: 'IBM Plex Sans', sans-serif; font-size: 0.825rem; width: 220px;">
     </div>
 
@@ -168,7 +169,7 @@ Usage: {% include "components/exam_proctor_console.html" with exam=exam proctor_
     <table id="proctor-grid-table"
            style="width: 100%; border-collapse: collapse; min-width: 900px; font-size: 0.875rem;"
            role="grid"
-           aria-label="Tabel Pemantauan Pengawas Ujian">
+           aria-label="{% translate "Tabel Pemantauan Pengawas Ujian" %}"
       
       <!-- Table Header -->
       <thead style="background-color: var(--color-surface-alt, #F9FAFB); border-bottom: 2px solid var(--color-line, #E5E7EB);">
@@ -176,32 +177,32 @@ Usage: {% include "components/exam_proctor_console.html" with exam=exam proctor_
           <!-- Col 1: Siswa -->
           <th class="font-display"
               style="padding: 12px 16px; text-align: left; font-weight: 700; color: #374151; width: 240px;">
-            Siswa (NIS & Nama)
+            {% translate "Siswa (NIS & Nama)" %}
           </th>
           <!-- Col 2: Status -->
           <th class="font-display"
               style="padding: 12px 16px; text-align: left; font-weight: 700; color: #374151; width: 140px;">
-            Status
+            {% translate "Status" %}
           </th>
           <!-- Col 3: Progres Soal -->
           <th class="font-display"
               style="padding: 12px 16px; text-align: left; font-weight: 700; color: #374151; width: 200px;">
-            Progres Soal
+            {% translate "Progres Soal" %}
           </th>
           <!-- Col 4: Kehilangan Fokus -->
           <th class="font-display"
               style="padding: 12px 16px; text-align: center; font-weight: 700; color: #374151; width: 130px;">
-            Kehilangan Fokus
+            {% translate "Kehilangan Fokus" %}
           </th>
           <!-- Col 5: Aktivitas & Waktu -->
           <th class="font-display"
               style="padding: 12px 16px; text-align: left; font-weight: 700; color: #374151; width: 180px;">
-            Aktivitas Terakhir
+            {% translate "Aktivitas Terakhir" %}
           </th>
           <!-- Col 6: Aksi -->
           <th class="font-display"
               style="padding: 12px 16px; text-align: right; font-weight: 700; color: #374151; width: 140px;">
-            Aksi
+            {% translate "Aksi" %}
           </th>
         </tr>
       </thead>
@@ -229,21 +230,21 @@ Usage: {% include "components/exam_proctor_console.html" with exam=exam proctor_
               {% if s.status == 'IN_PROGRESS' %}
                 <span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background-color: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 0px; font-size: 0.75rem; font-weight: 600; color: #1D4ED8;">
                   <span style="width: 6px; height: 6px; background-color: #2563EB; border-radius: 0px;"></span>
-                  Mengerjakan
+                  {% translate "Mengerjakan" %}
                 </span>
               {% elif s.status == 'SUBMITTED' %}
                 <span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background-color: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 0px; font-size: 0.75rem; font-weight: 600; color: #047857;">
                   <span style="width: 6px; height: 6px; background-color: #059669; border-radius: 0px;"></span>
-                  Terkumpul
+                  {% translate "Terkumpul" %}
                 </span>
               {% elif s.status == 'AUTO_SUBMITTED' %}
                 <span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background-color: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 0px; font-size: 0.75rem; font-weight: 600; color: #4B5563;">
                   <span style="width: 6px; height: 6px; background-color: #6B7280; border-radius: 0px;"></span>
-                  Auto-Submit
+                  {% translate "Auto-Submit" %}
                 </span>
               {% else %}
                 <span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 0px; font-size: 0.75rem; font-weight: 600; color: #9CA3AF;">
-                  Belum Mulai
+                  {% translate "Belum Mulai" %}
                 </span>
               {% endif %}
             </td>
@@ -251,7 +252,7 @@ Usage: {% include "components/exam_proctor_console.html" with exam=exam proctor_
             <!-- Col 3: Progres Soal -->
             <td style="padding: 12px 16px;">
               <div style="display: flex; justify-content: space-between; font-size: 0.75rem; font-family: 'IBM Plex Mono', monospace; margin-bottom: 4px; color: #4B5563;">
-                <span>{{ s.answered_count }}/{{ s.total_questions }} Soal</span>
+                <span>{% blocktranslate with answered=s.answered_count total=s.total_questions %}{{ answered }}/{{ total }} Soal{% endblocktranslate %}</span>
                 <span style="font-weight: 600;">{{ s.progress_pct }}%</span>
               </div>
               <div style="width: 100%; height: 6px; background-color: #E5E7EB; border-radius: 0px; overflow: hidden;">
@@ -275,14 +276,14 @@ Usage: {% include "components/exam_proctor_console.html" with exam=exam proctor_
             <td style="padding: 12px 16px;">
               <div class="font-mono" style="font-size: 0.775rem; color: #374151;">
                 {% if s.last_saved_at %}
-                  Tersimpan: {{ s.last_saved_at|date:"H:i:s" }}
+                  {% blocktranslate with saved_time=s.last_saved_at|date:"H:i:s" %}Tersimpan: {{ saved_time }}{% endblocktranslate %}
                 {% else %}
                   <span style="color: #9CA3AF;">-</span>
                 {% endif %}
               </div>
               {% if s.remaining_seconds is not None and s.status == 'IN_PROGRESS' %}
                 <div class="font-mono" style="font-size: 0.75rem; color: #2563EB; margin-top: 2px;">
-                  Sisa: {{ s.remaining_seconds }}d
+                  {% blocktranslate with remaining=s.remaining_seconds %}Sisa: {{ remaining }}d{% endblocktranslate %}
                 </div>
               {% endif %}
             </td>
@@ -295,10 +296,10 @@ Usage: {% include "components/exam_proctor_console.html" with exam=exam proctor_
                         data-attempt-id="{{ s.attempt_id }}"
                         data-student-name="{{ s.student_name }}"
                         style="background-color: #FFFFFF; color: var(--color-brand-600, #C8102E); border: 1px solid var(--color-brand-600, #C8102E); border-radius: 0px; padding: 4px 10px; font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: all 120ms ease;">
-                  Paksa Kumpulkan
+                  {% translate "Paksa Kumpulkan" %}
                 </button>
               {% elif s.status == 'SUBMITTED' or s.status == 'AUTO_SUBMITTED' %}
-                <span class="font-mono" style="font-size: 0.75rem; color: #059669;">Selesai</span>
+                <span class="font-mono" style="font-size: 0.75rem; color: #059669;">{% translate "Selesai" %}</span>
               {% else %}
                 <span class="font-mono" style="font-size: 0.75rem; color: #9CA3AF;">-</span>
               {% endif %}
@@ -308,7 +309,7 @@ Usage: {% include "components/exam_proctor_console.html" with exam=exam proctor_
         {% empty %}
           <tr>
             <td colspan="6" style="padding: 32px; text-align: center; color: #6B7280;" class="text-body">
-              Belum ada data siswa untuk ujian ini.
+              {% translate "Belum ada data siswa untuk ujian ini." %}
             </td>
           </tr>
         {% endfor %}
@@ -322,21 +323,21 @@ Usage: {% include "components/exam_proctor_console.html" with exam=exam proctor_
        style="display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(0, 0, 0, 0.6); align-items: center; justify-content: center; padding: 16px;">
     <div style="max-width: 440px; width: 100%; background: #FFFFFF; border: 2px solid var(--color-brand-600, #C8102E); border-radius: 0px; padding: 24px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);">
       <h3 class="font-display" style="font-size: 1.15rem; font-weight: 800; color: var(--color-brand-600, #C8102E); margin-top: 0; margin-bottom: 8px;">
-        Paksa Pengumpulan Ujian?
+        {% translate "Paksa Pengumpulan Ujian?" %}
       </h3>
       <p style="font-size: 0.875rem; color: #374151; line-height: 1.5; margin-bottom: 16px;">
-        Apakah Anda yakin ingin menghentikan dan mengumpulkan lembar ujian milik siswa <strong id="force-submit-target-name">-</strong>? Jawaban terakhir yang tersimpan akan difinalisasi.
+        {% blocktranslate %}Apakah Anda yakin ingin menghentikan dan mengumpulkan lembar ujian milik siswa <strong id="force-submit-target-name">-</strong>? Jawaban terakhir yang tersimpan akan difinalisasi.{% endblocktranslate %}
       </p>
       <div style="display: flex; justify-content: flex-end; gap: 10px;">
         <button type="button"
                 onclick="document.getElementById('force-submit-modal').style.display='none'"
                 style="background: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 0px; padding: 8px 14px; font-weight: 600; font-size: 0.825rem; cursor: pointer;">
-          Batal
+          {% translate "Batal" %}
         </button>
         <button id="btn-confirm-force-submit"
                 type="button"
                 style="background: var(--color-brand-600, #C8102E); color: #FFFFFF; border: none; border-radius: 0px; padding: 8px 16px; font-weight: 700; font-size: 0.825rem; cursor: pointer;">
-          Ya, Paksa Kumpulkan
+          {% translate "Ya, Paksa Kumpulkan" %}
         </button>
       </div>
     </div>
@@ -344,6 +345,23 @@ Usage: {% include "components/exam_proctor_console.html" with exam=exam proctor_
 
 </div>
 
+{% translate "Jeda Sinkron" as msg_pause_sync %}
+{% translate "Sinkron aktif" as msg_sync_active %}
+{% translate "Lanjutkan Sinkron" as msg_resume_sync %}
+{% translate "Dijeda" as msg_paused %}
+{% translate "Mengerjakan" as msg_status_in_progress %}
+{% translate "Terkumpul" as msg_status_submitted %}
+{% translate "Auto-Submit" as msg_status_auto_submitted %}
+{% translate "Belum Mulai" as msg_status_not_started %}
+{% translate "Soal" as msg_soal_suffix %}
+{% translate "Tersimpan:" as msg_saved_prefix %}
+{% translate "Sisa:" as msg_remaining_prefix %}
+{% translate "Paksa Kumpulkan" as msg_force_submit_btn %}
+{% translate "Selesai" as msg_done %}
+{% translate "siswa" as msg_siswa_lowercase %}
+{% translate "Memproses..." as msg_processing %}
+{% translate "Ya, Paksa Kumpulkan" as msg_confirm_force_submit %}
+{% translate "Gagal memproses pengumpulan paksa." as msg_force_submit_failed %}
 <!-- Client-Side Engine: Dynamic Polling, Filtering, Force-Submit Action -->
 <script>
 (function() {
@@ -370,14 +388,14 @@ Usage: {% include "components/exam_proctor_console.html" with exam=exam proctor_
   function setPollingState(active) {
     isPollingActive = active;
     if (active) {
-      btnToggle.textContent = 'Jeda Sinkron';
+      btnToggle.textContent = '{{ msg_pause_sync|escapejs }}';
       syncDot.style.backgroundColor = '#10B981';
-      syncText.textContent = 'Sinkron aktif';
+      syncText.textContent = '{{ msg_sync_active|escapejs }}';
       startPolling();
     } else {
-      btnToggle.textContent = 'Lanjutkan Sinkron';
+      btnToggle.textContent = '{{ msg_resume_sync|escapejs }}';
       syncDot.style.backgroundColor = '#9CA3AF';
-      syncText.textContent = 'Dijeda';
+      syncText.textContent = '{{ msg_paused|escapejs }}';
       stopPolling();
     }
   }
@@ -475,18 +493,18 @@ Usage: {% include "components/exam_proctor_console.html" with exam=exam proctor_
       let statusBadge = '';
       if (s.status === 'IN_PROGRESS') {
         statusBadge = `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background-color: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 0px; font-size: 0.75rem; font-weight: 600; color: #1D4ED8;">
-          <span style="width: 6px; height: 6px; background-color: #2563EB; border-radius: 0px;"></span> Mengerjakan
+          <span style="width: 6px; height: 6px; background-color: #2563EB; border-radius: 0px;"></span> {{ msg_status_in_progress|escapejs }}
         </span>`;
       } else if (s.status === 'SUBMITTED') {
         statusBadge = `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background-color: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 0px; font-size: 0.75rem; font-weight: 600; color: #047857;">
-          <span style="width: 6px; height: 6px; background-color: #059669; border-radius: 0px;"></span> Terkumpul
+          <span style="width: 6px; height: 6px; background-color: #059669; border-radius: 0px;"></span> {{ msg_status_submitted|escapejs }}
         </span>`;
       } else if (s.status === 'AUTO_SUBMITTED') {
         statusBadge = `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background-color: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 0px; font-size: 0.75rem; font-weight: 600; color: #4B5563;">
-          <span style="width: 6px; height: 6px; background-color: #6B7280; border-radius: 0px;"></span> Auto-Submit
+          <span style="width: 6px; height: 6px; background-color: #6B7280; border-radius: 0px;"></span> {{ msg_status_auto_submitted|escapejs }}
         </span>`;
       } else {
-        statusBadge = `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 0px; font-size: 0.75rem; font-weight: 600; color: #9CA3AF;">Belum Mulai</span>`;
+        statusBadge = `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 0px; font-size: 0.75rem; font-weight: 600; color: #9CA3AF;">{{ msg_status_not_started|escapejs }}</span>`;
       }
 
       let focusBadge = '';
@@ -505,9 +523,9 @@ Usage: {% include "components/exam_proctor_console.html" with exam=exam proctor_
 
       let actionCol = '';
       if (s.status === 'IN_PROGRESS' && s.attempt_id) {
-        actionCol = `<button type="button" class="btn-force-submit font-display" data-attempt-id="${s.attempt_id}" data-student-name="${s.student_name}" style="background-color: #FFFFFF; color: var(--color-brand-600, #C8102E); border: 1px solid var(--color-brand-600, #C8102E); border-radius: 0px; padding: 4px 10px; font-size: 0.75rem; font-weight: 700; cursor: pointer;">Paksa Kumpulkan</button>`;
+        actionCol = `<button type="button" class="btn-force-submit font-display" data-attempt-id="${s.attempt_id}" data-student-name="${s.student_name}" style="background-color: #FFFFFF; color: var(--color-brand-600, #C8102E); border: 1px solid var(--color-brand-600, #C8102E); border-radius: 0px; padding: 4px 10px; font-size: 0.75rem; font-weight: 700; cursor: pointer;">{{ msg_force_submit_btn|escapejs }}</button>`;
       } else if (s.status === 'SUBMITTED' || s.status === 'AUTO_SUBMITTED') {
-        actionCol = `<span class="font-mono" style="font-size: 0.75rem; color: #059669;">Selesai</span>`;
+        actionCol = `<span class="font-mono" style="font-size: 0.75rem; color: #059669;">{{ msg_done|escapejs }}</span>`;
       } else {
         actionCol = `<span class="font-mono" style="font-size: 0.75rem; color: #9CA3AF;">-</span>`;
       }
@@ -530,7 +548,7 @@ Usage: {% include "components/exam_proctor_console.html" with exam=exam proctor_
           <td style="padding: 12px 16px;">${statusBadge}</td>
           <td style="padding: 12px 16px;">
             <div style="display: flex; justify-content: space-between; font-size: 0.75rem; font-family: 'IBM Plex Mono', monospace; margin-bottom: 4px; color: #4B5563;">
-              <span>${s.answered_count}/${s.total_questions} Soal</span>
+              <span>${s.answered_count}/${s.total_questions} {{ msg_soal_suffix|escapejs }}</span>
               <span style="font-weight: 600;">${s.progress_pct}%</span>
             </div>
             <div style="width: 100%; height: 6px; background-color: #E5E7EB; border-radius: 0px; overflow: hidden;">
@@ -539,8 +557,8 @@ Usage: {% include "components/exam_proctor_console.html" with exam=exam proctor_
           </td>
           <td style="padding: 12px 16px; text-align: center;">${focusBadge}</td>
           <td style="padding: 12px 16px;">
-            <div class="font-mono" style="font-size: 0.775rem; color: #374151;">Tersimpan: ${lastSavedStr}</div>
-            ${(s.remaining_seconds !== null && s.status === 'IN_PROGRESS') ? `<div class="font-mono" style="font-size: 0.75rem; color: #2563EB; margin-top: 2px;">Sisa: ${s.remaining_seconds}d</div>` : ''}
+            <div class="font-mono" style="font-size: 0.775rem; color: #374151;">{{ msg_saved_prefix|escapejs }} ${lastSavedStr}</div>
+            ${(s.remaining_seconds !== null && s.status === 'IN_PROGRESS') ? `<div class="font-mono" style="font-size: 0.75rem; color: #2563EB; margin-top: 2px;">{{ msg_remaining_prefix|escapejs }} ${s.remaining_seconds}d</div>` : ''}
           </td>
           <td style="padding: 12px 16px; text-align: right;">${actionCol}</td>
         </tr>
@@ -623,7 +641,7 @@ Usage: {% include "components/exam_proctor_console.html" with exam=exam proctor_
     document.querySelectorAll('.btn-force-submit').forEach(btn => {
       btn.addEventListener('click', function() {
         pendingForceAttemptId = this.dataset.attemptId;
-        if (targetNameEl) targetNameEl.textContent = this.dataset.studentName || 'siswa';
+        if (targetNameEl) targetNameEl.textContent = this.dataset.studentName || '{{ msg_siswa_lowercase|escapejs }}';
         if (forceModal) forceModal.style.display = 'flex';
       });
     });
@@ -633,7 +651,7 @@ Usage: {% include "components/exam_proctor_console.html" with exam=exam proctor_
     btnConfirmForce.addEventListener('click', function() {
       if (!pendingForceAttemptId) return;
       btnConfirmForce.disabled = true;
-      btnConfirmForce.textContent = 'Memproses...';
+      btnConfirmForce.textContent = '{{ msg_processing|escapejs }}';
 
       fetch(`/api/v1/academic/exam-attempts/${pendingForceAttemptId}/submit/`, {
         method: 'POST',
@@ -646,14 +664,14 @@ Usage: {% include "components/exam_proctor_console.html" with exam=exam proctor_
       .then(() => {
         if (forceModal) forceModal.style.display = 'none';
         btnConfirmForce.disabled = false;
-        btnConfirmForce.textContent = 'Ya, Paksa Kumpulkan';
+        btnConfirmForce.textContent = '{{ msg_confirm_force_submit|escapejs }}';
         fetchProctorData();
       })
       .catch(err => {
         console.error('Force submit failed:', err);
-        alert('Gagal memproses pengumpulan paksa.');
+        alert('{{ msg_force_submit_failed|escapejs }}');
         btnConfirmForce.disabled = false;
-        btnConfirmForce.textContent = 'Ya, Paksa Kumpulkan';
+        btnConfirmForce.textContent = '{{ msg_confirm_force_submit|escapejs }}';
       });
     });
   }

@@ -1,6 +1,7 @@
 {% extends "base.html" %}
+{% load i18n %}
 
-{% block title %}Masuk — EduCore{% endblock %}
+{% block title %}{% translate "Masuk — EduCore" %}{% endblock %}
 
 {% block extra_head %}
 {% if google_client_id %}
@@ -19,10 +20,10 @@
       <div style="margin-bottom: 24px;">
         <span style="font-size: 11px; font-weight: 800; letter-spacing: 0.1em; color: var(--color-brand-600, #C8102E); text-transform: uppercase;">EduCore</span>
         <h1 style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 22px; font-weight: 800; color: #0F172A; margin: 4px 0 6px 0; letter-spacing: -0.02em;">
-          Masuk ke Portal
+          {% translate "Masuk ke Portal" %}
         </h1>
         <p style="font-size: 13px; color: #64748B; margin: 0; line-height: 1.4;">
-          Akses portal staf, guru, dan administrasi sekolah.
+          {% translate "Akses portal staf, guru, dan administrasi sekolah." %}
         </p>
       </div>
 
@@ -40,14 +41,14 @@
 
         <div>
           <label for="identifier" style="display: block; font-size: 11px; font-weight: 700; color: #334155; margin-bottom: 6px; letter-spacing: 0.05em; text-transform: uppercase;">
-            Nomor HP atau Email
+            {% translate "Nomor HP atau Email" %}
           </label>
           <input
             type="text"
             id="identifier"
             name="identifier"
             value="{{ identifier|default:'' }}"
-            placeholder="08123456789 atau nama@sekolah.sch.id"
+            placeholder="{% translate "08123456789 atau nama@sekolah.sch.id" %}"
             required
             style="width: 100%; border: 1px solid #CBD5E1; padding: 10px 12px; font-size: 14px; color: #0F172A; background: #FFFFFF; border-radius: 0px; box-sizing: border-box;"
           >
@@ -55,7 +56,7 @@
 
         <div>
           <label for="password" style="display: block; font-size: 11px; font-weight: 700; color: #334155; margin-bottom: 6px; letter-spacing: 0.05em; text-transform: uppercase;">
-            Kata Sandi
+            {% translate "Kata Sandi" %}
           </label>
           <input
             type="password"
@@ -71,7 +72,7 @@
           type="submit"
           style="width: 100%; background-color: var(--color-brand-600, #C8102E); color: #FFFFFF; border: none; padding: 12px; font-size: 13px; font-weight: 700; letter-spacing: 0.05em; cursor: pointer; border-radius: 0px; min-height: 44px; margin-top: 4px;"
         >
-          MASUK DENGAN KATA SANDI
+          {% translate "MASUK DENGAN KATA SANDI" %}
         </button>
       </form>
 
@@ -79,7 +80,7 @@
       <div style="display: flex; align-items: center; margin: 24px 0; text-align: center;">
         <div style="flex: 1; border-bottom: 1px solid #E2E8F0;"></div>
         <span style="padding: 0 12px; font-size: 11px; font-weight: 700; color: #94A3B8; letter-spacing: 0.05em;">
-          ATAU MASUK DENGAN SSO
+          {% translate "ATAU MASUK DENGAN SSO" %}
         </span>
         <div style="flex: 1; border-bottom: 1px solid #E2E8F0;"></div>
       </div>
@@ -100,7 +101,7 @@
             <path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.591.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
             <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
           </svg>
-          Masuk dengan Google Workspace
+          {% translate "Masuk dengan Google Workspace" %}
         </button>
         <div id="g_id_real_button" style="display: none;"></div>
 
@@ -118,15 +119,15 @@
             <rect x="1" y="9.5" width="7.5" height="7.5" fill="#00A4EF"/>
             <rect x="9.5" y="9.5" width="7.5" height="7.5" fill="#FFB900"/>
           </svg>
-          Masuk dengan Microsoft 365
+          {% translate "Masuk dengan Microsoft 365" %}
         </button>
       </div>
 
       <!-- TU Help Footer -->
       <div style="margin-top: 24px; text-align: center; border-top: 1px solid #F1F5F9; padding-top: 16px;">
         <p style="font-size: 12px; color: #94A3B8; margin: 0; line-height: 1.5;">
-          Belum menautkan akun Google / Microsoft atau lupa kata sandi?<br>
-          Hubungi Tata Usaha (TU) sekolah Anda.
+          {% blocktranslate %}Belum menautkan akun Google / Microsoft atau lupa kata sandi?<br>
+          Hubungi Tata Usaha (TU) sekolah Anda.{% endblocktranslate %}
         </p>
       </div>
     </div>
@@ -134,6 +135,14 @@
 </div>
 
 <script>
+{% translate "Login SSO belum tersedia: tidak dapat menentukan yayasan secara otomatis. Hubungi Tata Usaha." as msg_sso_unavailable %}
+{% translate "Akun " as msg_account_prefix %}
+{% translate " belum ditautkan ke akun staf EduCore. Silakan masuk menggunakan kata sandi terlebih dahulu, lalu tautkan akun di menu profil." as msg_account_not_linked_suffix %}
+{% translate "Autentikasi SSO gagal. Periksa kembali akun Anda." as msg_sso_auth_failed %}
+{% translate "Terjadi kesalahan jaringan saat menghubungkan ke server." as msg_network_error %}
+{% translate "Gagal memperoleh token autentikasi dari " as msg_token_fail %}
+{% translate "Masukkan ID Token " as msg_id_token_prompt_prefix %}
+{% translate " untuk pengujian SSO:" as msg_id_token_prompt_suffix %}
 function showSSOError(message) {
   const box = document.getElementById('sso-error-box');
   const text = document.getElementById('sso-error-text');
@@ -151,7 +160,7 @@ async function exchangeSSOToken(provider, idToken, nextParam) {
 
   const foundationId = {{ sso_foundation_id|default:"null" }};
   if (!foundationId) {
-    showSSOError('Login SSO belum tersedia: tidak dapat menentukan yayasan secara otomatis. Hubungi Tata Usaha.');
+    showSSOError('{{ msg_sso_unavailable|escapejs }}');
     return;
   }
 
@@ -175,13 +184,13 @@ async function exchangeSSOToken(provider, idToken, nextParam) {
       window.location.href = data.redirect_url || '/web/academic/permission-slips/';
     } else {
       if (data.code === 'ACCOUNT_NOT_LINKED') {
-        showSSOError('Akun ' + (provider === 'google' ? 'Google' : 'Microsoft') + ' belum ditautkan ke akun staf EduCore. Silakan masuk menggunakan kata sandi terlebih dahulu, lalu tautkan akun di menu profil.');
+        showSSOError('{{ msg_account_prefix|escapejs }}' + (provider === 'google' ? 'Google' : 'Microsoft') + '{{ msg_account_not_linked_suffix|escapejs }}');
       } else {
-        showSSOError(data.error || 'Autentikasi SSO gagal. Periksa kembali akun Anda.');
+        showSSOError(data.error || '{{ msg_sso_auth_failed|escapejs }}');
       }
     }
   } catch (err) {
-    showSSOError('Terjadi kesalahan jaringan saat menghubungkan ke server.');
+    showSSOError('{{ msg_network_error|escapejs }}');
   }
 }
 
@@ -224,12 +233,12 @@ async function handleSSOClick(provider) {
     try {
       idToken = await window.requestProviderToken(provider);
     } catch (err) {
-      showSSOError('Gagal memperoleh token autentikasi dari ' + provider);
+      showSSOError('{{ msg_token_fail|escapejs }}' + provider);
       return;
     }
   }
   if (!idToken) {
-    idToken = prompt('Masukkan ID Token ' + (provider === 'google' ? 'Google' : 'Microsoft') + ' untuk pengujian SSO:');
+    idToken = prompt('{{ msg_id_token_prompt_prefix|escapejs }}' + (provider === 'google' ? 'Google' : 'Microsoft') + '{{ msg_id_token_prompt_suffix|escapejs }}');
     if (!idToken) return;
   }
 
