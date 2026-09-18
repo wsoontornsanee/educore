@@ -1,5 +1,6 @@
 from decimal import Decimal
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.http import HttpResponse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import permissions, status, viewsets
@@ -41,6 +42,8 @@ from apps.finance.models import (
     StudentCreditBalance,
     StudentFeeAssignment,
     StudentVirtualAccount,
+    ExternalAccountMapping,
+    ExternalLedgerSystem,
 )
 from apps.finance.serializers import (
     CashPaymentCreateSerializer,
@@ -80,9 +83,12 @@ from apps.finance.serializers import (
     RefundRequestCreateSerializer,
     RefundApproveSerializer,
     RefundExecuteSerializer,
+    ExternalAccountMappingSerializer,
 )
 
 from apps.finance.services import (
+    AccountingExportService,
+    UnbalancedJournalExportError,
     ExceededPaymentAmountError,
     InstallmentPlanAlreadyExistsError,
     InvalidInstallmentError,
@@ -1720,4 +1726,180 @@ class RefundViewSet(viewsets.ModelViewSet):
             return Response(self.get_serializer(cancelled).data, status=status.HTTP_200_OK)
         except (InvalidRefundStateError, ValueError) as exc:
             return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ExternalAccountMappingViewSet(viewsets.ModelViewSet):
+    """Configurable mapping between internal Chart of Accounts and external ledgers (spec/14 §6)."""
+    serializer_class = ExternalAccountMappingSerializer
+    pagination_class = StandardCursorPagination
+    permission_classes = [HasRequiredPermission]
+    action_permissions = {
+        'list': 'finance.payment.read',
+        'retrieve': 'finance.payment.read',
+        'create': 'finance.invoice.write',
+        'update': 'finance.invoice.write',
+        'partial_update': 'finance.invoice.write',
+        'destroy': 'finance.invoice.write',
+    }
+
+    def get_queryset(self):
+        foundation_id = get_current_foundation_id()
+        if not foundation_id:
+            return ExternalAccountMapping.objects.none()
+        qs = ExternalAccountMapping.objects.filter(
+            foundation_id=foundation_id,
+            deleted_at__isnull=True,
+        ).order_by('-created_at')
+        system = self.request.query_params.get('system')
+        if system:
+            qs = qs.filter(system=system)
+        return qs
+
+    def perform_create(self, serializer):
+        foundation_id = get_current_foundation_id()
+        mapping = serializer.save(foundation_id=foundation_id)
+        audit(
+            action='finance.accounting.mapping.create',
+            entity_type='ExternalAccountMapping',
+            entity_id=mapping.id,
+            actor_id=str(self.request.user.id) if self.request.user else None,
+            role=getattr(self.request.user, 'role', ''),
+            foundation_id=foundation_id,
+            diff={
+                'system': mapping.system,
+                'internal_code': mapping.internal_code,
+                'external_code': mapping.external_code,
+            },
+        )
+
+    def perform_update(self, serializer):
+        mapping = serializer.save()
+        audit(
+            action='finance.accounting.mapping.update',
+            entity_type='ExternalAccountMapping',
+            entity_id=mapping.id,
+            actor_id=str(self.request.user.id) if self.request.user else None,
+            role=getattr(self.request.user, 'role', ''),
+            foundation_id=mapping.foundation_id,
+            diff={
+                'system': mapping.system,
+                'internal_code': mapping.internal_code,
+                'external_code': mapping.external_code,
+            },
+        )
+
+    def perform_destroy(self, instance):
+        instance.delete()
+        audit(
+            action='finance.accounting.mapping.delete',
+            entity_type='ExternalAccountMapping',
+            entity_id=instance.id,
+            actor_id=str(self.request.user.id) if self.request.user else None,
+            role=getattr(self.request.user, 'role', ''),
+            foundation_id=instance.foundation_id,
+            diff={
+                'system': instance.system,
+                'internal_code': instance.internal_code,
+                'external_code': instance.external_code,
+            },
+        )
+
+
+class AccurateAccountingExportView(APIView):
+    """Export general ledger journals in CPSSoft Accurate Online format (spec/14 §6)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'finance.payment.read'
+
+    def get(self, request):
+        foundation_id = get_current_foundation_id()
+        if not foundation_id:
+            return Response({'error': _("Konteks yayasan tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        school_id = request.query_params.get('school_id')
+        ref_type = request.query_params.get('ref_type')
+
+        try:
+            csv_content, sha256_hash, journal_count = AccountingExportService.export_accurate(
+                foundation_id=foundation_id,
+                start_date=start_date,
+                end_date=end_date,
+                school_id=int(school_id) if school_id else None,
+                ref_type=ref_type,
+                actor_id=str(request.user.id) if request.user else None,
+                role=getattr(request.user, 'role', ''),
+                ip_address=request.META.get('REMOTE_ADDR'),
+            )
+        except UnbalancedJournalExportError as exc:
+            return Response(
+                {
+                    'error': 'UNBALANCED_JOURNAL',
+                    'detail': str(exc),
+                    'journal_number': exc.journal_number,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except ValueError as exc:
+            return Response({'error': 'INVALID_REQUEST', 'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        timestamp_str = timezone.now().strftime('%Y%m%d_%H%M%S')
+        response = HttpResponse(
+            csv_content.encode('utf-8-sig'),
+            content_type='text/csv; charset=utf-8',
+        )
+        response['Content-Disposition'] = f'attachment; filename="accurate_export_{timestamp_str}.csv"'
+        response['X-Export-SHA256'] = sha256_hash
+        response['X-Export-Journal-Count'] = str(journal_count)
+        return response
+
+
+class JurnalAccountingExportView(APIView):
+    """Export general ledger journals in Mekari Jurnal.id format (spec/14 §6)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'finance.payment.read'
+
+    def get(self, request):
+        foundation_id = get_current_foundation_id()
+        if not foundation_id:
+            return Response({'error': _("Konteks yayasan tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        school_id = request.query_params.get('school_id')
+        ref_type = request.query_params.get('ref_type')
+
+        try:
+            csv_content, sha256_hash, journal_count = AccountingExportService.export_jurnal(
+                foundation_id=foundation_id,
+                start_date=start_date,
+                end_date=end_date,
+                school_id=int(school_id) if school_id else None,
+                ref_type=ref_type,
+                actor_id=str(request.user.id) if request.user else None,
+                role=getattr(request.user, 'role', ''),
+                ip_address=request.META.get('REMOTE_ADDR'),
+            )
+        except UnbalancedJournalExportError as exc:
+            return Response(
+                {
+                    'error': 'UNBALANCED_JOURNAL',
+                    'detail': str(exc),
+                    'journal_number': exc.journal_number,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except ValueError as exc:
+            return Response({'error': 'INVALID_REQUEST', 'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        timestamp_str = timezone.now().strftime('%Y%m%d_%H%M%S')
+        response = HttpResponse(
+            csv_content.encode('utf-8-sig'),
+            content_type='text/csv; charset=utf-8',
+        )
+        response['Content-Disposition'] = f'attachment; filename="jurnal_export_{timestamp_str}.csv"'
+        response['X-Export-SHA256'] = sha256_hash
+        response['X-Export-Journal-Count'] = str(journal_count)
+        return response
+
 

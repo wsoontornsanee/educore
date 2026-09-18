@@ -25,6 +25,9 @@ from apps.finance.views import (
     SiblingDiscountPolicyViewSet,
     StudentFeeAssignmentViewSet,
     StudentStatementView,
+    AccurateAccountingExportView,
+    JurnalAccountingExportView,
+    ExternalAccountMappingViewSet,
 )
 
 router = DefaultRouter()
@@ -40,6 +43,7 @@ router.register(r'refunds', RefundViewSet, basename='refunds')
 router.register(r'write-offs', InvoiceWriteOffRequestViewSet, basename='write-offs')
 router.register(r'ledger/journals', LedgerJournalViewSet, basename='ledger-journals')
 router.register(r'periods', FiscalPeriodViewSet, basename='fiscal-periods')
+router.register(r'accounting/mappings', ExternalAccountMappingViewSet, basename='accounting-mappings')
 
 
 urlpatterns = [
@@ -55,6 +59,10 @@ urlpatterns = [
     path('reconciliation/batches/<int:pk>/', ReconciliationBatchDetailView.as_view(), name='reconciliation-batch-detail'),
     path('reconciliation/discrepancies/<int:pk>/resolve/', ReconciliationDiscrepancyResolveView.as_view(), name='reconciliation-discrepancy-resolve'),
     path('reconciliation/bank-statements/upload/', ReconciliationBankStatementUploadView.as_view(), name='reconciliation-bank-statement-upload'),
+    # Accounting Export (spec/14 §6)
+    path('accounting/export/accurate/', AccurateAccountingExportView.as_view(), name='accounting-export-accurate'),
+    path('accounting/export/jurnal/', JurnalAccountingExportView.as_view(), name='accounting-export-jurnal'),
     path('', include(router.urls)),
 ]
+
 

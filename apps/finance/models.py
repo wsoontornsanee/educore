@@ -588,6 +588,50 @@ class FiscalPeriod(TenantModel):
         return f"{self.school.name} - Period {self.period} ({self.status})"
 
 
+class ExternalLedgerSystem(models.TextChoices):
+    ACCURATE = 'ACCURATE', _('CPSSoft Accurate Online')
+    JURNAL = 'JURNAL', _('Mekari Jurnal.id')
+
+
+class ExternalAccountMapping(TenantModel):
+    """Mapping between EduCore Chart of Accounts and external ledger account codes (spec/14 §6)."""
+    system = models.CharField(max_length=32, choices=ExternalLedgerSystem.choices, db_index=True)
+    internal_code = models.CharField(
+        max_length=32,
+        choices=AccountCode.choices,
+        db_index=True,
+        help_text=_("Kode akun internal EduCore (Chart of Accounts)"),
+    )
+    external_code = models.CharField(
+        max_length=64,
+        help_text=_("Kode akun pada sistem buku besar eksternal (Accurate / Jurnal)"),
+    )
+    external_name = models.CharField(
+        max_length=128,
+        blank=True,
+        default='',
+        help_text=_("Nama akun pada sistem buku besar eksternal (opsional)"),
+    )
+    description = models.CharField(max_length=255, blank=True, default='')
+    active_uniq_marker = soft_delete_uniqueness_marker()
+
+    class Meta:
+        db_table = 'external_account_mappings'
+        ordering = ['system', 'internal_code']
+        indexes = [
+            models.Index(fields=['foundation_id', 'system', 'internal_code']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'system', 'internal_code', 'active_uniq_marker'],
+                name='unique_external_account_mapping',
+            ),
+        ]
+
+    def __str__(self):
+        return f"[{self.system}] {self.internal_code} -> {self.external_code} ({self.external_name or 'N/A'})"
+
+
 class SchoolQrisConfig(TenantModel):
     """A school's own static QRIS code (spec/06 §4 FIN-010) — the kind printed or
     exported directly from the school's bank, not a per-transaction dynamic gateway
