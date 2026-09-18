@@ -6531,3 +6531,121 @@ msgstr "request info"
 #: frontend/templates/rest_framework/base.html:177
 msgid "response info"
 msgstr "response info"
+
+#: apps/identity/nav.py:23
+msgid "Kotak tugas"
+msgstr "Task inbox"
+
+#: apps/identity/nav.py:26
+msgid "Siswa & kelas"
+msgstr "Students & classes"
+
+#: apps/identity/nav.py:27
+msgid "Jadwal"
+msgstr "Schedule"
+
+#: apps/identity/nav.py:28
+msgid "Antrean penilaian"
+msgstr "Grading queue"
+
+#: apps/identity/nav.py:29
+msgid "Rapor"
+msgstr "Report cards"
+
+#: apps/identity/nav.py:31
+msgid "Operasional"
+msgstr "Operations"
+
+#: apps/identity/nav.py:33
+msgid "Izin digital"
+msgstr "Digital permission slips"
+
+#: apps/identity/nav.py:35
+msgid "Mode ujian"
+msgstr "Exam mode"
+
+#: apps/identity/nav.py:38 apps/identity/web_views.py:524
+msgid "Tagihan & pembayaran"
+msgstr "Billing & payments"
+
+#: apps/identity/nav.py:39
+msgid "Rekonsiliasi"
+msgstr "Reconciliation"
+
+#: apps/identity/nav.py:40
+msgid "Piutang & keringanan"
+msgstr "Receivables & discounts"
+
+#: apps/identity/nav.py:42
+msgid "Administrasi"
+msgstr "Administration"
+
+#: apps/identity/nav.py:43
+msgid "Staf & jabatan"
+msgstr "Staff & positions"
+
+#: apps/identity/nav.py:44
+msgid "Mitra & kunci API"
+msgstr "Partners & API keys"
+
+#: apps/identity/nav.py:45
+msgid "Pengaturan sekolah"
+msgstr "School settings"
+
+#: apps/identity/nav.py:46
+msgid "Jejak audit"
+msgstr "Audit trail"
+
+#: apps/identity/web_views.py:509
+msgid "Ikhtisar yayasan"
+msgstr "Foundation overview"
+
+#: apps/identity/web_views.py:514
+msgid "Hari ini"
+msgstr "Today"
+
+#: apps/identity/web_views.py:519
+msgid "Agenda hari ini"
+msgstr "Today's agenda"
+
+#: frontend/templates/pages/console_home.html:4
+msgid "EduCore — Konsol"
+msgstr "EduCore — Console"
+
+#: frontend/templates/pages/console_home.html:9
+#, python-format
+msgid "Selamat datang, %(name)s"
+msgstr "Welcome, %(name)s"
+
+#: frontend/templates/pages/console_home.html:12
+msgid "Belum ada halaman konsol web khusus untuk peran Anda saat ini. Hubungi Tata Usaha (TU) sekolah jika Anda memerlukan akses ke fitur tertentu."
+msgstr "There isn't a dedicated web console page for your role yet. Contact the school Administration Office (TU) if you need access to a specific feature."
+
+#: frontend/templates/pages/coming_soon.html:4
+msgid "Modul belum tersedia"
+msgstr "Module not yet available"
+
+#: frontend/templates/pages/coming_soon.html:9
+msgid "Modul ini belum tersedia"
+msgstr "This module isn't available yet"
+
+#: frontend/templates/pages/coming_soon.html:12
+msgid "Fitur ini sedang dalam pengembangan. Hubungi Tata Usaha (TU) sekolah jika Anda memerlukan akses ke fitur tertentu."
+msgstr "This feature is still under development. Contact the school Administration Office (TU) if you need access to a specific feature."
+
+#: frontend/templates/pages/console_landing.html:9
+#, python-format
+msgid "Selamat pagi, %(name)s."
+msgstr "Good morning, %(name)s."
+
+#: frontend/templates/pages/console_landing.html:13
+msgid "Siswa aktif"
+msgstr "Active students"
+
+#: frontend/templates/pages/console_landing.html:17
+msgid "Tagihan jatuh tempo"
+msgstr "Overdue invoices"
+
+#: frontend/templates/pages/console_landing.html:21
+msgid "Alpa hari ini"
+msgstr "Absent today"
