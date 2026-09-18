@@ -15,6 +15,9 @@ from .models import (
     BehaviourReason,
     BehaviourRecord,
     CaseStatus,
+    Loan,
+    LoanBorrowerType,
+    LoanStatus,
 )
 
 logger = logging.getLogger(__name__)
@@ -433,3 +436,73 @@ def get_behaviour_report_card_data(student: Student, term) -> dict:
         'major_count': summary['major_records_count'],
         'active_cases_count': summary['active_cases_count'],
     }
+
+
+def remind_overdue_loans(foundation_id: int) -> dict:
+    """Sweeps ACTIVE loans past due_at, flips them OVERDUE, and notifies the
+    borrower's guardian (STUDENT) or the borrower directly (STAFF) via the
+    LIBRARY_LOAN_DUE category — digest_only, so run_daily_digest folds these
+    into the evening digest unchanged (spec/13 §3, this Open Item).
+
+    No rate limit beyond dedupe_key-per-day: unlike ACD-030's homework
+    reminder (explicit 12h throttle in spec), spec/10 §6 sets no reminder
+    cadence for overdue loans, so this is safe to run once daily via cron.
+    """
+    now = timezone.now()
+    overdue_loans = Loan.objects.filter(
+        foundation_id=foundation_id, status=LoanStatus.ACTIVE, due_at__lt=now,
+    ).select_related('item')
+
+    reminded_loan_ids = []
+    for loan in overdue_loans:
+        loan.status = LoanStatus.OVERDUE
+        loan.last_reminded_at = now
+        loan.save(update_fields=['status', 'last_reminded_at', 'updated_at'])
+        reminded_loan_ids.append(loan.id)
+
+        try:
+            from apps.notifications.models import NotificationCategory
+            from apps.notifications.services import dispatch_intent
+
+            payload = {'title': loan.item.title, 'due_at': str(loan.due_at)}
+            dedupe_key = f"library_loan_due:{loan.id}:{now.date()}"
+
+            if loan.borrower_type == LoanBorrowerType.STUDENT:
+                guardian_links = GuardianLink.objects.filter(
+                    foundation_id=foundation_id, student_id=loan.borrower_id, deleted_at__isnull=True,
+                ).select_related('guardian__person', 'guardian__user')
+                for link in guardian_links:
+                    guardian = link.guardian
+                    if not guardian.user:
+                        continue
+                    dispatch_intent(
+                        foundation_id=foundation_id,
+                        category=NotificationCategory.LIBRARY_LOAN_DUE,
+                        template_key='campus.library.loan_due',
+                        payload=payload,
+                        school_id=loan.item.school_id,
+                        recipient_user=guardian.user,
+                        recipient_phone=getattr(guardian.user, 'phone_e164', '') or '',
+                        recipient_email=getattr(guardian.user, 'email', '') or '',
+                        recipient_name=(guardian.person.full_name if guardian.person else '') or '',
+                        dedupe_key=f"{dedupe_key}:{guardian.id}",
+                    )
+            else:
+                staff = Staff.objects.filter(foundation_id=foundation_id, id=loan.borrower_id).select_related('person', 'user').first()
+                if staff and staff.user:
+                    dispatch_intent(
+                        foundation_id=foundation_id,
+                        category=NotificationCategory.LIBRARY_LOAN_DUE,
+                        template_key='campus.library.loan_due',
+                        payload=payload,
+                        school_id=loan.item.school_id,
+                        recipient_user=staff.user,
+                        recipient_phone=getattr(staff.user, 'phone_e164', '') or '',
+                        recipient_email=getattr(staff.user, 'email', '') or '',
+                        recipient_name=(staff.person.full_name if staff.person else '') or '',
+                        dedupe_key=f"{dedupe_key}:{staff.id}",
+                    )
+        except Exception as exc:
+            logger.warning(f"Error notifying borrower of overdue loan #{loan.id}: {exc}")
+
+    return {'reminded_loan_ids': reminded_loan_ids, 'count': len(reminded_loan_ids)}

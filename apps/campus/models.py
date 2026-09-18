@@ -193,3 +193,88 @@ class BehaviourCase(TenantModel):
 
     def __str__(self):
         return f"BehaviourCase({self.student_id}, {self.status}, trigger={self.trigger})"
+
+
+class LibraryItemType(models.TextChoices):
+    BOOK = 'BOOK', _('Buku')
+    EBOOK = 'EBOOK', _('E-Buku')
+    EQUIPMENT = 'EQUIPMENT', _('Peralatan')
+
+
+class LoanBorrowerType(models.TextChoices):
+    STUDENT = 'STUDENT', _('Siswa')
+    STAFF = 'STAFF', _('Staf')
+
+
+class LoanStatus(models.TextChoices):
+    ACTIVE = 'ACTIVE', _('Dipinjam')
+    RETURNED = 'RETURNED', _('Dikembalikan')
+    OVERDUE = 'OVERDUE', _('Terlambat')
+
+
+class LibraryItem(TenantModel):
+    """Catalogued library book/e-book/equipment (spec/10 §2, §6 LIF-019).
+
+    Scoped minimally for loan-due tracking + reminders only (this Open Item);
+    checkout/barcode workflow, fines, and lost-item billing (LIF-020..023)
+    belong to the separate, larger "Campus Life: E-Library & Asset
+    Circulation" Open Item and will extend this model rather than replace it.
+    """
+    school = models.ForeignKey(
+        'identity.School',
+        on_delete=models.CASCADE,
+        related_name='library_items',
+    )
+    type = models.CharField(max_length=16, choices=LibraryItemType.choices, default=LibraryItemType.BOOK, db_index=True)
+    title = models.CharField(max_length=255)
+    author = models.CharField(max_length=255, blank=True, default='')
+    isbn = models.CharField(max_length=32, blank=True, default='')
+    copies_total = models.PositiveIntegerField(default=1)
+    copies_available = models.PositiveIntegerField(default=1)
+    location = models.CharField(max_length=128, blank=True, default='')
+
+    class Meta(TenantModel.Meta):
+        db_table = 'campus_library_items'
+        verbose_name = _('Item Perpustakaan')
+        verbose_name_plural = _('Item Perpustakaan')
+        indexes = [
+            models.Index(fields=['foundation_id', 'school', 'type'], name='idx_libitem_fnd_sch_type'),
+        ]
+
+    def __str__(self):
+        return f"{self.title} ({self.get_type_display()})"
+
+
+class Loan(TenantModel):
+    """Book/equipment loan (spec/10 §2, §6 LIF-019).
+
+    No checkout/return API in this slice (Open Item non-goal) — loans are
+    created/returned at the service layer; `remind_overdue_loans` sweeps
+    ACTIVE loans past `due_at` for the digest reminder (spec/13 §3).
+    """
+    item = models.ForeignKey(
+        LibraryItem,
+        on_delete=models.PROTECT,
+        related_name='loans',
+    )
+    borrower_type = models.CharField(max_length=16, choices=LoanBorrowerType.choices, db_index=True)
+    borrower_id = models.BigIntegerField(help_text=_("Student.id or Staff.id"))
+    borrowed_at = models.DateTimeField(default=timezone.now)
+    due_at = models.DateTimeField(db_index=True)
+    returned_at = models.DateTimeField(null=True, blank=True)
+    fine = models.PositiveIntegerField(default=0, help_text=_("Reserved for LIF-020; not computed in this slice."))
+    status = models.CharField(max_length=16, choices=LoanStatus.choices, default=LoanStatus.ACTIVE, db_index=True)
+    last_reminded_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta(TenantModel.Meta):
+        db_table = 'campus_library_loans'
+        verbose_name = _('Peminjaman Perpustakaan')
+        verbose_name_plural = _('Peminjaman Perpustakaan')
+        ordering = ['-borrowed_at', '-id']
+        indexes = [
+            models.Index(fields=['foundation_id', 'status', 'due_at'], name='idx_loan_fnd_st_due'),
+            models.Index(fields=['foundation_id', 'borrower_type', 'borrower_id'], name='idx_loan_fnd_borrower'),
+        ]
+
+    def __str__(self):
+        return f"Loan({self.item_id}, {self.borrower_type}#{self.borrower_id}, {self.status})"
