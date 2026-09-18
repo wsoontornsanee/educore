@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: EduCore 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-18 16:49+0700\n"
+"POT-Creation-Date: 2026-09-18 17:39+0700\n"
 "PO-Revision-Date: 2026-09-16 11:00+0700\n"
 "Last-Translator: EduCore Team\n"
 "Language-Team: English\n"
@@ -1166,8 +1166,8 @@ msgstr ""
 
 #: apps/compliance/models.py:51
 msgid ""
-"Entity sheet -> {EduCore field path -> statutory column name}. Entity sheets:"
-" students, staff, rombel."
+"Entity sheet -> {EduCore field path -> statutory column name}. Entity "
+"sheets: students, staff, rombel."
 msgstr ""
 
 #: apps/compliance/models.py:59
@@ -1464,8 +1464,8 @@ msgstr ""
 
 #: apps/finance/models.py:239
 msgid ""
-"Set when a FIXED-type discount (waiver) is approved against this line "
-"(spec/03 FND-007 AC#2, spec/06 §2)"
+"Set when a FIXED-type discount (waiver) is approved against this line (spec/"
+"03 FND-007 AC#2, spec/06 §2)"
 msgstr ""
 
 #: apps/finance/models.py:252 apps/finance/models.py:312
@@ -2239,8 +2239,8 @@ msgstr ""
 
 #: apps/hardware/models.py:160
 msgid ""
-"Enrollment device class — always FACE_TERMINAL today; kept general per "
-"spec/12 §2"
+"Enrollment device class — always FACE_TERMINAL today; kept general per spec/"
+"12 §2"
 msgstr ""
 
 #: apps/hardware/models.py:163
@@ -2380,8 +2380,8 @@ msgid ""
 "Tagihan SPP otomatis, VA dan QRIS, alokasi pembayaran, serta buku besar yang "
 "selalu seimbang."
 msgstr ""
-"Automatic tuition billing, VA and QRIS, payment allocation, and a ledger that"
-" always balances."
+"Automatic tuition billing, VA and QRIS, payment allocation, and a ledger "
+"that always balances."
 
 #: apps/marketing/views.py:15
 msgid "Kantin & dompet"
@@ -2389,11 +2389,11 @@ msgstr "Canteen & wallet"
 
 #: apps/marketing/views.py:15
 msgid ""
-"Dompet siswa non-tunai, batas belanja harian, dan POS kantin yang tetap jalan"
-" saat jaringan mati."
+"Dompet siswa non-tunai, batas belanja harian, dan POS kantin yang tetap "
+"jalan saat jaringan mati."
 msgstr ""
-"Cashless student wallets, daily spending limits, and a canteen POS that keeps"
-" running when the network is down."
+"Cashless student wallets, daily spending limits, and a canteen POS that "
+"keeps running when the network is down."
 
 #: apps/marketing/views.py:16
 msgid "Suite guru"
@@ -2553,11 +2553,11 @@ msgstr "Parent App"
 
 #: apps/marketing/views.py:63
 msgid ""
-"Kehadiran harian, tagihan dan pembayaran, saldo kantin, rapor, dan notifikasi"
-" gerbang."
+"Kehadiran harian, tagihan dan pembayaran, saldo kantin, rapor, dan "
+"notifikasi gerbang."
 msgstr ""
-"Daily attendance, bills and payments, canteen balance, report cards, and gate"
-" notifications."
+"Daily attendance, bills and payments, canteen balance, report cards, and "
+"gate notifications."
 
 #: apps/marketing/views.py:65 frontend/templates/marketing/downloads.html:58
 msgid "ORANG TUA"
@@ -2597,11 +2597,11 @@ msgstr "Teacher App"
 
 #: apps/marketing/views.py:81
 msgid ""
-"Agenda mengajar, absensi sesi, antrean penilaian, dan catatan kelas — bekerja"
-" penuh offline."
+"Agenda mengajar, absensi sesi, antrean penilaian, dan catatan kelas — "
+"bekerja penuh offline."
 msgstr ""
-"Teaching agenda, session attendance, a grading queue, and class notes — fully"
-" offline."
+"Teaching agenda, session attendance, a grading queue, and class notes — "
+"fully offline."
 
 #: apps/marketing/views.py:83 frontend/templates/marketing/downloads.html:62
 msgid "GURU"
@@ -2652,8 +2652,8 @@ msgid ""
 "Terminal kantin dan kiosk. Dipasang oleh tim penerapan; pembaruan diturunkan "
 "per sekolah."
 msgstr ""
-"Canteen and kiosk terminal. Installed by the implementation team; updates are"
-" rolled out per school."
+"Canteen and kiosk terminal. Installed by the implementation team; updates "
+"are rolled out per school."
 
 #: apps/marketing/views.py:102
 msgid "TRANSAKSI"
@@ -2729,8 +2729,8 @@ msgstr "Attendance"
 
 #: apps/marketing/views.py:156
 msgid ""
-"Rekap harian dan per sesi dengan enam status tetap. Foto gerbang tidak pernah"
-" diekspor."
+"Rekap harian dan per sesi dengan enam status tetap. Foto gerbang tidak "
+"pernah diekspor."
 msgstr ""
 "Daily and per-session summaries across six fixed statuses. Gate photos are "
 "never exported."
@@ -3061,8 +3061,8 @@ msgstr ""
 
 #: apps/partners/models.py:56
 msgid ""
-"Optional CIDR/address list; empty = unrestricted (REQUIRED for payroll.write,"
-" PVA-013)"
+"Optional CIDR/address list; empty = unrestricted (REQUIRED for "
+"payroll.write, PVA-013)"
 msgstr ""
 
 #: apps/partners/models.py:59
@@ -3330,6 +3330,18 @@ msgstr ""
 msgid "Parameter 'from' tidak boleh melebihi 'to'."
 msgstr ""
 
+#: frontend/templates/base.html:49
+msgid "Bahasa Indonesia"
+msgstr "Bahasa Indonesia"
+
+#: frontend/templates/base.html:50
+msgid "English"
+msgstr "English"
+
+#: frontend/templates/base.html:53
+msgid "Keluar"
+msgstr "Log out"
+
 #: frontend/templates/marketing/base.html:7
 msgid "EduCore — Sistem Operasi Sekolah"
 msgstr "EduCore — School Operating System"
@@ -3448,8 +3460,8 @@ msgid ""
 "Berapa lama setiap kategori data disimpan, dan kapan data dihapus secara "
 "otomatis, sesuai kewajiban statutori dan UU PDP."
 msgstr ""
-"How long each category of data is kept, and when it is deleted automatically,"
-" per statutory obligations and UU PDP."
+"How long each category of data is kept, and when it is deleted "
+"automatically, per statutory obligations and UU PDP."
 
 #: frontend/templates/marketing/data_retention.html:15
 #: frontend/templates/marketing/dpa.html:15
@@ -3543,14 +3555,15 @@ msgstr ""
 #: frontend/templates/marketing/data_retention.html:37
 msgid ""
 "Kebijakan retensi dijalankan oleh proses terjadwal otomatis, bukan proses "
-"manual. Setiap eksekusi menghasilkan laporan dry-run yang mencantumkan secara"
-" spesifik data mana yang akan dihapus sebelum penghapusan aktual dilakukan, "
-"sehingga admin yayasan dapat meninjau sebelum data hilang secara permanen."
+"manual. Setiap eksekusi menghasilkan laporan dry-run yang mencantumkan "
+"secara spesifik data mana yang akan dihapus sebelum penghapusan aktual "
+"dilakukan, sehingga admin yayasan dapat meninjau sebelum data hilang secara "
+"permanen."
 msgstr ""
 "Retention policy is enforced by an automated scheduled job, not a manual "
-"process. Every run produces a dry-run report listing exactly which data would"
-" be deleted before any actual deletion happens, so the foundation's admin can"
-" review before data is permanently lost."
+"process. Every run produces a dry-run report listing exactly which data "
+"would be deleted before any actual deletion happens, so the foundation's "
+"admin can review before data is permanently lost."
 
 #: frontend/templates/marketing/data_retention.html:40
 msgid ""
@@ -3564,10 +3577,10 @@ msgstr ""
 
 #: frontend/templates/marketing/data_retention.html:43
 msgid ""
-"Permintaan penghapusan data pribadi sebelum periode retensi berakhir diproses"
-" sepanjang tidak bertentangan dengan kewajiban statutori (misalnya catatan "
-"keuangan yang wajib disimpan 10 tahun). Admin sekolah dapat mengajukan "
-"permintaan ini dan menerima hasilnya dalam satu sesi administrasi."
+"Permintaan penghapusan data pribadi sebelum periode retensi berakhir "
+"diproses sepanjang tidak bertentangan dengan kewajiban statutori (misalnya "
+"catatan keuangan yang wajib disimpan 10 tahun). Admin sekolah dapat "
+"mengajukan permintaan ini dan menerima hasilnya dalam satu sesi administrasi."
 msgstr ""
 "Requests to delete personal data before the retention period ends are "
 "processed as long as they don't conflict with a statutory obligation (for "
@@ -3596,8 +3609,8 @@ msgstr "EduCore apps for every role."
 
 #: frontend/templates/marketing/downloads.html:10
 msgid ""
-"Dibangun untuk ponsel Android kelas bawah dan jaringan 3G. Rilis stabil dites"
-" di Android 9 ke atas dan iOS 15 ke atas."
+"Dibangun untuk ponsel Android kelas bawah dan jaringan 3G. Rilis stabil "
+"dites di Android 9 ke atas dan iOS 15 ke atas."
 msgstr ""
 "Built for entry-level Android phones and 3G networks. Stable releases are "
 "tested on Android 9+ and iOS 15+."
@@ -3695,8 +3708,8 @@ msgstr "Termination & data return"
 
 #: frontend/templates/marketing/dpa.html:29
 msgid ""
-"Perjanjian ini berlaku antara yayasan/sekolah pelanggan (Pengendali Data) dan"
-" PT Astra Digital Solusi, penyedia EduCore (Pemroses Data). Salinan yang "
+"Perjanjian ini berlaku antara yayasan/sekolah pelanggan (Pengendali Data) "
+"dan PT Astra Digital Solusi, penyedia EduCore (Pemroses Data). Salinan yang "
 "ditandatangani menjadi lampiran kontrak berlangganan setiap yayasan dan "
 "mengikat secara hukum sejak tanggal aktivasi akun."
 msgstr ""
@@ -3750,8 +3763,8 @@ msgstr "Duration"
 msgid ""
 "Sepanjang masa berlangganan, ditambah periode retensi statutori yang berlaku"
 msgstr ""
-"For the duration of the subscription, plus the applicable statutory retention"
-" period"
+"For the duration of the subscription, plus the applicable statutory "
+"retention period"
 
 #: frontend/templates/marketing/dpa.html:41
 msgid ""
@@ -3766,8 +3779,8 @@ msgstr ""
 "instructions, keeps data confidential, applies TLS 1.3 encryption in transit "
 "and AES-256 at rest, restricts internal staff access to time-boxed and "
 "audited sessions, and helps the foundation fulfil data subject requests and "
-"the 3×24-hour incident notification obligation from the moment an incident is"
-" detected."
+"the 3×24-hour incident notification obligation from the moment an incident "
+"is detected."
 
 #: frontend/templates/marketing/dpa.html:44
 msgid ""
@@ -3783,9 +3796,10 @@ msgstr ""
 
 #: frontend/templates/marketing/dpa.html:47
 msgid ""
-"Yayasan berhak meminta audit kepatuhan, salinan log akses ke data pribadinya,"
-" dan bukti pemenuhan kewajiban keamanan. Yayasan tetap menjadi satu-satunya "
-"pihak yang berwenang menginstruksikan perubahan tujuan pemrosesan."
+"Yayasan berhak meminta audit kepatuhan, salinan log akses ke data "
+"pribadinya, dan bukti pemenuhan kewajiban keamanan. Yayasan tetap menjadi "
+"satu-satunya pihak yang berwenang menginstruksikan perubahan tujuan "
+"pemrosesan."
 msgstr ""
 "The foundation has the right to request a compliance audit, a copy of access "
 "logs to its personal data, and evidence of security obligations being met. "
@@ -3798,9 +3812,9 @@ msgid ""
 "dihapus dari sistem produksi setelah periode retensi statutori terpenuhi, "
 "sebagaimana dijelaskan pada"
 msgstr ""
-"When the contract ends, the foundation can request a full export of its data."
-" Data is deleted from production systems once the statutory retention period "
-"has been met, as described on"
+"When the contract ends, the foundation can request a full export of its "
+"data. Data is deleted from production systems once the statutory retention "
+"period has been met, as described on"
 
 #: frontend/templates/marketing/dpa.html:50
 #: frontend/templates/marketing/privacy_policy.html:42
@@ -3904,8 +3918,8 @@ msgstr "See EduCore with your school's own data."
 
 #: frontend/templates/marketing/home.html:135
 msgid ""
-"Demo 45 menit bersama tim penerapan, memakai satu sekolah contoh dari yayasan"
-" Anda."
+"Demo 45 menit bersama tim penerapan, memakai satu sekolah contoh dari "
+"yayasan Anda."
 msgstr ""
 "A 45-minute demo with the implementation team, using one sample school from "
 "your foundation."
@@ -3971,13 +3985,13 @@ msgid ""
 msgstr ""
 "EduCore does not store payroll or compensation data. The partner surface "
 "exposes personal, position and employment records only — salaries, pay "
-"components, deductions and payslips stay in your payroll system as the system"
-" of record."
+"components, deductions and payslips stay in your payroll system as the "
+"system of record."
 
 #: frontend/templates/marketing/partner_api.html:54
 msgid ""
-"Kunci berawalan <code>ak_test_</code> selalu menabrak data sintetis dan tidak"
-" pernah mengirim notifikasi ke orang tua. Gunakan itu untuk seluruh "
+"Kunci berawalan <code>ak_test_</code> selalu menabrak data sintetis dan "
+"tidak pernah mengirim notifikasi ke orang tua. Gunakan itu untuk seluruh "
 "pengembangan."
 msgstr ""
 "Keys prefixed <code>ak_test_</code> always hit synthetic data and never send "
@@ -4056,12 +4070,12 @@ msgstr "Optional per key, required for the <code>roster.pii</code> scope."
 #: frontend/templates/marketing/partner_api.html:91
 msgid ""
 "Versi ada di path, bukan header. Perubahan yang memutus kontrak selalu "
-"menjadi <code>/api/v2/</code> baru; penambahan field opsional bukan perubahan"
-" yang memutus. Versi lama hidup 12 bulan setelah pengganti keluar, dan "
-"mengirim header <code>Sunset</code> sejak hari pertama."
+"menjadi <code>/api/v2/</code> baru; penambahan field opsional bukan "
+"perubahan yang memutus. Versi lama hidup 12 bulan setelah pengganti keluar, "
+"dan mengirim header <code>Sunset</code> sejak hari pertama."
 msgstr ""
-"The version lives in the path, not a header. Breaking changes always become a"
-" new <code>/api/v2/</code>; adding an optional field is not a breaking "
+"The version lives in the path, not a header. Breaking changes always become "
+"a new <code>/api/v2/</code>; adding an optional field is not a breaking "
 "change. An old version lives for 12 months after its replacement ships, and "
 "sends a <code>Sunset</code> header from day one."
 
@@ -4223,8 +4237,8 @@ msgid ""
 "paginasi beruntun."
 msgstr ""
 "Exceeding the limit produces a <code>429 RATE_LIMITED</code> with a "
-"<code>Retry-After</code> header. Large exports use an async job endpoint, not"
-" sequential pagination."
+"<code>Retry-After</code> header. Large exports use an async job endpoint, "
+"not sequential pagination."
 
 #: frontend/templates/marketing/privacy_policy.html:4
 msgid "Kebijakan Privasi — EduCore"
@@ -4302,9 +4316,9 @@ msgid ""
 msgstr ""
 "Depending on the modules a foundation enables, EduCore may process: student "
 "and parent/guardian identity (name, NISN, NIK, date of birth, address), "
-"attendance data and gate photos, biometric templates (optional, with separate"
-" consent), academic and report card data, financial and billing data, staff "
-"employment and role data, and logs of communication to parents."
+"attendance data and gate photos, biometric templates (optional, with "
+"separate consent), academic and report card data, financial and billing "
+"data, staff employment and role data, and logs of communication to parents."
 
 #: frontend/templates/marketing/privacy_policy.html:36
 msgid ""
@@ -4325,9 +4339,9 @@ msgid ""
 "Seluruh data produksi — basis data, penyimpanan objek, cadangan, dan log — "
 "berada di pusat data Indonesia, tanpa replikasi lintas negara. Data "
 "terenkripsi TLS 1.3 saat transit dan AES-256 saat tersimpan, dengan kunci "
-"enkripsi terpisah untuk PII umum, template biometrik, dan data "
-"kesehatan/konseling. Akses staf EduCore ke lingkungan produksi dibatasi "
-"waktu, disetujui, dan tercatat — tidak ada kredensial produksi yang berlaku "
+"enkripsi terpisah untuk PII umum, template biometrik, dan data kesehatan/"
+"konseling. Akses staf EduCore ke lingkungan produksi dibatasi waktu, "
+"disetujui, dan tercatat — tidak ada kredensial produksi yang berlaku "
 "permanen."
 msgstr ""
 "All production data — database, object storage, backups, and logs — resides "
@@ -4346,8 +4360,8 @@ msgid ""
 msgstr ""
 "Parents/guardians and staff can submit requests for access, correction, "
 "deletion, restriction of processing, or data portability through the school "
-"admin. Valid requests are served within 30 days, except for data that must be"
-" retained under a statutory retention obligation (see"
+"admin. Valid requests are served within 30 days, except for data that must "
+"be retained under a statutory retention obligation (see"
 
 #: frontend/templates/marketing/privacy_policy.html:45
 msgid ""

@@ -1,5 +1,6 @@
+{% load i18n %}
 <!DOCTYPE html>
-<html lang="id">
+<html lang="{{ LANGUAGE_CODE }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -41,6 +42,15 @@
     <div style="display: flex; align-items: center; gap: 16px;">
       {% if request.user.is_authenticated %}
         <span class="text-body-sm text-ink-700 font-mono">{{ request.user.full_name|default:request.user.phone_e164 }}</span>
+      {% endif %}
+      <form action="{% url 'set_language' %}" method="post" style="display: flex; align-items: center; gap: 4px;">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button type="submit" name="language" value="id" aria-label="{% translate 'Bahasa Indonesia' %}" style="padding: 4px 8px; border: 1px solid var(--color-line); background: {% if LANGUAGE_CODE == 'id' %}var(--color-brand-600); color: #fff;{% else %}transparent;{% endif %} font-size: 0.75rem; font-weight: 600; cursor: pointer;">ID</button>
+        <button type="submit" name="language" value="en" aria-label="{% translate 'English' %}" style="padding: 4px 8px; border: 1px solid var(--color-line); background: {% if LANGUAGE_CODE == 'en' %}var(--color-brand-600); color: #fff;{% else %}transparent;{% endif %} font-size: 0.75rem; font-weight: 600; cursor: pointer;">EN</button>
+      </form>
+      {% if request.user.is_authenticated %}
+        <a href="{% url 'web-logout' %}" class="text-body-sm" style="color: var(--color-ink-700); text-decoration: none;">{% translate "Keluar" %}</a>
       {% endif %}
     </div>
   </header>
