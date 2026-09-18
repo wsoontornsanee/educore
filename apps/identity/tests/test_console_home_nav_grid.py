@@ -19,10 +19,11 @@ class ConsoleHomeNavGridTests(TestCase):
         )
         self.client.force_login(self.user)
 
-    def test_console_home_lists_users_own_nav_items(self):
+    def test_console_home_hides_coming_soon_items_even_with_permission(self):
+        """'Kantin & dompet' has no real page yet (coming_soon) and must not
+        render even though Canteen Operator holds wallet.topup.read — see
+        apps.identity.nav.COMING_SOON_URL_NAME."""
         response = self.client.get(reverse('web-console-home'))
         self.assertEqual(response.status_code, 200)
-        # html=True: the label's literal "&" is HTML-escaped to "&amp;" by
-        # {{ item.label }} (see the identical fix in test_console_nav_render.py).
-        self.assertContains(response, 'Kantin & dompet', html=True)
+        self.assertNotContains(response, 'Kantin &amp; dompet')
         self.assertNotContains(response, 'Rekonsiliasi')

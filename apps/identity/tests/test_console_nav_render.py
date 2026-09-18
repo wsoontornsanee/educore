@@ -18,14 +18,13 @@ class ConsoleNavRenderTests(TestCase):
         )
         self.client.force_login(self.teacher)
 
-    def test_console_page_renders_nav_items_teacher_can_reach(self):
+    def test_console_page_hides_coming_soon_items_even_with_permission(self):
+        """A coming_soon item never renders, even for a role holding its
+        RBAC permission — see apps.identity.nav.COMING_SOON_URL_NAME."""
         response = self.client.get(reverse('console:coming_soon'))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Antrean penilaian')
-        # html=True: the label's literal "&" is HTML-escaped to "&amp;" by
-        # Django's autoescaping when rendered via {{ item.label }}; comparing
-        # as parsed HTML (rather than a raw substring) matches semantically.
-        self.assertContains(response, 'Kehadiran & gerbang', html=True)
+        self.assertNotContains(response, 'Antrean penilaian')
+        self.assertNotContains(response, 'Kehadiran &amp; gerbang')
         self.assertNotContains(response, 'Rekonsiliasi')
 
     def test_nav_brand_block_links_to_console_home(self):

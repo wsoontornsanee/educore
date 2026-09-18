@@ -1,8 +1,9 @@
 from django.conf import settings
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
-from apps.identity.models import Foundation, RoleAssignment, School, User
+from apps.identity.models import Foundation, Person, RoleAssignment, School, Staff, User
 
 
 class ConsoleEnglishTranslationTests(TestCase):
@@ -26,14 +27,22 @@ class ConsoleEnglishTranslationTests(TestCase):
             foundation_id=self.foundation.id, user=self.teacher, role=RoleAssignment.ROLE_TEACHER,
             scope_type=RoleAssignment.SCOPE_SCHOOL, scope_id=self.school.id,
         )
+        person = Person.objects.create(foundation_id=self.foundation.id, full_name='Teacher EN')
+        Staff.objects.create(
+            foundation_id=self.foundation.id, person=person, user=self.teacher, school=self.school,
+            join_date=timezone.localdate(),
+        )
         self.client.force_login(self.teacher)
         self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = 'en'
 
     def test_nav_labels_render_in_english(self):
+        """'permission_slips' is the only real nav item; every coming_soon
+        item (e.g. 'Antrean penilaian') is hidden regardless of permission —
+        see apps.identity.nav.COMING_SOON_URL_NAME."""
         response = self.client.get(reverse('console:coming_soon'))
-        self.assertContains(response, 'Grading queue')
-        self.assertContains(response, 'Attendance & gate', html=True)
+        self.assertContains(response, 'Digital permission slips')
         self.assertNotContains(response, 'Antrean penilaian')
+        self.assertNotContains(response, 'Grading queue')
 
     def test_coming_soon_page_title_and_body_render_in_english(self):
         response = self.client.get(reverse('console:coming_soon'))

@@ -24,11 +24,9 @@ class GetNavForUserTests(TestCase):
             scope_type=RoleAssignment.SCOPE_SCHOOL, scope_id=self.school.id,
         )
 
-    def test_teacher_sees_grades_and_attendance_items_not_finance(self):
+    def test_teacher_without_permission_does_not_see_finance_items(self):
         nav = get_nav_for_user(self.teacher, self.foundation.id)
         item_ids = {item['id'] for group in nav for item in group['items']}
-        self.assertIn('grading', item_ids)
-        self.assertIn('attendance', item_ids)
         self.assertNotIn('recon', item_ids)
         self.assertNotIn('partners', item_ids)
 
@@ -52,10 +50,22 @@ class GetNavForUserTests(TestCase):
         item_ids = {item['id'] for group in nav for item in group['items']}
         self.assertIn('permission_slips', item_ids)
 
-    def test_permissionless_item_always_shown_to_authenticated_user(self):
-        nav = get_nav_for_user(self.canteen, self.foundation.id)
+    def test_coming_soon_items_are_hidden_even_with_permission(self):
+        """Regression test (2026-09-19): a coming_soon item must never
+        render, even for a user who holds its RBAC permission -- clicking
+        it only ever reached a "Modul ini belum tersedia" placeholder,
+        which read as broken/no-access rather than simply unbuilt."""
+        person = Person.objects.create(foundation_id=self.foundation.id, full_name='Teacher One')
+        Staff.objects.create(
+            foundation_id=self.foundation.id, person=person, user=self.teacher, school=self.school,
+            join_date=timezone.localdate(),
+        )
+        nav = get_nav_for_user(self.teacher, self.foundation.id)
         item_ids = {item['id'] for group in nav for item in group['items']}
-        self.assertIn('inbox', item_ids)
+        self.assertNotIn('inbox', item_ids)
+        self.assertNotIn('grading', item_ids)
+        self.assertNotIn('attendance', item_ids)
+        self.assertIn('permission_slips', item_ids)
 
     def test_empty_groups_are_omitted(self):
         nav = get_nav_for_user(self.canteen, self.foundation.id)
@@ -63,6 +73,7 @@ class GetNavForUserTests(TestCase):
             self.assertGreater(len(group['items']), 0)
         group_labels = {str(g['label']) for g in nav}
         self.assertNotIn('Administrasi', group_labels)
+        self.assertNotIn('Beranda', group_labels)
 
     def test_nav_computation_query_count_is_bounded_not_per_item(self):
         """Regression test for the N+1: computing the nav for a user with 2
