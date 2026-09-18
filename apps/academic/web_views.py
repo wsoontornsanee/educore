@@ -4,16 +4,19 @@ The exam list is a read-only overview; the per-exam page renders the existing
 proctor console component (spec/04 §6 ACD-024, spec/17 §6.3), whose live
 polling talks to the JSON endpoint `/api/v1/academic/exams/<id>/proctor/`.
 """
+from django.contrib import messages
 from django.http import Http404
 from django.db.models import Count
-from django.shortcuts import render
+from django.shortcuts import redirect, render
+from django.urls import reverse
+from django.utils.translation import gettext as _
 from django.utils import timezone
 from rest_framework.views import APIView
 
-from apps.identity.console_access import StaffConsoleMixin
+from apps.identity.console_access import StaffConsoleMixin, permitted_schools
 
 from .models import Exam, ExamAttemptStatus, ExamAttempt
-from .services import build_proctor_snapshot
+from .services import build_proctor_snapshot, publish_exam
 
 EXAM_LIST_LIMIT = 100
 
@@ -60,10 +63,14 @@ class ExamModeConsolePageView(ExamConsoleAccessMixin, APIView):
                     'in_progress': by_status.get(ExamAttemptStatus.IN_PROGRESS, 0),
                     'submitted': by_status.get(ExamAttemptStatus.SUBMITTED, 0) + by_status.get(ExamAttemptStatus.AUTO_SUBMITTED, 0),
                 })
+        can_publish = school is not None and any(
+            s.id == school.id for s in permitted_schools(request.user, foundation_id, 'grades.write')
+        )
         return render(request, 'pages/exam_mode_console_page.html', {
             'schools': schools,
             'school': school,
             'rows': rows,
+            'can_publish': can_publish,
         })
 
 
@@ -82,3 +89,25 @@ class ExamProctorConsolePageView(ExamConsoleAccessMixin, APIView):
             'exam': exam,
             'proctor_data': build_proctor_snapshot(exam),
         })
+
+
+class ExamPublishView(StaffConsoleMixin, APIView):
+    """POST /web/academic/exams/<exam_id>/publish/?school_id= — publish a draft
+    exam from the exam list. Same `grades.write` gate and the same service as
+    the JSON publish action; the exam must belong to a school the user may
+    write grades for (404 otherwise, never a hint that it exists)."""
+
+    def get_required_permission(self):
+        return 'grades.write'
+
+    def post(self, request, exam_id):
+        foundation_id, schools, school = self.console_context(request)
+        exam = Exam.objects.filter(
+            id=exam_id, foundation_id=foundation_id, deleted_at__isnull=True,
+            class_subject__class_group__school__in=schools,
+        ).first()
+        if exam is None:
+            raise Http404
+        publish_exam(exam, actor=request.user)
+        messages.success(request, _("Ujian diterbitkan."))
+        return redirect(f"{reverse('exam-mode-console-page')}?school_id={exam.class_subject.class_group.school_id}")

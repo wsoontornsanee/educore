@@ -3,7 +3,8 @@
 
 {% comment %}
 Page: Kehadiran & gerbang (spec/05 §4 ATT-013, spec/17 §7.2).
-Read-only live wall monitor for school staff. Served by
+Live wall monitor for school staff, plus (attendance.write) the piket actions:
+manual check-in and day-status override. Served by
 apps.attendance.web_views.GateConsolePageView at /web/attendance/gate/.
 {% endcomment %}
 
@@ -19,6 +20,40 @@ apps.attendance.web_views.GateConsolePageView at /web/attendance/gate/.
     </div>
     {% include "components/_console_school_select.html" with schools=schools school=school %}
   </div>
+
+  {% include "components/_console_flash.html" %}
+
+  {% if school and can_write %}
+    <section class="cn-section" aria-labelledby="gate-piket-h">
+      <h2 id="gate-piket-h">{% translate "Tindakan piket" %}</h2>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px;padding:16px">
+        <form method="post" action="{% url 'attendance-gate-console-manual' %}?school_id={{ school.id }}" style="display:flex;flex-direction:column;gap:10px">
+          {% csrf_token %}
+          <strong>{% translate "Check-in manual (kartu tertinggal)" %}</strong>
+          <label class="cn-eyebrow" for="gm-nis">{% translate "NIS siswa" %}</label>
+          <input class="cn-select" id="gm-nis" name="nis" required maxlength="32" autocomplete="off">
+          <label class="cn-eyebrow" for="gm-dir">{% translate "Arah" %}</label>
+          <select class="cn-select" id="gm-dir" name="direction">{% for value, label in directions %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+          <label class="cn-eyebrow" for="gm-reason">{% translate "Alasan" %}</label>
+          <input class="cn-select" id="gm-reason" name="reason" required maxlength="255">
+          <button type="submit" class="btn btn-primary">{% translate "Catat check-in" %}</button>
+        </form>
+        <form method="post" action="{% url 'attendance-gate-console-override' %}?school_id={{ school.id }}" style="display:flex;flex-direction:column;gap:10px" onsubmit="return confirm('{% translate "Ubah status kehadiran siswa ini? Perubahan tercatat di jejak audit." %}')">
+          {% csrf_token %}
+          <strong>{% translate "Ubah status kehadiran harian" %}</strong>
+          <label class="cn-eyebrow" for="go-nis">{% translate "NIS siswa" %}</label>
+          <input class="cn-select" id="go-nis" name="nis" required maxlength="32" autocomplete="off">
+          <label class="cn-eyebrow" for="go-date">{% translate "Tanggal" %}</label>
+          <input class="cn-select" id="go-date" name="date" type="date" value="{{ today|date:'Y-m-d' }}" max="{{ today|date:'Y-m-d' }}">
+          <label class="cn-eyebrow" for="go-status">{% translate "Status baru" %}</label>
+          <select class="cn-select" id="go-status" name="status">{% for value, label in statuses %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+          <label class="cn-eyebrow" for="go-note">{% translate "Catatan alasan" %}</label>
+          <input class="cn-select" id="go-note" name="note" required maxlength="255">
+          <button type="submit" class="btn btn-primary">{% translate "Simpan perubahan" %}</button>
+        </form>
+      </div>
+    </section>
+  {% endif %}
 
   {% if school %}
     <div id="gate-live-feed"

@@ -102,3 +102,141 @@ class TodayAttendanceCountsTests(TestCase):
         counts = get_today_attendance_counts(fx['foundation'].id, fx['school'])
         self.assertEqual(set(counts), set(AttendanceStatus.values))
         self.assertEqual(sum(counts.values()), 0)
+
+
+class GateConsoleWriteActionTests(TestCase):
+    """Piket actions: manual check-in and day override, gated by attendance.write."""
+    MANUAL = '/web/attendance/gate/manual/'
+    OVERRIDE = '/web/attendance/gate/override/'
+
+    def setUp(self):
+        from apps.core.models import AuditEvent
+        from apps.identity.models import Person, Staff, User
+        self.AuditEvent = AuditEvent
+        self.fx = build_academic_fixture("Yayasan Piket")
+        self.foundation = self.fx['foundation']
+        self.school = self.fx['school']
+        self.student = self.fx['student']
+        set_current_foundation_id(self.foundation.id)
+        RoleAssignment.all_tenants.create(
+            foundation_id=self.foundation.id, user=self.fx['teacher_user'], role='teacher',
+            scope_type=RoleAssignment.SCOPE_SCHOOL, scope_id=self.school.id,
+        )
+        # counsellor: attendance.read only, plus a Staff profile so the console mixin lets them in
+        reader = User.objects.create(foundation_id=self.foundation.id, phone_e164='+6281200099001', full_name='Konselor')
+        Staff.all_tenants.create(
+            foundation_id=self.foundation.id, person=Person.all_tenants.create(foundation_id=self.foundation.id, full_name='Konselor'),
+            user=reader, school=self.school, join_date=timezone.localdate(),
+        )
+        RoleAssignment.all_tenants.create(
+            foundation_id=self.foundation.id, user=reader, role='counsellor',
+            scope_type=RoleAssignment.SCOPE_SCHOOL, scope_id=self.school.id,
+        )
+        self.reader = reader
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+        self.url = lambda base: f'{base}?school_id={self.school.id}'
+
+    def _flash(self, response):
+        return [str(m) for m in response.wsgi_request._messages] if hasattr(response, 'wsgi_request') else []
+
+    def test_page_shows_piket_forms_only_with_write_permission(self):
+        res = self.client.get('/web/attendance/gate/')
+        self.assertContains(res, 'Tindakan piket')
+        self.client.force_authenticate(user=self.reader)
+        self.assertNotContains(self.client.get('/web/attendance/gate/'), 'Tindakan piket')
+
+    def test_manual_checkin_creates_event_day_and_flashes(self):
+        res = self.client.post(self.url(self.MANUAL), {'nis': self.student.nis, 'direction': 'IN', 'reason': 'Kartu tertinggal'})
+        self.assertEqual(res.status_code, 302)
+        self.assertEqual(GateEvent.all_tenants.filter(student=self.student, method=GateMethod.MANUAL).count(), 1)
+        self.assertTrue(AttendanceDay.all_tenants.filter(student=self.student, date=timezone.localdate()).exists())
+        self.assertIn('Check-in manual dicatat.', [str(m) for m in res.wsgi_request._messages])
+
+    def test_manual_checkin_requires_reason_and_known_nis(self):
+        res = self.client.post(self.url(self.MANUAL), {'nis': self.student.nis, 'direction': 'IN', 'reason': '  '})
+        self.assertEqual(GateEvent.all_tenants.filter(method=GateMethod.MANUAL).count(), 0)
+        self.assertTrue(any('Alasan check-in manual wajib' in m for m in [str(x) for x in res.wsgi_request._messages]))
+        res = self.client.post(self.url(self.MANUAL), {'nis': 'NOPE', 'direction': 'IN', 'reason': 'x'})
+        self.assertTrue(any('tidak ditemukan' in str(m) for m in res.wsgi_request._messages))
+        res = self.client.post(self.url(self.MANUAL), {'nis': self.student.nis, 'direction': 'SIDEWAYS', 'reason': 'x'})
+        self.assertEqual(GateEvent.all_tenants.filter(method=GateMethod.MANUAL).count(), 0)
+
+    def test_read_only_user_cannot_write(self):
+        self.client.force_authenticate(user=self.reader)
+        res = self.client.post(self.url(self.MANUAL), {'nis': self.student.nis, 'direction': 'IN', 'reason': 'x'})
+        self.assertEqual(res.status_code, 403)
+        self.assertEqual(GateEvent.all_tenants.filter(method=GateMethod.MANUAL).count(), 0)
+        res = self.client.post(self.url(self.OVERRIDE), {'nis': self.student.nis, 'status': 'SAKIT', 'note': 'x'})
+        self.assertEqual(res.status_code, 403)
+
+    def test_student_of_another_school_or_foundation_is_not_found(self):
+        other = build_academic_fixture("Yayasan Piket Lain")
+        set_current_foundation_id(self.foundation.id)
+        res = self.client.post(self.url(self.MANUAL), {'nis': other['student'].nis, 'direction': 'IN', 'reason': 'x'})
+        if other['student'].nis != self.student.nis:
+            self.assertEqual(GateEvent.all_tenants.filter(method=GateMethod.MANUAL).count(), 0)
+        # a school the user cannot write for 404s outright
+        res = self.client.post(f"{self.MANUAL}?school_id={other['school'].id}", {'nis': 'x', 'reason': 'x'})
+        self.assertIn(res.status_code, (403, 404))
+
+    def test_override_changes_status_with_note_and_audits(self):
+        day = AttendanceDay.objects.create(
+            foundation_id=self.foundation.id, school=self.school, student=self.student,
+            date=timezone.localdate(), status=AttendanceStatus.ALPA,
+        )
+        res = self.client.post(self.url(self.OVERRIDE), {'nis': self.student.nis, 'status': 'SAKIT', 'note': 'Surat dokter'})
+        self.assertEqual(res.status_code, 302)
+        day.refresh_from_db()
+        self.assertEqual((day.status, day.original_status, day.is_override, day.note), ('SAKIT', 'ALPA', True, 'Surat dokter'))
+        self.assertTrue(self.AuditEvent.objects.filter(action='attendance.day.overridden', entity_id=str(day.id)).exists())
+
+    def test_override_validation_failures_change_nothing(self):
+        day = AttendanceDay.objects.create(
+            foundation_id=self.foundation.id, school=self.school, student=self.student,
+            date=timezone.localdate(), status=AttendanceStatus.ALPA,
+        )
+        cases = [
+            {'nis': self.student.nis, 'status': 'SAKIT', 'note': ''},                       # note required
+            {'nis': self.student.nis, 'status': 'BOGUS', 'note': 'x'},                      # bad status
+            {'nis': self.student.nis, 'status': 'SAKIT', 'note': 'x', 'date': '2999-01-01'},  # future
+            {'nis': self.student.nis, 'status': 'SAKIT', 'note': 'x', 'date': '2020-01-01'},  # no day row
+        ]
+        for payload in cases:
+            self.client.post(self.url(self.OVERRIDE), payload)
+        day.refresh_from_db()
+        self.assertEqual((day.status, day.is_override), ('ALPA', False))
+        self.assertFalse(self.AuditEvent.objects.filter(action='attendance.day.overridden').exists())
+
+
+class AttendanceDayUsesSchoolTimezoneTests(TestCase):
+    """update_daily_attendance_from_gate must derive the day and the
+    HADIR/TERLAMBAT cutoff from the school's local wall clock, not from the
+    UTC representation of the scan instant."""
+
+    def setUp(self):
+        self.fx = build_academic_fixture("Yayasan Zona Waktu")
+        self.foundation = self.fx['foundation']
+        self.school = self.fx['school']
+        self.student = self.fx['student']
+        set_current_foundation_id(self.foundation.id)
+
+    def _checkin(self, iso):
+        from apps.attendance.services import manual_gate_checkin
+        import dateutil.parser
+        return manual_gate_checkin(
+            foundation_id=self.foundation.id, school_id=self.school.id, student_id=self.student.id,
+            direction='IN', occurred_at=dateutil.parser.isoparse(iso), reason='uji',
+        )['attendance_day']
+
+    def test_early_wib_scan_lands_on_the_local_date_and_is_on_time(self):
+        # 06:30 WIB on 2026-09-19 == 23:30 UTC on 2026-09-18
+        day = self._checkin('2026-09-18T23:30:00+00:00')
+        self.assertEqual(day.date.isoformat(), '2026-09-19')
+        self.assertEqual(day.status, AttendanceStatus.HADIR)
+
+    def test_wib_scan_after_cutoff_is_late_even_though_utc_time_is_early(self):
+        # 07:30 WIB == 00:30 UTC: bare UTC .time() would read 00:30 <= 07:15 => HADIR
+        day = self._checkin('2026-09-19T00:30:00+00:00')
+        self.assertEqual(day.date.isoformat(), '2026-09-19')
+        self.assertEqual(day.status, AttendanceStatus.TERLAMBAT)

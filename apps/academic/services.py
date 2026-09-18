@@ -2377,3 +2377,23 @@ def build_proctor_snapshot(exam: Exam) -> dict:
         },
         'students': student_rows,
     }
+
+
+def publish_exam(exam, actor=None):
+    """Publish an exam so students can see and start it (ACD-024). Shared by
+    the JSON `publish` action and the Mode ujian console so both write the
+    same audit event. Idempotent: publishing an already-published exam
+    changes and audits nothing."""
+    if exam.published:
+        return exam
+    exam.published = True
+    exam.save(update_fields=['published', 'updated_at'])
+    audit(
+        action='academic.exam.published',
+        entity_type='Exam',
+        entity_id=exam.id,
+        actor_id=str(actor.id) if actor is not None and getattr(actor, 'id', None) else None,
+        foundation_id=exam.foundation_id,
+        diff={'published': {'before': False, 'after': True}},
+    )
+    return exam

@@ -7707,6 +7707,7 @@ msgstr "Offboard"
 msgid "Akun staf akan ditangguhkan, sesi aktif dicabut, dan semua peran akses dihapus. Tindakan ini tercatat di jejak audit."
 msgstr "The staff account will be suspended, active sessions revoked and all access roles removed. This action is recorded in the audit trail."
 
+
 #: apps/identity/views.py
 msgid "Hanya pemegang wewenang tingkat yayasan yang dapat menambah staf tingkat yayasan."
 msgstr "Only foundation-level authority holders can add foundation-level staff."
@@ -7714,3 +7715,61 @@ msgstr "Only foundation-level authority holders can add foundation-level staff."
 #: apps/identity/views.py
 msgid "Staf tidak dapat dipindahkan ke luar sekolah yang Anda kelola."
 msgstr "Staff cannot be moved outside the schools you manage."
+
+msgid "Siswa dengan NIS tersebut tidak ditemukan di sekolah ini."
+msgstr "No student with that NIS was found at this school."
+
+msgid "Arah tidak valid."
+msgstr "Invalid direction."
+
+msgid "Check-in manual dicatat."
+msgstr "Manual check-in recorded."
+
+msgid "Status kehadiran tidak valid."
+msgstr "Invalid attendance status."
+
+msgid "Tanggal tidak boleh di masa depan."
+msgstr "The date cannot be in the future."
+
+msgid "Belum ada catatan kehadiran siswa ini pada tanggal tersebut."
+msgstr "This student has no attendance record on that date yet."
+
+msgid "Status kehadiran diperbarui."
+msgstr "Attendance status updated."
+
+msgid "Ujian diterbitkan."
+msgstr "Exam published."
+
+msgid "Tindakan piket"
+msgstr "Duty-desk actions"
+
+msgid "Check-in manual (kartu tertinggal)"
+msgstr "Manual check-in (forgotten card)"
+
+msgid "NIS siswa"
+msgstr "Student NIS"
+
+msgid "Catat check-in"
+msgstr "Record check-in"
+
+msgid "Ubah status kehadiran siswa ini? Perubahan tercatat di jejak audit."
+msgstr "Change this student's attendance status? The change is recorded in the audit trail."
+
+msgid "Ubah status kehadiran harian"
+msgstr "Change daily attendance status"
+
+msgid "Status baru"
+msgstr "New status"
+
+msgid "Catatan alasan"
+msgstr "Reason note"
+
+msgid "Simpan perubahan"
+msgstr "Save changes"
+
+msgid "Terbitkan ujian ini? Siswa akan dapat melihatnya."
+msgstr "Publish this exam? Students will be able to see it."
+
+msgid "Terbitkan"
+msgstr "Publish"
+

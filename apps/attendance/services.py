@@ -538,7 +538,12 @@ def update_daily_attendance_from_gate(
     """
     from apps.attendance.models import AttendanceDay, AttendanceSource, AttendanceStatus, GateDirection
 
-    event_date = occurred_at.date()
+    # The attendance day and the on-time/late cutoff are wall-clock facts in the
+    # school's own timezone. occurred_at is usually a UTC-aware instant, whose
+    # bare .date()/.time() is the wrong day for 00:00-07:00 WIB and always
+    # "on time" at a 07:15 cutoff.
+    local_occurred_at = occurred_at.astimezone(get_school_timezone(student.school))
+    event_date = local_occurred_at.date()
     attendance_day, _ = AttendanceDay.objects.get_or_create(
         foundation_id=foundation_id,
         school_id=school_id,
@@ -560,7 +565,7 @@ def update_daily_attendance_from_gate(
         if not is_staff_override:
             # Derive HADIR vs TERLAMBAT per ATT-001
             # Compare time in school local timezone
-            scan_time = occurred_at.time()
+            scan_time = local_occurred_at.time()
             if scan_time <= late_after_time:
                 attendance_day.status = AttendanceStatus.HADIR
             else:
