@@ -135,6 +135,13 @@ class ErasureRequestView(views.APIView):
                 .order_by('-id')
                 .first()
             )
+            if dsar is None:
+                # The refusal row should always exist (erase_person writes it
+                # before raising), but never 500 on a missing bookkeeping row.
+                return Response(
+                    {"detail": "Permintaan penghapusan data ditolak dan tidak dapat diproses."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             return Response(_serialize_erasure_request(dsar), status=status.HTTP_200_OK)
 
     def get(self, request):

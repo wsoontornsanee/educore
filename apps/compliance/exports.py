@@ -153,8 +153,14 @@ def _dsar_bundle_to_xlsx(bundle: dict) -> bytes:
         else:
             ws.append(['(kosong / empty)'])
 
+    # Deliberately NOT titled 'Info': apps/core/watermark.py excludes an
+    # 'Info' sheet from its record count (that title is reserved for the
+    # statutory exporters' metadata sheet) and appends its audit block into
+    # it. Naming the subject's identity sheet 'Info' would both zero out
+    # PiiExportAccessLog.record_count and mix the watermark block into real
+    # subject PII rows.
     identity = bundle.get('identity', {})
-    info = wb.create_sheet(title='Info', index=0)
+    info = wb.create_sheet(title='Identity', index=0)
     for key, value in identity.items():
         info.append([key, value])
 
