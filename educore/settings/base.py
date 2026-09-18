@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     'apps.partners.apps.PartnersConfig',
     'apps.marketing.apps.MarketingConfig',
     'apps.calendar_sync.apps.CalendarSyncConfig',
+    'apps.status.apps.StatusConfig',
 ]
 
 MIDDLEWARE = [
