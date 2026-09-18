@@ -4,6 +4,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.models import TenantModel
+from .crypto import decrypt_notes, encrypt_notes
 
 
 class BehaviourCategory(models.TextChoices):
@@ -278,3 +279,99 @@ class Loan(TenantModel):
 
     def __str__(self):
         return f"Loan({self.item_id}, {self.borrower_type}#{self.borrower_id}, {self.status})"
+
+
+class CounsellingConfidentiality(models.TextChoices):
+    NORMAL = 'NORMAL', _('Normal')
+    RESTRICTED = 'RESTRICTED', _('Terbatas (Restricted)')
+
+
+class CounsellingSessionType(models.TextChoices):
+    INITIAL = 'INITIAL', _('Sesi Awal')
+    FOLLOW_UP = 'FOLLOW_UP', _('Sesi Lanjutan')
+    MEDIATION = 'MEDIATION', _('Mediasi')
+    PARENT_MEETING = 'PARENT_MEETING', _('Pertemuan Orang Tua')
+    OTHER = 'OTHER', _('Lainnya')
+
+
+class CounsellingSession(TenantModel):
+    """Guidance counselling (BK) session record (spec/10 §5, LIF-015 to LIF-018).
+
+    `notes_encrypted` mirrors the `apps.hardware.BiometricTemplate` convention:
+    ciphertext at rest via `apps.campus.crypto`, plaintext only ever handled
+    in-memory through the `notes` property — never exposed by a model field a
+    serializer could pick up by name.
+    """
+    school = models.ForeignKey(
+        'identity.School',
+        on_delete=models.CASCADE,
+        related_name='counselling_sessions',
+    )
+    case = models.ForeignKey(
+        BehaviourCase,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='counselling_sessions',
+        help_text=_('Kasus perilaku terkait (opsional) — sesi BK dapat berdiri sendiri.'),
+    )
+    student = models.ForeignKey(
+        'identity.Student',
+        on_delete=models.CASCADE,
+        related_name='counselling_sessions',
+    )
+    counsellor = models.ForeignKey(
+        'identity.Staff',
+        on_delete=models.PROTECT,
+        related_name='counselling_sessions',
+    )
+    occurred_at = models.DateTimeField(default=timezone.now)
+    type = models.CharField(
+        max_length=20,
+        choices=CounsellingSessionType.choices,
+        default=CounsellingSessionType.INITIAL,
+    )
+    notes_encrypted = models.TextField(
+        blank=True,
+        default='',
+        help_text=_('Catatan sesi, terenkripsi at-rest (LIF-015).'),
+    )
+    follow_up_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=_('Tanggal tindak lanjut; memicu pengingat tugas konselor (LIF-018).'),
+    )
+    confidentiality = models.CharField(
+        max_length=20,
+        choices=CounsellingConfidentiality.choices,
+        default=CounsellingConfidentiality.NORMAL,
+        help_text=_('RESTRICTED hanya terlihat oleh konselor penulis dan kepala sekolah (LIF-015).'),
+    )
+    is_urgent = models.BooleanField(
+        default=False,
+        help_text=_('Eskalasi perlindungan anak (safeguarding) — memberitahu kepala sekolah langsung (LIF-017).'),
+    )
+    urgent_notified_at = models.DateTimeField(null=True, blank=True)
+    follow_up_reminder_sent_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=_('Kapan pengingat tugas tindak lanjut dikirim ke konselor (LIF-018).'),
+    )
+
+    class Meta:
+        db_table = 'campus_counselling_sessions'
+        ordering = ['-occurred_at', '-id']
+        indexes = [
+            models.Index(fields=['foundation_id', 'follow_up_at']),
+        ]
+
+    @property
+    def notes(self) -> str:
+        return decrypt_notes(self.notes_encrypted)
+
+    @notes.setter
+    def notes(self, value: str):
+        self.notes_encrypted = encrypt_notes(value or '')
+
+    def __str__(self):
+        return f"CounsellingSession({self.student_id}, {self.type}, {self.confidentiality})"

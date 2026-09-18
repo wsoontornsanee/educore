@@ -7,6 +7,9 @@ from .models import (
     BehaviourReason,
     BehaviourRecord,
     CaseStatus,
+    CounsellingConfidentiality,
+    CounsellingSession,
+    CounsellingSessionType,
 )
 
 
@@ -163,6 +166,62 @@ class BehaviourCaseSerializer(serializers.ModelSerializer):
         if obj.assigned_counsellor and getattr(obj.assigned_counsellor, 'person', None):
             return obj.assigned_counsellor.person.full_name
         return ''
+
+
+class CounsellingSessionSerializer(serializers.ModelSerializer):
+    """Read serializer. `notes` is populated by the view (decrypted only for
+    authorized readers) — never sourced from the model's encrypted field directly."""
+    student_name = serializers.SerializerMethodField()
+    counsellor_name = serializers.SerializerMethodField()
+    notes = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CounsellingSession
+        fields = [
+            'id',
+            'school',
+            'case',
+            'student',
+            'student_name',
+            'counsellor',
+            'counsellor_name',
+            'occurred_at',
+            'type',
+            'notes',
+            'follow_up_at',
+            'confidentiality',
+            'is_urgent',
+            'urgent_notified_at',
+            'follow_up_reminder_sent_at',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = fields
+
+    def get_student_name(self, obj) -> str:
+        if obj.student and getattr(obj.student, 'person', None):
+            return obj.student.person.full_name
+        return f"Siswa {obj.student_id}"
+
+    def get_counsellor_name(self, obj) -> str:
+        if obj.counsellor and getattr(obj.counsellor, 'person', None):
+            return obj.counsellor.person.full_name
+        return ''
+
+    def get_notes(self, obj) -> str:
+        return getattr(obj, '_decrypted_notes', None) or ''
+
+
+class RecordCounsellingSessionInputSerializer(serializers.Serializer):
+    student_id = serializers.IntegerField(required=True)
+    counsellor_id = serializers.IntegerField(required=True)
+    case_id = serializers.IntegerField(required=False, allow_null=True)
+    occurred_at = serializers.DateTimeField(required=False, allow_null=True)
+    type = serializers.ChoiceField(choices=CounsellingSessionType.choices, required=False, default=CounsellingSessionType.INITIAL)
+    notes = serializers.CharField(required=False, allow_blank=True, default='')
+    follow_up_at = serializers.DateTimeField(required=False, allow_null=True)
+    confidentiality = serializers.ChoiceField(choices=CounsellingConfidentiality.choices, required=False, default=CounsellingConfidentiality.NORMAL)
+    is_urgent = serializers.BooleanField(required=False, default=False)
 
 
 class StudentBehaviourSummarySerializer(serializers.Serializer):

@@ -13,6 +13,7 @@
 */15 * * * *   python /app/manage.py send_due_notifications             # scheduled + quiet-hours release
 */15 * * * *   python /app/manage.py sync_calendars                     # spec/14 §6: pull staff Google/Microsoft calendar events
 */30 * * * *   python /app/manage.py send_wallet_recon_reminders        # 48h clock, delivered-notices only (spec/17 REC-012)
+*/30 * * * *   python /app/manage.py send_counsellor_followup_reminders # BK follow-up task reminders (spec/10 §5, LIF-018)
 */30 * * * *   python /app/manage.py process_wallet_auto_topups         # WAL-005/WAL-006 threshold-triggered VA/QRIS intents
 0 * * * *      python /app/manage.py expire_sessions
 0 5 * * *      python /app/manage.py pull_bank_statements --date=yesterday  # SFTP stub (CMP-024/026), fails loud
