@@ -29,12 +29,29 @@
         <a href="{% url 'marketing:downloads' %}" class="{% if active_page == 'downloads' %}active{% endif %}">{% translate "Unduh aplikasi" %}</a>
       </nav>
       <div class="site-actions">
-        <form action="{% url 'set_language' %}" method="post" class="lang-toggle" title="{% translate "Ganti bahasa situs" %}">
-          {% csrf_token %}
-          <input type="hidden" name="next" value="{{ request.get_full_path }}">
-          <button type="submit" name="language" value="id" class="lang-toggle-option{% if LANGUAGE_CODE == 'id' %} active{% endif %}"{% if LANGUAGE_CODE == 'id' %} disabled{% endif %}>ID</button>
-          <button type="submit" name="language" value="en" class="lang-toggle-option{% if LANGUAGE_CODE == 'en' %} active{% endif %}"{% if LANGUAGE_CODE == 'en' %} disabled{% endif %}>EN</button>
-        </form>
+        <details class="lang-switcher">
+          <summary class="lang-switcher-trigger" aria-label="{% translate "Ganti bahasa situs" %}">
+            <span class="lang-flag" aria-hidden="true">{% if LANGUAGE_CODE == 'id' %}🇮🇩{% else %}🇬🇧{% endif %}</span>
+            <span class="lang-code">{{ LANGUAGE_CODE|upper }}</span>
+            <svg class="lang-chevron" width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true">
+              <path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </summary>
+          <form action="{% url 'set_language' %}" method="post" class="lang-switcher-menu" role="menu">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit" name="language" value="id" class="lang-option{% if LANGUAGE_CODE == 'id' %} active{% endif %}" role="menuitem">
+              <span class="lang-flag" aria-hidden="true">🇮🇩</span>
+              <span class="lang-option-label">Bahasa Indonesia</span>
+              {% if LANGUAGE_CODE == 'id' %}<svg class="lang-check" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M2.5 7.5L5.5 10.5L11.5 3.5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>{% endif %}
+            </button>
+            <button type="submit" name="language" value="en" class="lang-option{% if LANGUAGE_CODE == 'en' %} active{% endif %}" role="menuitem">
+              <span class="lang-flag" aria-hidden="true">🇬🇧</span>
+              <span class="lang-option-label">English</span>
+              {% if LANGUAGE_CODE == 'en' %}<svg class="lang-check" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M2.5 7.5L5.5 10.5L11.5 3.5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>{% endif %}
+            </button>
+          </form>
+        </details>
         <a href="{% url 'login' %}" class="btn btn-secondary">{% translate "Masuk" %}</a>
         <a href="mailto:demo@educore.id" class="btn btn-primary">{% translate "Minta demo" %}</a>
       </div>
@@ -86,5 +103,13 @@
       </div>
     </div>
   </footer>
+
+  <script>
+    document.querySelectorAll('.lang-switcher').forEach(function (el) {
+      document.addEventListener('click', function (event) {
+        if (!el.contains(event.target)) el.removeAttribute('open');
+      });
+    });
+  </script>
 </body>
 </html>
