@@ -1,8 +1,14 @@
 {% extends "base.html" %}
 {% block content %}
+<style>
+  .console-content { flex: 1; min-width: 0; padding: 24px; }
+  @media (max-width: 719px) {
+    .console-content { padding: 68px 16px 24px; }
+  }
+</style>
 <div style="display:flex;align-items:stretch;min-height:calc(100vh - 140px)">
   {% include "components/console_nav.html" %}
-  <div style="flex:1;min-width:0;padding:24px">
+  <div class="console-content">
     {% block console_content %}{% endblock %}
   </div>
 </div>

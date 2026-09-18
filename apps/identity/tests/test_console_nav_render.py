@@ -31,3 +31,14 @@ class ConsoleNavRenderTests(TestCase):
     def test_nav_brand_block_links_to_console_home(self):
         response = self.client.get(reverse('console:coming_soon'))
         self.assertContains(response, f'href="{reverse("web-console-home")}"')
+
+    def test_nav_has_mobile_drawer_toggle_and_breakpoint(self):
+        """Regression guard for the mobile-display bug: the sidebar must not
+        be a fixed-width flex child unconditionally shown at every viewport —
+        it needs a phone breakpoint (off-canvas drawer) with a real open
+        control, not just a static desktop rail."""
+        response = self.client.get(reverse('console:coming_soon'))
+        content = response.content.decode()
+        self.assertIn('id="console-nav-open"', content)
+        self.assertIn('@media (max-width: 719px)', content)
+        self.assertIn('console-nav-scrim', content)
