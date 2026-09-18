@@ -8,13 +8,15 @@ import csv
 import io
 import logging
 
-from apps.compliance.models import StatutorySystem
+from apps.compliance.models import PiiExportAccessLog, StatutorySystem
 from apps.compliance.services import StatutoryExportError, get_exporter, validate_statutory_export
 from apps.core.models import ExportJob
 from apps.core.services import (
     register_export_formats,
     register_export_permission,
+    register_export_pii,
     register_export_renderer,
+    register_pii_export_logger,
 )
 from apps.identity.models import School
 
@@ -115,3 +117,32 @@ def render_emis_export(job: ExportJob):
 
 register_export_formats(REPORT_KEY_DAPODIK, {ExportJob.FORMAT_XLSX, ExportJob.FORMAT_CSV})
 register_export_formats(REPORT_KEY_EMIS, {ExportJob.FORMAT_XLSX, ExportJob.FORMAT_CSV})
+register_export_pii(REPORT_KEY_DAPODIK)
+register_export_pii(REPORT_KEY_EMIS)
+
+
+@register_pii_export_logger
+def log_statutory_pii_export(job: ExportJob, filename: str, data: bytes, watermark_text: str, record_count: int):
+    """Record immutable PII access log row for statutory exports (CMP-016, RPT-004)."""
+    filters = job.filters or {}
+    school_id = filters.get('school_id')
+    try:
+        school_id = int(school_id) if school_id is not None else None
+    except (TypeError, ValueError):
+        school_id = None
+
+    PiiExportAccessLog.objects.create(
+        foundation_id=job.foundation_id,
+        export_job=job,
+        report_key=job.report_key,
+        format=job.format,
+        exported_by_id=str(job.requested_by or ''),
+        exported_by_name=str(job.requested_by_name or ''),
+        school_id=school_id,
+        filters=filters,
+        record_count=record_count,
+        watermark_text=watermark_text,
+        file_name=filename,
+        file_size=len(data),
+    )
+

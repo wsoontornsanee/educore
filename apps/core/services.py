@@ -64,6 +64,8 @@ def get_export_notifier(report_key):
 
 _EXPORT_FORMATS = {}
 _EXPORT_PERMISSIONS = {}
+_EXPORT_PII = set()
+_EXPORT_PII_LOGGERS = []
 
 def register_export_formats(report_key, formats):
     """Restrict which ExportJob.FORMAT_* values a report_key accepts (e.g. a CSV-only
@@ -84,6 +86,23 @@ def register_export_permission(report_key, permission_key):
 
 def get_export_permission(report_key, default):
     return _EXPORT_PERMISSIONS.get(report_key, default)
+
+def register_export_pii(report_key):
+    """Mark a report_key as PII-bearing (spec/14 §3 CMP-016, spec/15 §2 RPT-004).
+    PII-bearing exports are automatically watermarked and audited upon generation."""
+    _EXPORT_PII.add(report_key)
+
+def is_export_pii(report_key) -> bool:
+    return report_key in _EXPORT_PII
+
+def register_pii_export_logger(fn):
+    """Register a callback fn(job: ExportJob, filename: str, data: bytes, watermark_text: str, record_count: int) -> None."""
+    if fn not in _EXPORT_PII_LOGGERS:
+        _EXPORT_PII_LOGGERS.append(fn)
+    return fn
+
+def get_pii_export_loggers():
+    return list(_EXPORT_PII_LOGGERS)
 
 def audit(action, entity_type, entity_id, actor_id=None, role='', foundation_id=None, school_id=None, ip_address=None, diff=None):
     """Write an explicit, immutable audit event (ARC-008, spec/01 §8.5).
@@ -342,6 +361,44 @@ def run_export_job(payload: dict):
 
     try:
         data, content_type, filename = renderer(job)
+        if is_export_pii(job.report_key):
+            from .watermark import watermark_export_data
+            data, watermark_text, record_count = watermark_export_data(
+                data=data,
+                content_type=content_type,
+                filename=filename,
+                job=job,
+            )
+            for pii_logger in get_pii_export_loggers():
+                try:
+                    pii_logger(
+                        job=job,
+                        filename=filename,
+                        data=data,
+                        watermark_text=watermark_text,
+                        record_count=record_count,
+                    )
+                except Exception:
+                    logger.exception(
+                        "core.export.run: PII export logger %s failed for ExportJob #%s",
+                        getattr(pii_logger, '__name__', str(pii_logger)),
+                        job.id,
+                    )
+
+            audit(
+                action='EXPORT_PII',
+                entity_type='ExportJob',
+                entity_id=str(job.id),
+                actor_id=job.requested_by or None,
+                foundation_id=job.foundation_id,
+                diff={
+                    'report_key': job.report_key,
+                    'format': job.format,
+                    'record_count': record_count,
+                    'filename': filename,
+                },
+            )
+
         stored_file = write_generated_file(
             purpose=f'export_{job.report_key}', filename=filename, data=data,
             content_type=content_type, foundation_id=job.foundation_id, uploaded_by=job.requested_by,

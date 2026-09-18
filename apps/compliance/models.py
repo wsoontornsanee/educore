@@ -68,3 +68,91 @@ class StatutoryExportSchema(TenantModel):
 
     def __str__(self):
         return f"{self.system} v{self.version} ({'active' if self.is_active else 'inactive'})"
+
+
+class PiiExportAccessLog(TenantModel):
+    """
+    Access audit log for PII-bearing exports (spec/14 §3 CMP-016, spec/15 §2 RPT-004).
+
+    Immutable audit record capturing who exported which personal data, when,
+    under what filters, and with what visible watermark.
+    """
+    export_job = models.ForeignKey(
+        'core.ExportJob',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pii_access_logs',
+        help_text=_("Associated async export job if generated via ExportJob pipeline"),
+    )
+    report_key = models.CharField(
+        max_length=64,
+        db_index=True,
+        help_text=_("Registered report key, e.g. 'statutory_dapodik', 'statutory_emis'"),
+    )
+    format = models.CharField(
+        max_length=16,
+        help_text=_("Export format (e.g. XLSX, CSV)"),
+    )
+    exported_by_id = models.CharField(
+        max_length=64,
+        db_index=True,
+        help_text=_("User ID of the requesting actor"),
+    )
+    exported_by_name = models.CharField(
+        max_length=128,
+        blank=True,
+        default='',
+        help_text=_("Full name of the requesting actor"),
+    )
+    school_id = models.IntegerField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text=_("Target school ID if the export was school-scoped"),
+    )
+    filters = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_("Filters applied to the export query"),
+    )
+    record_count = models.IntegerField(
+        default=0,
+        help_text=_("Number of records/rows exported"),
+    )
+    watermark_text = models.TextField(
+        blank=True,
+        default='',
+        help_text=_("Visible watermark text stamped on the document"),
+    )
+    file_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        help_text=_("Generated filename"),
+    )
+    file_size = models.PositiveIntegerField(
+        default=0,
+        help_text=_("File size in bytes"),
+    )
+    download_count = models.PositiveIntegerField(
+        default=0,
+        help_text=_("Number of times download link was accessed"),
+    )
+    last_downloaded_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=_("Last time the download link was retrieved"),
+    )
+
+    class Meta:
+        db_table = 'pii_export_access_logs'
+        indexes = [
+            models.Index(fields=['foundation_id', '-created_at']),
+            models.Index(fields=['foundation_id', 'report_key', '-created_at']),
+            models.Index(fields=['foundation_id', 'exported_by_id', '-created_at']),
+        ]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"PiiExportAccessLog#{self.id} {self.report_key} by {self.exported_by_name or self.exported_by_id} at {self.created_at}"
