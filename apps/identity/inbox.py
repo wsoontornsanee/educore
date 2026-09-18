@@ -15,7 +15,18 @@ corresponding decide endpoint:
   - report cards pending review: school_config.write (the approve action's
     permission), limited to the same school scope;
   - timetable substitutions: personal — the ones assigned to the user's own
-    Staff row, no permission needed.
+    Staff row, no permission needed;
+  - manual transfers awaiting verification: finance.invoice.write (the
+    verify action's permission), school-scoped, oldest first;
+  - homework awaiting grading: personal — submissions to assignments in
+    classes the user's own Staff row teaches, once the deadline has passed
+    (nothing more can arrive, so what is still ungraded is overdue).
+
+Deliberately NOT a source: overdue invoices. A school can have thousands,
+the arrears ladder already chases them automatically, and listing each as a
+task would pin every finance user's badge at 99+ and bury the items that
+actually need a decision. The Keuangan receivables page is where that
+backlog belongs.
 
 Every source returns (total, items): total is a COUNT over the pending
 rows and items only the first `limit` of them, so a long queue never loads
@@ -303,6 +314,59 @@ def _substitutions(user, foundation_id, limit):
     ]
 
 
+def _manual_transfers(user, foundation_id, limit):
+    scope = _school_scope(user, foundation_id, 'finance.invoice.write')
+    if scope is not None and not scope:
+        return 0, []
+    from apps.finance.models import Payment, PaymentStatus
+
+    qs = Payment.objects.filter(
+        foundation_id=foundation_id, status=PaymentStatus.PENDING_VERIFICATION, deleted_at__isnull=True,
+    ).select_related('student__person').order_by('created_at')
+    qs = _in_scope(qs, scope, 'school_id')
+    return qs.count(), [
+        InboxItem(
+            title=_("Transfer manual %(reference)s — %(student)s") % {
+                'reference': p.reference, 'student': p.student.person.full_name,
+            },
+            detail=_money(p.amount, p.currency),
+            requested_at=p.created_at,
+        )
+        for p in qs[:limit]
+    ]
+
+
+def _homework_to_grade(user, foundation_id, limit):
+    staff_ids = list(Staff.all_tenants.filter(
+        foundation_id=foundation_id, user=user, deleted_at__isnull=True,
+    ).values_list('id', flat=True))
+    if not staff_ids:
+        return 0, []
+    from apps.academic.models import HomeworkSubmission, HomeworkSubmissionStatus
+
+    qs = HomeworkSubmission.objects.filter(
+        foundation_id=foundation_id, deleted_at__isnull=True,
+        status__in=[HomeworkSubmissionStatus.SUBMITTED, HomeworkSubmissionStatus.LATE],
+        homework__class_subject__teacher_id__in=staff_ids, homework__due_at__lt=timezone.now(),
+    ).select_related(
+        'student__person', 'homework__class_subject__class_group', 'homework__class_subject__subject',
+    ).order_by('homework__due_at', 'submitted_at')
+    return qs.count(), [
+        InboxItem(
+            title=_("Nilai %(homework)s — %(student)s") % {
+                'homework': h.homework.title, 'student': h.student.person.full_name,
+            },
+            detail=_("%(subject)s · %(class_group)s · tenggat %(due)s") % {
+                'subject': h.homework.class_subject.subject.name,
+                'class_group': h.homework.class_subject.class_group.name,
+                'due': f"{timezone.localtime(h.homework.due_at):%d/%m/%Y}",
+            },
+            requested_at=h.submitted_at,
+        )
+        for h in qs[:limit]
+    ]
+
+
 def perform_inbox_action(user, foundation_id, kind, pk, action, note=''):
     """Decide one inbox item in place; returns True if applied.
 
@@ -328,6 +392,8 @@ _SOURCES = [
     ('absence_requests', _lazy("Izin & sakit siswa"), _absence_requests),
     ('report_cards', _lazy("Rapor menunggu tinjauan"), _report_cards),
     ('substitutions', _lazy("Permintaan mengganti kelas"), _substitutions),
+    ('manual_transfers', _lazy("Transfer manual menunggu verifikasi"), _manual_transfers),
+    ('homework_to_grade', _lazy("Tugas menunggu penilaian"), _homework_to_grade),
 ]
 
 

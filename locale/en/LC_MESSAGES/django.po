@@ -7306,8 +7306,34 @@ msgstr "No staff match these filters."
 msgid "Sekolah"
 msgstr "School"
 
+
+#: apps/identity/inbox.py
+msgid "Transfer manual menunggu verifikasi"
+msgstr "Manual transfers awaiting verification"
+
+#: apps/identity/inbox.py
+msgid "Tugas menunggu penilaian"
+msgstr "Homework awaiting grading"
+
+#: apps/identity/inbox.py
+#, python-format
+msgid "Transfer manual %(reference)s — %(student)s"
+msgstr "Manual transfer %(reference)s — %(student)s"
+
+#: apps/identity/inbox.py
+#, python-format
+msgid "Nilai %(homework)s — %(student)s"
+msgstr "Grade %(homework)s — %(student)s"
+
+#: apps/identity/inbox.py
+#, python-format
+msgid "%(subject)s · %(class_group)s · tenggat %(due)s"
+msgstr "%(subject)s · %(class_group)s · due %(due)s"
+
 msgid "Nama"
 msgstr "Name"
+
+
 
 #: apps/identity/inbox.py
 msgid "Catatan (opsional)"
@@ -7329,6 +7355,8 @@ msgstr "Decision saved."
 msgid "Item ini sudah tidak menunggu tindakan Anda."
 msgstr "This item is no longer waiting on you."
 
+
+
 msgid "Ekspor diminta. Muat ulang halaman ini dalam beberapa menit untuk mengunduh berkasnya."
 msgstr "Export requested. Reload this page in a few minutes to download the file."
 
@@ -7343,3 +7371,4 @@ msgstr "Download CSV"
 
 msgid "Sedang diproses"
 msgstr "Processing"
+
