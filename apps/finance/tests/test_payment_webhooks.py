@@ -178,3 +178,76 @@ class PaymentWebhookTests(TestCase):
         # Payment remains SETTLED
         payment.refresh_from_db()
         self.assertEqual(payment.status, PaymentStatus.SETTLED)
+
+    def test_failed_webhook_marks_payment_failed_not_pending(self):
+        """
+        FIN-013: a gateway FAILED notification must be recorded as FAILED,
+        not silently left as PENDING (which is indistinguishable from
+        "haven't heard back yet" and would never surface to staff).
+        """
+        order_id = "MID-FAILED-777"
+        amount = "600000.00"
+        secret = "mock-secret"
+        sig = hashlib.sha256(f"{order_id}{amount}{secret}".encode('utf-8')).hexdigest()
+
+        payload = {
+            'order_id': order_id,
+            'amount': amount,
+            'fee': '0.00',
+            'status': 'FAILED',
+            'channel': 'BCA_VA',
+            'signature': sig,
+        }
+        res = process_payment_webhook(provider_name='MOCK', payload=payload)
+        self.assertEqual(res['status'], 'failed')
+
+        payment = Payment.objects.get(id=res['payment_id'])
+        self.assertEqual(payment.status, PaymentStatus.FAILED)
+
+        # Invoice and ledger must stay untouched by a failed payment.
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.status, InvoiceStatus.ISSUED)
+        self.assertEqual(self.invoice.paid, Decimal('0.00'))
+        self.assertEqual(LedgerJournal.objects.filter(ref_id=str(payment.id)).count(), 0)
+
+    def test_cancelled_webhook_marks_intent_cancelled(self):
+        """A CANCELLED gateway status marks both the Payment and its
+        PaymentIntent as cancelled, so the intent stops being offered as
+        still-payable."""
+        order_id = "MID-CANCELLED-778"
+        amount = "600000.00"
+        secret = "mock-secret"
+        sig = hashlib.sha256(f"{order_id}{amount}{secret}".encode('utf-8')).hexdigest()
+
+        intent = PaymentIntent.objects.create(
+            foundation_id=self.foundation.id,
+            school=self.school,
+            student=self.student,
+            invoice=self.invoice,
+            method=PaymentMethod.VA,
+            provider='MOCK',
+            va_bank='BCA',
+            va_number='100001000099',
+            amount=Decimal('600000.00'),
+            currency='IDR',
+            expires_at='2026-10-05T00:00:00Z',
+            status=PaymentIntentStatus.PENDING,
+        )
+
+        payload = {
+            'order_id': order_id,
+            'amount': amount,
+            'fee': '0.00',
+            'status': 'CANCELLED',
+            'channel': 'BCA_VA',
+            'signature': sig,
+            'metadata': {'intent_id': intent.id},
+        }
+        res = process_payment_webhook(provider_name='MOCK', payload=payload)
+        self.assertEqual(res['status'], 'cancelled')
+
+        payment = Payment.objects.get(id=res['payment_id'])
+        self.assertEqual(payment.status, PaymentStatus.CANCELLED)
+
+        intent.refresh_from_db()
+        self.assertEqual(intent.status, PaymentIntentStatus.CANCELLED)

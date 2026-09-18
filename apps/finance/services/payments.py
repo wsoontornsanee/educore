@@ -417,6 +417,9 @@ def process_payment_webhook(
         if status == 'SETTLED':
             return _finalize_payment_settlement(payment, fee=fee, net=net, actor_role='GATEWAY_WEBHOOK')
 
+        if status in _FAILURE_WEBHOOK_STATUS_MAP and payment.status not in (PaymentStatus.SETTLED, PaymentStatus.FAILED, PaymentStatus.CANCELLED):
+            return _finalize_payment_failure(payment, normalized_status=status)
+
         return {
             'status': payment.status,
             'payment_id': payment.id,
@@ -543,6 +546,64 @@ def _finalize_payment_settlement(payment: Payment, *, fee: Decimal, net: Decimal
         'reference': payment.reference,
         'allocated_invoices': len(allocations),
         'overpayment': str(overpayment),
+    }
+
+
+_FAILURE_WEBHOOK_STATUS_MAP = {
+    'FAILED': PaymentStatus.FAILED,
+    'CANCELLED': PaymentStatus.CANCELLED,
+}
+
+
+def _finalize_payment_failure(payment: Payment, *, normalized_status: str) -> dict:
+    """Mark an existing `Payment` FAILED or CANCELLED per a gateway webhook.
+
+    No ledger journal, no invoice allocation — a failed/cancelled payment
+    never touched money. Still audited and domain-evented so staff and any
+    partner integration actually see the failure instead of it silently
+    reading as PENDING forever (FIN-013).
+    Caller must already be inside `tenant_context(payment.foundation_id)`.
+    """
+    payment_status = _FAILURE_WEBHOOK_STATUS_MAP[normalized_status]
+    payment.status = payment_status
+    payment.save(update_fields=['status', 'updated_at'])
+
+    if payment.payment_intent and payment.payment_intent.status == PaymentIntentStatus.PENDING:
+        payment.payment_intent.status = PaymentIntentStatus.CANCELLED
+        payment.payment_intent.save(update_fields=['status', 'updated_at'])
+
+    record_domain_event(
+        name='finance.payment_failed',
+        payload={
+            'payment_id': payment.id,
+            'reference': payment.reference,
+            'student_id': payment.student.id if payment.student else None,
+            'amount': str(payment.amount),
+            'currency': payment.currency,
+            'channel': payment.channel,
+            'status': payment_status,
+        },
+        foundation_id=payment.foundation_id,
+    )
+
+    audit(
+        action='finance.payment.failed',
+        entity_type='Payment',
+        entity_id=payment.id,
+        foundation_id=payment.foundation_id,
+        school_id=payment.school.id if payment.school else None,
+        role='GATEWAY_WEBHOOK',
+        diff={
+            'external_id': payment.external_id,
+            'amount': str(payment.amount),
+            'status': payment_status,
+        },
+    )
+
+    return {
+        'status': payment_status.lower(),
+        'payment_id': payment.id,
+        'reference': payment.reference,
     }
 
 
