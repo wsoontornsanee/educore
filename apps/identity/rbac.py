@@ -18,6 +18,7 @@ ROLE_FINANCE_OFFICER = RoleAssignment.ROLE_FINANCE_OFFICER
 ROLE_TEACHER = RoleAssignment.ROLE_TEACHER
 ROLE_COUNSELLOR = RoleAssignment.ROLE_COUNSELLOR
 ROLE_CANTEEN_OPERATOR = RoleAssignment.ROLE_CANTEEN_OPERATOR
+ROLE_CLINIC_OFFICER = RoleAssignment.ROLE_CLINIC_OFFICER
 ROLE_PARENT = RoleAssignment.ROLE_PARENT
 
 # Scope Types
@@ -36,7 +37,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'finance.payment.read', 'finance.payment.write',
         'wallet.topup.read',
         'behaviour.read',
-        'clinic.read',
+        'clinic.read', 'clinic.write',
         'library.read',
         'payroll.read', 'payroll.write',
         'hardware.read', 'hardware.write',
@@ -53,7 +54,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'finance.payment.read',
         'wallet.topup.read',
         'behaviour.read', 'behaviour.write',
-        'clinic.read',
+        'clinic.read', 'clinic.write',
         'library.read', 'library.write',
         'payroll.read',
         'hardware.read', 'hardware.write',
@@ -92,6 +93,11 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'student_records.read',
         'wallet.topup.read',
         'wallet.topup.write',
+        'analytics.event.write',
+    },
+    ROLE_CLINIC_OFFICER: {
+        'student_records.read',
+        'clinic.read', 'clinic.write',
         'analytics.event.write',
     },
     ROLE_PARENT: {

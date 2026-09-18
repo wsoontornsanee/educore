@@ -1,10 +1,12 @@
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError as DjangoValidationError
+from django.db.models import Q
 from rest_framework import exceptions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.pagination import StandardCursorPagination
+from apps.core.services import audit
 from apps.identity.models import Guardian, School, Staff, Student
 from apps.identity.permissions import HasRequiredPermission
 from educore.middleware.tenancy import get_current_foundation_id
@@ -13,11 +15,15 @@ from .models import (
     BehaviourPolicy,
     BehaviourReason,
     BehaviourRecord,
+    ClinicPolicy,
+    ClinicVisit,
     CounsellingConfidentiality,
     CounsellingSession,
+    HealthProfile,
     LibraryItem,
     Loan,
     LoanBorrowerType,
+    MedicationStock,
 )
 from .serializers import (
     AcknowledgeRecordInputSerializer,
@@ -26,14 +32,20 @@ from .serializers import (
     BehaviourReasonSerializer,
     BehaviourRecordSerializer,
     CheckoutLoanInputSerializer,
+    ClinicPolicySerializer,
+    ClinicVisitSerializer,
     CounsellingSessionSerializer,
+    HealthProfileSerializer,
     LibraryItemSerializer,
     LoanSerializer,
     MarkLoanLostInputSerializer,
+    MedicationStockSerializer,
     RecordBehaviourInputSerializer,
+    RecordClinicVisitInputSerializer,
     RecordCounsellingSessionInputSerializer,
     ReturnLoanInputSerializer,
     StudentBehaviourSummarySerializer,
+    StudentMedicalAlertSerializer,
     SupersedeRecordInputSerializer,
 )
 from .services import (
@@ -49,6 +61,12 @@ from .services import (
     record_counselling_session,
     return_library_item,
     supersede_behaviour_record,
+)
+from .services_clinic import (
+    get_medication_stock_alerts,
+    get_or_create_clinic_policy,
+    get_or_create_health_profile,
+    record_clinic_visit,
 )
 
 
@@ -770,3 +788,335 @@ class OverdueLoansView(APIView):
         overdue = get_overdue_loans(foundation_id=foundation_id, school_id=school_id)
         serializer = LoanSerializer(overdue, many=True)
         return Response(serializer.data)
+
+
+class ClinicPolicyView(APIView):
+    """Retrieve and update school clinic policy (LIF-006)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'clinic.read'
+
+    def get_required_permission(self):
+        if self.request.method in ['PUT', 'PATCH']:
+            return 'clinic.write'
+        return 'clinic.read'
+
+    def get(self, request, school_id: int):
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        try:
+            school = School.objects.get(pk=school_id, foundation_id=foundation_id, deleted_at__isnull=True)
+        except School.DoesNotExist:
+            raise exceptions.NotFound("Sekolah tidak ditemukan.")
+
+        policy = get_or_create_clinic_policy(school)
+        serializer = ClinicPolicySerializer(policy)
+        return Response(serializer.data)
+
+    def put(self, request, school_id: int):
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        try:
+            school = School.objects.get(pk=school_id, foundation_id=foundation_id, deleted_at__isnull=True)
+        except School.DoesNotExist:
+            raise exceptions.NotFound("Sekolah tidak ditemukan.")
+
+        policy = get_or_create_clinic_policy(school)
+        old_teacher_sees_allergies = policy.teacher_sees_allergies
+        serializer = ClinicPolicySerializer(policy, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        audit(
+            action='campus.clinic_policy.updated',
+            entity_type='ClinicPolicy',
+            entity_id=str(policy.id),
+            actor_id=str(request.user.id) if request.user else None,
+            foundation_id=foundation_id,
+            school_id=school.id,
+            diff={
+                'teacher_sees_allergies': {
+                    'old': old_teacher_sees_allergies,
+                    'new': policy.teacher_sees_allergies,
+                },
+            },
+        )
+        return Response(serializer.data)
+
+
+class MedicationStockViewSet(viewsets.ModelViewSet):
+    """CRUD for UKS medication/first-aid inventory (LIF-004, LIF-005)."""
+    queryset = MedicationStock.objects.all()
+    serializer_class = MedicationStockSerializer
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'clinic.read'
+    action_permissions = {
+        'create': 'clinic.write',
+        'update': 'clinic.write',
+        'partial_update': 'clinic.write',
+        'destroy': 'clinic.write',
+    }
+    pagination_class = StandardCursorPagination
+
+    def get_queryset(self):
+        foundation_id = get_current_foundation_id()
+        if not foundation_id:
+            return MedicationStock.objects.none()
+        qs = MedicationStock.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True).order_by('name')
+        school_id = self.request.query_params.get('school_id')
+        if school_id:
+            qs = qs.filter(school_id=school_id)
+        return qs
+
+    def perform_create(self, serializer):
+        foundation_id = get_current_foundation_id() or getattr(self.request.user, 'foundation_id', None)
+        instance = serializer.save(foundation_id=foundation_id)
+        audit(
+            action='campus.medication_stock.created',
+            entity_type='MedicationStock',
+            entity_id=str(instance.id),
+            actor_id=str(self.request.user.id) if self.request.user else None,
+            foundation_id=foundation_id,
+            school_id=instance.school_id,
+            diff={'name': instance.name, 'quantity': instance.quantity},
+        )
+
+    def perform_update(self, serializer):
+        foundation_id = get_current_foundation_id() or getattr(self.request.user, 'foundation_id', None)
+        instance = serializer.save()
+        audit(
+            action='campus.medication_stock.updated',
+            entity_type='MedicationStock',
+            entity_id=str(instance.id),
+            actor_id=str(self.request.user.id) if self.request.user else None,
+            foundation_id=foundation_id,
+            school_id=instance.school_id,
+            diff={'name': instance.name, 'quantity': instance.quantity},
+        )
+
+    def perform_destroy(self, instance):
+        foundation_id = get_current_foundation_id() or getattr(self.request.user, 'foundation_id', None)
+        audit(
+            action='campus.medication_stock.deleted',
+            entity_type='MedicationStock',
+            entity_id=str(instance.id),
+            actor_id=str(self.request.user.id) if self.request.user else None,
+            foundation_id=foundation_id,
+            school_id=instance.school_id,
+            diff={'name': instance.name},
+        )
+        instance.delete()
+
+
+class MedicationStockAlertView(APIView):
+    """LIF-005: below-reorder-level or near-expiry medication stock for the clinic dashboard."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'clinic.read'
+
+    def get(self, request, school_id: int):
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        try:
+            school = School.objects.get(pk=school_id, foundation_id=foundation_id, deleted_at__isnull=True)
+        except School.DoesNotExist:
+            raise exceptions.NotFound("Sekolah tidak ditemukan.")
+
+        alerts = get_medication_stock_alerts(school)
+        serializer = MedicationStockSerializer(alerts, many=True)
+        return Response(serializer.data)
+
+
+class StudentHealthProfileView(APIView):
+    """Retrieve and update a student's health profile (LIF-002)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'clinic.read'
+
+    def get_required_permission(self):
+        if self.request.method in ['PUT', 'PATCH']:
+            return 'clinic.write'
+        return 'clinic.read'
+
+    def get(self, request, student_id: int):
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        try:
+            student = Student.objects.get(pk=student_id, foundation_id=foundation_id, deleted_at__isnull=True)
+        except Student.DoesNotExist:
+            raise exceptions.NotFound("Siswa tidak ditemukan.")
+
+        from apps.identity.guardian_access import can_guardian_access_student
+        if not can_guardian_access_student(request.user, student.id, foundation_id):
+            raise exceptions.NotFound("Siswa tidak ditemukan.")
+
+        profile = get_or_create_health_profile(student)
+        serializer = HealthProfileSerializer(profile)
+        return Response(serializer.data)
+
+    def put(self, request, student_id: int):
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        try:
+            student = Student.objects.get(pk=student_id, foundation_id=foundation_id, deleted_at__isnull=True)
+        except Student.DoesNotExist:
+            raise exceptions.NotFound("Siswa tidak ditemukan.")
+
+        from apps.identity.guardian_access import can_guardian_access_student
+        if not can_guardian_access_student(request.user, student.id, foundation_id):
+            raise exceptions.NotFound("Siswa tidak ditemukan.")
+
+        profile = get_or_create_health_profile(student)
+        serializer = HealthProfileSerializer(profile, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        changed_fields = sorted(serializer.validated_data.keys())
+        serializer.save()
+
+        audit(
+            action='campus.health_profile.updated',
+            entity_type='HealthProfile',
+            entity_id=str(profile.id),
+            actor_id=str(request.user.id) if request.user else None,
+            foundation_id=foundation_id,
+            school_id=student.school_id,
+            diff={
+                'student_id': student.id,
+                'changed_fields': changed_fields,
+            },
+        )
+        return Response(serializer.data)
+
+
+class StudentMedicalAlertView(APIView):
+    """LIF-006: teacher-facing non-clinical medical alert flag."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'behaviour.read'
+
+    def get(self, request, student_id: int):
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        try:
+            student = Student.objects.get(pk=student_id, foundation_id=foundation_id, deleted_at__isnull=True)
+        except Student.DoesNotExist:
+            raise exceptions.NotFound("Siswa tidak ditemukan.")
+
+        from apps.identity.guardian_access import can_guardian_access_student
+        if not can_guardian_access_student(request.user, student.id, foundation_id):
+            raise exceptions.NotFound("Siswa tidak ditemukan.")
+
+        profile = get_or_create_health_profile(student)
+        policy = get_or_create_clinic_policy(student.school)
+
+        data = {'has_medical_alert': profile.has_medical_alert}
+        if policy.teacher_sees_allergies:
+            data['allergies'] = profile.allergies
+        serializer = StudentMedicalAlertSerializer(data)
+        return Response(serializer.data)
+
+
+class ClinicVisitViewSet(viewsets.ModelViewSet):
+    """Records and lists UKS clinic visits (LIF-001, LIF-003, LIF-004, LIF-007)."""
+    queryset = ClinicVisit.objects.all().select_related('student__person', 'handled_by__person', 'medication_given')
+    serializer_class = ClinicVisitSerializer
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'clinic.read'
+    action_permissions = {
+        'create': 'clinic.write',
+    }
+    pagination_class = StandardCursorPagination
+
+    def get_queryset(self):
+        foundation_id = get_current_foundation_id()
+        if not foundation_id:
+            return ClinicVisit.objects.none()
+        qs = ClinicVisit.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True).select_related(
+            'student__person', 'handled_by__person', 'medication_given'
+        ).order_by('-occurred_at')
+
+        user = self.request.user
+        if not user or not user.is_authenticated:
+            return ClinicVisit.objects.none()
+
+        if not user.is_superuser:
+            from apps.identity.models import RoleAssignment
+            from apps.identity.guardian_access import get_guardian_student_ids, STAFF_ROLES
+
+            has_fnd_admin = RoleAssignment.all_tenants.filter(
+                foundation_id=foundation_id,
+                user=user,
+                role=RoleAssignment.ROLE_FOUNDATION_ADMIN,
+                scope_type=RoleAssignment.SCOPE_FOUNDATION,
+                deleted_at__isnull=True,
+            ).exists()
+
+            if not has_fnd_admin:
+                staff_school_ids = set(RoleAssignment.all_tenants.filter(
+                    foundation_id=foundation_id,
+                    user=user,
+                    role__in=STAFF_ROLES,
+                    scope_type=RoleAssignment.SCOPE_SCHOOL,
+                    deleted_at__isnull=True,
+                ).values_list('scope_id', flat=True))
+
+                parent_student_ids = get_guardian_student_ids(user, foundation_id)
+
+                if staff_school_ids and parent_student_ids:
+                    qs = qs.filter(Q(school_id__in=staff_school_ids) | Q(student_id__in=parent_student_ids))
+                elif staff_school_ids:
+                    qs = qs.filter(school_id__in=staff_school_ids)
+                elif parent_student_ids:
+                    qs = qs.filter(student_id__in=parent_student_ids)
+                else:
+                    return ClinicVisit.objects.none()
+
+        student_id = self.request.query_params.get('student_id')
+        if student_id:
+            qs = qs.filter(student_id=student_id)
+        school_id = self.request.query_params.get('school_id')
+        if school_id:
+            qs = qs.filter(school_id=school_id)
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        serializer = RecordClinicVisitInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        try:
+            student = Student.objects.get(pk=data['student_id'], foundation_id=foundation_id, deleted_at__isnull=True)
+        except Student.DoesNotExist:
+            raise exceptions.NotFound("Siswa tidak ditemukan.")
+
+        handled_by = Staff.objects.filter(user=request.user, foundation_id=foundation_id, deleted_at__isnull=True).first()
+        if not handled_by:
+            raise exceptions.ValidationError("Pengguna saat ini tidak terdaftar sebagai staf.")
+
+        medication = None
+        if data.get('medication_id'):
+            try:
+                medication = MedicationStock.objects.get(pk=data['medication_id'], foundation_id=foundation_id, deleted_at__isnull=True)
+            except MedicationStock.DoesNotExist:
+                raise exceptions.NotFound("Stok obat tidak ditemukan.")
+
+        try:
+            visit = record_clinic_visit(
+                foundation_id=foundation_id,
+                school=student.school,
+                student=student,
+                handled_by=handled_by,
+                complaint=data['complaint'],
+                treatment=data.get('treatment', ''),
+                vitals=data.get('vitals') or {},
+                outcome=data['outcome'],
+                medication=medication,
+                medication_quantity=data.get('medication_quantity'),
+                guardian_consent_confirmed=data.get('guardian_consent_confirmed', False),
+                guardian_consent_note=data.get('guardian_consent_note', ''),
+                occurred_at=data.get('occurred_at'),
+            )
+        except DjangoValidationError as exc:
+            raise exceptions.ValidationError(exc.messages if hasattr(exc, 'messages') else str(exc))
+
+        output_serializer = ClinicVisitSerializer(visit)
+        return Response(output_serializer.data, status=status.HTTP_201_CREATED)
+
+    def update(self, request, *args, **kwargs):
+        raise exceptions.MethodNotAllowed("PUT", detail="Kunjungan klinik tidak dapat diubah setelah dicatat.")
+
+    def partial_update(self, request, *args, **kwargs):
+        raise exceptions.MethodNotAllowed("PATCH", detail="Kunjungan klinik tidak dapat diubah setelah dicatat.")
+
+    def destroy(self, request, *args, **kwargs):
+        raise exceptions.MethodNotAllowed("DELETE", detail="Kunjungan klinik tidak dapat dihapus.")

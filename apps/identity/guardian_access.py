@@ -16,6 +16,7 @@ STAFF_ROLES = {
     RoleAssignment.ROLE_TEACHER,
     RoleAssignment.ROLE_COUNSELLOR,
     RoleAssignment.ROLE_CANTEEN_OPERATOR,
+    RoleAssignment.ROLE_CLINIC_OFFICER,
 }
 
 

@@ -35,6 +35,7 @@ class NotificationCategory(models.TextChoices):
     SUBSTITUTE_DECLINED = 'SUBSTITUTE_DECLINED', _('Penolakan Guru Pengganti (Substitute Declined)')
     EXPORT_READY = 'EXPORT_READY', _('Ekspor Laporan Siap (Export Ready)')
     ABSENCE = 'ABSENCE', _('Ketidakhadiran (Absence)')
+    CLINIC_INCIDENT = 'CLINIC_INCIDENT', _('Insiden Klinik (Clinic Incident)')
     DEVICE_OFFLINE = 'DEVICE_OFFLINE', _('Perangkat Offline (Device Offline)')
     DAILY_DIGEST = 'DAILY_DIGEST', _('Ringkasan Aktivitas Harian (Daily Digest)')
     LIBRARY_LOAN_DUE = 'LIBRARY_LOAN_DUE', _('Peminjaman Perpustakaan Jatuh Tempo (Library Loan Due)')
@@ -197,6 +198,15 @@ CATEGORY_CONFIG = {
         'opt_out_allowed': True,
     },
     NotificationCategory.ABSENCE: {
+        'default_channels': [ChannelType.WHATSAPP, ChannelType.PUSH],
+        'priority': NotificationPriority.HIGH,
+        'quiet_hours_respected': False,
+        'opt_out_allowed': True,
+    },
+    NotificationCategory.CLINIC_INCIDENT: {
+        # LIF-003: SENT_HOME/REFERRED clinic outcomes notify guardians + homeroom
+        # teacher immediately — same urgency tier as ABSENCE, not EMERGENCY
+        # (which is reserved for school-wide crises and can't be opted out of).
         'default_channels': [ChannelType.WHATSAPP, ChannelType.PUSH],
         'priority': NotificationPriority.HIGH,
         'quiet_hours_respected': False,

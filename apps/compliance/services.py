@@ -817,6 +817,21 @@ def record_consent(subject_type: str, subject_id: int, foundation_id: int, purpo
     return record
 
 
+def has_active_health_consent(subject_type: str, subject_id: int, foundation_id: int) -> bool:
+    """True if the subject's latest HEALTH_DATA consent version is granted and not withdrawn (CMP-009, LIF-004)."""
+    latest = (
+        ConsentRecord.objects.filter(
+            foundation_id=foundation_id,
+            subject_type=subject_type,
+            subject_id=subject_id,
+            purpose=ConsentPurpose.HEALTH_DATA,
+        )
+        .order_by('-version')
+        .first()
+    )
+    return bool(latest and latest.withdrawn_at is None)
+
+
 def withdraw_biometric_consent(subject_type: str, subject_id: int, foundation_id: int,
                                 actor_id: str = '', actor_name: str = '') -> ConsentRecord:
     """CMP-010: withdraw biometric consent and delete the face template

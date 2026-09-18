@@ -1,5 +1,8 @@
 from django.contrib import admin
-from .models import BehaviourCase, BehaviourPolicy, BehaviourReason, BehaviourRecord, CounsellingSession
+from .models import (
+    BehaviourCase, BehaviourPolicy, BehaviourReason, BehaviourRecord, CounsellingSession,
+    ClinicPolicy, ClinicVisit, HealthProfile, MedicationStock,
+)
 
 
 @admin.register(BehaviourPolicy)
@@ -38,3 +41,29 @@ class CounsellingSessionAdmin(admin.ModelAdmin):
     list_filter = ('confidentiality', 'type', 'is_urgent', 'school')
     search_fields = ('student__person__full_name', 'counsellor__person__full_name')
     readonly_fields = ('urgent_notified_at', 'follow_up_reminder_sent_at')
+
+
+@admin.register(ClinicPolicy)
+class ClinicPolicyAdmin(admin.ModelAdmin):
+    list_display = ('school', 'teacher_sees_allergies')
+    search_fields = ('school__name',)
+
+
+@admin.register(HealthProfile)
+class HealthProfileAdmin(admin.ModelAdmin):
+    list_display = ('student', 'blood_type')
+    search_fields = ('student__person__full_name', 'student__nis')
+
+
+@admin.register(MedicationStock)
+class MedicationStockAdmin(admin.ModelAdmin):
+    list_display = ('name', 'school', 'quantity', 'reorder_level', 'expiry_date')
+    list_filter = ('school',)
+    search_fields = ('name',)
+
+
+@admin.register(ClinicVisit)
+class ClinicVisitAdmin(admin.ModelAdmin):
+    list_display = ('student', 'school', 'occurred_at', 'outcome', 'handled_by')
+    list_filter = ('outcome', 'school')
+    search_fields = ('student__person__full_name', 'student__nis')
