@@ -15,6 +15,7 @@ from apps.attendance.models import GateEvent
 from apps.core.locks import advisory_lock
 from apps.core.management.base import CronHostCommand
 from apps.core.models import JobRun
+from educore.middleware.tenancy import tenant_context
 
 GATE_PHOTO_RETENTION_DAYS = 90  # spec/14 §7 criterion 4
 
@@ -47,28 +48,53 @@ class Command(CronHostCommand):
             job_run = JobRun.objects.create(job_name='purge_gate_photos')
             try:
                 cutoff = timezone.now() - timedelta(days=retention_days)
-                candidates = GateEvent.objects.exclude(photo_key='').filter(occurred_at__lt=cutoff)
-                count = candidates.count()
+
+                # GateEvent is a TenantModel: GateEvent.objects (TenantManager)
+                # fails closed to .none() when no thread-local foundation is
+                # set. Cron invokes this command bare, so the sweep MUST enter
+                # an explicit tenant_context per foundation (same pattern as
+                # mark_absent_students) or it silently purges nothing forever.
+                foundation_ids = list(
+                    GateEvent.all_tenants
+                    .exclude(photo_key='')
+                    .values_list('foundation_id', flat=True)
+                    .distinct()
+                    .order_by('foundation_id')
+                )
+
+                total = 0
+                for foundation_id in foundation_ids:
+                    with tenant_context(foundation_id):
+                        candidates = GateEvent.objects.exclude(photo_key='').filter(occurred_at__lt=cutoff)
+
+                        if dry_run:
+                            count = candidates.count()
+                            for event in candidates[:50]:
+                                self.stdout.write(
+                                    f"Would purge photo_key for GateEvent#{event.id} ({event.occurred_at}) "
+                                    f"[foundation {foundation_id}]"
+                                )
+                            total += count
+                        else:
+                            total += candidates.update(photo_key='')
 
                 if dry_run:
-                    for event in candidates[:50]:
-                        self.stdout.write(f"Would purge photo_key for GateEvent#{event.id} ({event.occurred_at})")
                     self.stdout.write(self.style.SUCCESS(
-                        f"purge_gate_photos --dry-run: {count} gate photo(s) older than {retention_days}d would be purged."))
+                        f"purge_gate_photos --dry-run: {total} gate photo(s) older than {retention_days}d "
+                        f"would be purged across {len(foundation_ids)} foundation(s)."))
                     job_run.status = JobRun.STATUS_SUCCESS
                     job_run.items_processed = 0
                     job_run.finished_at = timezone.now()
                     job_run.save()
                     return
 
-                updated = candidates.update(photo_key='')
-
                 job_run.status = JobRun.STATUS_SUCCESS
-                job_run.items_processed = updated
+                job_run.items_processed = total
                 job_run.finished_at = timezone.now()
                 job_run.save()
                 self.stdout.write(self.style.SUCCESS(
-                    f"purge_gate_photos: purged {updated} gate photo(s) older than {retention_days}d."))
+                    f"purge_gate_photos: purged {total} gate photo(s) older than {retention_days}d "
+                    f"across {len(foundation_ids)} foundation(s)."))
             except Exception as exc:
                 job_run.status = JobRun.STATUS_FAILED
                 job_run.error_text = str(exc)[:2000]
