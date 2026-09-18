@@ -22,6 +22,7 @@ from apps.attendance.models import (
     GateMethod,
 )
 from apps.attendance.services import (
+    get_or_flip_attendance_day_to_manual,
     ingest_gate_events,
     issue_credential,
     override_attendance_day,
@@ -532,6 +533,84 @@ class GateEventsAndAttendanceTests(TestCase):
         updated.refresh_from_db()
         self.assertEqual(updated.status, AttendanceStatus.DISPEN)
         self.assertTrue(updated.is_override)
+
+    def test_get_or_flip_attendance_day_to_manual_creates_with_created_by(self):
+        """Shared by approve_absence_request and the clinic SAKIT override: a brand-new
+        AttendanceDay must record created_by (not just updated_by via override_attendance_day
+        immediately after), so data-lineage queries can still tell who created the row."""
+        day = timezone.now().date()
+
+        att_day = get_or_flip_attendance_day_to_manual(
+            foundation_id=str(self.foundation.id),
+            school=self.school_a,
+            student=self.student,
+            date=day,
+            actor_id=str(self.user_admin_a.id),
+        )
+
+        self.assertEqual(att_day.source, AttendanceSource.MANUAL)
+        self.assertEqual(att_day.created_by, str(self.user_admin_a.id))
+
+    def test_get_or_flip_attendance_day_to_manual_flips_and_audits(self):
+        """A pre-existing GATE-sourced day must flip to MANUAL with its own audit event —
+        override_attendance_day itself never touches `source`, so this is the only place
+        the source change is recorded."""
+        day = timezone.now().date()
+        att_day = AttendanceDay.objects.create(
+            foundation_id=self.foundation.id,
+            school=self.school_a,
+            student=self.student,
+            date=day,
+            status=AttendanceStatus.HADIR,
+            source=AttendanceSource.GATE,
+        )
+
+        flipped = get_or_flip_attendance_day_to_manual(
+            foundation_id=str(self.foundation.id),
+            school=self.school_a,
+            student=self.student,
+            date=day,
+            actor_id=str(self.user_admin_a.id),
+        )
+
+        self.assertEqual(flipped.id, att_day.id)
+        self.assertEqual(flipped.source, AttendanceSource.MANUAL)
+
+        audit_event = AuditEvent.objects.filter(
+            foundation_id=self.foundation.id,
+            action='attendance.day.source_flipped_to_manual',
+            entity_id=str(att_day.id),
+        ).first()
+        self.assertIsNotNone(audit_event)
+        self.assertEqual(audit_event.diff['old_source'], AttendanceSource.GATE)
+        self.assertEqual(audit_event.diff['new_source'], AttendanceSource.MANUAL)
+
+    def test_get_or_flip_attendance_day_to_manual_no_op_when_already_manual(self):
+        """An already-MANUAL day must not produce a spurious source-flip audit event."""
+        day = timezone.now().date()
+        AttendanceDay.objects.create(
+            foundation_id=self.foundation.id,
+            school=self.school_a,
+            student=self.student,
+            date=day,
+            status=AttendanceStatus.SAKIT,
+            source=AttendanceSource.MANUAL,
+        )
+
+        get_or_flip_attendance_day_to_manual(
+            foundation_id=str(self.foundation.id),
+            school=self.school_a,
+            student=self.student,
+            date=day,
+            actor_id=str(self.user_admin_a.id),
+        )
+
+        self.assertFalse(
+            AuditEvent.objects.filter(
+                foundation_id=self.foundation.id,
+                action='attendance.day.source_flipped_to_manual',
+            ).exists()
+        )
 
     def test_offline_buffered_replayed_scans(self):
         """ATT-012: Offline replayed scans maintain original timestamps and replayed=True."""

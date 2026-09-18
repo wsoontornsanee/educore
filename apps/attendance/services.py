@@ -635,6 +635,54 @@ def override_attendance_day(
     return attendance_day
 
 
+def get_or_flip_attendance_day_to_manual(
+    foundation_id: str,
+    school: Any,
+    student: Any,
+    date: Any,
+    actor_id: str = '',
+) -> Any:
+    """Get-or-create the AttendanceDay for (school, student, date), flipping its
+    `source` to MANUAL if it isn't already. Shared by `approve_absence_request` and
+    `apps.campus.services_clinic._apply_sakit_override` — both stage a staff-driven
+    override on top of whatever gate/teacher-derived AttendanceDay may already exist
+    for that date, and `override_attendance_day` itself never touches `source`. Audits
+    the source flip itself (AGENTS red line #4) — `override_attendance_day`'s own
+    audit call only covers the status/note change that follows it."""
+    attendance_day = AttendanceDay.all_tenants.filter(
+        foundation_id=foundation_id, school=school, student=student, date=date,
+        deleted_at__isnull=True,
+    ).first()
+
+    if not attendance_day:
+        return AttendanceDay.objects.create(
+            foundation_id=foundation_id, school=school, student=student, date=date,
+            source=AttendanceSource.MANUAL, created_by=actor_id,
+        )
+
+    if attendance_day.source != AttendanceSource.MANUAL:
+        old_source = attendance_day.source
+        attendance_day.source = AttendanceSource.MANUAL
+        attendance_day.updated_by = actor_id
+        attendance_day.save(update_fields=['source', 'updated_by', 'updated_at'])
+        audit(
+            action='attendance.day.source_flipped_to_manual',
+            entity_type='AttendanceDay',
+            entity_id=attendance_day.id,
+            actor_id=actor_id,
+            foundation_id=foundation_id,
+            school_id=attendance_day.school_id,
+            diff={
+                'student_id': str(attendance_day.student_id),
+                'date': attendance_day.date.isoformat(),
+                'old_source': old_source,
+                'new_source': AttendanceSource.MANUAL,
+            },
+        )
+
+    return attendance_day
+
+
 def get_live_gate_feed(
     foundation_id: str,
     school_id: str,
@@ -1369,35 +1417,26 @@ def approve_absence_request(
     periods_created_by_date = {}
     current_date = absence_request.date_from
     while current_date <= absence_request.date_to:
-        att_day = AttendanceDay.all_tenants.filter(
+        # Reuse the shared day-level override service (same consolidation
+        # apps.campus.services_clinic._apply_sakit_override already made for the clinic
+        # SAKIT override) instead of hand-rolling the status/is_override/note/audit logic
+        # here too — a future fix to override-preservation semantics only needs to land
+        # in one place.
+        att_day = get_or_flip_attendance_day_to_manual(
             foundation_id=absence_request.foundation_id,
             school=absence_request.school,
             student=absence_request.student,
             date=current_date,
-            deleted_at__isnull=True,
-        ).first()
+            actor_id=actor_id,
+        )
 
-        if att_day:
-            if not att_day.is_override:
-                att_day.original_status = att_day.status
-            att_day.status = absence_request.type
-            att_day.source = AttendanceSource.MANUAL
-            att_day.is_override = True
-            att_day.note = note_text
-            att_day.updated_by = actor_id
-            att_day.save(update_fields=['status', 'original_status', 'source', 'is_override', 'note', 'updated_by', 'updated_at'])
-        else:
-            AttendanceDay.objects.create(
-                foundation_id=absence_request.foundation_id,
-                school=absence_request.school,
-                student=absence_request.student,
-                date=current_date,
-                status=absence_request.type,
-                source=AttendanceSource.MANUAL,
-                is_override=True,
-                note=note_text,
-                created_by=actor_id,
-            )
+        override_attendance_day(
+            foundation_id=absence_request.foundation_id,
+            attendance_day=att_day,
+            new_status=absence_request.type,
+            note=note_text,
+            user=decided_by,
+        )
 
         # LIF-003's own gap: a day-level SAKIT/IZIN override, like the clinic one, must
         # also excuse the day's PeriodAttendance rows, or the DSAR export and teacher
