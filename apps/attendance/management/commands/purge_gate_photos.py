@@ -2,10 +2,10 @@
 
 Purges GateEvent.photo_key for events older than the retention window
 (default 90 days, spec/14's CMP-012 "gate photos retained 90 days by
-default"). Biometric-template purge is deliberately NOT included: no
-face-template model exists anywhere in this repo yet (tracked as its own
-Notion Open Item) — this command only touches the one real target,
-GateEvent.photo_key.
+default"). Biometric-template purge is a separate command,
+`purge_biometric_templates` (apps.hardware), since it has its own trigger
+conditions (consent withdrawal, subject exit) rather than a fixed age
+window — this command only touches GateEvent.photo_key.
 """
 from datetime import timedelta
 
