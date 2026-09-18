@@ -139,8 +139,8 @@ class StaffViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         from .serializers import StaffCreateSerializer, StaffSerializer
-        from .services import create_user_with_person
-        from .models import Staff, School
+        from .services import create_staff_member
+        from .models import School
 
         serializer = StaffCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -152,64 +152,11 @@ class StaffViewSet(viewsets.ModelViewSet):
         if data.get('school_id'):
             school = School.objects.get(id=data['school_id'])
 
-        user, person = create_user_with_person(
-            foundation_id=foundation_id,
-            full_name=data['full_name'],
-            phone=data['phone_e164'],
-            email=data.get('email'),
-            password=data.get('password'),
-            nik=data.get('nik'),
-            dob=data.get('dob'),
-            gender=data.get('gender', ''),
-            address=data.get('address', ''),
-            person_extra={
-                'religion': data.get('religion', ''),
-                'birth_city': data.get('birth_city', ''),
-                'birth_certificate_number': data.get('birth_certificate_number', ''),
-                'citizenship': data.get('citizenship', 'WNI'),
-                'rt': data.get('rt', ''),
-                'rw': data.get('rw', ''),
-                'dusun': data.get('dusun', ''),
-                'kelurahan': data.get('kelurahan', ''),
-                'kecamatan': data.get('kecamatan', ''),
-                'kabupaten_kota': data.get('kabupaten_kota', ''),
-                'provinsi': data.get('provinsi', ''),
-                'postal_code': data.get('postal_code', ''),
-            },
-        )
-
-        staff = Staff.objects.create(
-            foundation_id=foundation_id,
-            person=person,
-            user=user,
-            school=school,
-            nip=data.get('nip', ''),
-            nuptk=data.get('nuptk') or None,
-            employment_type=data.get('employment_type', Staff.TYPE_PERMANENT),
-            appointment_type=data.get('appointment_type', ''),
-            certification_status=data.get('certification_status', ''),
-            highest_degree=data.get('highest_degree', ''),
-            degree_institution=data.get('degree_institution', ''),
-            degree_graduation_year=data.get('degree_graduation_year'),
-            join_date=data['join_date'],
-            status=Staff.STATUS_ACTIVE,
-            created_by=str(request.user.id),
-        )
-
-        audit(
-            action="identity.staff.created",
-            entity_type="Staff",
-            entity_id=str(staff.id),
-            actor_id=str(request.user.id),
-            role=getattr(request.user, 'role', 'school_admin'),
-            foundation_id=foundation_id,
-            school_id=staff.school_id,
+        staff = create_staff_member(
+            foundation_id=foundation_id, school=school, data=data, actor=request.user,
             ip_address=request.META.get('REMOTE_ADDR'),
-            diff={"nip": {"after": staff.nip}, "full_name": {"after": person.full_name}},
         )
-
-        out_serializer = StaffSerializer(staff)
-        return Response(out_serializer.data, status=status.HTTP_201_CREATED)
+        return Response(StaffSerializer(staff).data, status=status.HTTP_201_CREATED)
 
     from rest_framework.decorators import action
     @action(detail=True, methods=['post'], url_path='offboard')

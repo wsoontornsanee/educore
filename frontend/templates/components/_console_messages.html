@@ -1,0 +1,8 @@
+{% comment %}
+Flash messages (django.contrib.messages) for console pages after a redirect-after-POST.
+{% endcomment %}
+{% if messages %}
+  {% for message in messages %}
+  <p role="{% if message.tags == 'error' %}alert{% else %}status{% endif %}" class="card" style="margin:0;padding:10px 14px;font-size:13.5px;border-color:{% if message.tags == 'error' %}#FECACA;background:#FEF2F2;color:#B91C1C{% else %}#A7F3D0;background:#ECFDF5;color:#047857{% endif %}">{{ message }}</p>
+  {% endfor %}
+{% endif %}

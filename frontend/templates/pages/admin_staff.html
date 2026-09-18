@@ -2,8 +2,8 @@
 {% load i18n %}
 
 {% comment %}
-Page: Administrasi > Staf & jabatan. Read-only staff directory with role
-assignments. Served by apps.identity.web_admin_views.StaffDirectoryView at
+Page: Administrasi > Staf & jabatan. Staff directory with role assignments,
+plus add / offboard for school_config.write holders. Served by apps.identity.web_admin_views.StaffDirectoryView at
 /web/admin/staff/.
 {% endcomment %}
 
@@ -11,11 +11,16 @@ assignments. Served by apps.identity.web_admin_views.StaffDirectoryView at
 
 {% block console_content %}
 <main style="display:flex;flex-direction:column;gap:20px;max-width:1080px">
-  <header>
-    <div class="text-label text-ink-500" style="margin-bottom:2px">{% translate "Administrasi" %}</div>
-    <h1 class="text-h2 font-display text-ink-900" style="margin:0">{% translate "Staf & jabatan" %}</h1>
-    <p class="text-body-sm text-ink-500" style="margin:6px 0 0">{% translate "Direktori staf dan peran (jabatan) akses yang ditugaskan kepada masing-masing." %}</p>
+  <header style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap">
+    <div>
+      <div class="text-label text-ink-500" style="margin-bottom:2px">{% translate "Administrasi" %}</div>
+      <h1 class="text-h2 font-display text-ink-900" style="margin:0">{% translate "Staf & jabatan" %}</h1>
+      <p class="text-body-sm text-ink-500" style="margin:6px 0 0">{% translate "Direktori staf dan peran (jabatan) akses yang ditugaskan kepada masing-masing." %}</p>
+    </div>
+    {% if can_create %}<a class="btn btn-primary" href="{% url 'admin-staff-create' %}">{% translate "Tambah staf" %}</a>{% endif %}
   </header>
+
+  {% include "components/_console_messages.html" %}
 
   <form method="get" class="card" style="padding:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;align-items:end">
     <div class="form-group">
@@ -41,7 +46,7 @@ assignments. Served by apps.identity.web_admin_views.StaffDirectoryView at
 
   {% if staff_rows %}
   <div class="card" style="padding:0;overflow-x:auto">
-    <table style="width:100%;border-collapse:collapse;min-width:640px">
+    <table style="width:100%;border-collapse:collapse;min-width:720px">
       <thead>
         <tr style="text-align:left;border-bottom:1px solid var(--color-line)">
           <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Nama" %}</th>
@@ -49,6 +54,7 @@ assignments. Served by apps.identity.web_admin_views.StaffDirectoryView at
           <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Sekolah" %}</th>
           <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Peran" %}</th>
           <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Status" %}</th>
+          <th style="padding:12px 16px"></th>
         </tr>
       </thead>
       <tbody>
@@ -61,6 +67,7 @@ assignments. Served by apps.identity.web_admin_views.StaffDirectoryView at
             {% for role in staff.role_list %}<div>{{ role.label }}{% if role.scope %} <span class="text-ink-500">· {{ role.scope }}</span>{% endif %}</div>{% empty %}<span class="text-ink-500">—</span>{% endfor %}
           </td>
           <td class="text-body-sm text-ink-700" style="padding:12px 16px">{{ staff.get_status_display }}</td>
+          <td class="text-body-sm" style="padding:12px 16px;text-align:right">{% if staff.can_manage %}<a href="{% url 'admin-staff-offboard' staff_id=staff.id %}" style="color:#C8102E;font-weight:600">{% translate "Offboard" %}</a>{% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>
