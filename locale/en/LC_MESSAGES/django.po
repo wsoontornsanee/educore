@@ -7773,3 +7773,68 @@ msgstr "Publish this exam? Students will be able to see it."
 msgid "Terbitkan"
 msgstr "Publish"
 
+
+
+msgid "Peran ini tidak dapat dikelola dari konsol."
+msgstr "This role cannot be managed from the console."
+
+msgid "Cakupan tidak valid."
+msgstr "Invalid scope."
+
+msgid "Hanya administrator yayasan yang dapat mengelola peran tingkat yayasan."
+msgstr "Only foundation administrators can manage foundation-level roles."
+
+msgid "Anda tidak berwenang mengelola peran di sekolah ini."
+msgstr "You are not authorized to manage roles at this school."
+
+msgid "Hanya administrator yayasan yang dapat mengelola peran administrator yayasan."
+msgstr "Only foundation administrators can manage the foundation administrator role."
+
+msgid "Anda tidak dapat mengelola peran yang memiliki hak akses melebihi hak akses Anda."
+msgstr "You cannot manage a role that carries more permissions than you hold."
+
+msgid "Anda tidak dapat mengubah peran Anda sendiri."
+msgstr "You cannot change your own roles."
+
+msgid "Staf tidak ditemukan atau sudah di-offboard."
+msgstr "Staff member not found or already offboarded."
+
+msgid "Staf ini berada di luar sekolah yang Anda kelola."
+msgstr "This staff member is outside the schools you manage."
+
+msgid "Penugasan peran tidak ditemukan."
+msgstr "Role assignment not found."
+
+msgid "Yayasan harus memiliki setidaknya satu administrator yayasan aktif."
+msgstr "A foundation must keep at least one active foundation administrator."
+
+msgid "Peran ditambahkan."
+msgstr "Role added."
+
+msgid "Staf sudah memiliki peran ini."
+msgstr "This staff member already has this role."
+
+msgid "Peran dicabut."
+msgstr "Role revoked."
+
+#, python-format
+msgid "Peran %(name)s — EduCore"
+msgstr "%(name)s roles — EduCore"
+
+msgid "Peran saat ini"
+msgstr "Current roles"
+
+msgid "Cabut peran ini? Berlaku pada permintaan berikutnya."
+msgstr "Revoke this role? It takes effect on their next request."
+
+msgid "Belum ada peran."
+msgstr "No roles yet."
+
+msgid "Tambah peran"
+msgstr "Add role"
+
+msgid "Anda hanya dapat memberikan peran yang hak aksesnya tidak melebihi hak akses Anda sendiri, pada cakupan yang Anda kelola."
+msgstr "You can only grant roles whose permissions do not exceed your own, within the scope you manage."
+
+msgid "Tambah"
+msgstr "Add"

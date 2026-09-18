@@ -67,7 +67,7 @@ plus add / offboard for school_config.write holders. Served by apps.identity.web
             {% for role in staff.role_list %}<div>{{ role.label }}{% if role.scope %} <span class="text-ink-500">· {{ role.scope }}</span>{% endif %}</div>{% empty %}<span class="text-ink-500">—</span>{% endfor %}
           </td>
           <td class="text-body-sm text-ink-700" style="padding:12px 16px">{{ staff.get_status_display }}</td>
-          <td class="text-body-sm" style="padding:12px 16px;text-align:right">{% if staff.can_manage %}<a href="{% url 'admin-staff-offboard' staff_id=staff.id %}" style="color:#C8102E;font-weight:600">{% translate "Offboard" %}</a>{% endif %}</td>
+          <td class="text-body-sm" style="padding:12px 16px;text-align:right">{% if staff.can_edit_roles %}<a href="{% url 'admin-staff-roles' staff_id=staff.id %}" style="font-weight:600;margin-right:12px">{% translate "Peran" %}</a>{% endif %}{% if staff.can_manage %}<a href="{% url 'admin-staff-offboard' staff_id=staff.id %}" style="color:#C8102E;font-weight:600">{% translate "Offboard" %}</a>{% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>

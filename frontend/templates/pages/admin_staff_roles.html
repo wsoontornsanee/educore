@@ -1,0 +1,66 @@
+{% extends "base_console.html" %}
+{% load i18n %}
+
+{% comment %}
+Page: Administrasi > Staf & jabatan > Peran (jabatan) staf. Served by
+apps.identity.web_admin_views.StaffRolesView at /web/admin/staff/<id>/roles/.
+Every rule (scope ceiling, no escalation, last foundation admin, no self-edit)
+is enforced in apps.identity.role_admin; the page only reflects it.
+{% endcomment %}
+
+{% block title %}{% blocktranslate with name=staff.person.full_name %}Peran {{ name }} — EduCore{% endblocktranslate %}{% endblock %}
+
+{% block console_content %}
+<main style="display:flex;flex-direction:column;gap:20px;max-width:800px">
+  <header>
+    <a class="text-body-sm text-ink-500" href="{% url 'admin-staff' %}">← {% translate "Staf & jabatan" %}</a>
+    <h1 class="text-h2 font-display text-ink-900" style="margin:6px 0 0">{{ staff.person.full_name }}</h1>
+    <p class="text-body-sm text-ink-500" style="margin:6px 0 0">{% if staff.school %}{{ staff.school.name }}{% else %}{% translate "Yayasan" %}{% endif %}</p>
+  </header>
+
+  {% include "components/_console_flash.html" %}
+
+  <section class="card" style="padding:0;overflow-x:auto">
+    <h2 class="text-h3 font-display text-ink-900" style="margin:0;padding:16px 20px 8px">{% translate "Peran saat ini" %}</h2>
+    {% if assignments %}
+    <table style="width:100%;border-collapse:collapse">
+      <tbody>
+        {% for a in assignments %}
+        <tr style="border-top:1px solid var(--color-line)">
+          <td class="text-body-sm text-ink-900 font-medium" style="padding:10px 20px">{{ a.label }}</td>
+          <td class="text-body-sm text-ink-700" style="padding:10px 20px">{{ a.scope }}</td>
+          <td class="text-body-sm" style="padding:10px 20px;text-align:right">
+            {% if a.blocker %}<span class="text-ink-500" title="{{ a.blocker }}">🔒</span>
+            {% else %}
+            <form method="post" action="{% url 'admin-staff-role-revoke' staff_id=staff.id assignment_id=a.id %}" style="display:inline" onsubmit="return confirm('{% translate "Cabut peran ini? Berlaku pada permintaan berikutnya." %}')">{% csrf_token %}<button type="submit" class="btn btn-secondary text-body-sm">{% translate "Cabut" %}</button></form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-body text-ink-500" style="padding:0 20px 16px">{% translate "Belum ada peran." %}</p>
+    {% endif %}
+  </section>
+
+  {% if not self_edit %}
+  <section class="card" style="padding:20px">
+    <h2 class="text-h3 font-display text-ink-900" style="margin:0 0 12px">{% translate "Tambah peran" %}</h2>
+    <p class="text-body-sm text-ink-500" style="margin:0 0 12px">{% translate "Anda hanya dapat memberikan peran yang hak aksesnya tidak melebihi hak akses Anda sendiri, pada cakupan yang Anda kelola." %}</p>
+    <form method="post" action="{% url 'admin-staff-role-grant' staff_id=staff.id %}" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;align-items:end">
+      {% csrf_token %}
+      <div class="form-group">
+        <label class="form-label" for="grant-role">{% translate "Peran" %}</label>
+        <select class="form-input" id="grant-role" name="role" required>{% for value, label in grant_roles %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="grant-scope">{% translate "Cakupan" %}</label>
+        <select class="form-input" id="grant-scope" name="scope" required>{% for value, label in grant_scopes %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+      </div>
+      <div><button type="submit" class="btn btn-primary">{% translate "Tambah" %}</button></div>
+    </form>
+  </section>
+  {% endif %}
+</main>
+{% endblock %}
