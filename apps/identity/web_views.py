@@ -6,7 +6,7 @@ and logout for the HTMX/HTML web console surfaces.
 import json
 import logging
 from django.contrib.auth import authenticate, login, logout
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.shortcuts import redirect, render
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils import timezone
@@ -18,7 +18,7 @@ from django.views.generic import TemplateView
 from apps.attendance.models import AttendanceDay, AttendanceStatus
 from apps.finance.models import Invoice, InvoiceStatus
 from educore.middleware.tenancy import get_current_foundation_id, set_current_foundation_id, tenant_context
-from .inbox import get_inbox_for_user
+from .inbox import InboxActionError, get_inbox_for_user, perform_inbox_action
 from .landing import resolve_post_login_redirect
 from .models import RoleAssignment, Student
 from .nav import get_nav_for_user
@@ -518,6 +518,10 @@ class FinanceBillingLandingView(_ConsoleLandingView):
     required_permission = 'finance.invoice.read'
 
 
+def _inbox_foundation_id(request):
+    return get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+
+
 class ConsoleInboxView(LoginRequiredMixin, TemplateView):
     """GET /web/home/inbox/ — the user's own "Kotak tugas": pending items
     they can act on, aggregated by apps.identity.inbox. No RBAC gate of its
@@ -528,6 +532,40 @@ class ConsoleInboxView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        foundation_id = get_current_foundation_id() or getattr(self.request.user, 'foundation_id', None)
+        foundation_id = _inbox_foundation_id(self.request)
         ctx['sections'] = get_inbox_for_user(self.request.user, foundation_id) if foundation_id else []
         return ctx
+
+
+class ConsoleInboxActionView(LoginRequiredMixin, View):
+    """POST /web/home/inbox/<kind>/<pk>/<action>/ — HTMX: decide one inbox
+    item in place, then answer with the refreshed sections fragment.
+
+    Authorization is the inbox's own: the item is looked up through the
+    scoped queryset that lists it (apps.identity.inbox.perform_inbox_action),
+    so an item the user cannot see cannot be decided by guessing its id. A
+    stale or out-of-scope item is reported in the fragment, not as an error
+    status, because HTMX does not swap 4xx responses. An unknown kind/action
+    is a tampered URL and 404s."""
+
+    def post(self, request, kind, pk, action):
+        foundation_id = _inbox_foundation_id(request)
+        if not foundation_id:
+            raise Http404
+        try:
+            applied = perform_inbox_action(
+                request.user, foundation_id, kind, pk, action, note=request.POST.get('note', ''),
+            )
+        except KeyError:
+            raise Http404
+        except InboxActionError as exc:
+            message = {'level': 'error', 'text': str(exc)}
+        else:
+            message = (
+                {'level': 'ok', 'text': _("Keputusan tersimpan.")} if applied
+                else {'level': 'error', 'text': _("Item ini sudah tidak menunggu tindakan Anda.")}
+            )
+        return render(request, 'components/_inbox_sections.html', {
+            'sections': get_inbox_for_user(request.user, foundation_id),
+            'message': message,
+        })
