@@ -6531,3 +6531,104 @@ msgstr "request info"
 #: frontend/templates/rest_framework/base.html:177
 msgid "response info"
 msgstr "response info"
+
+
+#: frontend/templates/marketing/status.html:4
+msgid "Status Layanan — EduCore"
+msgstr "Service Status — EduCore"
+
+#: frontend/templates/marketing/status.html:9
+msgid "Status layanan EduCore."
+msgstr "EduCore service status."
+
+#: frontend/templates/marketing/status.html:10
+msgid "Status setiap komponen dan riwayat insiden yang mempengaruhi sekolah dan yayasan Anda."
+msgstr "The status of every component, and the incident history that affected your schools and foundation."
+
+#: frontend/templates/marketing/status.html:17
+msgid "Semua sistem beroperasi normal."
+msgstr "All systems operational."
+
+#: frontend/templates/marketing/status.html:22
+msgid "Sebagian sistem mengalami gangguan."
+msgstr "Some systems are experiencing issues."
+
+#: apps/marketing/views.py:246
+msgid "Komponen"
+msgstr "Components"
+
+#: frontend/templates/marketing/status.html:29
+msgid "Status per komponen"
+msgstr "Status by component"
+
+#: frontend/templates/marketing/status.html:34
+msgid "Beroperasi"
+msgstr "Operational"
+
+#: frontend/templates/marketing/status.html:34
+msgid "Terganggu"
+msgstr "Degraded"
+
+#: frontend/templates/marketing/status.html:34
+msgid "Mati"
+msgstr "Down"
+
+#: apps/marketing/views.py:247
+msgid "Aplikasi guru"
+msgstr "Teacher app"
+
+#: apps/marketing/views.py:249
+msgid "Notifikasi (WhatsApp & push)"
+msgstr "Notifications (WhatsApp & push)"
+
+#: apps/marketing/views.py:250
+msgid "Pembayaran (VA & QRIS)"
+msgstr "Payments (VA & QRIS)"
+
+#: apps/marketing/views.py:254
+msgid "Riwayat"
+msgstr "History"
+
+#: frontend/templates/marketing/status.html:47
+msgid "Riwayat insiden"
+msgstr "Incident history"
+
+#: frontend/templates/marketing/status.html:52
+msgid "TERGANGGU"
+msgstr "DEGRADED"
+
+#: frontend/templates/marketing/status.html:52
+msgid "MATI"
+msgstr "DOWN"
+
+#: frontend/templates/marketing/status.html:63
+msgid "Tidak ada insiden dalam 90 hari terakhir."
+msgstr "No incidents in the last 90 days."
+
+#: apps/marketing/views.py:258
+msgid "3 Sep 2026"
+msgstr "3 Sep 2026"
+
+#: apps/marketing/views.py:264
+msgid "20 Agu 2026"
+msgstr "20 Aug 2026"
+
+#: apps/marketing/views.py:259
+msgid "Keterlambatan notifikasi WhatsApp kedatangan"
+msgstr "Delayed WhatsApp arrival notifications"
+
+#: apps/marketing/views.py:260
+msgid "Notifikasi kedatangan tertunda hingga 8 menit akibat antrean di penyedia pesan. Diselesaikan dengan menambah kapasitas pengiriman."
+msgstr "Arrival notifications were delayed up to 8 minutes due to a queue at the messaging provider. Resolved by adding sending capacity."
+
+#: apps/marketing/views.py:265
+msgid "Gangguan singkat pada endpoint Partner API"
+msgstr "Brief outage on a Partner API endpoint"
+
+#: apps/marketing/views.py:266
+msgid "/partner/events mengembalikan 503 selama 12 menit akibat migrasi basis data yang tidak otomatis roll back. Diselesaikan dengan roll back manual."
+msgstr "/partner/events returned 503 for 12 minutes after a database migration failed to auto-rollback. Resolved with a manual rollback."
+
+#: frontend/templates/marketing/status.html:70
+msgid "Langganan pembaruan"
+msgstr "Subscribe to updates"
