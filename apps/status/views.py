@@ -1,10 +1,14 @@
 """Public (no-auth, no-tenant) service status page — mirrors apps.marketing's TemplateView pattern."""
+from django.http import HttpResponseBadRequest, HttpResponseRedirect
+from django.urls import reverse
+from django.views import View
 from django.views.generic import TemplateView
 
 from .models import ServiceComponent
 from .services import (
     get_average_latency_ms, get_component_bars, get_component_status,
     get_open_component_count, get_uptime_percentage, list_published_incidents,
+    subscribe_email,
 )
 from .strings import get_status_strings
 
@@ -68,3 +72,14 @@ class StatusPageView(TemplateView):
             })
         ctx['incidents'] = incidents
         return ctx
+
+
+class StatusSubscribeView(View):
+    http_method_names = ['post']
+
+    def post(self, request, *args, **kwargs):
+        email = request.POST.get('email', '').strip()
+        if not email:
+            return HttpResponseBadRequest('email is required')
+        subscribe_email(email)
+        return HttpResponseRedirect(reverse('status:page'))

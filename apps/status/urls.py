@@ -7,9 +7,5 @@ app_name = 'status'
 
 urlpatterns = [
     path('', views.StatusPageView.as_view(), name='page'),
-    # TODO(Task 10): replace with the real StatusSubscribeView
-    # Temporary stub so the template's {% url 'status:subscribe' %} resolves
-    # before Task 10 implements the real subscribe view. Task 10 replaces
-    # this line with its own StatusSubscribeView.
-    path('subscribe/', views.StatusPageView.as_view(), name='subscribe'),
+    path('subscribe/', views.StatusSubscribeView.as_view(), name='subscribe'),
 ]
