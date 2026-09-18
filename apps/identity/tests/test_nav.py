@@ -40,5 +40,20 @@ class GetNavForUserTests(TestCase):
         nav = get_nav_for_user(self.canteen, self.foundation.id)
         for group in nav:
             self.assertGreater(len(group['items']), 0)
-        group_labels = {g['label'] for g in nav}
+        group_labels = {str(g['label']) for g in nav}
         self.assertNotIn('Administrasi', group_labels)
+
+    def test_nav_computation_query_count_is_bounded_not_per_item(self):
+        """Regression test for the N+1: computing the nav for a user with 2
+        assigned schools must cost a small, fixed number of queries —
+        1 (assigned-schools list) + 1 (foundation-scope permissions) +
+        2 (one per assigned school) — regardless of NAV_GROUPS' 16 items."""
+        school_2 = School.objects.create(
+            foundation_id=self.foundation.id, name='S2', npsn='87654321', level=School.LEVEL_SMA,
+        )
+        RoleAssignment.objects.create(
+            foundation_id=self.foundation.id, user=self.teacher, role=RoleAssignment.ROLE_TEACHER,
+            scope_type=RoleAssignment.SCOPE_SCHOOL, scope_id=school_2.id,
+        )
+        with self.assertNumQueries(4):
+            get_nav_for_user(self.teacher, self.foundation.id)
