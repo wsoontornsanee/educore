@@ -6,14 +6,50 @@
 {% block content %}
 <section class="site-container" style="padding: 40px 0 0;">
   <span class="site-eyebrow">{% translate "Integrasi mitra & vendor" %}</span>
-  <h1 class="site-hero-title" style="font-size: 2.5rem;">{% translate "Satu API untuk seluruh sistem operasi sekolah." %}</h1>
-  <p class="site-hero-lede" style="max-width: 60ch;">{% translate "Baca data siswa, tagihan, kehadiran, dan penggajian dari EduCore — atau kirim hasil proses Anda kembali. REST, versi di path, kunci per yayasan, dan kontrak error yang stabil." %}</p>
+  <h1 class="site-hero-title" style="font-size: 2.5rem;">{% translate "API mitra untuk data sekolah." %}</h1>
+  <p class="site-hero-lede" style="max-width: 60ch;">{% translate "Baca roster, data pribadi dan jabatan staf, tagihan, serta kehadiran dari EduCore lewat REST yang berversi dan bertanda tangan." %}</p>
   <div class="site-cta-row">
     <a href="mailto:demo@educore.id?subject={% translate "Kunci sandbox Partner API" %}" class="btn btn-primary">{% translate "Buat akun sandbox" %}</a>
+    <a href="#docs" class="btn btn-secondary">{% translate "Baca dokumentasi" %}</a>
   </div>
 </section>
 
-<div class="doc-callout site-container" style="margin: 24px auto 0;">
+<section class="site-section">
+  <div class="site-container">
+    <span class="site-eyebrow">{% translate "Permukaan integrasi" %}</span>
+    <h2 class="site-section-title">{% translate "Domain yang terbuka untuk mitra" %}</h2>
+    <p class="site-section-lede">{% translate "Setiap kunci API diberi cakupan per domain dan per sekolah. Cakupan yang tidak diminta tidak pernah terbaca." %}</p>
+    <div class="doc-callout" style="margin-bottom: 24px;">
+      <span class="doc-callout-label">{% translate "Batas data" %}</span>
+      {% blocktranslate %}EduCore tidak menyimpan data penggajian atau kompensasi. Permukaan mitra hanya memaparkan data pribadi, jabatan, dan kepegawaian — gaji, komponen upah, potongan, dan slip tetap berada di sistem penggajian Anda sebagai sumber kebenaran.{% endblocktranslate %}
+    </div>
+    <div class="site-grid-2" style="background-color: var(--color-surface-alt);">
+      {% for d in domains %}
+      <div class="card" style="border: 1px solid var(--color-line); border-top: 2px solid var(--color-ink-900);">
+        <span class="text-body-sm font-mono" style="color: var(--color-ink-500);">{{ d.scope }}</span>
+        <h3 class="text-h3" style="margin: 6px 0 8px;">{{ d.title }}</h3>
+        <p class="text-body-sm" style="color: var(--color-ink-700);">{{ d.body }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="site-section site-section-alt">
+  <div class="site-container">
+    <div class="site-grid-plain-3">
+      {% for f in features %}
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <span class="site-eyebrow">{{ f.no }}</span>
+        <h3 class="text-h3" style="font-size: 1.4375rem; letter-spacing: -0.01em;">{{ f.title }}</h3>
+        <p class="text-body-sm" style="color: var(--color-ink-500); line-height: 1.65;">{{ f.body }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<div id="docs" class="doc-callout site-container" style="margin: 40px auto 0;">
   <span class="doc-callout-label">Sandbox</span>
   {% blocktranslate %}Kunci berawalan <code>ak_test_</code> selalu menabrak data sintetis dan tidak pernah mengirim notifikasi ke orang tua. Gunakan itu untuk seluruh pengembangan.{% endblocktranslate %}
 </div>
@@ -48,7 +84,7 @@ Idempotency-Key:     4f0a1b2c-...</pre>
       <tr><th>{% translate "Aturan" %}</th><th>{% translate "Ketentuan" %}</th></tr>
       <tr><td>{% translate "Cakupan" %}</td><td>{% translate "Ditetapkan yayasan, per domain dan per sekolah. Tidak bisa diperluas oleh mitra." %}</td></tr>
       <tr><td>{% translate "Rotasi" %}</td><td>{% translate "Dua kunci aktif maksimal 30 hari. Kunci lama jadi read-only saat hari ke-23." %}</td></tr>
-      <tr><td>IP allow-list</td><td>{% blocktranslate %}Opsional per kunci, wajib untuk cakupan <code>payroll.write</code>.{% endblocktranslate %}</td></tr>
+      <tr><td>IP allow-list</td><td>{% blocktranslate %}Opsional per kunci, wajib untuk cakupan <code>roster.pii</code>.{% endblocktranslate %}</td></tr>
     </table>
 
     <h2 id="versi">{% translate "Versi & deprekasi" %}</h2>
@@ -70,7 +106,7 @@ Idempotency-Key:     4f0a1b2c-...</pre>
   "type":     "/errors/scope-denied",
   "title":    "Scope not granted",
   "status":   403,
-  "detail":   "Key lacks payroll.write",
+  "detail":   "Key lacks roster.pii",
   "instance": "/api/v1/partner/_",
   "code":     "SCOPE_DENIED"
 }</pre>
@@ -78,19 +114,19 @@ Idempotency-Key:     4f0a1b2c-...</pre>
       <tr><th>Status</th><th>Code</th></tr>
       <tr><td>401</td><td><code>SIGNATURE_INVALID</code></td></tr>
       <tr><td>403</td><td><code>SCOPE_DENIED</code></td></tr>
+      <tr><td>404</td><td><code>STAFF_NOT_FOUND</code></td></tr>
       <tr><td>409</td><td><code>IDEMPOTENCY_MISMATCH</code></td></tr>
-      <tr><td>409</td><td><code>PAYROLL_RUN_LOCKED</code></td></tr>
       <tr><td>422</td><td><code>CURRENCY_MISMATCH</code></td></tr>
       <tr><td>429</td><td><code>RATE_LIMITED</code></td></tr>
     </table>
 
     <h2 id="webhook">{% translate "Webhook & polling" %}</h2>
-    <p>{% blocktranslate %}Webhook adalah jalur utama. Daftarkan satu endpoint HTTPS per lingkungan, terima POST bertanda tangan sama seperti permintaan keluar, dan balas 2xx dalam 5 detik. Kegagalan dicoba ulang lima kali dengan jeda eksponensial hingga 6 jam; setelah itu kejadian tetap tersedia lewat polling.{% endblocktranslate %}</p>
+    <p>{% blocktranslate %}Webhook adalah jalur utama. Daftarkan satu endpoint HTTPS per lingkungan, terima POST bertanda tangan, dan balas 2xx dalam 5 detik. Kegagalan dicoba ulang lima kali hingga 6 jam; setelahnya kejadian tetap tersedia lewat polling.{% endblocktranslate %}</p>
     <table>
       <tr><th>{% translate "Kejadian" %}</th><th>{% translate "Dipicu saat" %}</th></tr>
-      <tr><td><code>payroll.run.approved</code></td><td>{% translate "Yayasan menyetujui payroll run — rincian siap ditarik" %}</td></tr>
-      <tr><td><code>finance.payment.settled</code></td><td>{% translate "Pembayaran VA/QRIS ter-settle dan teralokasi" %}</td></tr>
+      <tr><td><code>roster.staff.updated</code></td><td>{% translate "Data pribadi, jabatan, atau status kepegawaian staf berubah" %}</td></tr>
       <tr><td><code>roster.student.enrolled</code></td><td>{% translate "Siswa aktif baru di sekolah dalam cakupan kunci" %}</td></tr>
+      <tr><td><code>finance.payment.settled</code></td><td>{% translate "Pembayaran VA atau QRIS ter-settle dan teralokasi" %}</td></tr>
       <tr><td><code>integration.key.rotated</code></td><td>{% translate "Kunci dirotasi — 30 hari sebelum yang lama mati" %}</td></tr>
     </table>
 
@@ -99,14 +135,13 @@ Idempotency-Key:     4f0a1b2c-...</pre>
       <tr><th>{% translate "Metode & jalur" %}</th><th>{% translate "Keterangan" %}</th></tr>
       <tr><td><code>GET /partner/foundations</code><br><span class="text-body-sm text-ink-500">roster.read</span></td><td>{% translate "Yayasan yang memberi Anda akses" %}</td></tr>
       <tr><td><code>GET /partner/schools</code><br><span class="text-body-sm text-ink-500">roster.read</span></td><td>{% translate "Sekolah dalam cakupan kunci" %}</td></tr>
-      <tr><td><code>GET /partner/staff?school_id</code><br><span class="text-body-sm text-ink-500">roster.read</span></td><td>{% translate "Staf aktif, kursor terpaginasi" %}</td></tr>
-      <tr><td><code>GET /partner/payroll/runs?period</code><br><span class="text-body-sm text-ink-500">payroll.read</span></td><td>{% translate "Payroll run beserta statusnya" %}</td></tr>
-      <tr><td><code>GET /partner/payroll/runs/:id/lines</code><br><span class="text-body-sm text-ink-500">payroll.read</span></td><td>{% translate "Rincian per staf — gross, potongan, net" %}</td></tr>
-      <tr><td><code>POST /partner/payroll/runs/:id/acknowledge</code><br><span class="text-body-sm text-ink-500">payroll.write</span></td><td>{% translate "Konfirmasi pencairan dari sisi Anda" %}</td></tr>
+      <tr><td><code>GET /partner/staff?school_id</code><br><span class="text-body-sm text-ink-500">roster.read</span></td><td>{% translate "Staf aktif beserta jabatan, kursor terpaginasi" %}</td></tr>
+      <tr><td><code>GET /partner/staff/:id</code><br><span class="text-body-sm text-ink-500">roster.read · roster.pii</span></td><td>{% translate "Satu staf — data pribadi, jabatan, kepegawaian" %}</td></tr>
+      <tr><td><code>GET /partner/students?school_id&amp;class_id</code><br><span class="text-body-sm text-ink-500">roster.read</span></td><td>{% translate "Siswa aktif per sekolah atau kelas" %}</td></tr>
       <tr><td><code>GET /partner/invoices?status&amp;school_id</code><br><span class="text-body-sm text-ink-500">finance.read</span></td><td>{% translate "Tagihan dan sisa terutang" %}</td></tr>
       <tr><td><code>GET /partner/attendance/daily?date</code><br><span class="text-body-sm text-ink-500">attendance.read</span></td><td>{% translate "Rekap kehadiran harian per kelas" %}</td></tr>
-      <tr><td><code>GET /partner/events?since=cursor</code><br><span class="text-body-sm text-ink-500">{% translate "semua" %}</span></td><td>{% translate "Aliran kejadian — alternatif webhook" %}</td></tr>
-      <tr><td><code>POST /partner/webhooks</code><br><span class="text-body-sm text-ink-500">{% translate "semua" %}</span></td><td>{% translate "Daftarkan endpoint penerima" %}</td></tr>
+      <tr><td><code>GET /partner/events?since=cursor</code><br><span class="text-body-sm text-ink-500">—</span></td><td>{% translate "Aliran kejadian — alternatif webhook" %}</td></tr>
+      <tr><td><code>POST /partner/webhooks</code><br><span class="text-body-sm text-ink-500">—</span></td><td>{% translate "Daftarkan endpoint penerima webhook" %}</td></tr>
     </table>
 
     <h2 id="batas">{% translate "Batas laju" %}</h2>

@@ -21,48 +21,53 @@
     <div class="site-container site-header-row">
       <a href="{% url 'marketing:home' %}" class="site-brand">
         <span class="site-brand-mark"></span>
-        <span class="font-display" style="font-weight: 800; font-size: 1.125rem; color: var(--color-brand-600); letter-spacing: -0.02em;">EduCore</span>
+        <span class="font-display" style="font-weight: 800; font-size: 1.125rem; color: var(--color-ink-900); letter-spacing: -0.02em;">EduCore</span>
       </a>
+      <div class="site-actions">
+        <button type="button" class="lang-switcher-trigger" id="lang-switcher-trigger" aria-haspopup="dialog" aria-controls="lang-switcher-dialog" aria-expanded="false" aria-label="{% translate "Ganti bahasa situs" %}">
+          <img src="/static/img/flag-id.png" alt="" class="lang-flag-img"{% if LANGUAGE_CODE != 'id' %} style="display:none"{% endif %}>
+          <img src="/static/img/flag-gb.png" alt="" class="lang-flag-img"{% if LANGUAGE_CODE != 'en' %} style="display:none"{% endif %}>
+          <span class="lang-code">{{ LANGUAGE_CODE|upper }}</span>
+          <span class="lang-chevron" aria-hidden="true"></span>
+        </button>
+        <a href="{% url 'login' %}" class="btn btn-secondary">{% translate "Masuk" %}</a>
+        <a href="mailto:demo@educore.id" class="btn btn-primary">{% translate "Minta demo" %}</a>
+      </div>
       <nav class="site-nav">
         <a href="{% url 'marketing:home' %}" class="{% if active_page == 'home' %}active{% endif %}">{% translate "Beranda" %}</a>
         <a href="{% url 'marketing:partner-api' %}" class="{% if active_page == 'partner-api' %}active{% endif %}">{% translate "Mitra & API" %}</a>
         <a href="{% url 'marketing:downloads' %}" class="{% if active_page == 'downloads' %}active{% endif %}">{% translate "Unduh aplikasi" %}</a>
       </nav>
-      <div class="site-actions">
-        <button type="button" class="lang-switcher-trigger" id="lang-switcher-trigger" aria-haspopup="dialog" aria-controls="lang-switcher-dialog" aria-expanded="false" aria-label="{% translate "Ganti bahasa situs" %}">
-          <span class="lang-flag" aria-hidden="true">{% if LANGUAGE_CODE == 'id' %}🇮🇩{% else %}🇬🇧{% endif %}</span>
-          <span class="lang-code">{{ LANGUAGE_CODE|upper }}</span>
-          <svg class="lang-chevron" width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true">
-            <path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-        <a href="{% url 'login' %}" class="btn btn-secondary">{% translate "Masuk" %}</a>
-        <a href="mailto:demo@educore.id" class="btn btn-primary">{% translate "Minta demo" %}</a>
-      </div>
     </div>
+    <div class="site-header-bar"></div>
   </header>
 
   <dialog class="lang-modal" id="lang-switcher-dialog" aria-labelledby="lang-switcher-title">
     <div class="lang-modal-header">
-      <h2 id="lang-switcher-title">{% translate "Pilih bahasa" %}</h2>
-      <button type="button" class="lang-modal-close" id="lang-switcher-close" aria-label="{% translate "Tutup" %}">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-          <path d="M1 1L13 13M13 1L1 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
-      </button>
+      <div class="lang-modal-heading">
+        <h2 id="lang-switcher-title">{% translate "Pilih bahasa" %}</h2>
+        <p>{% translate "Pilihan ini berlaku untuk seluruh situs dan tersimpan di perangkat Anda." %}</p>
+      </div>
+      <button type="button" class="lang-modal-close" id="lang-switcher-close" aria-label="{% translate "Tutup" %}">×</button>
     </div>
     <form action="{% url 'set_language' %}" method="post" class="lang-modal-list">
       {% csrf_token %}
       <input type="hidden" name="next" value="{{ request.get_full_path }}">
       <button type="submit" name="language" value="id" class="lang-modal-option{% if LANGUAGE_CODE == 'id' %} active{% endif %}">
-        <span class="lang-radio" aria-hidden="true"></span>
-        <span class="lang-flag" aria-hidden="true">🇮🇩</span>
-        <span class="lang-option-label">Bahasa Indonesia</span>
+        <img src="/static/img/flag-id.png" alt="" class="lang-modal-flag-img">
+        <span class="lang-modal-option-text">
+          <span class="lang-modal-option-name">Bahasa Indonesia</span>
+          <span class="lang-modal-option-note">{% translate "Bahasa sumber — selalu paling lengkap" %}</span>
+        </span>
+        <span class="lang-modal-check" aria-hidden="true">{% if LANGUAGE_CODE == 'id' %}✓{% endif %}</span>
       </button>
       <button type="submit" name="language" value="en" class="lang-modal-option{% if LANGUAGE_CODE == 'en' %} active{% endif %}">
-        <span class="lang-radio" aria-hidden="true"></span>
-        <span class="lang-flag" aria-hidden="true">🇬🇧</span>
-        <span class="lang-option-label">English</span>
+        <img src="/static/img/flag-gb.png" alt="" class="lang-modal-flag-img">
+        <span class="lang-modal-option-text">
+          <span class="lang-modal-option-name">English</span>
+          <span class="lang-modal-option-note">{% translate "Terjemahan penuh" %}</span>
+        </span>
+        <span class="lang-modal-check" aria-hidden="true">{% if LANGUAGE_CODE == 'en' %}✓{% endif %}</span>
       </button>
     </form>
   </dialog>
@@ -92,7 +97,7 @@
         <div>
           <h4>{% translate "Pengembang" %}</h4>
           <ul>
-            <li><a href="{% url 'marketing:partner-api' %}">{% translate "Dokumentasi API" %}</a></li>
+            <li><a href="{% url 'marketing:partner-api' %}#docs">{% translate "Dokumentasi" %}</a></li>
             <li><a href="mailto:demo@educore.id">Changelog</a></li>
             <li><a href="mailto:demo@educore.id">{% translate "Status layanan" %}</a></li>
           </ul>

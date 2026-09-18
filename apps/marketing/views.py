@@ -150,6 +150,20 @@ class DownloadsView(TemplateView):
         return ctx
 
 
+DOMAINS = [
+    {'scope': 'roster.read · roster.pii', 'title': _('Roster & staf'), 'body': _('Yayasan, sekolah, kelas, siswa aktif, dan staf beserta jabatan serta status kepegawaian.')},
+    {'scope': 'finance.read', 'title': _('Keuangan'), 'body': _('Tagihan, alokasi pembayaran, AR aging, dan statement per siswa. Uang selalu string 2dp dengan mata uang.')},
+    {'scope': 'attendance.read', 'title': _('Kehadiran'), 'body': _('Rekap harian dan per sesi dengan enam status tetap. Foto gerbang tidak pernah diekspor.')},
+    {'scope': 'academic.read', 'title': _('Akademik'), 'body': _('Struktur kurikulum, jadwal, dan ringkasan capaian per periode penilaian.')},
+]
+
+PARTNER_FEATURES = [
+    {'no': '01', 'title': _('Autentikasi yang bisa dirotasi'), 'body': _('Pasangan key-id dan secret per yayasan, ditandatangani HMAC-SHA256 per permintaan. Rotasi tanpa downtime.')},
+    {'no': '02', 'title': _('Aman diulang'), 'body': _('Setiap endpoint mutasi menerima Idempotency-Key. Kirim ulang permintaan yang sama dan Anda mendapat respons yang sama.')},
+    {'no': '03', 'title': _('Webhook, dengan jaring polling'), 'body': _('Webhook bertanda tangan untuk kejadian domain, lima kali coba ulang — dan endpoint events bila penerima Anda pernah mati.')},
+]
+
+
 class PartnerApiView(TemplateView):
     """Renders the spec/18-partner-vendor-api.md content as a public page."""
     template_name = 'marketing/partner_api.html'
@@ -158,4 +172,6 @@ class PartnerApiView(TemplateView):
         ctx = super().get_context_data(**kwargs)
         ctx['active_page'] = 'partner-api'
         ctx['api_base_url'] = self.request.build_absolute_uri('/api/v1/')
+        ctx['domains'] = DOMAINS
+        ctx['features'] = PARTNER_FEATURES
         return ctx
