@@ -22,11 +22,13 @@ from django.db import transaction
 from django.db.models import F, Q, Sum
 from django.http import Http404  # noqa: F401  (used by get_object_or_404 callers)
 from django.shortcuts import get_object_or_404, redirect  # noqa: F401
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import TemplateView, View
 
 from apps.finance.models import (
+    DiscrepancyResolution,
     Discount,
     DiscountStatus,
     GatewaySettlementBatch,
@@ -40,6 +42,7 @@ from apps.finance.models import (
 )
 from apps.finance.scope import staff_school_scope
 from apps.finance.services.ar_aging import AGING_BUCKETS, get_ar_aging_report
+from apps.finance.services.reconciliation import resolve_discrepancy
 from apps.identity.nav import has_staff_profile
 from apps.identity.rbac import has_permission_in_any_scope
 from educore.middleware.tenancy import get_current_foundation_id, tenant_context
@@ -243,7 +246,43 @@ class ReconciliationConsoleView(FinanceConsoleView):
                     foundation_id=self.foundation_id, batch=selected, deleted_at__isnull=True,
                 ).order_by('-id')[:DISCREPANCY_LIMIT]
             )
-        return {'page': page, 'selected': selected, 'discrepancies': discrepancies}
+        return {
+            'page': page, 'selected': selected, 'discrepancies': discrepancies,
+            'can_resolve': has_permission_in_any_scope(self.request.user, 'finance.payment.write', self.foundation_id),
+        }
+
+
+class DiscrepancyResolveView(FinanceActionView):
+    """POST: settle / waive / escalate a pending gateway discrepancy. Batches
+    are foundation-level (not per-school), same as the read page and API."""
+    required_permission = 'finance.payment.write'
+    ALLOWED_RESOLUTIONS = (
+        DiscrepancyResolution.MANUAL_SETTLED,
+        DiscrepancyResolution.WAIVED,
+        DiscrepancyResolution.ESCALATED,
+    )
+
+    def get_object(self, pk):
+        return get_object_or_404(
+            PaymentDiscrepancy.all_tenants.filter(foundation_id=self.foundation_id, deleted_at__isnull=True),
+            pk=pk,
+        )
+
+    def perform(self, discrepancy):
+        resolution = self.request.POST.get('resolution', '')
+        if resolution not in self.ALLOWED_RESOLUTIONS:
+            raise ValueError(_('Pilihan penyelesaian tidak valid.'))
+        resolve_discrepancy(
+            discrepancy_id=discrepancy.id,
+            resolution=resolution,
+            resolved_by=self.request.user,
+            foundation_id=self.foundation_id,
+            notes=self.request.POST.get('notes', '').strip(),
+        )
+        return _('Selisih berhasil diperbarui.')
+
+    def redirect_url(self, discrepancy):
+        return f"{reverse('finance-console-reconciliation')}?batch={discrepancy.batch_id}#discrepancies"
 
 
 class ReceivablesConsoleView(FinanceConsoleView):

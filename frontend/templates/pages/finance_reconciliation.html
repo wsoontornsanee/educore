@@ -8,7 +8,7 @@
 <div class="fin-page">
   <h1 class="fin-title">{{ page_title }}</h1>
   {% include "components/_console_messages.html" %}
-  <p class="fin-note">{% translate "Batch penyelesaian gateway pembayaran per hari. Penyelesaian selisih dilakukan melalui API keuangan." %}</p>
+  <p class="fin-note">{% translate "Batch penyelesaian gateway pembayaran per hari." %}</p>
 
   <section>
     <h2 class="fin-h2">{% translate "Batch penyelesaian" %}</h2>
@@ -49,7 +49,7 @@
       <table class="fin-table">
         <thead><tr>
           <th>{% translate "ID gateway" %}</th><th>{% translate "Jenis" %}</th>
-          <th class="num">{% translate "Gateway" %}</th><th class="num">{% translate "Sistem" %}</th><th>{% translate "Tindak lanjut" %}</th>
+          <th class="num">{% translate "Gateway" %}</th><th class="num">{% translate "Sistem" %}</th><th>{% translate "Tindak lanjut" %}</th>{% if can_resolve %}<th></th>{% endif %}
         </tr></thead>
         <tbody>
         {% for d in discrepancies %}
@@ -59,6 +59,20 @@
             <td class="num">{{ d.gateway_amount|money:d.currency }}</td>
             <td class="num">{% if d.system_amount is not None %}{{ d.system_amount|money:d.currency }}{% else %}—{% endif %}</td>
             <td>{{ d.get_resolution_display }}{% if d.resolution_notes %}<br><span class="fin-note">{{ d.resolution_notes|truncatechars:80 }}</span>{% endif %}</td>
+            {% if can_resolve %}<td>
+              {% if d.resolution == "PENDING" %}
+              <form method="post" action="{% url 'finance-console-discrepancy-resolve' d.id %}" class="fin-actionform">
+                {% csrf_token %}
+                <select name="resolution" aria-label="{% translate 'Penyelesaian' %}">
+                  <option value="MANUAL_SETTLED">{% translate "Selesaikan manual" %}</option>
+                  <option value="WAIVED">{% translate "Abaikan" %}</option>
+                  <option value="ESCALATED">{% translate "Teruskan ke tim keuangan" %}</option>
+                </select>
+                <input type="text" name="notes" maxlength="500" placeholder="{% translate 'Catatan' %}">
+                <button type="submit" class="btn btn-primary text-body-sm">{% translate "Simpan" %}</button>
+              </form>
+              {% endif %}
+            </td>{% endif %}
           </tr>
         {% endfor %}
         </tbody>
