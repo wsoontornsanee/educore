@@ -6649,3 +6649,64 @@ msgstr "Overdue invoices"
 #: frontend/templates/pages/console_landing.html:21
 msgid "Alpa hari ini"
 msgstr "Absent today"
+
+#: apps/identity/inbox.py
+msgid "Diskon"
+msgstr "Discount"
+
+#: apps/identity/inbox.py
+msgid "Keringanan"
+msgstr "Waiver"
+
+#: apps/identity/inbox.py
+msgid "Pengembalian dana"
+msgstr "Refund"
+
+#: apps/identity/inbox.py
+#, python-format
+msgid "Hapus buku %(number)s — %(student)s"
+msgstr "Write-off %(number)s — %(student)s"
+
+#: apps/identity/inbox.py
+#, python-format
+msgid "Rapor %(student)s — %(class_group)s"
+msgstr "Report card %(student)s — %(class_group)s"
+
+#: apps/identity/inbox.py
+#, python-format
+msgid "Pengganti %(subject)s — %(class_group)s"
+msgstr "Substitute for %(subject)s — %(class_group)s"
+
+#: apps/identity/inbox.py
+#, python-format
+msgid "%(date)s · jam ke-%(period)s · menggantikan %(teacher)s"
+msgstr "%(date)s · period %(period)s · covering for %(teacher)s"
+
+#: apps/identity/inbox.py
+msgid "Persetujuan keuangan"
+msgstr "Financial approvals"
+
+#: apps/identity/inbox.py
+msgid "Penghapusbukuan piutang"
+msgstr "Receivable write-offs"
+
+#: apps/identity/inbox.py
+msgid "Izin & sakit siswa"
+msgstr "Student leave & sick requests"
+
+#: apps/identity/inbox.py
+msgid "Rapor menunggu tinjauan"
+msgstr "Report cards awaiting review"
+
+#: apps/identity/inbox.py
+msgid "Permintaan mengganti kelas"
+msgstr "Class cover requests"
+
+#: frontend/templates/pages/console_inbox.html
+msgid "Tidak ada tugas yang menunggu Anda saat ini."
+msgstr "Nothing is waiting on you right now."
+
+#: frontend/templates/pages/console_inbox.html
+#, python-format
+msgid "Menampilkan %(shown)s dari %(total)s item."
+msgstr "Showing %(shown)s of %(total)s items."

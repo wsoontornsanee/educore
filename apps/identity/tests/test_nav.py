@@ -62,7 +62,7 @@ class GetNavForUserTests(TestCase):
         )
         nav = get_nav_for_user(self.teacher, self.foundation.id)
         item_ids = {item['id'] for group in nav for item in group['items']}
-        self.assertNotIn('inbox', item_ids)
+        self.assertIn('inbox', item_ids)
         self.assertNotIn('grading', item_ids)
         self.assertNotIn('attendance', item_ids)
         self.assertIn('permission_slips', item_ids)
@@ -73,7 +73,7 @@ class GetNavForUserTests(TestCase):
             self.assertGreater(len(group['items']), 0)
         group_labels = {str(g['label']) for g in nav}
         self.assertNotIn('Administrasi', group_labels)
-        self.assertNotIn('Beranda', group_labels)
+        self.assertIn('Beranda', group_labels)  # inbox is permission-free, so always present
 
     def test_nav_computation_query_count_is_bounded_not_per_item(self):
         """Regression test for the N+1: computing the nav for a user with 2

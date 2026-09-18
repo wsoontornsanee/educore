@@ -4,6 +4,7 @@ from django.urls import include, path
 
 from apps.calendar_sync.views import CalendarOAuthCallbackView
 from apps.identity.web_views import (
+    ConsoleInboxView,
     FoundationMicrosoftTenantSettingsView,
     FoundationOverviewLandingView,
     SchoolAdminTodayLandingView,
@@ -40,6 +41,7 @@ urlpatterns = [
     path('web/auth/', include('apps.identity.web_urls')),
     path('web/login/', WebLoginView.as_view(), name='login'),
     path('web/home/', WebConsoleHomeView.as_view(), name='web-console-home'),
+    path('web/home/inbox/', ConsoleInboxView.as_view(), name='console-inbox'),
     path('web/home/overview/', FoundationOverviewLandingView.as_view(), name='console-home-overview'),
     path('web/home/today/', SchoolAdminTodayLandingView.as_view(), name='console-home-today'),
     path('web/home/agenda/', TeacherAgendaLandingView.as_view(), name='console-home-agenda'),
