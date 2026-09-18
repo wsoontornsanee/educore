@@ -3,32 +3,36 @@
 # Note: Production runs exactly one dedicated cron host (spec/01 §7). This file MUST only be
 # installed on the host with EDUCORE_CRON_HOST=1 set — every command here refuses to run
 # elsewhere (apps.core.management.base.CronHostCommand) unless passed --force.
+# Note: On a shared host, cron minute-fields collide (e.g. every "0 * * * *"-family job fires
+# together at :00). Each line below carries a unique `sleep N` stagger (3s apart, in file
+# order) so no two of this file's own jobs ever start within 3s of each other, keeping CPU/DB
+# connection bursts from piling up. Keep new lines' sleep values unique and increasing.
 
-* * * * *      python /app/manage.py drain_tasks --limit 200            # generic async queue
-* * * * *      python /app/manage.py ingest_device_events               # edge agent event intake sweep
-* * * * *      python /app/manage.py auto_submit_expired_exam_attempts  # ACD-025/026: force-submit past window_end
-*/5 * * * *    python /app/manage.py refresh_reporting --scope=dashboard
-*/5 * * * *    python /app/manage.py sync_payment_status                # poll pending payment intents
-*/10 * * * *   python /app/manage.py check_device_health                # offline device alerts
-*/15 * * * *   python /app/manage.py send_due_notifications             # scheduled + quiet-hours release
-*/15 * * * *   python /app/manage.py sync_calendars                     # spec/14 §6: pull staff Google/Microsoft calendar events
-*/30 * * * *   python /app/manage.py send_wallet_recon_reminders        # 48h clock, delivered-notices only (spec/17 REC-012)
-*/30 * * * *   python /app/manage.py send_counsellor_followup_reminders # BK follow-up task reminders (spec/10 §5, LIF-018)
-*/30 * * * *   python /app/manage.py process_wallet_auto_topups         # WAL-005/WAL-006 threshold-triggered VA/QRIS intents
-0 * * * *      python /app/manage.py expire_sessions
-0 5 * * *      python /app/manage.py pull_bank_statements --date=yesterday  # SFTP stub (CMP-024/026), fails loud
-30 6 * * *     python /app/manage.py mark_absent_students               # after absent_cutoff per school
-55 16 * * *    python /app/manage.py remind_library_loans              # spec/10 §6: overdue loans, dispatched before send_digests folds them in
-0 17 * * *     python /app/manage.py send_digests
-0 18 * * *     python /app/manage.py reconcile_payments --date=today
-0 19 * * *     python /app/manage.py reconcile_wallet_balances
-0 20 * * *     python /app/manage.py refresh_reporting --scope=full
-0 21 * * *     python /app/manage.py run_arrears_ladder
-0 22 * * *     python /app/manage.py enforce_retention --retention-days=7  # idempotency key purge (spec/18 §4)
-0 22 * * *     python /app/manage.py purge_gate_photos --retention-days=90     # CMP-013: gate photo retention (spec/14 §3/§7)
-0 22 * * *     python /app/manage.py purge_biometric_templates     # CMP-010/012: biometric template deletion on withdrawal/exit (spec/14 §3/§7)
-0 23 * * *     python /app/manage.py backup_database
-0 1 * * *      python /app/manage.py invoice_stale_reconciliations      # 7d handover to arrears (spec/17 REC-013)
-25 2 25 * *    python /app/manage.py generate_invoices --next-period
-0 3 1 * *      python /app/manage.py close_metering_month
-0 4 * * 0      python /app/manage.py settle_merchants
+* * * * *      sleep 0; python /app/manage.py drain_tasks --limit 200            # generic async queue
+* * * * *      sleep 3; python /app/manage.py ingest_device_events               # edge agent event intake sweep
+* * * * *      sleep 6; python /app/manage.py auto_submit_expired_exam_attempts  # ACD-025/026: force-submit past window_end
+*/5 * * * *    sleep 9; python /app/manage.py refresh_reporting --scope=dashboard
+*/5 * * * *    sleep 12; python /app/manage.py sync_payment_status                # poll pending payment intents
+*/10 * * * *   sleep 15; python /app/manage.py check_device_health                # offline device alerts
+*/15 * * * *   sleep 18; python /app/manage.py send_due_notifications             # scheduled + quiet-hours release
+*/15 * * * *   sleep 21; python /app/manage.py sync_calendars                     # spec/14 §6: pull staff Google/Microsoft calendar events
+*/30 * * * *   sleep 24; python /app/manage.py send_wallet_recon_reminders        # 48h clock, delivered-notices only (spec/17 REC-012)
+*/30 * * * *   sleep 27; python /app/manage.py send_counsellor_followup_reminders # BK follow-up task reminders (spec/10 §5, LIF-018)
+*/30 * * * *   sleep 30; python /app/manage.py process_wallet_auto_topups         # WAL-005/WAL-006 threshold-triggered VA/QRIS intents
+0 * * * *      sleep 33; python /app/manage.py expire_sessions
+0 5 * * *      sleep 36; python /app/manage.py pull_bank_statements --date=yesterday  # SFTP stub (CMP-024/026), fails loud
+30 6 * * *     sleep 39; python /app/manage.py mark_absent_students               # after absent_cutoff per school
+55 16 * * *    sleep 42; python /app/manage.py remind_library_loans              # spec/10 §6: overdue loans, dispatched before send_digests folds them in
+0 17 * * *     sleep 45; python /app/manage.py send_digests
+0 18 * * *     sleep 48; python /app/manage.py reconcile_payments --date=today
+0 19 * * *     sleep 51; python /app/manage.py reconcile_wallet_balances
+0 20 * * *     sleep 54; python /app/manage.py refresh_reporting --scope=full
+0 21 * * *     sleep 57; python /app/manage.py run_arrears_ladder
+0 22 * * *     sleep 60; python /app/manage.py enforce_retention --retention-days=7  # idempotency key purge (spec/18 §4)
+0 22 * * *     sleep 63; python /app/manage.py purge_gate_photos --retention-days=90     # CMP-013: gate photo retention (spec/14 §3/§7)
+0 22 * * *     sleep 66; python /app/manage.py purge_biometric_templates     # CMP-010/012: biometric template deletion on withdrawal/exit (spec/14 §3/§7)
+0 23 * * *     sleep 69; python /app/manage.py backup_database
+0 1 * * *      sleep 72; python /app/manage.py invoice_stale_reconciliations      # 7d handover to arrears (spec/17 REC-013)
+25 2 25 * *    sleep 75; python /app/manage.py generate_invoices --next-period
+0 3 1 * *      sleep 78; python /app/manage.py close_metering_month
+0 4 * * 0      sleep 81; python /app/manage.py settle_merchants
