@@ -75,6 +75,7 @@ MIDDLEWARE = [
     # handlers to reference it via request.request_id.
     'educore.middleware.logging.RequestLoggingMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'educore.middleware.i18n.ForceDefaultLanguageMiddleware',
     'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
