@@ -1,0 +1,56 @@
+{% extends "marketing/base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Perjanjian Pemrosesan Data (UU PDP) — EduCore" %}{% endblock %}
+
+{% block content %}
+<section class="site-container" style="padding-top: 40px;">
+  <span class="site-eyebrow">{% translate "Kepatuhan" %}</span>
+  <h1 class="site-hero-title" style="font-size: 2.5rem;">{% translate "Perjanjian Pemrosesan Data (UU PDP)" %}</h1>
+  <p class="site-hero-lede" style="max-width: 60ch;">{% translate "Ringkasan Perjanjian Pemrosesan Data (Data Processing Agreement) yang mengikat setiap kontrak berlangganan EduCore, sesuai UU No. 27 Tahun 2022 tentang Pelindungan Data Pribadi." %}</p>
+</section>
+
+<div class="site-container doc-layout">
+  <aside class="doc-toc">
+    <span class="doc-toc-eyebrow">{% translate "Daftar isi" %}</span>
+    <ul>
+      <li><a href="#pihak">{% translate "Para pihak" %}</a></li>
+      <li><a href="#ruang-lingkup">{% translate "Ruang lingkup pemrosesan" %}</a></li>
+      <li><a href="#kewajiban">{% translate "Kewajiban EduCore sebagai pemroses" %}</a></li>
+      <li><a href="#subprosesor">{% translate "Subpemroses pihak ketiga" %}</a></li>
+      <li><a href="#hak-yayasan">{% translate "Hak yayasan sebagai pengendali" %}</a></li>
+      <li><a href="#pengakhiran">{% translate "Pengakhiran & pengembalian data" %}</a></li>
+      <li><a href="#kontak">{% translate "Kontak" %}</a></li>
+    </ul>
+  </aside>
+
+  <div class="doc-content">
+    <h2 id="pihak">{% translate "Para pihak" %}</h2>
+    <p>{% translate "Perjanjian ini berlaku antara yayasan/sekolah pelanggan (Pengendali Data) dan PT Astra Digital Solusi, penyedia EduCore (Pemroses Data). Salinan yang ditandatangani menjadi lampiran kontrak berlangganan setiap yayasan dan mengikat secara hukum sejak tanggal aktivasi akun." %}</p>
+
+    <h2 id="ruang-lingkup">{% translate "Ruang lingkup pemrosesan" %}</h2>
+    <table>
+      <tr><th>{% translate "Aspek" %}</th><th>{% translate "Ketentuan" %}</th></tr>
+      <tr><td>{% translate "Subjek data" %}</td><td>{% translate "Siswa, orang tua/wali, dan staf yayasan" %}</td></tr>
+      <tr><td>{% translate "Kategori data" %}</td><td>{% translate "Identitas, kehadiran, akademik, keuangan, kepegawaian, dan (opsional) biometrik/kesehatan" %}</td></tr>
+      <tr><td>{% translate "Tujuan" %}</td><td>{% translate "Semata-mata untuk menjalankan layanan EduCore sesuai instruksi tertulis yayasan" %}</td></tr>
+      <tr><td>{% translate "Durasi" %}</td><td>{% translate "Sepanjang masa berlangganan, ditambah periode retensi statutori yang berlaku" %}</td></tr>
+    </table>
+
+    <h2 id="kewajiban">{% translate "Kewajiban EduCore sebagai pemroses" %}</h2>
+    <p>{% translate "EduCore memproses data pribadi hanya berdasarkan instruksi terdokumentasi dari yayasan, menjaga kerahasiaan data, menerapkan enkripsi TLS 1.3 saat transit dan AES-256 saat tersimpan, membatasi akses staf internal secara terbatas waktu dan teraudit, serta membantu yayasan memenuhi permintaan hak subjek data dan kewajiban pelaporan insiden dalam waktu 3×24 jam sejak insiden terdeteksi." %}</p>
+
+    <h2 id="subprosesor">{% translate "Subpemroses pihak ketiga" %}</h2>
+    <p>{% translate "Daftar subpemroses (mis. penyedia infrastruktur cloud, gateway pembayaran, penyedia WhatsApp Business API) dipublikasikan beserta tujuan dan lokasi pemrosesannya. Penambahan subpemroses baru memerlukan penilaian dampak pelindungan data (DPIA) terdokumentasi sebelum diaktifkan." %}</p>
+
+    <h2 id="hak-yayasan">{% translate "Hak yayasan sebagai pengendali" %}</h2>
+    <p>{% translate "Yayasan berhak meminta audit kepatuhan, salinan log akses ke data pribadinya, dan bukti pemenuhan kewajiban keamanan. Yayasan tetap menjadi satu-satunya pihak yang berwenang menginstruksikan perubahan tujuan pemrosesan." %}</p>
+
+    <h2 id="pengakhiran">{% translate "Pengakhiran & pengembalian data" %}</h2>
+    <p>{% translate "Saat kontrak berakhir, yayasan dapat meminta ekspor lengkap datanya. Data dihapus dari sistem produksi setelah periode retensi statutori terpenuhi, sebagaimana dijelaskan pada" %} <a href="{% url 'marketing:data-retention' %}">{% translate "halaman retensi data" %}</a>.</p>
+
+    <h2 id="kontak">{% translate "Kontak" %}</h2>
+    <p>{% translate "Untuk menerima salinan lengkap Perjanjian Pemrosesan Data yang dapat ditandatangani, hubungi" %} <a href="mailto:support@makan.live">support@makan.live</a>.</p>
+  </div>
+</div>
+{% endblock %}
