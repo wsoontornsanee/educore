@@ -55,3 +55,10 @@ class StatusPageViewTests(TestCase):
     def test_english_locale_query_param(self):
         response = self.client.get(reverse('status:page'), {'lang': 'EN'})
         self.assertContains(response, 'All systems operational')
+
+    def test_metrics_show_em_dash_when_no_data(self):
+        # setUp creates no DailyComponentStatus/ComponentHeartbeat rows, so
+        # get_uptime_percentage/get_average_latency_ms return None and the
+        # template's em-dash fallback path should render.
+        response = self.client.get(reverse('status:page'))
+        self.assertContains(response, '—')  # em dash (U+2014)
