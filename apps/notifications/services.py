@@ -276,6 +276,10 @@ def render_template_message(
         elif template_key == 'device.offline':
             body_fmt = "Perangkat {device_name} di {school_name} ({location}) terdeteksi offline. Mohon segera diperiksa."
             subj_fmt = "Peringatan: Perangkat Offline"
+        elif template_key == 'notifications.daily_digest':
+            # Body is fully pre-rendered by build_digest_body() before dispatch_intent is called.
+            body_fmt = "{digest_body}"
+            subj_fmt = "Ringkasan Aktivitas Harian EduCore"
         else:
             body_fmt = "Pemberitahuan sekolah: {message}"
             subj_fmt = "Pemberitahuan EduCore"
@@ -508,6 +512,150 @@ def process_intent(intent_id: int) -> bool:
             return False
 
         return True
+
+
+# NTF-007: human-readable section headers for the daily digest, keyed by the
+# categories flagged digest_only in CATEGORY_CONFIG (spec/13 §3's "digest" column).
+DIGEST_SECTION_LABELS = {
+    NotificationCategory.BEHAVIOUR_MINOR: _("Perilaku & Catatan Guru"),
+    NotificationCategory.HOMEWORK: _("Tugas Sekolah"),
+    NotificationCategory.CANTEEN: _("Ringkasan Keuangan/Kantin"),
+}
+
+
+def _digest_recipient_key(intent: NotificationIntent) -> Optional[tuple]:
+    """Groups digest items by recipient identity so siblings under one guardian collapse
+    into a single message. Falls back from user id to phone to email, matching the same
+    target-resolution order process_intent already uses for delivery."""
+    if intent.recipient_user_id:
+        return ('user', intent.recipient_user_id)
+    if intent.recipient_phone:
+        return ('phone', intent.recipient_phone)
+    if intent.recipient_email:
+        return ('email', intent.recipient_email)
+    return None
+
+
+def _format_digest_line(intent: NotificationIntent) -> str:
+    """Renders one summary line for a held intent, using the same payload shape its
+    original dispatch_intent() call already populated (see apps.academic.services,
+    apps.campus.services)."""
+    payload = intent.payload or {}
+    student_name = payload.get('student_name', '')
+    if intent.category == NotificationCategory.HOMEWORK:
+        subject = payload.get('subject', '')
+        title = payload.get('title', '')
+        due_at = payload.get('due_at', '')
+        prefix = f"{student_name}: " if student_name else ''
+        return f"{prefix}{subject} - {title} (batas: {due_at})".strip(' -')
+    if intent.category == NotificationCategory.BEHAVIOUR_MINOR:
+        reason_label = payload.get('reason_label', '')
+        points = payload.get('points', '')
+        return f"{student_name or 'Siswa'}: {reason_label} ({points} poin)".strip()
+    if intent.category == NotificationCategory.CANTEEN:
+        summary = payload.get('summary', '')
+        return f"{student_name or 'Siswa'}: {summary}".strip(': ')
+    return f"{student_name or intent.get_category_display()}"
+
+
+def build_digest_body(sections: Dict[str, List[str]]) -> str:
+    """Assembles the id-ID digest text from non-empty sections, in DIGEST_SECTION_LABELS order."""
+    lines = []
+    for label, items in sections.items():
+        if not items:
+            continue
+        lines.append(f"*{label}*")
+        lines.extend(f"- {item}" for item in items)
+        lines.append("")
+    return "\n".join(lines).strip()
+
+
+def run_daily_digest(
+    foundation_id: int,
+    as_of: Optional[datetime.datetime] = None,
+    channel: Optional[str] = None,
+    dry_run: bool = False,
+) -> Dict[str, int]:
+    """
+    Aggregates digest_only-category PENDING intents into one daily message per recipient
+    (spec/13 §3, NTF-007). Must run inside `with tenant_context(foundation_id):` — reuses
+    dispatch_intent()'s tenant-scoped dedup/rate-limit checks.
+    """
+    as_of = as_of or timezone.now()
+    digest_categories = [cat for cat, cfg in CATEGORY_CONFIG.items() if cfg.get('digest_only')]
+
+    pending_items = list(
+        NotificationIntent.all_tenants.filter(
+            foundation_id=foundation_id,
+            category__in=digest_categories,
+            status=IntentStatus.PENDING,
+            deleted_at__isnull=True,
+        ).order_by('created_at')
+    ) if digest_categories else []
+
+    groups: Dict[tuple, List[NotificationIntent]] = {}
+    for item in pending_items:
+        key = _digest_recipient_key(item)
+        if key is None:
+            logger.warning(f"NotificationIntent #{item.id} has no usable recipient target; skipped from digest.")
+            continue
+        groups.setdefault(key, []).append(item)
+
+    date_str = timezone.localtime(as_of).strftime('%Y-%m-%d')
+    recipients_processed = 0
+    items_digested = 0
+    digests_sent = 0
+
+    for key, items in groups.items():
+        first = items[0]
+        sections: Dict[str, List[str]] = {str(label): [] for label in DIGEST_SECTION_LABELS.values()}
+        for item in items:
+            label = str(DIGEST_SECTION_LABELS.get(item.category, item.get_category_display()))
+            sections.setdefault(label, []).append(_format_digest_line(item))
+
+        digest_body = build_digest_body(sections)
+        if not digest_body:
+            continue
+
+        recipients_processed += 1
+
+        if dry_run:
+            items_digested += len(items)
+            continue
+
+        recipient_phone = first.recipient_phone
+        recipient_email = first.recipient_email
+        if channel == 'whatsapp':
+            recipient_email = ''
+        elif channel == 'email':
+            recipient_phone = ''
+
+        dispatch_intent(
+            foundation_id=foundation_id,
+            school_id=first.school_id,
+            recipient_user=first.recipient_user,
+            recipient_phone=recipient_phone,
+            recipient_email=recipient_email,
+            recipient_name=first.recipient_name,
+            category=NotificationCategory.DAILY_DIGEST,
+            template_key='notifications.daily_digest',
+            payload={'digest_body': digest_body, 'date': date_str},
+            priority=NotificationPriority.NORMAL,
+            dedupe_key=f"daily_digest:{foundation_id}:{date_str}:{key[0]}:{key[1]}",
+            immediate=True,
+        )
+        digests_sent += 1
+
+        NotificationIntent.all_tenants.filter(
+            id__in=[item.id for item in items]
+        ).update(status=IntentStatus.DIGESTED, sent_at=as_of)
+        items_digested += len(items)
+
+    return {
+        'recipients': recipients_processed,
+        'items_digested': items_digested,
+        'digests_sent': digests_sent,
+    }
 
 
 def handle_gate_scanned_event(

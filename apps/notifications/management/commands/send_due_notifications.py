@@ -3,8 +3,12 @@ from django.utils import timezone
 from apps.core.locks import advisory_lock
 from apps.core.management.base import CronHostCommand
 from apps.core.models import JobRun
-from apps.notifications.models import IntentStatus, NotificationIntent
+from apps.notifications.models import CATEGORY_CONFIG, IntentStatus, NotificationIntent
 from apps.notifications.services import process_intent
+
+# NTF-007: categories flagged digest_only are deliberately held for send_digests'
+# evening aggregation instead of being dispatched individually on this 15-min tick.
+DIGEST_ONLY_CATEGORIES = [cat for cat, cfg in CATEGORY_CONFIG.items() if cfg.get('digest_only')]
 
 
 class Command(CronHostCommand):
@@ -45,6 +49,8 @@ class Command(CronHostCommand):
                         status=IntentStatus.PENDING,
                         scheduled_for__lte=now,
                         deleted_at__isnull=True,
+                    ).exclude(
+                        category__in=DIGEST_ONLY_CATEGORIES
                     ).order_by('scheduled_for')[:limit]
                 )
 
