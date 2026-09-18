@@ -185,3 +185,26 @@ class StatusIncidentManageViewTests(TestCase):
         incident.refresh_from_db()
         self.assertTrue(incident.published)
         self.assertEqual(incident.updated_by, self.operator)
+
+    def test_toggle_unpublish(self):
+        # The manage.html unpublish form omits the `published` field entirely
+        # (unlike the publish form, which sends `published=on`) — this was
+        # the one direction test_toggle_publish never exercised.
+        incident = StatusIncident.objects.create(
+            severity=StatusIncident.SEVERITY_MINOR, title_id='A', title_en='A',
+            body_id='A', body_en='A', occurred_at=timezone.now(), duration_minutes=5, published=True,
+        )
+        other_operator = User.objects.create(
+            phone_e164='+6281200000012', full_name='Op Two', foundation_id=self.foundation.id,
+        )
+        other_operator.set_password('pw12345')
+        other_operator.save()
+        PlatformRoleAssignment.objects.create(user=other_operator, role=PlatformRoleAssignment.ROLE_PLATFORM_OPERATOR)
+        self.client.force_login(other_operator)
+
+        url = reverse('status_manage:incident-update', args=[incident.id])
+        response = self.client.post(url, {})
+        self.assertEqual(response.status_code, 302)
+        incident.refresh_from_db()
+        self.assertFalse(incident.published)
+        self.assertEqual(incident.updated_by, other_operator)
