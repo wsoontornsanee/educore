@@ -7333,3 +7333,25 @@ msgstr "%(subject)s · %(class_group)s · due %(due)s"
 msgid "Nama"
 msgstr "Name"
 
+
+
+#: apps/identity/inbox.py
+msgid "Catatan (opsional)"
+msgstr "Note (optional)"
+
+#: apps/identity/inbox.py
+msgid "Setujui"
+msgstr "Approve"
+
+#: apps/identity/inbox.py
+msgid "Alasan (wajib jika menolak)"
+msgstr "Reason (required to decline)"
+
+#: apps/identity/web_views.py
+msgid "Keputusan tersimpan."
+msgstr "Decision saved."
+
+#: apps/identity/web_views.py
+msgid "Item ini sudah tidak menunggu tindakan Anda."
+msgstr "This item is no longer waiting on you."
+

@@ -33,13 +33,22 @@ rows and items only the first `limit` of them, so a long queue never loads
 every row — and the nav badge (get_inbox_count) reuses the exact same
 sources with limit=0, so its number can never drift from the page's.
 
+Absence requests, report cards and substitutions can also be decided in
+place (perform_inbox_action). The item being acted on is looked up through
+the SAME scoped queryset that lists it, so "can act" and "is shown" cannot
+drift apart, and the decision itself always goes through the owning app's
+service (state check, side effects, audit stay in one place). Finance
+approvals and write-offs stay read-only here: money-moving decisions belong
+to the Keuangan console.
+
 Other apps' models are imported lazily inside each source (the same
 leaf-to-leaf pattern apps.foundation.approvals uses) so apps.identity keeps
 no import-time dependency on them.
 """
 from datetime import datetime
-from typing import NamedTuple
+from typing import Callable, NamedTuple
 
+from django.core.exceptions import ValidationError
 from django.utils import formats, timezone
 from django.utils.dateparse import parse_datetime
 from django.utils.translation import gettext as _, gettext_lazy as _lazy
@@ -55,10 +64,20 @@ from .rbac import SCOPE_SCHOOL, get_user_permissions, is_foundation_admin
 ITEMS_PER_SECTION = 25
 
 
+class InboxAction(NamedTuple):
+    key: str
+    label: str
+
+
 class InboxItem(NamedTuple):
     title: str
     detail: str
     requested_at: datetime
+    # Set only on items that can be decided in place (see _ACTIONS).
+    kind: str = ''
+    pk: int = 0
+    actions: tuple = ()
+    note_hint: str = ''
 
 
 def _school_scope(user, foundation_id, permission):
@@ -127,37 +146,141 @@ def _write_offs(user, foundation_id, limit):
     ]
 
 
-def _absence_requests(user, foundation_id, limit):
+class InboxActionError(Exception):
+    """A decision the owning service refused (already decided, missing reason…)."""
+
+
+def _absence_request_qs(user, foundation_id):
     scope = _school_scope(user, foundation_id, 'attendance.write')
     if scope is not None and not scope:
-        return 0, []
+        return None
     from apps.attendance.models import AbsenceRequest, AbsenceRequestStatus
 
     qs = AbsenceRequest.objects.filter(
         foundation_id=foundation_id, status=AbsenceRequestStatus.PENDING, deleted_at__isnull=True,
     ).select_related('student__person').order_by('-created_at')
-    qs = _in_scope(qs, scope, 'school_id')
-    return qs.count(), [
-        InboxItem(
-            title=f"{r.student.person.full_name} — {r.get_type_display()}",
-            detail=f"{r.date_from:%d/%m/%Y} – {r.date_to:%d/%m/%Y} · {r.reason}",
-            requested_at=r.created_at,
-        )
-        for r in qs[:limit]
-    ]
+    return _in_scope(qs, scope, 'school_id')
 
 
-def _report_cards(user, foundation_id, limit):
+def _report_card_qs(user, foundation_id):
     scope = _school_scope(user, foundation_id, 'school_config.write')
     if scope is not None and not scope:
-        return 0, []
+        return None
     from apps.academic.models import ReportCard, ReportCardStatus
 
     qs = ReportCard.objects.filter(
         foundation_id=foundation_id, status=ReportCardStatus.PENDING_REVIEW, is_current=True,
         deleted_at__isnull=True,
     ).select_related('student__person', 'class_group', 'term').order_by('-created_at')
-    qs = _in_scope(qs, scope, 'class_group__school_id')
+    return _in_scope(qs, scope, 'class_group__school_id')
+
+
+def _substitution_qs(user, foundation_id):
+    staff_ids = list(Staff.all_tenants.filter(
+        foundation_id=foundation_id, user=user, deleted_at__isnull=True,
+    ).values_list('id', flat=True))
+    if not staff_ids:
+        return None
+    from apps.academic.models import SubstitutionStatus, TimetableSubstitution
+
+    return TimetableSubstitution.objects.filter(
+        foundation_id=foundation_id, substitute_teacher_id__in=staff_ids, status=SubstitutionStatus.PENDING,
+        date__gte=timezone.localdate(), deleted_at__isnull=True,
+    ).select_related(
+        'slot__class_subject__class_group', 'slot__class_subject__subject', 'original_teacher__person',
+    ).order_by('date', 'slot__period_no')
+
+
+def _decide_absence(decide, obj, user, note):
+    try:
+        decide(obj, decided_by=user, note=note)
+    except ValidationError as exc:
+        raise InboxActionError(exc.messages[0])
+
+
+def _approve_absence(obj, user, note):
+    from apps.attendance.services import approve_absence_request
+    _decide_absence(approve_absence_request, obj, user, note)
+
+
+def _reject_absence(obj, user, note):
+    from apps.attendance.services import reject_absence_request
+    _decide_absence(reject_absence_request, obj, user, note)
+
+
+def _approve_report_card(obj, user, note):
+    from apps.academic.services import ReportCardStateError, approve_report_card
+    try:
+        approve_report_card(obj, actor=user)
+    except ReportCardStateError as exc:
+        raise InboxActionError(str(exc))
+
+
+def _accept_substitution(obj, user, note):
+    from apps.academic.services import accept_substitution
+    accept_substitution(obj, actor=user)
+
+
+def _decline_substitution(obj, user, note):
+    from apps.academic.services import SubstitutionDeclineReasonRequiredError, decline_substitution
+    try:
+        decline_substitution(obj, reason=note, actor=user)
+    except SubstitutionDeclineReasonRequiredError as exc:
+        raise InboxActionError(str(exc))
+
+
+class _ActionSpec(NamedTuple):
+    queryset: Callable  # (user, foundation_id) -> scoped pending queryset, or None
+    note_hint: str      # placeholder for the shared note field; '' = no note field
+    handlers: dict      # action key -> (button label, handler(obj, user, note))
+
+
+# Sections that can be decided in place, keyed by the `kind` carried on each
+# item and used in the action URL.
+_ACTIONS = {
+    'absence_request': _ActionSpec(_absence_request_qs, _lazy("Catatan (opsional)"), {
+        'approve': (_lazy("Setujui"), _approve_absence),
+        'reject': (_lazy("Tolak"), _reject_absence),
+    }),
+    'report_card': _ActionSpec(_report_card_qs, '', {
+        'approve': (_lazy("Setujui"), _approve_report_card),
+    }),
+    'substitution': _ActionSpec(_substitution_qs, _lazy("Alasan (wajib jika menolak)"), {
+        'accept': (_lazy("Terima"), _accept_substitution),
+        'decline': (_lazy("Tolak"), _decline_substitution),
+    }),
+}
+
+
+def _action_fields(kind, pk):
+    spec = _ACTIONS[kind]
+    return {
+        'kind': kind,
+        'pk': pk,
+        'actions': tuple(InboxAction(key, label) for key, (label, _handler) in spec.handlers.items()),
+        'note_hint': spec.note_hint,
+    }
+
+
+def _absence_requests(user, foundation_id, limit):
+    qs = _absence_request_qs(user, foundation_id)
+    if qs is None:
+        return 0, []
+    return qs.count(), [
+        InboxItem(
+            title=f"{r.student.person.full_name} — {r.get_type_display()}",
+            detail=f"{r.date_from:%d/%m/%Y} – {r.date_to:%d/%m/%Y} · {r.reason}",
+            requested_at=r.created_at,
+            **_action_fields('absence_request', r.pk),
+        )
+        for r in qs[:limit]
+    ]
+
+
+def _report_cards(user, foundation_id, limit):
+    qs = _report_card_qs(user, foundation_id)
+    if qs is None:
+        return 0, []
     return qs.count(), [
         InboxItem(
             title=_("Rapor %(student)s — %(class_group)s") % {
@@ -165,25 +288,16 @@ def _report_cards(user, foundation_id, limit):
             },
             detail=r.term.name,
             requested_at=r.created_at,
+            **_action_fields('report_card', r.pk),
         )
         for r in qs[:limit]
     ]
 
 
 def _substitutions(user, foundation_id, limit):
-    staff_ids = list(Staff.all_tenants.filter(
-        foundation_id=foundation_id, user=user, deleted_at__isnull=True,
-    ).values_list('id', flat=True))
-    if not staff_ids:
+    qs = _substitution_qs(user, foundation_id)
+    if qs is None:
         return 0, []
-    from apps.academic.models import SubstitutionStatus, TimetableSubstitution
-
-    qs = TimetableSubstitution.objects.filter(
-        foundation_id=foundation_id, substitute_teacher_id__in=staff_ids, status=SubstitutionStatus.PENDING,
-        date__gte=timezone.localdate(), deleted_at__isnull=True,
-    ).select_related(
-        'slot__class_subject__class_group', 'slot__class_subject__subject', 'original_teacher__person',
-    ).order_by('date', 'slot__period_no')
     return qs.count(), [
         InboxItem(
             title=_("Pengganti %(subject)s — %(class_group)s") % {
@@ -194,6 +308,7 @@ def _substitutions(user, foundation_id, limit):
                 'teacher': s.original_teacher.person.full_name,
             },
             requested_at=s.created_at,
+            **_action_fields('substitution', s.pk),
         )
         for s in qs[:limit]
     ]
@@ -250,6 +365,24 @@ def _homework_to_grade(user, foundation_id, limit):
         )
         for h in qs[:limit]
     ]
+
+
+def perform_inbox_action(user, foundation_id, kind, pk, action, note=''):
+    """Decide one inbox item in place; returns True if applied.
+
+    Raises KeyError for an unknown kind/action (a tampered URL), and
+    InboxActionError when the owning service refuses. Returns False when the
+    item is not (or no longer) in the user's own actionable set — already
+    decided by someone else, out of their school scope, another tenant's."""
+    spec = _ACTIONS[kind]
+    _label, handler = spec.handlers[action]
+    with tenant_context(foundation_id):
+        qs = spec.queryset(user, foundation_id)
+        obj = qs.filter(pk=pk).first() if qs is not None else None
+        if obj is None:
+            return False
+        handler(obj, user, (note or '').strip())
+    return True
 
 
 # (section id, label, source). List order is the render order.
