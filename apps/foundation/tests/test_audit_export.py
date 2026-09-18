@@ -9,7 +9,9 @@ from rest_framework.test import APITestCase
 
 from apps.core.models import AuditEvent, ExportJob
 from apps.identity.models import Foundation, School, User
-from apps.identity.rbac import assign_role, ROLE_FOUNDATION_ADMIN, SCOPE_FOUNDATION
+from apps.identity.rbac import (
+    assign_role, ROLE_FOUNDATION_ADMIN, ROLE_SCHOOL_ADMIN, SCOPE_FOUNDATION, SCOPE_SCHOOL,
+)
 from educore.middleware.tenancy import clear_current_foundation_id, tenant_context
 
 
@@ -156,3 +158,80 @@ class FoundationAuditExportTests(APITestCase):
         data = upload_call.call_args[0][0]
         rows = list(csv.reader(io.StringIO(data.decode('utf-8-sig'))))
         self.assertEqual(len(rows) - 1, 3)  # header + capped rows, not the 5 that matched
+
+
+class FoundationAuditExportSchoolScopeTests(APITestCase):
+    """A school-scoped audit_log.read holder must only ever export their own
+    schools' events, whatever `filters` the client sends."""
+
+    def setUp(self):
+        clear_current_foundation_id()
+        self.foundation = Foundation.objects.create(
+            legal_name="Yayasan Cakupan", brand_name="Cakupan", npwp="01.555.444.3-001.000",
+        )
+        self.school_a = School.all_tenants.create(
+            foundation_id=self.foundation.id, name="SMA A", npsn="41100001", level=School.LEVEL_SMA,
+        )
+        self.school_b = School.all_tenants.create(
+            foundation_id=self.foundation.id, name="SMP B", npsn="41100002", level=School.LEVEL_SMP,
+        )
+        self.admin = User.all_tenants.create_user(
+            phone_e164="+6281888800001", foundation_id=self.foundation.id, full_name="Ketua",
+        )
+        assign_role(
+            user=self.admin, role=ROLE_FOUNDATION_ADMIN, scope_type=SCOPE_FOUNDATION,
+            scope_id=self.foundation.id, foundation_id=self.foundation.id,
+        )
+        self.school_admin_a = User.all_tenants.create_user(
+            phone_e164="+6281888800002", foundation_id=self.foundation.id, full_name="Admin A",
+        )
+        assign_role(
+            user=self.school_admin_a, role=ROLE_SCHOOL_ADMIN, scope_type=SCOPE_SCHOOL,
+            scope_id=self.school_a.id, foundation_id=self.foundation.id,
+        )
+        for school_id, action in ((self.school_a.id, 'a.event'), (self.school_b.id, 'b.event'), (None, 'fnd.event')):
+            AuditEvent.objects.create(
+                foundation_id=self.foundation.id, school_id=school_id, actor_id='1',
+                action=action, entity_type='X', entity_id='1',
+            )
+
+    def tearDown(self):
+        clear_current_foundation_id()
+
+    def _export_actions(self, user, filters=None):
+        with mock.patch('apps.core.storage._client') as mock_client:
+            mock_client.return_value.bucket.return_value.blob.return_value.generate_signed_url.return_value = (
+                'https://signed.example/download.csv'
+            )
+            self.client.force_authenticate(user=user)
+            with tenant_context(self.foundation.id):
+                body = {'report': 'foundation_audit', 'format': 'csv'}
+                if filters is not None:
+                    body['filters'] = filters
+                response = self.client.post('/api/v1/foundation/exports', data=body, format='json')
+            self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+            call_command('drain_tasks', limit=10)
+            data = mock_client.return_value.bucket.return_value.blob.return_value.upload_from_string.call_args[0][0]
+        rows = list(csv.reader(io.StringIO(data.decode('utf-8-sig'))))[1:]
+        return sorted(row[6] for row in rows), ExportJob.all_tenants.get(id=response.data['job_id'])
+
+    def test_school_admin_exports_only_their_school(self):
+        actions, job = self._export_actions(self.school_admin_a)
+        self.assertEqual(actions, ['a.event'])  # not b.event, not the school-less fnd.event
+        self.assertEqual(job.filters['school_ids'], [self.school_a.id])
+
+    def test_client_supplied_school_ids_cannot_widen_the_ceiling(self):
+        actions, job = self._export_actions(
+            self.school_admin_a, {'school_ids': [self.school_a.id, self.school_b.id], 'school': self.school_b.id},
+        )
+        self.assertEqual(actions, [])  # `school` can only narrow within the ceiling
+        self.assertEqual(job.filters['school_ids'], [self.school_a.id])
+
+    def test_foundation_admin_exports_everything_and_school_ids_is_ignored(self):
+        actions, job = self._export_actions(self.admin, {'school_ids': [self.school_a.id]})
+        self.assertEqual(actions, ['a.event', 'b.event', 'fnd.event'])
+        self.assertNotIn('school_ids', job.filters)
+
+    def test_non_dict_filters_do_not_crash_the_scoped_export(self):
+        actions, _job = self._export_actions(self.school_admin_a, ['not', 'a', 'dict'])
+        self.assertEqual(actions, ['a.event'])
