@@ -5,7 +5,9 @@ from rest_framework.test import APITestCase
 
 from apps.core.models import AuditEvent
 from apps.identity.models import Foundation, School, User
-from apps.identity.rbac import assign_role, ROLE_FOUNDATION_ADMIN, ROLE_TEACHER, SCOPE_FOUNDATION
+from apps.identity.rbac import (
+    assign_role, ROLE_FOUNDATION_ADMIN, ROLE_SCHOOL_ADMIN, ROLE_TEACHER, SCOPE_FOUNDATION, SCOPE_SCHOOL,
+)
 from educore.middleware.tenancy import clear_current_foundation_id, tenant_context
 
 
@@ -69,6 +71,27 @@ class FoundationAuditEventViewTests(APITestCase):
             ids = {row['id'] for row in response.data['results']}
             self.assertEqual(ids, {self.event_finance.id, self.event_identity.id})
 
+    def test_school_scoped_viewer_sees_only_their_schools_events(self):
+        school_admin = User.all_tenants.create_user(
+            phone_e164="+6281999999997", foundation_id=self.foundation.id, full_name="Admin Sekolah",
+        )
+        assign_role(
+            user=school_admin, role=ROLE_SCHOOL_ADMIN, scope_type=SCOPE_SCHOOL,
+            scope_id=self.school.id, foundation_id=self.foundation.id,
+        )
+        school_less = AuditEvent.objects.create(
+            foundation_id=self.foundation.id, actor_id='1', action='foundation.settings.updated',
+            entity_type='Foundation', entity_id='1',
+        )
+        self.client.force_authenticate(user=school_admin)
+        with tenant_context(self.foundation.id):
+            response = self.client.get('/api/v1/foundation/audit')
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual({row['id'] for row in response.data['results']}, {self.event_finance.id})
+            # a `school` filter can only narrow within the ceiling, never reach another school
+            response = self.client.get('/api/v1/foundation/audit', {'school': self.other_school.id})
+            self.assertEqual(response.data['results'], [])
+
     def test_filter_by_module(self):
         self.client.force_authenticate(user=self.admin)
         with tenant_context(self.foundation.id):
@@ -101,7 +124,7 @@ class FoundationAuditEventViewTests(APITestCase):
 
     def test_filter_by_date_range_excludes_out_of_range(self):
         self.client.force_authenticate(user=self.admin)
-        future = (timezone.now() + timezone.timedelta(days=1)).date().isoformat()
+        future = (timezone.localdate() + timezone.timedelta(days=1)).isoformat()
         with tenant_context(self.foundation.id):
             response = self.client.get(f'/api/v1/foundation/audit?from={future}')
             self.assertEqual(response.data['results'], [])

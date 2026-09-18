@@ -24,6 +24,7 @@ from apps.core.services import (
     get_export_permission,
     get_export_renderer,
 )
+from apps.identity.console_access import accessible_school_ids
 from apps.identity.models import Foundation, School
 from apps.identity.permissions import HasRequiredPermission
 from educore.middleware.tenancy import get_current_foundation_id
@@ -45,6 +46,7 @@ from .serializers import (
     SchoolSerializer,
 )
 from .services import (
+    REPORT_KEY_FOUNDATION_AUDIT,
     REPORT_KEY_FOUNDATION_DASHBOARD,
     filter_foundation_audit_events,
     filter_foundation_kpis,
@@ -823,15 +825,32 @@ class FoundationExportView(views.APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        filters = request.data.get('filters') or {}
+        if report == REPORT_KEY_FOUNDATION_AUDIT:
+            filters = self._with_audit_school_ceiling(request, foundation_id, filters)
+
         job = create_export_job(
             report_key=report,
             export_format=export_format,
-            filters=request.data.get('filters') or {},
+            filters=filters,
             foundation_id=foundation_id,
             requested_by=str(request.user.id),
             requested_by_name=getattr(request.user, 'full_name', '') or '',
         )
         return Response({'job_id': job.id}, status=status.HTTP_202_ACCEPTED)
+
+
+    @staticmethod
+    def _with_audit_school_ceiling(request, foundation_id, filters):
+        """A school-scoped audit_log.read holder may only export their own
+        schools' events. The ceiling is computed server-side and any
+        client-supplied `school_ids` is discarded, so it can never be widened
+        (the `school` filter can only narrow within it)."""
+        filters = {key: value for key, value in (filters if isinstance(filters, dict) else {}).items() if key != "school_ids"}
+        ceiling = accessible_school_ids(request.user, foundation_id, 'audit_log.read')
+        if ceiling is not None:
+            filters['school_ids'] = sorted(ceiling)
+        return filters
 
 
 class FoundationExportStatusView(views.APIView):
@@ -853,7 +872,9 @@ class FoundationExportStatusView(views.APIView):
 class FoundationAuditEventView(generics.ListAPIView):
     """GET /foundation/audit — cursor-paginated, filterable Audit Explorer
     over core.AuditEvent (FND-010, spec/03 §2/§5). Filters: actor, school,
-    module (action-prefix), action (exact), entity_type, entity_id, from, to."""
+    module (action-prefix), action (exact), entity_type, entity_id, from, to.
+    A school-scoped audit_log.read holder sees only their schools' events;
+    foundation-scope holders see everything, including events with no school."""
     serializer_class = AuditEventSerializer
     pagination_class = AuditEventCursorPagination
     permission_classes = [HasRequiredPermission]
@@ -883,6 +904,7 @@ class FoundationAuditEventView(generics.ListAPIView):
 
         return filter_foundation_audit_events(
             foundation_id,
+            school_ids=accessible_school_ids(self.request.user, foundation_id, self.required_permission),
             actor=params.get('actor'),
             school_id=school_id,
             module=params.get('module'),
