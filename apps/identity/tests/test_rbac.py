@@ -215,6 +215,33 @@ class RBACTests(TestCase):
             SchoolConfigView.kwargs = {'school_id': self.school_2.id}
             self.assertFalse(perm.has_permission(request, SchoolConfigView()))
 
+    def test_non_platform_permission_never_triggers_platform_permission_check(self):
+        """Fix 2: HasRequiredPermission must skip has_platform_permission (and
+        therefore its PlatformRoleAssignment query) entirely for a
+        required_permission that isn't platform-grantable — even for a user
+        who happens to hold a platform role for an unrelated key. Grant/deny
+        behavior via the tenant path must be unaffected."""
+        from unittest.mock import patch
+        from apps.identity.models import PlatformRoleAssignment
+        PlatformRoleAssignment.objects.create(
+            user=self.user_school_admin, role=PlatformRoleAssignment.ROLE_PLATFORM_OPERATOR,
+        )
+
+        factory = APIRequestFactory()
+        perm = HasRequiredPermission()
+
+        class SchoolConfigView:
+            required_permission = 'school_config.read'
+            kwargs = {'school_id': self.school_1.id}
+
+        request = factory.get(f'/api/schools/{self.school_1.id}/config/')
+        request.user = self.user_school_admin
+
+        with tenant_context(self.foundation.id):
+            with patch('apps.identity.permissions.has_platform_permission') as mock_platform_check:
+                self.assertTrue(perm.has_permission(request, SchoolConfigView()))
+                mock_platform_check.assert_not_called()
+
     def test_is_foundation_admin_permission_class(self):
         """IsFoundationAdmin permits only foundation_admin or superuser."""
         factory = APIRequestFactory()
