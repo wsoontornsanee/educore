@@ -8,12 +8,17 @@ import logging
 from django.contrib.auth import authenticate, login, logout
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.views import View
+from django.views.generic import TemplateView
 
-from educore.middleware.tenancy import set_current_foundation_id
+from apps.attendance.models import AttendanceDay, AttendanceStatus
+from apps.finance.models import Invoice, InvoiceStatus
+from educore.middleware.tenancy import get_current_foundation_id, set_current_foundation_id
 from .landing import resolve_post_login_redirect
-from .models import RoleAssignment
+from .models import RoleAssignment, Student
 from .rbac import has_permission, SCOPE_SCHOOL
 from .social_auth import (
     AccountNotLinkedError,
@@ -426,3 +431,51 @@ class FoundationMicrosoftTenantSettingsView(View):
         )
         return self._render_response(request, ctx, status=200)
 
+
+
+def get_landing_stats(foundation_id):
+    """Three simple, single-model aggregate counts shared by every real-data
+    landing page. Deliberately minimal (see design spec's Non-goals: no new
+    cross-module aggregate services in this slice) — each is one filtered
+    .count() call, safe to run on every login-redirect landing hit."""
+    return {
+        'student_count': Student.objects.filter(status=Student.STATUS_ACTIVE).count(),
+        'overdue_invoice_count': Invoice.objects.filter(
+            status__in=[InvoiceStatus.ISSUED, InvoiceStatus.PARTIALLY_PAID],
+            due_date__lt=timezone.localdate(),
+        ).count(),
+        'alpa_today_count': AttendanceDay.objects.filter(
+            date=timezone.localdate(), status=AttendanceStatus.ALPA,
+        ).count(),
+    }
+
+
+class _ConsoleLandingView(LoginRequiredMixin, TemplateView):
+    template_name = 'pages/console_landing.html'
+    page_title = ''
+    greeting_key = ''
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        foundation_id = get_current_foundation_id() or getattr(self.request.user, 'foundation_id', None)
+        ctx['stats'] = get_landing_stats(foundation_id) if foundation_id else {
+            'student_count': 0, 'overdue_invoice_count': 0, 'alpa_today_count': 0,
+        }
+        ctx['page_title'] = self.page_title
+        return ctx
+
+
+class FoundationOverviewLandingView(_ConsoleLandingView):
+    page_title = 'Ikhtisar yayasan'
+
+
+class SchoolAdminTodayLandingView(_ConsoleLandingView):
+    page_title = 'Hari ini'
+
+
+class TeacherAgendaLandingView(_ConsoleLandingView):
+    page_title = 'Agenda hari ini'
+
+
+class FinanceBillingLandingView(_ConsoleLandingView):
+    page_title = 'Tagihan & pembayaran'
