@@ -6,6 +6,14 @@ permission keys.
 """
 from django.urls import path
 
+from apps.academic.console_actions import (
+    GradeSubmissionView,
+    ReportCardApproveView,
+    ReportCardGenerateView,
+    ReportCardPublishView,
+    ReportCardReviseView,
+    ReturnSubmissionView,
+)
 from apps.academic.console_views import (
     ClassDetailPageView,
     ClassListPageView,
@@ -24,6 +32,12 @@ from apps.academic.views import (
 )
 
 urlpatterns = [
+    path('grading-queue/<int:submission_id>/grade/', GradeSubmissionView.as_view(), name='academic-grade-submission'),
+    path('grading-queue/<int:submission_id>/return/', ReturnSubmissionView.as_view(), name='academic-return-submission'),
+    path('report-cards/generate/', ReportCardGenerateView.as_view(), name='academic-report-card-generate'),
+    path('report-cards/<int:report_card_id>/approve/', ReportCardApproveView.as_view(), name='academic-report-card-approve'),
+    path('report-cards/<int:report_card_id>/publish/', ReportCardPublishView.as_view(), name='academic-report-card-publish'),
+    path('report-cards/<int:report_card_id>/revise/', ReportCardReviseView.as_view(), name='academic-report-card-revise'),
     path('report-cards/', ReportCardListPageView.as_view(), name='academic-report-card-list-page'),
     path('report-cards/<int:report_card_id>/', ReportCardDetailPageView.as_view(), name='academic-report-card-detail-page'),
     path('report-cards/<int:report_card_id>/print/', ReportCardPrintPageView.as_view(), name='academic-report-card-print-page'),

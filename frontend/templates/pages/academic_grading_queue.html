@@ -4,7 +4,7 @@
 {% comment %}
 Page: Antrean penilaian — homework awaiting grading (Web Console Akademik, PR 3).
 Served by apps.academic.console_views.GradingQueuePageView at /web/academic/grading-queue/.
-Read-only. Parameters: submissions (HomeworkSubmission rows, oldest first),
+Per-row grade/return forms (grades.write, school-scoped). Parameters: submissions (HomeworkSubmission rows, oldest first),
 total_count, late_count, shown_count, class_subjects, selected_class_subject_id.
 {% endcomment %}
 
@@ -31,6 +31,8 @@ total_count, late_count, shown_count, class_subjects, selected_class_subject_id.
     </form>
   </header>
 
+  {% include "components/_console_flash.html" %}
+
   <div style="display:flex;gap:16px;flex-wrap:wrap">
     <div class="card" style="padding:16px 20px;flex:1 1 140px">
       <span class="text-label text-ink-500">{% translate "Menunggu dinilai" %}</span>
@@ -52,6 +54,7 @@ total_count, late_count, shown_count, class_subjects, selected_class_subject_id.
             <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Mata pelajaran & kelas" %}</th>
             <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Dikumpulkan" %}</th>
             <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Status" %}</th>
+            <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Penilaian" %}</th>
           </tr>
         </thead>
         <tbody>
@@ -72,6 +75,20 @@ total_count, late_count, shown_count, class_subjects, selected_class_subject_id.
                 {% else %}
                   <span class="text-body-sm font-mono" style="color:var(--color-info);font-weight:600">{% translate "Terkumpul" %}</span>
                 {% endif %}
+              </td>
+              <td style="padding:10px 14px;min-width:190px">
+                {% if submission.can_write %}
+                  <form method="post" action="{% url 'academic-grade-submission' submission.id %}" style="display:flex;flex-direction:column;gap:6px">
+                    {% csrf_token %}
+                    {% if selected_class_subject_id %}<input type="hidden" name="class_subject" value="{{ selected_class_subject_id }}">{% endif %}
+                    <input type="number" name="score" min="0" max="100" step="0.01" placeholder="{% translate 'Nilai (0–100)' %}" aria-label="{% translate 'Nilai (0–100)' %}" class="text-body-sm" style="padding:6px 8px;border:1px solid var(--color-line);border-radius:0;width:100%">
+                    <input type="text" name="feedback" maxlength="500" placeholder="{% translate 'Umpan balik' %}" aria-label="{% translate 'Umpan balik' %}" class="text-body-sm" style="padding:6px 8px;border:1px solid var(--color-line);border-radius:0;width:100%">
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+                      <button type="submit" class="btn btn-primary text-body-sm">{% translate "Simpan nilai" %}</button>
+                      <button type="submit" formaction="{% url 'academic-return-submission' submission.id %}" class="btn btn-secondary text-body-sm" onclick="return confirm('{% translate "Kembalikan tugas ini ke siswa? Umpan balik wajib diisi." %}')">{% translate "Kembalikan" %}</button>
+                    </div>
+                  </form>
+                {% else %}<span class="text-ink-500">—</span>{% endif %}
               </td>
             </tr>
           {% endfor %}
