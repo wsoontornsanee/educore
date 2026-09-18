@@ -1074,8 +1074,21 @@ class ClinicVisitViewSet(viewsets.ModelViewSet):
         data = serializer.validated_data
 
         foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+
+        if data.get('card_uid'):
+            from apps.attendance.services import verify_credential
+
+            lookup = verify_credential(foundation_id=foundation_id, uid=data['card_uid'])
+            if not lookup['valid']:
+                raise exceptions.ValidationError(lookup['reason'])
+            if not lookup.get('student'):
+                raise exceptions.ValidationError("Kartu ini terdaftar untuk staf, bukan siswa.")
+            student_id = lookup['student'].id
+        else:
+            student_id = data['student_id']
+
         try:
-            student = Student.objects.get(pk=data['student_id'], foundation_id=foundation_id, deleted_at__isnull=True)
+            student = Student.objects.get(pk=student_id, foundation_id=foundation_id, deleted_at__isnull=True)
         except Student.DoesNotExist:
             raise exceptions.NotFound("Siswa tidak ditemukan.")
 
