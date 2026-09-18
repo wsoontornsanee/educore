@@ -1,3 +1,4 @@
+{% load i18n %}
 {% load l10n %}
 {% comment %}
 Component: Teacher Gradebook Grid & Merge Prompt Modal (spec/04 §8, spec/09 §3 TCH-005..007, spec/17 §6.3, §7.3)
@@ -14,12 +15,13 @@ Usage: {% include "components/gradebook_grid.html" with class_subject=class_subj
     
     <div>
       <div class="text-label text-ink-500" style="margin-bottom: 2px;">
-        Buku Nilai Guru · {{ class_subject.class_group.name|default:class_subject.class_group }}
+        {% blocktranslate with class_group=class_subject.class_group.name|default:class_subject.class_group %}Buku Nilai Guru · {{ class_group }}{% endblocktranslate %}
       </div>
       <h2 class="text-h2 font-display text-ink-900" style="margin: 0; font-size: 1.25rem;">
         {{ class_subject.subject.name|default:class_subject.subject }}
         <span class="text-body-sm text-ink-500 font-mono" style="font-weight: normal; margin-left: 8px;">
-          ({{ class_subject.term.name|default:"Semester Aktif" }})
+          {% translate "Semester Aktif" as default_semester_label %}
+          ({{ class_subject.term.name|default:default_semester_label }})
         </span>
       </h2>
     </div>
@@ -31,13 +33,13 @@ Usage: {% include "components/gradebook_grid.html" with class_subject=class_subj
            style="gap: 8px; padding: 4px 12px; background-color: var(--color-surface-alt); border: 1px solid var(--color-line); border-radius: 9999px;">
         <span id="gradebook-status-dot"
               style="display: inline-block; width: 8px; height: 8px; border-radius: 9999px; background-color: var(--color-success); transition: background-color 300ms ease;"></span>
-        <span id="gradebook-status-text">Tersimpan otomatis</span>
+        <span id="gradebook-status-text">{% translate "Tersimpan otomatis" %}</span>
       </div>
 
       <div class="text-body-sm text-ink-500 font-mono hidden md:block">
-        Navigasi: <kbd style="padding: 2px 4px; border: 1px solid var(--color-line); background: var(--color-surface); font-size: 0.75rem;">Enter ↓</kbd>
+        {% translate "Navigasi:" %} <kbd style="padding: 2px 4px; border: 1px solid var(--color-line); background: var(--color-surface); font-size: 0.75rem;">Enter ↓</kbd>
         <kbd style="padding: 2px 4px; border: 1px solid var(--color-line); background: var(--color-surface); font-size: 0.75rem;">Tab →</kbd>
-        <kbd style="padding: 2px 4px; border: 1px solid var(--color-line); background: var(--color-surface); font-size: 0.75rem;">Esc Batal</kbd>
+        <kbd style="padding: 2px 4px; border: 1px solid var(--color-line); background: var(--color-surface); font-size: 0.75rem;">Esc {% translate "Batal" %}</kbd>
       </div>
     </div>
   </div>
@@ -50,7 +52,7 @@ Usage: {% include "components/gradebook_grid.html" with class_subject=class_subj
            class="gradebook-grid-table"
            style="width: 100%; border-collapse: separate; border-spacing: 0; min-width: 800px;"
            role="grid"
-           aria-label="Tabel Buku Nilai Siswa">
+           aria-label="{% translate "Tabel Buku Nilai Siswa" %}">
       
       <!-- Table Header -->
       <thead style="position: sticky; top: 0; z-index: 10; background-color: var(--color-surface-alt);">
@@ -64,31 +66,33 @@ Usage: {% include "components/gradebook_grid.html" with class_subject=class_subj
           <!-- Fixed Student Name Column -->
           <th class="font-display text-label text-ink-700 text-left"
               style="position: sticky; left: 100px; z-index: 20; background-color: var(--color-surface-alt); padding: 12px 16px; border-bottom: 2px solid var(--color-line); border-right: 2px solid var(--color-line); width: 220px; min-width: 220px;">
-            Nama Siswa
+            {% translate "Nama Siswa" %}
           </th>
 
           <!-- Assessment Columns -->
           {% for a in assessments %}
+            {% blocktranslate asvar assessment_tooltip with title=a.title max_score=a.max_score weight=a.weight %}{{ title }} (Maks: {{ max_score }}, Bobot: {{ weight }}%){% endblocktranslate %}
+            {% translate "NILAI" as default_nilai_label %}
             <th class="font-display text-center"
                 style="padding: 10px 12px; border-bottom: 2px solid var(--color-line); border-right: 1px solid var(--color-line); min-width: 120px; max-width: 150px;"
-                title="{{ a.title }} (Maks: {{ a.max_score }}, Bobot: {{ a.weight }}%)">
+                title="{{ assessment_tooltip }}">
               <div class="text-body-sm font-semibold text-ink-900 text-truncate" style="margin-bottom: 2px;">
                 {{ a.title }}
               </div>
               <div class="text-label text-ink-500 font-mono" style="font-size: 0.6875rem; font-weight: normal;">
-                {{ a.type|default:"NILAI" }} · {{ a.weight|default:0 }}%
+                {{ a.type|default:default_nilai_label }} · {{ a.weight|default:0 }}%
               </div>
             </th>
           {% empty %}
             <th class="text-body-sm text-ink-500 text-center" style="padding: 16px; border-bottom: 2px solid var(--color-line);">
-              Belum ada asesmen yang dikonfigurasi untuk kelas ini.
+              {% translate "Belum ada asesmen yang dikonfigurasi untuk kelas ini." %}
             </th>
           {% endfor %}
 
           <!-- Final Grade Column -->
           <th class="font-display text-label text-ink-900 text-right"
               style="padding: 12px 16px; border-bottom: 2px solid var(--color-line); width: 110px; min-width: 110px; background-color: var(--color-surface-alt);">
-            Nilai Akhir
+            {% translate "Nilai Akhir" %}
           </th>
         </tr>
       </thead>
@@ -107,10 +111,11 @@ Usage: {% include "components/gradebook_grid.html" with class_subject=class_subj
             </td>
 
             <!-- Sticky Student Name Cell -->
+            {% translate "Siswa" as siswa_label %}
             <td class="text-body text-ink-900 text-left font-medium"
                 style="position: sticky; left: 100px; z-index: 5; background-color: inherit; padding: 8px 16px; border-bottom: 1px solid var(--color-line); border-right: 2px solid var(--color-line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px;"
-                title="{% firstof row.student.person.full_name row.student.name row.student_name 'Siswa' %}">
-              {% firstof row.student.person.full_name row.student.name row.student_name "Siswa" %}
+                title="{% firstof row.student.person.full_name row.student.name row.student_name siswa_label %}">
+              {% firstof row.student.person.full_name row.student.name row.student_name siswa_label %}
             </td>
 
             <!-- Assessment Input Cells -->
@@ -128,8 +133,9 @@ Usage: {% include "components/gradebook_grid.html" with class_subject=class_subj
                          autocomplete="off"
                          data-assessment-id="{{ item.assessment_id }}"
                          data-student-id="{{ row.student.id }}"
-                         data-student-name="{% firstof row.student.person.full_name row.student.name row.student_name 'Siswa' %}"
-                         data-assessment-title="{{ item.assessment_title|default:'Asesmen' }}"
+                         data-student-name="{% firstof row.student.person.full_name row.student.name row.student_name siswa_label %}"
+                         {% translate "Asesmen" as default_asesmen_label %}
+                         data-assessment-title="{{ item.assessment_title|default:default_asesmen_label }}"
                          data-row="{{ forloop.parentloop.counter0 }}"
                          data-col="{{ forloop.counter0 }}"
                          data-version="{{ item.version|default:0 }}"
@@ -144,22 +150,22 @@ Usage: {% include "components/gradebook_grid.html" with class_subject=class_subj
                     
                     <!-- Saving Spinner -->
                     <span class="cell-icon-saving hidden text-ink-500 animate-pulse"
-                          title="Menyimpan..."
+                          title="{% translate "Menyimpan..." %}"
                           style="display: none; width: 8px; height: 8px; border-radius: 9999px; background-color: var(--color-warning);"></span>
 
                     <!-- Saved Tick -->
                     <span class="cell-icon-saved hidden font-mono"
-                          title="Tersimpan"
+                          title="{% translate "Tersimpan" %}"
                           style="display: none; color: var(--color-success); font-weight: bold;">✓</span>
 
                     <!-- Error Exclamation -->
                     <span class="cell-icon-error hidden font-mono"
-                          title="Gagal menyimpan"
+                          title="{% translate "Gagal menyimpan" %}"
                           style="display: none; color: var(--color-danger); font-weight: bold;">!</span>
 
                     <!-- Conflict Warning -->
                     <span class="cell-icon-conflict hidden"
-                          title="Konflik nilai"
+                          title="{% translate "Konflik nilai" %}"
                           style="display: none; color: var(--color-warning); font-weight: bold; cursor: pointer; pointer-events: auto;">⚠</span>
                   </div>
                 </div>
@@ -175,7 +181,7 @@ Usage: {% include "components/gradebook_grid.html" with class_subject=class_subj
         {% empty %}
           <tr>
             <td colspan="10" class="text-body text-ink-500 text-center" style="padding: 32px;">
-              Belum ada siswa yang terdaftar di kelas ini.
+              {% translate "Belum ada siswa yang terdaftar di kelas ini." %}
             </td>
           </tr>
         {% endfor %}
@@ -199,19 +205,19 @@ Usage: {% include "components/gradebook_grid.html" with class_subject=class_subj
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="font-size: 1.25rem;">⚠</span>
           <h3 id="merge-modal-title" class="text-h3 font-display text-ink-900" style="margin: 0; font-size: 1.125rem;">
-            Konflik Penyuntingan Nilai
+            {% translate "Konflik Penyuntingan Nilai" %}
           </h3>
         </div>
         <span class="status-badge"
               style="padding: 2px 8px; border-radius: 9999px; background-color: var(--color-warning); color: #FFFFFF; font-size: 0.6875rem; font-weight: bold; font-family: monospace;">
-          KONFLIK
+          {% translate "KONFLIK" %}
         </span>
       </div>
 
       <!-- Explanation Context -->
       <p class="text-body-sm text-ink-700" style="margin-bottom: 16px; line-height: 1.5;">
-        Nilai untuk siswa <strong id="modal-student-name" class="text-ink-900">—</strong> pada penilaian
-        <strong id="modal-assessment-title" class="text-ink-900">—</strong> telah diperbarui oleh pengguna lain saat Anda melakukan penyuntingan.
+        {% blocktranslate %}Nilai untuk siswa <strong id="modal-student-name" class="text-ink-900">—</strong> pada penilaian
+        <strong id="modal-assessment-title" class="text-ink-900">—</strong> telah diperbarui oleh pengguna lain saat Anda melakukan penyuntingan.{% endblocktranslate %}
       </p>
 
       <!-- Comparison Cards Grid (spec/17 §7.3 "Yours and Theirs") -->
@@ -219,21 +225,21 @@ Usage: {% include "components/gradebook_grid.html" with class_subject=class_subj
         
         <!-- Card 1: Nilai Anda (Local attempted value) -->
         <div style="padding: 14px; border: 1px solid var(--color-line); background-color: var(--color-surface-alt); border-radius: 0px;">
-          <div class="text-label text-ink-500" style="margin-bottom: 4px;">Nilai Anda (Input Lokal)</div>
+          <div class="text-label text-ink-500" style="margin-bottom: 4px;">{% translate "Nilai Anda (Input Lokal)" %}</div>
           <div id="modal-local-score" class="font-mono text-h2 font-semibold" style="color: var(--color-brand-600); font-size: 1.5rem;">
             —
           </div>
-          <div class="text-label text-ink-500" style="margin-top: 4px;">Penyunting saat ini</div>
+          <div class="text-label text-ink-500" style="margin-top: 4px;">{% translate "Penyunting saat ini" %}</div>
         </div>
 
         <!-- Card 2: Nilai di Server (Remote value with author & timestamp) -->
         <div style="padding: 14px; border: 1px solid var(--color-warning); background-color: #FFFDF5; border-radius: 0px;">
-          <div class="text-label text-ink-500" style="margin-bottom: 4px;">Nilai di Server</div>
+          <div class="text-label text-ink-500" style="margin-bottom: 4px;">{% translate "Nilai di Server" %}</div>
           <div id="modal-server-score" class="font-mono text-h2 font-semibold" style="color: var(--color-warning); font-size: 1.5rem;">
             —
           </div>
           <div class="text-body-sm text-ink-700 font-mono" style="margin-top: 4px; font-size: 0.75rem;">
-            Oleh: <strong id="modal-server-author">—</strong>
+            {% translate "Oleh:" %} <strong id="modal-server-author">—</strong>
           </div>
           <div id="modal-server-time" class="text-label text-ink-500 font-mono" style="font-size: 0.6875rem;">
             —
@@ -247,27 +253,36 @@ Usage: {% include "components/gradebook_grid.html" with class_subject=class_subj
                 type="button"
                 class="btn btn-ghost text-body-sm text-ink-700"
                 style="border: 1px solid transparent; padding: 8px 16px;">
-          Batal
+          {% translate "Batal" %}
         </button>
 
         <button id="modal-btn-accept-server"
                 type="button"
                 class="btn btn-secondary text-body-sm"
                 style="border: 1px solid var(--color-line); background-color: var(--color-surface); padding: 8px 16px; color: var(--color-ink-900);">
-          Gunakan Nilai Server
+          {% translate "Gunakan Nilai Server" %}
         </button>
 
         <button id="modal-btn-override"
                 type="button"
                 class="btn btn-primary text-body-sm text-white"
                 style="background-color: var(--color-brand-600); border: 1px solid var(--color-brand-600); padding: 8px 16px; font-weight: 600;">
-          Gunakan Nilai Saya (Timpa)
+          {% translate "Gunakan Nilai Saya (Timpa)" %}
         </button>
       </div>
     </div>
   </div>
 </div>
 
+{% translate "Menyimpan..." as msg_saving %}
+{% translate "Tersimpan" as msg_saved_prefix %}
+{% translate "Gagal menyimpan (Koneksi terganggu)" as msg_save_error_connection %}
+{% translate "Konflik data terdeteksi" as msg_conflict_detected %}
+{% translate "Guru Lain" as msg_other_teacher %}
+{% translate "Siswa" as msg_siswa_default %}
+{% translate "Asesmen" as msg_asesmen_default %}
+{% translate "Kosong" as msg_empty_value %}
+{% translate "Baru saja" as msg_just_now %}
 <!-- Spreadsheet Navigation, Autosave, and Concurrency Conflict Controller Script -->
 <script>
 (function() {
@@ -316,13 +331,13 @@ Usage: {% include "components/gradebook_grid.html" with class_subject=class_subj
       if (iconSaving) iconSaving.style.display = 'inline-block';
       input.style.borderColor = 'var(--color-warning)';
       if (statusDot) statusDot.style.backgroundColor = 'var(--color-warning)';
-      if (statusText) statusText.textContent = 'Menyimpan...';
+      if (statusText) statusText.textContent = '{{ msg_saving|escapejs }}';
     } else if (state === 'saved') {
       if (iconSaved) iconSaved.style.display = 'inline-block';
       input.style.borderColor = 'var(--color-success)';
       if (statusDot) statusDot.style.backgroundColor = 'var(--color-success)';
       const now = new Date();
-      if (statusText) statusText.textContent = 'Tersimpan ' + now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+      if (statusText) statusText.textContent = '{{ msg_saved_prefix|escapejs }} ' + now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
       setTimeout(() => {
         if (iconSaved) iconSaved.style.display = 'none';
         input.style.borderColor = 'var(--color-line)';
@@ -331,12 +346,12 @@ Usage: {% include "components/gradebook_grid.html" with class_subject=class_subj
       if (iconError) iconError.style.display = 'inline-block';
       input.style.borderColor = 'var(--color-danger)';
       if (statusDot) statusDot.style.backgroundColor = 'var(--color-danger)';
-      if (statusText) statusText.textContent = 'Gagal menyimpan (Koneksi terganggu)';
+      if (statusText) statusText.textContent = '{{ msg_save_error_connection|escapejs }}';
     } else if (state === 'conflict') {
       if (iconConflict) iconConflict.style.display = 'inline-block';
       input.style.borderColor = 'var(--color-warning)';
       if (statusDot) statusDot.style.backgroundColor = 'var(--color-warning)';
-      if (statusText) statusText.textContent = 'Konflik data terdeteksi';
+      if (statusText) statusText.textContent = '{{ msg_conflict_detected|escapejs }}';
     }
   }
 
@@ -384,7 +399,7 @@ Usage: {% include "components/gradebook_grid.html" with class_subject=class_subj
           localScore: val,
           serverScore: conflict.current_score || '—',
           serverVersion: conflict.current_version,
-          serverAuthor: conflict.current_graded_by || 'Guru Lain',
+          serverAuthor: conflict.current_graded_by || '{{ msg_other_teacher|escapejs }}',
           serverTime: conflict.current_graded_at || ''
         };
         setCellState(input, 'conflict');
@@ -408,12 +423,12 @@ Usage: {% include "components/gradebook_grid.html" with class_subject=class_subj
 
   function openMergeModal(ctx) {
     if (!modal) return;
-    modalStudentName.textContent = ctx.input.dataset.studentName || 'Siswa';
-    modalAssessmentTitle.textContent = ctx.input.dataset.assessmentTitle || 'Asesmen';
-    modalLocalScore.textContent = ctx.localScore !== '' ? ctx.localScore : 'Kosong';
+    modalStudentName.textContent = ctx.input.dataset.studentName || '{{ msg_siswa_default|escapejs }}';
+    modalAssessmentTitle.textContent = ctx.input.dataset.assessmentTitle || '{{ msg_asesmen_default|escapejs }}';
+    modalLocalScore.textContent = ctx.localScore !== '' ? ctx.localScore : '{{ msg_empty_value|escapejs }}';
     modalServerScore.textContent = ctx.serverScore;
     modalServerAuthor.textContent = ctx.serverAuthor;
-    
+
     if (ctx.serverTime) {
       try {
         const d = new Date(ctx.serverTime);
@@ -422,7 +437,7 @@ Usage: {% include "components/gradebook_grid.html" with class_subject=class_subj
         modalServerTime.textContent = ctx.serverTime;
       }
     } else {
-      modalServerTime.textContent = 'Baru saja';
+      modalServerTime.textContent = '{{ msg_just_now|escapejs }}';
     }
 
     modal.style.display = 'flex';

@@ -1,3 +1,4 @@
+{% load i18n %}
 {% load l10n %}
 {% comment %}
 Component: Student Exam Lockdown Client (spec/04 §6 ACD-021..026, spec/17 §6.3, §7.3, docs/frontend-plan.md M5)
@@ -22,16 +23,16 @@ Usage: {% include "components/exam_lockdown.html" with exam=exam attempt=attempt
         <span style="color: var(--color-brand-600, #C8102E); font-size: 24px; font-weight: bold;">⛨</span>
       </div>
       <h2 class="font-display" style="font-size: 1.5rem; font-weight: 800; margin-bottom: 8px; color: #FFFFFF;">
-        Mode Layar Penuh Diwajibkan
+        {% translate "Mode Layar Penuh Diwajibkan" %}
       </h2>
       <p style="font-size: 0.925rem; color: #9CA3AF; line-height: 1.5; margin-bottom: 24px;">
-        Ujian ini berada dalam pengawasan integritas lockdown. Untuk memulai dan melanjutkan ujian, Anda harus masuk ke mode layar penuh. Keluar dari layar penuh atau berpindah aplikasi akan dicatat sebagai kehilangan fokus.
+        {% translate "Ujian ini berada dalam pengawasan integritas lockdown. Untuk memulai dan melanjutkan ujian, Anda harus masuk ke mode layar penuh. Keluar dari layar penuh atau berpindah aplikasi akan dicatat sebagai kehilangan fokus." %}
       </p>
       <button id="btn-enter-fullscreen"
               type="button"
               class="btn-primary font-display"
               style="background-color: var(--color-brand-600, #C8102E); color: #FFFFFF; border: none; border-radius: 0px; padding: 12px 28px; font-weight: 700; font-size: 1rem; cursor: pointer; letter-spacing: 0.02em; transition: background-color 150ms;">
-        Masuk Layar Penuh & Mulai Ujian
+        {% translate "Masuk Layar Penuh & Mulai Ujian" %}
       </button>
     </div>
   </div>
@@ -45,16 +46,16 @@ Usage: {% include "components/exam_lockdown.html" with exam=exam attempt=attempt
       <span style="color: var(--color-brand-600, #C8102E); font-size: 1.25rem; line-height: 1;">⚠</span>
       <div style="flex: 1;">
         <strong style="color: var(--color-brand-600, #C8102E); font-size: 0.925rem; display: block; margin-bottom: 2px;">
-          Peringatan: Kehilangan Fokus Terdeteksi (<span id="focus-loss-incident-count">0</span>x)
+          {% translate "Peringatan: Kehilangan Fokus Terdeteksi (" %}<span id="focus-loss-incident-count">0</span>{% translate "x)" %}
         </strong>
         <p style="margin: 0; font-size: 0.825rem; color: #7F1D1D; line-height: 1.4;">
-          Aplikasi mencatat perpindahan jendela/layar. Insiden ini terekam di konsol pengawas ujian. Harap tetap berada pada jendela ujian hingga selesai.
+          {% translate "Aplikasi mencatat perpindahan jendela/layar. Insiden ini terekam di konsol pengawas ujian. Harap tetap berada pada jendela ujian hingga selesai." %}
         </p>
       </div>
       <button type="button"
               onclick="document.getElementById('focus-loss-alert').style.display='none'"
               style="background: transparent; border: none; font-size: 1.1rem; color: #991B1B; cursor: pointer; padding: 0 4px;"
-              aria-label="Tutup Peringatan">
+              aria-label="{% translate "Tutup Peringatan" %}">
         ✕
       </button>
     </div>
@@ -83,20 +84,20 @@ Usage: {% include "components/exam_lockdown.html" with exam=exam attempt=attempt
            style="gap: 6px; padding: 4px 10px; background-color: var(--color-surface-alt, #F9FAFB); border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; font-size: 0.775rem;">
         <span id="autosave-dot"
               style="display: inline-block; width: 8px; height: 8px; border-radius: 0px; background-color: #10B981; transition: background-color 200ms ease;"></span>
-        <span id="autosave-text" style="color: #4B5563;">Tersimpan</span>
+        <span id="autosave-text" style="color: #4B5563;">{% translate "Tersimpan" %}</span>
       </div>
 
       <!-- Focus Loss Incident Pill -->
       <div id="focus-loss-indicator"
            style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background-color: #FEF2F2; border: 1px solid #FECACA; border-radius: 0px; font-size: 0.775rem; font-family: 'IBM Plex Mono', monospace; color: #991B1B;">
-        <span>Fokus:</span>
+        <span>{% translate "Fokus:" %}</span>
         <span id="focus-loss-count-badge" style="font-weight: 600;">{{ attempt.focus_loss_count|default:0 }}</span>
       </div>
 
       <!-- Server-Synchronized Countdown Timer (ACD-022) -->
       <div id="exam-timer-box"
            style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; background-color: #111827; color: #FFFFFF; border-radius: 0px; font-family: 'IBM Plex Mono', monospace; font-size: 1rem; font-weight: 700; border: 1px solid #374151;">
-        <span style="color: #9CA3AF; font-size: 0.8rem;">SISA WAKTU</span>
+        <span style="color: #9CA3AF; font-size: 0.8rem;">{% translate "SISA WAKTU" %}</span>
         <span id="timer-display">00:00:00</span>
       </div>
 
@@ -105,7 +106,7 @@ Usage: {% include "components/exam_lockdown.html" with exam=exam attempt=attempt
               type="button"
               class="font-display"
               style="background-color: var(--color-brand-600, #C8102E); color: #FFFFFF; border: none; border-radius: 0px; padding: 8px 18px; font-weight: 700; font-size: 0.875rem; cursor: pointer; transition: background-color 150ms;">
-        Kumpulkan Ujian
+        {% translate "Kumpulkan Ujian" %}
       </button>
     </div>
   </header>
@@ -120,10 +121,10 @@ Usage: {% include "components/exam_lockdown.html" with exam=exam attempt=attempt
       
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid var(--color-line, #E5E7EB); padding-bottom: 8px;">
         <h2 class="font-display" style="font-size: 0.925rem; font-weight: 700; margin: 0; text-transform: uppercase; letter-spacing: 0.03em;">
-          Daftar Soal
+          {% translate "Daftar Soal" %}
         </h2>
         <span id="palette-progress" class="font-mono" style="font-size: 0.775rem; color: #6B7280;">
-          <span id="answered-counter">0</span>/{{ questions|length }} Terjawab
+          <span id="answered-counter">0</span>/{{ questions|length }} {% translate "Terjawab" %}
         </span>
       </div>
 
@@ -131,7 +132,7 @@ Usage: {% include "components/exam_lockdown.html" with exam=exam attempt=attempt
       <div id="palette-grid"
            style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;"
            role="navigation"
-           aria-label="Navigasi Nomor Soal">
+           aria-label="{% translate "Navigasi Nomor Soal" %}">
         {% for q in questions %}
           <button type="button"
                   id="palette-btn-{{ forloop.counter0 }}"
@@ -148,15 +149,15 @@ Usage: {% include "components/exam_lockdown.html" with exam=exam attempt=attempt
       <div style="margin-top: 20px; border-top: 1px solid var(--color-line, #E5E7EB); padding-top: 12px; display: flex; flex-direction: column; gap: 6px; font-size: 0.75rem; color: #6B7280;">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="width: 12px; height: 12px; background: #10B981; border: 1px solid #059669; border-radius: 0px;"></span>
-          <span>Sudah Terjawab</span>
+          <span>{% translate "Sudah Terjawab" %}</span>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="width: 12px; height: 12px; background: #FFFFFF; border: 2px solid var(--color-brand-600, #C8102E); border-radius: 0px;"></span>
-          <span>Sedang Dibuka</span>
+          <span>{% translate "Sedang Dibuka" %}</span>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="width: 12px; height: 12px; background: #FFFFFF; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px;"></span>
-          <span>Belum Dijawab</span>
+          <span>{% translate "Belum Dijawab" %}</span>
         </div>
       </div>
     </aside>
@@ -179,14 +180,14 @@ Usage: {% include "components/exam_lockdown.html" with exam=exam attempt=attempt
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-line, #E5E7EB); padding-bottom: 12px; margin-bottom: 20px;">
               <div style="display: flex; align-items: center; gap: 10px;">
                 <span class="font-display" style="font-weight: 800; font-size: 1.15rem; color: var(--color-brand-600, #C8102E);">
-                  Soal No. {{ forloop.counter }}
+                  {% blocktranslate with num=forloop.counter %}Soal No. {{ num }}{% endblocktranslate %}
                 </span>
                 <span style="background-color: var(--color-surface-alt, #F9FAFB); border: 1px solid var(--color-line, #E5E7EB); padding: 2px 8px; font-size: 0.75rem; font-family: 'IBM Plex Mono', monospace; border-radius: 0px; color: #4B5563;">
                   {{ q.get_type_display|default:q.type }}
                 </span>
               </div>
               <span class="font-mono" style="font-size: 0.825rem; color: #6B7280;">
-                Bobot: {{ q.points }} Poin
+                {% blocktranslate with pts=q.points %}Bobot: {{ pts }} Poin{% endblocktranslate %}
               </span>
             </div>
 
@@ -246,7 +247,7 @@ Usage: {% include "components/exam_lockdown.html" with exam=exam attempt=attempt
                            class="exam-input-field"
                            data-question-id="{{ q.id }}"
                            style="accent-color: var(--color-brand-600, #C8102E); width: 18px; height: 18px;">
-                    <span class="font-display" style="font-weight: 700; font-size: 1rem; color: #065F46;">BENAR</span>
+                    <span class="font-display" style="font-weight: 700; font-size: 1rem; color: #065F46;">{% translate "BENAR" %}</span>
                   </label>
                   <label class="option-item"
                          style="flex: 1; display: flex; align-items: center; gap: 12px; padding: 14px 20px; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; cursor: pointer; background: #FFFFFF;">
@@ -256,7 +257,7 @@ Usage: {% include "components/exam_lockdown.html" with exam=exam attempt=attempt
                            class="exam-input-field"
                            data-question-id="{{ q.id }}"
                            style="accent-color: var(--color-brand-600, #C8102E); width: 18px; height: 18px;">
-                    <span class="font-display" style="font-weight: 700; font-size: 1rem; color: #991B1B;">SALAH</span>
+                    <span class="font-display" style="font-weight: 700; font-size: 1rem; color: #991B1B;">{% translate "SALAH" %}</span>
                   </label>
                 </div>
 
@@ -267,7 +268,7 @@ Usage: {% include "components/exam_lockdown.html" with exam=exam attempt=attempt
                          id="input-q-{{ q.id }}"
                          class="exam-input-field"
                          data-question-id="{{ q.id }}"
-                         placeholder="Tuliskan jawaban singkat Anda di sini..."
+                         placeholder="{% translate "Tuliskan jawaban singkat Anda di sini..." %}"
                          style="width: 100%; padding: 12px 16px; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; font-family: 'IBM Plex Sans', sans-serif; font-size: 0.95rem; box-sizing: border-box;">
                 </div>
 
@@ -278,7 +279,7 @@ Usage: {% include "components/exam_lockdown.html" with exam=exam attempt=attempt
                             class="exam-input-field"
                             data-question-id="{{ q.id }}"
                             rows="6"
-                            placeholder="Uraikan jawaban esai Anda secara lengkap..."
+                            placeholder="{% translate "Uraikan jawaban esai Anda secara lengkap..." %}"
                             style="width: 100%; padding: 12px 16px; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; font-family: 'IBM Plex Sans', sans-serif; font-size: 0.95rem; line-height: 1.5; resize: vertical; box-sizing: border-box;"></textarea>
                 </div>
 
@@ -293,7 +294,7 @@ Usage: {% include "components/exam_lockdown.html" with exam=exam attempt=attempt
                               data-question-id="{{ q.id }}"
                               data-match-key="{{ item.left }}"
                               style="flex: 1; padding: 8px 12px; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; background: #FFFFFF; font-family: 'IBM Plex Sans', sans-serif;">
-                        <option value="">-- Pilih Pasangan --</option>
+                        <option value="">{% translate "-- Pilih Pasangan --" %}</option>
                         {% for choice in item.choices %}
                           <option value="{{ choice }}">{{ choice }}</option>
                         {% endfor %}
@@ -317,11 +318,11 @@ Usage: {% include "components/exam_lockdown.html" with exam=exam attempt=attempt
                 type="button"
                 class="font-display"
                 style="background-color: var(--color-surface-alt, #F3F4F6); color: #374151; border: 1px solid var(--color-line, #E5E7EB); border-radius: 0px; padding: 10px 20px; font-weight: 600; font-size: 0.875rem; cursor: pointer; transition: all 120ms ease;">
-          ← Soal Sebelumnya
+          ← {% translate "Soal Sebelumnya" %}
         </button>
 
         <span id="question-progress-indicator" class="font-mono" style="font-size: 0.825rem; color: #6B7280;">
-          Soal <span id="current-q-num">1</span> dari {{ questions|length }}
+          {% translate "Soal" %} <span id="current-q-num">1</span> {% translate "dari" %} {{ questions|length }}
         </span>
 
         <!-- Next Question -->
@@ -329,7 +330,7 @@ Usage: {% include "components/exam_lockdown.html" with exam=exam attempt=attempt
                 type="button"
                 class="font-display"
                 style="background-color: #111827; color: #FFFFFF; border: none; border-radius: 0px; padding: 10px 24px; font-weight: 600; font-size: 0.875rem; cursor: pointer; transition: background-color 120ms ease;">
-          Soal Selanjutnya →
+          {% translate "Soal Selanjutnya" %} →
         </button>
       </div>
 
@@ -341,21 +342,21 @@ Usage: {% include "components/exam_lockdown.html" with exam=exam attempt=attempt
        style="display: none; position: fixed; inset: 0; z-index: 9500; background: rgba(0, 0, 0, 0.6); align-items: center; justify-content: center; padding: 16px;">
     <div style="max-width: 480px; width: 100%; background: #FFFFFF; border: 2px solid var(--color-line, #E5E7EB); border-radius: 0px; padding: 24px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);">
       <h3 class="font-display" style="font-size: 1.25rem; font-weight: 800; margin-top: 0; margin-bottom: 8px; color: #111827;">
-        Konfirmasi Pengumpulan Ujian
+        {% translate "Konfirmasi Pengumpulan Ujian" %}
       </h3>
       <p style="font-size: 0.925rem; color: #4B5563; line-height: 1.5; margin-bottom: 16px;">
-        Anda telah menjawab <strong id="modal-answered-count">0</strong> dari <strong>{{ questions|length }}</strong> soal. Apakah Anda yakin ingin mengumpulkan lembar jawaban sekarang? Tindakan ini bersifat final.
+        {% blocktranslate with total=questions|length %}Anda telah menjawab <strong id="modal-answered-count">0</strong> dari <strong>{{ total }}</strong> soal. Apakah Anda yakin ingin mengumpulkan lembar jawaban sekarang? Tindakan ini bersifat final.{% endblocktranslate %}
       </p>
       <div style="display: flex; justify-content: flex-end; gap: 12px;">
         <button type="button"
                 onclick="document.getElementById('submit-confirm-modal').style.display='none'"
                 style="background: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 0px; padding: 8px 16px; font-weight: 600; font-size: 0.875rem; cursor: pointer;">
-          Kembali Mengerjakan
+          {% translate "Kembali Mengerjakan" %}
         </button>
         <button id="btn-confirm-final-submit"
                 type="button"
                 style="background: var(--color-brand-600, #C8102E); color: #FFFFFF; border: none; border-radius: 0px; padding: 8px 20px; font-weight: 700; font-size: 0.875rem; cursor: pointer;">
-          Ya, Kumpulkan Sekarang
+          {% translate "Ya, Kumpulkan Sekarang" %}
         </button>
       </div>
     </div>
@@ -366,13 +367,13 @@ Usage: {% include "components/exam_lockdown.html" with exam=exam attempt=attempt
        style="display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(0, 0, 0, 0.85); align-items: center; justify-content: center; padding: 16px;">
     <div style="max-width: 460px; width: 100%; background: #FFFFFF; border: 2px solid var(--color-brand-600, #C8102E); border-radius: 0px; padding: 28px; text-align: center;">
       <h3 class="font-display" style="font-size: 1.35rem; font-weight: 800; color: var(--color-brand-600, #C8102E); margin-top: 0; margin-bottom: 8px;">
-        Waktu Ujian Telah Habis
+        {% translate "Waktu Ujian Telah Habis" %}
       </h3>
       <p style="font-size: 0.925rem; color: #4B5563; line-height: 1.5; margin-bottom: 20px;">
-        Batas waktu pengerjaan telah tercapai. Seluruh jawaban Anda yang telah tersimpan sedang dikumpulkan secara otomatis ke server.
+        {% translate "Batas waktu pengerjaan telah tercapai. Seluruh jawaban Anda yang telah tersimpan sedang dikumpulkan secara otomatis ke server." %}
       </p>
       <div id="submitting-spinner" style="font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; color: #6B7280;">
-        Memproses pengumpulan...
+        {% translate "Memproses pengumpulan..." %}
       </div>
     </div>
   </div>
@@ -380,6 +381,14 @@ Usage: {% include "components/exam_lockdown.html" with exam=exam attempt=attempt
 </div>
 
 <!-- Client-Side Engine: Fullscreen, Focus Tracking, Idempotent Autosave, Palette Sync, Timer -->
+{% translate "Navigasi kembali ke soal sebelumnya dinonaktifkan pada ujian ini." as msg_block_back_nav %}
+{% translate "Menyimpan..." as msg_saving %}
+{% translate "Tersimpan" as msg_saved %}
+{% translate "Gagal menyimpan" as msg_save_failed %}
+{% translate "Kumpulkan Ujian" as msg_kumpulkan_ujian %}
+{% translate "Soal Selanjutnya" as msg_soal_selanjutnya %}
+{% translate "Ujian Anda berhasil dikumpulkan! Terima kasih." as msg_submit_success %}
+{% translate "Terjadi kesalahan saat mengumpulkan ujian. Hubungi pengawas." as msg_submit_error %}
 <script>
 (function() {
   const container = document.getElementById('exam-lockdown-app');
@@ -529,13 +538,13 @@ Usage: {% include "components/exam_lockdown.html" with exam=exam attempt=attempt
 
     if (state === 'saving') {
       dot.style.backgroundColor = '#F59E0B';
-      text.textContent = 'Menyimpan...';
+      text.textContent = '{{ msg_saving|escapejs }}';
     } else if (state === 'saved') {
       dot.style.backgroundColor = '#10B981';
-      text.textContent = msg || 'Tersimpan';
+      text.textContent = msg || '{{ msg_saved|escapejs }}';
     } else if (state === 'error') {
       dot.style.backgroundColor = '#EF4444';
-      text.textContent = 'Gagal menyimpan';
+      text.textContent = '{{ msg_save_failed|escapejs }}';
     }
   }
 
@@ -660,7 +669,7 @@ Usage: {% include "components/exam_lockdown.html" with exam=exam attempt=attempt
     if (idx < 0 || idx >= totalQuestions) return;
     
     if (isBlockBack && idx < currentIndex) {
-      alert('Navigasi kembali ke soal sebelumnya dinonaktifkan pada ujian ini.');
+      alert('{{ msg_block_back_nav|escapejs }}');
       return;
     }
 
@@ -688,9 +697,9 @@ Usage: {% include "components/exam_lockdown.html" with exam=exam attempt=attempt
     const btnNext = document.getElementById('btn-next-question');
     if (btnNext) {
       if (currentIndex === totalQuestions - 1) {
-        btnNext.textContent = 'Kumpulkan Ujian';
+        btnNext.textContent = '{{ msg_kumpulkan_ujian|escapejs }}';
       } else {
-        btnNext.textContent = 'Soal Selanjutnya →';
+        btnNext.textContent = '{{ msg_soal_selanjutnya|escapejs }} →';
       }
     }
 
@@ -751,12 +760,12 @@ Usage: {% include "components/exam_lockdown.html" with exam=exam attempt=attempt
     })
     .then(res => res.json())
     .then(data => {
-      alert('Ujian Anda berhasil dikumpulkan! Terima kasih.');
+      alert('{{ msg_submit_success|escapejs }}');
       window.location.href = `/academic/exams/`;
     })
     .catch(err => {
       console.error('Submit error:', err);
-      alert('Terjadi kesalahan saat mengumpulkan ujian. Hubungi pengawas.');
+      alert('{{ msg_submit_error|escapejs }}');
       isSubmitting = false;
     });
   }

@@ -1,3 +1,4 @@
+{% load i18n %}
 {% comment %}
 Component: Foundation Microsoft Tenant Settings Fragment (spec/14 §6, spec/17, PR #117).
 Rendered inside pages/foundation_microsoft_tenant_page.html and returned on HTMX updates.
@@ -18,14 +19,16 @@ Rendered inside pages/foundation_microsoft_tenant_page.html and returned on HTMX
   <div class="card" style="display: flex; flex-direction: column; gap: 16px;">
     <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; border-bottom: 1px solid var(--color-line); padding-bottom: 16px;">
       <div>
-        <span class="text-label text-ink-500">STATUS OPERASIONAL SSO</span>
-        <h2 class="text-h2 text-ink-900" style="margin-top: 4px;">Status Penyematan Direktori</h2>
+        <span class="text-label text-ink-500">{% translate "STATUS OPERASIONAL SSO" %}</span>
+        <h2 class="text-h2 text-ink-900" style="margin-top: 4px;">{% translate "Status Penyematan Direktori" %}</h2>
       </div>
       <div>
         {% if is_pinned %}
-          {% include "components/badge.html" with status="AKTIF" label="Tersemat ke Entra ID Yayasan" %}
+          {% translate "Tersemat ke Entra ID Yayasan" as msg_badge_pinned %}
+          {% include "components/badge.html" with status="AKTIF" label=msg_badge_pinned %}
         {% else %}
-          {% include "components/badge.html" with status="IZIN" label="Mode Standar (Multi-Tenant: common)" %}
+          {% translate "Mode Standar (Multi-Tenant: common)" as msg_badge_standard %}
+          {% include "components/badge.html" with status="IZIN" label=msg_badge_standard %}
         {% endif %}
       </div>
     </div>
@@ -33,30 +36,30 @@ Rendered inside pages/foundation_microsoft_tenant_page.html and returned on HTMX
     <!-- Key Metadata Grid -->
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
       <div style="background-color: var(--color-surface-alt); padding: 12px 16px; border: 1px solid var(--color-line);">
-        <span class="text-label text-ink-500" style="display: block; margin-bottom: 4px;">DIRECTORY (TENANT) ID AKTIF</span>
+        <span class="text-label text-ink-500" style="display: block; margin-bottom: 4px;">{% translate "DIRECTORY (TENANT) ID AKTIF" %}</span>
         <code class="font-mono text-ink-900" style="font-size: 0.875rem; font-weight: 600; word-break: break-all;">
           {{ effective_tenant_id }}
         </code>
       </div>
 
       <div style="background-color: var(--color-surface-alt); padding: 12px 16px; border: 1px solid var(--color-line);">
-        <span class="text-label text-ink-500" style="display: block; margin-bottom: 4px;">KEBIJAKAN VALIDASI LOGIN</span>
+        <span class="text-label text-ink-500" style="display: block; margin-bottom: 4px;">{% translate "KEBIJAKAN VALIDASI LOGIN" %}</span>
         <span class="text-body-sm text-ink-900 font-medium">
           {% if is_pinned %}
-            Ketat (Hanya akun staf dari tenant ini)
+            {% translate "Ketat (Hanya akun staf dari tenant ini)" %}
           {% else %}
-            Terbuka (Semua tenant Microsoft 365)
+            {% translate "Terbuka (Semua tenant Microsoft 365)" %}
           {% endif %}
         </span>
       </div>
 
       <div style="background-color: var(--color-surface-alt); padding: 12px 16px; border: 1px solid var(--color-line);">
-        <span class="text-label text-ink-500" style="display: block; margin-bottom: 4px;">TERAKHIR DIPERBARUI</span>
+        <span class="text-label text-ink-500" style="display: block; margin-bottom: 4px;">{% translate "TERAKHIR DIPERBARUI" %}</span>
         <span class="text-body-sm font-mono text-ink-700">
           {% if config and config.updated_at %}
-            {{ config.updated_at|date:"d M Y, H:i" }} WIB
+            {% blocktranslate with updated_at=config.updated_at|date:"d M Y, H:i" %}{{ updated_at }} WIB{% endblocktranslate %}
           {% else %}
-            Bawaan Sistem (Fallback Global)
+            {% translate "Bawaan Sistem (Fallback Global)" %}
           {% endif %}
         </span>
       </div>
@@ -68,9 +71,9 @@ Rendered inside pages/foundation_microsoft_tenant_page.html and returned on HTMX
         <span style="font-size: 1.25rem; line-height: 1;">ℹ️</span>
         <div class="text-body-sm text-ink-900" style="display: flex; flex-direction: column; gap: 4px;">
           {% if is_pinned %}
-            <p><strong>Proteksi Direktori Aktif:</strong> Hanya akun staf yang terdaftar pada Microsoft Entra ID (Azure AD) yayasan ini yang dapat masuk melalui SSO. Login menggunakan akun Microsoft personal (@outlook.com, @hotmail.com) atau tenant luar akan ditolak oleh sistem demi menjaga kerahasiaan data yayasan.</p>
+            <p>{% blocktranslate %}<strong>Proteksi Direktori Aktif:</strong> Hanya akun staf yang terdaftar pada Microsoft Entra ID (Azure AD) yayasan ini yang dapat masuk melalui SSO. Login menggunakan akun Microsoft personal (@outlook.com, @hotmail.com) atau tenant luar akan ditolak oleh sistem demi menjaga kerahasiaan data yayasan.{% endblocktranslate %}</p>
           {% else %}
-            <p><strong>Mode Multi-Tenant Terbuka:</strong> Saat ini SSO Microsoft menerima akun staf dari organisasi Microsoft mana pun selama email pengguna telah didaftarkan di EduCore. Untuk meningkatkan keamanan dan mencegah penautan dari akun luar, sematkan Directory ID resmi yayasan Anda di bawah ini.</p>
+            <p>{% blocktranslate %}<strong>Mode Multi-Tenant Terbuka:</strong> Saat ini SSO Microsoft menerima akun staf dari organisasi Microsoft mana pun selama email pengguna telah didaftarkan di EduCore. Untuk meningkatkan keamanan dan mencegah penautan dari akun luar, sematkan Directory ID resmi yayasan Anda di bawah ini.{% endblocktranslate %}</p>
           {% endif %}
         </div>
       </div>
@@ -80,10 +83,10 @@ Rendered inside pages/foundation_microsoft_tenant_page.html and returned on HTMX
   <!-- Section 2: Tenant Configuration Form -->
   <div class="card" style="display: flex; flex-direction: column; gap: 20px;">
     <div>
-      <span class="text-label text-ink-500">PENGATURAN</span>
-      <h2 class="text-h2 text-ink-900" style="margin-top: 4px;">Konfigurasi Microsoft Entra Tenant</h2>
+      <span class="text-label text-ink-500">{% translate "PENGATURAN" %}</span>
+      <h2 class="text-h2 text-ink-900" style="margin-top: 4px;">{% translate "Konfigurasi Microsoft Entra Tenant" %}</h2>
       <p class="text-body-sm text-ink-500" style="margin-top: 2px;">
-        Sematkan GUID Directory ID yayasan atau nama domain terdaftar untuk mengunci autentikasi SSO Microsoft 365.
+        {% translate "Sematkan GUID Directory ID yayasan atau nama domain terdaftar untuk mengunci autentikasi SSO Microsoft 365." %}
       </p>
     </div>
 
@@ -97,20 +100,20 @@ Rendered inside pages/foundation_microsoft_tenant_page.html and returned on HTMX
 
       <div class="form-group">
         <label for="tenant_id_input" class="form-label">
-          Microsoft Entra Directory (Tenant) ID atau Domain Terdaftar <span style="color: var(--color-brand-600);">*</span>
+          {% translate "Microsoft Entra Directory (Tenant) ID atau Domain Terdaftar" %} <span style="color: var(--color-brand-600);">*</span>
         </label>
         <input type="text"
                id="tenant_id_input"
                name="tenant_id"
                class="form-input font-mono"
                style="width: 100%; max-width: 640px;"
-               placeholder="Contoh: 11111111-1111-1111-1111-111111111111 atau yayasan.sch.id"
+               placeholder="{% translate "Contoh: 11111111-1111-1111-1111-111111111111 atau yayasan.sch.id" %}"
                value="{{ tenant_id_input }}"
                required>
 
         <p class="text-body-sm text-ink-500" style="margin-top: 4px;">
-          Format yang diterima: <strong>GUID 36-karakter</strong> (misal: <code>xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</code>) atau <strong>nama domain</strong> (misal: <code>sekolah.sch.id</code> atau <code>yayasan.onmicrosoft.com</code>).
-          Dapat dilihat pada <em>Azure Portal &gt; Microsoft Entra ID &gt; Overview &gt; Directory (tenant) ID</em>.
+          {% blocktranslate %}Format yang diterima: <strong>GUID 36-karakter</strong> (misal: <code>xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</code>) atau <strong>nama domain</strong> (misal: <code>sekolah.sch.id</code> atau <code>yayasan.onmicrosoft.com</code>).
+          Dapat dilihat pada <em>Azure Portal &gt; Microsoft Entra ID &gt; Overview &gt; Directory (tenant) ID</em>.{% endblocktranslate %}
         </p>
 
         {% if form_error %}
@@ -126,7 +129,7 @@ Rendered inside pages/foundation_microsoft_tenant_page.html and returned on HTMX
       <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 8px;">
         <button type="submit" class="btn btn-primary">
           <span class="htmx-indicator">⏳ </span>
-          Simpan Pengaturan
+          {% translate "Simpan Pengaturan" %}
         </button>
 
         {% if is_pinned %}
@@ -135,8 +138,8 @@ Rendered inside pages/foundation_microsoft_tenant_page.html and returned on HTMX
                   hx-delete="/web/auth/sso/microsoft-tenant/"
                   hx-target="#microsoft-tenant-settings-container"
                   hx-swap="outerHTML"
-                  hx-confirm="Apakah Anda yakin ingin melepas penyematan tenant Microsoft Entra? SSO staf akan kembali menerima login dari direktori Microsoft mana pun.">
-            Lepas Penyematan (Kembalikan ke Standar)
+                  hx-confirm="{% translate "Apakah Anda yakin ingin melepas penyematan tenant Microsoft Entra? SSO staf akan kembali menerima login dari direktori Microsoft mana pun." %}">
+            {% translate "Lepas Penyematan (Kembalikan ke Standar)" %}
           </button>
         {% endif %}
       </div>
@@ -146,10 +149,10 @@ Rendered inside pages/foundation_microsoft_tenant_page.html and returned on HTMX
   <!-- Section 3: Audit Trail Log -->
   <div class="card" style="display: flex; flex-direction: column; gap: 16px;">
     <div>
-      <span class="text-label text-ink-500">JEJAK AUDIT (UU PDP NO. 27/2022)</span>
-      <h2 class="text-h2 text-ink-900" style="margin-top: 4px;">Riwayat Perubahan Pengaturan SSO</h2>
+      <span class="text-label text-ink-500">{% translate "JEJAK AUDIT (UU PDP NO. 27/2022)" %}</span>
+      <h2 class="text-h2 text-ink-900" style="margin-top: 4px;">{% translate "Riwayat Perubahan Pengaturan SSO" %}</h2>
       <p class="text-body-sm text-ink-500" style="margin-top: 2px;">
-        Pencatatan terenkripsi dan tidak dapat diubah atas seluruh mutasi konfigurasi tenant Microsoft untuk yayasan ini.
+        {% translate "Pencatatan terenkripsi dan tidak dapat diubah atas seluruh mutasi konfigurasi tenant Microsoft untuk yayasan ini." %}
       </p>
     </div>
 
@@ -157,11 +160,11 @@ Rendered inside pages/foundation_microsoft_tenant_page.html and returned on HTMX
       <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.875rem;">
         <thead>
           <tr style="border-bottom: 2px solid var(--color-line); background-color: var(--color-surface-alt);">
-            <th class="text-label text-ink-700" style="padding: 10px 14px;">WAKTU (WIB)</th>
-            <th class="text-label text-ink-700" style="padding: 10px 14px;">STAF / PELAKU</th>
-            <th class="text-label text-ink-700" style="padding: 10px 14px;">AKSI</th>
-            <th class="text-label text-ink-700" style="padding: 10px 14px;">DETAIL PERUBAHAN</th>
-            <th class="text-label text-ink-700" style="padding: 10px 14px;">ALAMAT IP</th>
+            <th class="text-label text-ink-700" style="padding: 10px 14px;">{% translate "WAKTU (WIB)" %}</th>
+            <th class="text-label text-ink-700" style="padding: 10px 14px;">{% translate "STAF / PELAKU" %}</th>
+            <th class="text-label text-ink-700" style="padding: 10px 14px;">{% translate "AKSI" %}</th>
+            <th class="text-label text-ink-700" style="padding: 10px 14px;">{% translate "DETAIL PERUBAHAN" %}</th>
+            <th class="text-label text-ink-700" style="padding: 10px 14px;">{% translate "ALAMAT IP" %}</th>
           </tr>
         </thead>
         <tbody>
@@ -175,9 +178,11 @@ Rendered inside pages/foundation_microsoft_tenant_page.html and returned on HTMX
               </td>
               <td style="padding: 12px 14px; white-space: nowrap;">
                 {% if evt.action == 'identity.sso.microsoft_tenant.set' %}
-                  {% include "components/badge.html" with status="LUNAS" label="Disematkan" %}
+                  {% translate "Disematkan" as msg_badge_set %}
+                  {% include "components/badge.html" with status="LUNAS" label=msg_badge_set %}
                 {% elif evt.action == 'identity.sso.microsoft_tenant.removed' %}
-                  {% include "components/badge.html" with status="BATAL" label="Dilepas" %}
+                  {% translate "Dilepas" as msg_badge_removed %}
+                  {% include "components/badge.html" with status="BATAL" label=msg_badge_removed %}
                 {% else %}
                   {% include "components/badge.html" with status="IZIN" label=evt.action %}
                 {% endif %}
@@ -191,7 +196,7 @@ Rendered inside pages/foundation_microsoft_tenant_page.html and returned on HTMX
                   {% elif evt.diff.tenant_id.after %}
                     <span class="text-ink-900 font-semibold">{{ evt.diff.tenant_id.after }}</span>
                   {% elif evt.diff.tenant_id.after is None %}
-                    <span class="text-ink-500 italic">Penyematan dilepas (kembali ke common)</span>
+                    <span class="text-ink-500 italic">{% translate "Penyematan dilepas (kembali ke common)" %}</span>
                   {% endif %}
                 {% else %}
                   <span class="text-ink-500">-</span>
@@ -204,7 +209,7 @@ Rendered inside pages/foundation_microsoft_tenant_page.html and returned on HTMX
           {% empty %}
             <tr>
               <td colspan="5" style="padding: 32px 16px; text-align: center;" class="text-body-sm text-ink-500">
-                Belum ada riwayat perubahan pengaturan tenant Microsoft untuk yayasan ini.
+                {% translate "Belum ada riwayat perubahan pengaturan tenant Microsoft untuk yayasan ini." %}
               </td>
             </tr>
           {% endfor %}

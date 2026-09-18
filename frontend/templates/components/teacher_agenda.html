@@ -1,3 +1,4 @@
+{% load i18n %}
 {% load l10n %}
 {% comment %}
 Component: Teacher Mobile Agenda Surface & Substitution Workflow (spec/09 §2, §3 TCH-001..003, TCH-015, ACD-019, spec/17)
@@ -17,12 +18,12 @@ Parameters:
           style="padding: 16px 20px; background-color: var(--color-surface); border: 1px solid var(--color-line); border-radius: 0px;">
     <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px;">
       <div>
-        <div class="text-label text-ink-500" style="margin-bottom: 2px;">Agenda Mengajar Harian</div>
+        <div class="text-label text-ink-500" style="margin-bottom: 2px;">{% translate "Agenda Mengajar Harian" %}</div>
         <h2 class="text-h2 font-display text-ink-900" style="margin: 0; font-size: 1.35rem;">
           {{ current_date|date:"l, d F Y"|default:current_date }}
         </h2>
         <div class="text-body-sm text-ink-500" style="margin-top: 4px;">
-          Guru: <strong class="text-ink-900">{{ teacher.person.full_name|default:teacher }}</strong>
+          {% translate "Guru:" %} <strong class="text-ink-900">{{ teacher.person.full_name|default:teacher }}</strong>
         </div>
       </div>
 
@@ -32,13 +33,13 @@ Parameters:
              class="inline-flex items-center text-body-sm font-mono"
              style="gap: 6px; padding: 4px 10px; background-color: var(--color-surface-alt); border: 1px solid var(--color-line); border-radius: 0px;">
           <span id="network-status-dot" style="width: 8px; height: 8px; background-color: var(--color-success); display: inline-block;"></span>
-          <span id="network-status-text">Online</span>
+          <span id="network-status-text">{% translate "Online" %}</span>
         </div>
         <button id="btn-register-push"
                 onclick="TeacherAgenda.registerPushToken()"
                 class="button button-ghost text-body-sm text-ink-500"
                 style="padding: 2px 6px; font-size: 0.75rem; border: none; text-decoration: underline; cursor: pointer;">
-          Aktifkan Notifikasi Push
+          {% translate "Aktifkan Notifikasi Push" %}
         </button>
       </div>
     </div>
@@ -55,16 +56,17 @@ Parameters:
         <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
           <div>
             <span class="text-label" style="background-color: var(--color-warning); color: #000; padding: 2px 8px; font-weight: bold; font-size: 0.75rem;">
-              PERMINTAAN GURU PENGGANTI
+              {% translate "PERMINTAAN GURU PENGGANTI" %}
             </span>
             <h4 class="font-display text-ink-900" style="margin: 8px 0 4px 0; font-size: 1.1rem;">
               {{ item.subject }} · {{ item.class_group }}
             </h4>
             <div class="text-body-sm text-ink-700">
-              Menggantikan: <strong>{{ item.original_teacher_name|default:"Guru Reguler" }}</strong>
+              {% translate "Guru Reguler" as msg_guru_reguler %}
+              {% translate "Menggantikan:" %} <strong>{{ item.original_teacher_name|default:msg_guru_reguler }}</strong>
             </div>
             <div class="text-body-sm text-ink-500 font-mono" style="margin-top: 2px;">
-              Jam Ke-{{ item.period_no }} ({{ item.start_time|time:"H:i" }} - {{ item.end_time|time:"H:i" }})
+              {% blocktranslate with period=item.period_no start=item.start_time|time:"H:i" end=item.end_time|time:"H:i" %}Jam Ke-{{ period }} ({{ start }} - {{ end }}){% endblocktranslate %}
             </div>
             {% if item.substitution_reason %}
               <div class="text-body-sm text-ink-700" style="margin-top: 6px; font-style: italic;">
@@ -79,13 +81,13 @@ Parameters:
                     onclick="TeacherAgenda.acceptSubstitution({{ item.substitution_id }})"
                     class="button button-primary"
                     style="background-color: var(--color-brand, #C8102E); color: #fff; border: 1px solid var(--color-brand, #C8102E); padding: 8px 16px; font-weight: 600; cursor: pointer; border-radius: 0px;">
-              Terima
+              {% translate "Terima" %}
             </button>
             <button type="button"
                     onclick="TeacherAgenda.openDeclineModal({{ item.substitution_id }})"
                     class="button button-secondary"
                     style="background-color: var(--color-surface); color: var(--color-ink-700); border: 1px solid var(--color-line); padding: 8px 16px; font-weight: 500; cursor: pointer; border-radius: 0px;">
-              Berhalangan
+              {% translate "Berhalangan" %}
             </button>
           </div>
         </div>
@@ -94,24 +96,24 @@ Parameters:
         <div id="decline-box-{{ item.substitution_id }}"
              style="display: none; margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--color-line);">
           <label for="decline-reason-{{ item.substitution_id }}" class="text-label text-ink-700" style="display: block; margin-bottom: 6px;">
-            Alasan Berhalangan / Penolakan (Wajib Diisi):
+            {% translate "Alasan Berhalangan / Penolakan (Wajib Diisi):" %}
           </label>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <input type="text"
                    id="decline-reason-{{ item.substitution_id }}"
-                   placeholder="Contoh: Sedang mendampingi lomba / sakit"
+                   placeholder="{% translate "Contoh: Sedang mendampingi lomba / sakit" %}"
                    style="flex: 1; min-width: 240px; padding: 8px 12px; border: 1px solid var(--color-line); border-radius: 0px; font-family: var(--font-body);" />
             <button type="button"
                     onclick="TeacherAgenda.submitDecline({{ item.substitution_id }})"
                     class="button button-danger"
                     style="background-color: var(--color-danger, #D32F2F); color: #fff; border: none; padding: 8px 16px; font-weight: 600; cursor: pointer; border-radius: 0px;">
-              Kirim Penolakan
+              {% translate "Kirim Penolakan" %}
             </button>
             <button type="button"
                     onclick="TeacherAgenda.closeDeclineModal({{ item.substitution_id }})"
                     class="button button-ghost"
                     style="background-color: transparent; border: 1px solid var(--color-line); padding: 8px 12px; cursor: pointer; border-radius: 0px;">
-              Batal
+              {% translate "Batal" %}
             </button>
           </div>
         </div>
@@ -125,7 +127,7 @@ Parameters:
       <div class="card empty-agenda"
            style="padding: 32px 20px; text-align: center; background-color: var(--color-surface); border: 1px dashed var(--color-line); border-radius: 0px;">
         <p class="text-ink-500 font-display" style="margin: 0; font-size: 1rem;">
-          Tidak ada jadwal mengajar pada tanggal ini.
+          {% translate "Tidak ada jadwal mengajar pada tanggal ini." %}
         </p>
       </div>
     {% else %}
@@ -138,7 +140,7 @@ Parameters:
             <div style="display: flex; align-items: center; gap: 8px;">
               <span class="font-mono text-ink-900"
                     style="font-weight: 700; font-size: 0.9rem; padding: 2px 8px; background-color: var(--color-surface-alt); border: 1px solid var(--color-line);">
-                Jam {{ slot.period_no }}
+                {% blocktranslate with period=slot.period_no %}Jam {{ period }}{% endblocktranslate %}
               </span>
               <span class="font-mono text-body-sm text-ink-500">
                 {{ slot.start_time|time:"H:i" }} - {{ slot.end_time|time:"H:i" }}
@@ -155,19 +157,19 @@ Parameters:
               {% if slot.is_substitution %}
                 <span class="text-label"
                       style="background-color: #EBF3FA; color: #026AA7; padding: 2px 6px; font-size: 0.7rem; font-weight: bold; border: 1px solid #B9D5E9;">
-                  GURU PENGGANTI
+                  {% translate "GURU PENGGANTI" %}
                 </span>
               {% endif %}
 
               {% if slot.attendance_submitted %}
                 <span class="inline-flex items-center text-label text-success"
                       style="color: var(--color-success, #2E7D32); font-weight: 600; font-size: 0.75rem;">
-                  ✓ Presensi Selesai
+                  {% translate "✓ Presensi Selesai" %}
                 </span>
               {% else %}
                 <span class="inline-flex items-center text-label text-warning"
                       style="color: #B78103; font-weight: 600; font-size: 0.75rem;">
-                  ○ Belum Presensi
+                  {% translate "○ Belum Presensi" %}
                 </span>
               {% endif %}
             </div>
@@ -179,11 +181,11 @@ Parameters:
               {{ slot.subject }}
             </h3>
             <div class="text-body text-ink-700" style="margin-top: 2px;">
-              Kelas: <strong>{{ slot.class_group }}</strong>
+              {% translate "Kelas:" %} <strong>{{ slot.class_group }}</strong>
             </div>
             {% if slot.is_substitution and slot.original_teacher_name %}
               <div class="text-body-sm text-ink-500" style="margin-top: 2px;">
-                Pengganti untuk: {{ slot.original_teacher_name }}
+                {% translate "Pengganti untuk:" %} {{ slot.original_teacher_name }}
               </div>
             {% endif %}
           </div>
@@ -194,7 +196,7 @@ Parameters:
                     onclick="TeacherAgenda.openRollCall({{ slot.slot_id }}, '{{ slot.class_group|escapejs }}', '{{ slot.subject|escapejs }}', '{{ current_date|date:'Y-m-d'|default:current_date }}')"
                     class="button button-primary"
                     style="background-color: {% if slot.attendance_submitted %}var(--color-surface-alt){% else %}var(--color-brand, #C8102E){% endif %}; color: {% if slot.attendance_submitted %}var(--color-ink-900){% else %}#fff{% endif %}; border: 1px solid var(--color-line); padding: 8px 16px; font-weight: 600; cursor: pointer; border-radius: 0px; font-family: var(--font-body);">
-              {% if slot.attendance_submitted %}Ubah Presensi{% else %}Buka Presensi Kelas{% endif %}
+              {% if slot.attendance_submitted %}{% translate "Ubah Presensi" %}{% else %}{% translate "Buka Presensi Kelas" %}{% endif %}
             </button>
           </div>
 
@@ -213,7 +215,7 @@ Parameters:
       <!-- Panel Header -->
       <div style="padding: 16px 20px; border-bottom: 1px solid var(--color-line); display: flex; justify-content: space-between; align-items: center;">
         <div>
-          <div class="text-label text-ink-500" id="rollcall-meta">Presensi Kelas</div>
+          <div class="text-label text-ink-500" id="rollcall-meta">{% translate "Presensi Kelas" %}</div>
           <h3 class="font-display text-ink-900" id="rollcall-title" style="margin: 2px 0 0 0; font-size: 1.2rem;">
             Matematika
           </h3>
@@ -225,19 +227,19 @@ Parameters:
 
       <!-- Quick Action: Mark All Present -->
       <div style="padding: 12px 20px; background-color: var(--color-surface-alt); border-bottom: 1px solid var(--color-line); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-        <span class="text-body-sm text-ink-700">Default: Seluruh siswa dianggap <strong>HADIR</strong></span>
+        <span class="text-body-sm text-ink-700">{% blocktranslate %}Default: Seluruh siswa dianggap <strong>HADIR</strong>{% endblocktranslate %}</span>
         <button type="button"
                 onclick="TeacherAgenda.markAllPresent()"
                 class="button button-ghost"
                 style="background: #fff; border: 1px solid var(--color-line); padding: 4px 10px; font-size: 0.8rem; cursor: pointer; border-radius: 0px;">
-          Setel Semua Hadir
+          {% translate "Setel Semua Hadir" %}
         </button>
       </div>
 
       <!-- Student List Container -->
       <div id="rollcall-students-list"
            style="overflow-y: auto; padding: 12px 20px; flex: 1; display: flex; flex-direction: column; gap: 10px;">
-        <div class="text-body text-ink-500 text-center" style="padding: 24px;">Memuat daftar siswa...</div>
+        <div class="text-body text-ink-500 text-center" style="padding: 24px;">{% translate "Memuat daftar siswa..." %}</div>
       </div>
 
       <!-- Panel Footer -->
@@ -246,14 +248,14 @@ Parameters:
                 onclick="TeacherAgenda.closeRollCall()"
                 class="button button-ghost"
                 style="border: 1px solid var(--color-line); background: transparent; padding: 8px 16px; cursor: pointer; border-radius: 0px;">
-          Batal
+          {% translate "Batal" %}
         </button>
         <button type="button"
                 id="btn-submit-rollcall"
                 onclick="TeacherAgenda.submitRollCall()"
                 class="button button-primary"
                 style="background-color: var(--color-brand, #C8102E); color: #fff; border: none; padding: 8px 20px; font-weight: 600; cursor: pointer; border-radius: 0px;">
-          Simpan Presensi
+          {% translate "Simpan Presensi" %}
         </button>
       </div>
     </div>
@@ -263,6 +265,20 @@ Parameters:
 
 <!-- Client-side Logic (ACD-019, TCH-001..003, TCH-015) -->
 <script>
+{% translate "Konfirmasi kesediaan Anda untuk mengajar pada jadwal ini?" as msg_confirm_accept %}
+{% translate "Gagal menerima penugasan." as msg_gagal_terima %}
+{% translate "Terjadi kesalahan jaringan." as msg_kesalahan_jaringan %}
+{% translate "Alasan penolakan wajib diisi." as msg_alasan_wajib %}
+{% translate "Gagal menolak penugasan." as msg_gagal_tolak %}
+{% translate "Masukkan token FCM / Push Notification perangkat:" as msg_prompt_token %}
+{% translate "Token perangkat berhasil didaftarkan." as msg_token_sukses %}
+{% translate "Gagal mendaftarkan token." as msg_gagal_daftar_token %}
+{% translate "Terjadi kesalahan koneksi saat mendaftarkan token." as msg_kesalahan_koneksi_token %}
+{% translate "Presensi Tanggal" as msg_presensi_tanggal %}
+{% translate "Menyimpan..." as msg_menyimpan_dots %}
+{% translate "Gagal menyimpan presensi." as msg_gagal_simpan_presensi %}
+{% translate "Terjadi kesalahan koneksi saat mengirim presensi." as msg_kesalahan_koneksi_presensi %}
+{% translate "Simpan Presensi" as msg_simpan_presensi_btn %}
 window.TeacherAgenda = (function() {
   let activeSlotId = null;
   let activeDate = null;
@@ -274,7 +290,7 @@ window.TeacherAgenda = (function() {
   }
 
   async function acceptSubstitution(subId) {
-    if (!confirm("Konfirmasi kesediaan Anda untuk mengajar pada jadwal ini?")) return;
+    if (!confirm("{{ msg_confirm_accept|escapejs }}")) return;
     try {
       const resp = await fetch(`/api/v1/academic/timetable/substitutions/${subId}/accept/`, {
         method: 'POST',
@@ -287,10 +303,10 @@ window.TeacherAgenda = (function() {
         window.location.reload();
       } else {
         const err = await resp.json();
-        alert(err.error || "Gagal menerima penugasan.");
+        alert(err.error || "{{ msg_gagal_terima|escapejs }}");
       }
     } catch (e) {
-      alert("Terjadi kesalahan jaringan.");
+      alert("{{ msg_kesalahan_jaringan|escapejs }}");
     }
   }
 
@@ -308,7 +324,7 @@ window.TeacherAgenda = (function() {
     const reasonInput = document.getElementById(`decline-reason-${subId}`);
     const reason = reasonInput ? reasonInput.value.trim() : '';
     if (!reason) {
-      alert("Alasan penolakan wajib diisi.");
+      alert("{{ msg_alasan_wajib|escapejs }}");
       return;
     }
 
@@ -325,15 +341,15 @@ window.TeacherAgenda = (function() {
         window.location.reload();
       } else {
         const err = await resp.json();
-        alert(err.error || "Gagal menolak penugasan.");
+        alert(err.error || "{{ msg_gagal_tolak|escapejs }}");
       }
     } catch (e) {
-      alert("Terjadi kesalahan jaringan.");
+      alert("{{ msg_kesalahan_jaringan|escapejs }}");
     }
   }
 
   async function registerPushToken() {
-    const token = prompt("Masukkan token FCM / Push Notification perangkat:");
+    const token = prompt("{{ msg_prompt_token|escapejs }}");
     if (!token || !token.trim()) return;
 
     try {
@@ -346,13 +362,13 @@ window.TeacherAgenda = (function() {
         body: JSON.stringify({ token: token.trim(), platform: 'WEB' }),
       });
       if (resp.ok) {
-        alert("Token perangkat berhasil didaftarkan.");
+        alert("{{ msg_token_sukses|escapejs }}");
       } else {
         const err = await resp.json();
-        alert(err.error || "Gagal mendaftarkan token.");
+        alert(err.error || "{{ msg_gagal_daftar_token|escapejs }}");
       }
     } catch (e) {
-      alert("Terjadi kesalahan koneksi saat mendaftarkan token.");
+      alert("{{ msg_kesalahan_koneksi_token|escapejs }}");
     }
   }
 
@@ -362,7 +378,7 @@ window.TeacherAgenda = (function() {
     studentExceptions = {};
 
     document.getElementById('rollcall-title').innerText = `${subjectName} · ${classGroupName}`;
-    document.getElementById('rollcall-meta').innerText = `Presensi Tanggal ${dateStr}`;
+    document.getElementById('rollcall-meta').innerText = '{{ msg_presensi_tanggal|escapejs }}' + ' ' + dateStr;
     document.getElementById('rollcall-modal').style.display = 'flex';
 
     renderMockStudents();
@@ -423,7 +439,7 @@ window.TeacherAgenda = (function() {
     if (!activeSlotId || !activeDate) return;
     const btn = document.getElementById('btn-submit-rollcall');
     btn.disabled = true;
-    btn.innerText = 'Menyimpan...';
+    btn.innerText = '{{ msg_menyimpan_dots|escapejs }}';
 
     const payload = {
       date: activeDate,
@@ -445,13 +461,13 @@ window.TeacherAgenda = (function() {
         window.location.reload();
       } else {
         const err = await resp.json();
-        alert(err.error || "Gagal menyimpan presensi.");
+        alert(err.error || "{{ msg_gagal_simpan_presensi|escapejs }}");
       }
     } catch (e) {
-      alert("Terjadi kesalahan koneksi saat mengirim presensi.");
+      alert("{{ msg_kesalahan_koneksi_presensi|escapejs }}");
     } finally {
       btn.disabled = false;
-      btn.innerText = 'Simpan Presensi';
+      btn.innerText = '{{ msg_simpan_presensi_btn|escapejs }}';
     }
   }
 
@@ -459,18 +475,18 @@ window.TeacherAgenda = (function() {
     const container = document.getElementById('rollcall-students-list');
     container.innerHTML = `
       <div class="text-body-sm text-ink-500 font-mono" style="padding-bottom: 8px; border-bottom: 1px solid var(--color-line);">
-        Daftar Siswa Kelas
+        {% translate "Daftar Siswa Kelas" %}
       </div>
       <div id="student-row-1" data-student-id="1" class="student-row" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--color-surface-alt);">
         <div>
           <strong class="text-ink-900">Ahmad Fauzi</strong>
-          <div class="text-body-sm text-ink-500 font-mono">NIS: 2026001</div>
+          <div class="text-body-sm text-ink-500 font-mono">{% translate "NIS:" %} 2026001</div>
         </div>
         <div style="display: flex; gap: 4px;">
-          <button type="button" class="status-btn" data-status="HADIR" onclick="TeacherAgenda.setStudentStatus(1, 'HADIR')" style="padding: 4px 8px; font-size: 0.75rem; border: 1px solid var(--color-line); background: var(--color-success, #2E7D32); color: #fff; cursor: pointer;">HADIR</button>
-          <button type="button" class="status-btn" data-status="SAKIT" onclick="TeacherAgenda.setStudentStatus(1, 'SAKIT')" style="padding: 4px 8px; font-size: 0.75rem; border: 1px solid var(--color-line); background: #fff; cursor: pointer;">SAKIT</button>
-          <button type="button" class="status-btn" data-status="IZIN" onclick="TeacherAgenda.setStudentStatus(1, 'IZIN')" style="padding: 4px 8px; font-size: 0.75rem; border: 1px solid var(--color-line); background: #fff; cursor: pointer;">IZIN</button>
-          <button type="button" class="status-btn" data-status="ALPA" onclick="TeacherAgenda.setStudentStatus(1, 'ALPA')" style="padding: 4px 8px; font-size: 0.75rem; border: 1px solid var(--color-line); background: #fff; cursor: pointer;">ALPA</button>
+          <button type="button" class="status-btn" data-status="HADIR" onclick="TeacherAgenda.setStudentStatus(1, 'HADIR')" style="padding: 4px 8px; font-size: 0.75rem; border: 1px solid var(--color-line); background: var(--color-success, #2E7D32); color: #fff; cursor: pointer;">{% translate "HADIR" %}</button>
+          <button type="button" class="status-btn" data-status="SAKIT" onclick="TeacherAgenda.setStudentStatus(1, 'SAKIT')" style="padding: 4px 8px; font-size: 0.75rem; border: 1px solid var(--color-line); background: #fff; cursor: pointer;">{% translate "SAKIT" %}</button>
+          <button type="button" class="status-btn" data-status="IZIN" onclick="TeacherAgenda.setStudentStatus(1, 'IZIN')" style="padding: 4px 8px; font-size: 0.75rem; border: 1px solid var(--color-line); background: #fff; cursor: pointer;">{% translate "IZIN" %}</button>
+          <button type="button" class="status-btn" data-status="ALPA" onclick="TeacherAgenda.setStudentStatus(1, 'ALPA')" style="padding: 4px 8px; font-size: 0.75rem; border: 1px solid var(--color-line); background: #fff; cursor: pointer;">{% translate "ALPA" %}</button>
         </div>
       </div>
     `;

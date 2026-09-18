@@ -1,3 +1,4 @@
+{% load i18n %}
 {% comment %}
 Fragment: Live consent tally chips for one permission slip (PAR-012).
 Rendered inside the per-slip hx-get polling container; also reused by the
@@ -5,20 +6,20 @@ tally fragment endpoint. Parameters:
   - tally: {total_enrolled, approved, declined, pending}
 {% endcomment %}
 <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-  <span class="text-label text-ink-500" style="align-self: center;">Tally</span>
+  <span class="text-label text-ink-500" style="align-self: center;">{% translate "Tally" %}</span>
   <span class="text-body-sm font-mono"
         style="padding: 4px 10px; background-color: var(--color-success-bg); color: var(--color-success); border: 1px solid var(--color-success); font-weight: 600;">
-    Setuju: {{ tally.approved|default:0 }}
+    {% blocktranslate with approved=tally.approved|default:0 %}Setuju: {{ approved }}{% endblocktranslate %}
   </span>
   <span class="text-body-sm font-mono"
         style="padding: 4px 10px; background-color: var(--color-danger-bg); color: var(--color-danger); border: 1px solid var(--color-danger); font-weight: 600;">
-    Tolak: {{ tally.declined|default:0 }}
+    {% blocktranslate with declined=tally.declined|default:0 %}Tolak: {{ declined }}{% endblocktranslate %}
   </span>
   <span class="text-body-sm font-mono"
         style="padding: 4px 10px; background-color: var(--color-warning-bg); color: var(--color-warning); border: 1px solid var(--color-warning); font-weight: 600;">
-    Menunggu: {{ tally.pending|default:0 }}
+    {% blocktranslate with pending=tally.pending|default:0 %}Menunggu: {{ pending }}{% endblocktranslate %}
   </span>
   <span class="text-body-sm font-mono text-ink-500" style="align-self: center;">
-    / {{ tally.total_enrolled|default:0 }} siswa
+    {% blocktranslate with total=tally.total_enrolled|default:0 %}/ {{ total }} siswa{% endblocktranslate %}
   </span>
 </div>

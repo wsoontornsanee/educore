@@ -1,3 +1,4 @@
+{% load i18n %}
 {% comment %}
 Fragment: Per-student consent roster for one permission slip (PAR-012).
 Loaded on demand via hx-get into #slip-roster-<id>. Parameters:
@@ -9,10 +10,10 @@ Loaded on demand via hx-get into #slip-roster-<id>. Parameters:
     <table style="width: 100%; border-collapse: collapse; font-family: 'IBM Plex Sans', sans-serif; font-size: 0.8125rem;">
       <thead>
         <tr style="border-bottom: 2px solid var(--color-line); text-align: left;">
-          <th class="text-label text-ink-500" style="padding: 8px 12px;">Siswa</th>
-          <th class="text-label text-ink-500" style="padding: 8px 12px;">NIS</th>
-          <th class="text-label text-ink-500" style="padding: 8px 12px;">Respon</th>
-          <th class="text-label text-ink-500" style="padding: 8px 12px;">Waktu Tanda Tangan</th>
+          <th class="text-label text-ink-500" style="padding: 8px 12px;">{% translate "Siswa" %}</th>
+          <th class="text-label text-ink-500" style="padding: 8px 12px;">{% translate "NIS" %}</th>
+          <th class="text-label text-ink-500" style="padding: 8px 12px;">{% translate "Respon" %}</th>
+          <th class="text-label text-ink-500" style="padding: 8px 12px;">{% translate "Waktu Tanda Tangan" %}</th>
         </tr>
       </thead>
       <tbody>
@@ -22,11 +23,11 @@ Loaded on demand via hx-get into #slip-roster-<id>. Parameters:
             <td class="text-body-sm font-mono text-ink-700" style="padding: 8px 12px;">{{ row.nis }}</td>
             <td style="padding: 8px 12px;">
               {% if row.response == 'APPROVED' %}
-                <span class="text-body-sm font-mono" style="color: var(--color-success); font-weight: 600;">Setuju</span>
+                <span class="text-body-sm font-mono" style="color: var(--color-success); font-weight: 600;">{% translate "Setuju" %}</span>
               {% elif row.response == 'DECLINED' %}
-                <span class="text-body-sm font-mono" style="color: var(--color-danger); font-weight: 600;">Tolak</span>
+                <span class="text-body-sm font-mono" style="color: var(--color-danger); font-weight: 600;">{% translate "Tolak" %}</span>
               {% else %}
-                <span class="text-body-sm font-mono" style="color: var(--color-warning); font-weight: 600;">Menunggu</span>
+                <span class="text-body-sm font-mono" style="color: var(--color-warning); font-weight: 600;">{% translate "Menunggu" %}</span>
               {% endif %}
             </td>
             <td class="text-body-sm font-mono text-ink-500" style="padding: 8px 12px;">
@@ -38,5 +39,5 @@ Loaded on demand via hx-get into #slip-roster-<id>. Parameters:
     </table>
   </div>
 {% else %}
-  <p class="text-body-sm text-ink-500" style="margin: 0;">Belum ada siswa terdaftar di kelas ini.</p>
+  <p class="text-body-sm text-ink-500" style="margin: 0;">{% translate "Belum ada siswa terdaftar di kelas ini." %}</p>
 {% endif %}

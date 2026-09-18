@@ -1,3 +1,4 @@
+{% load i18n %}
 {% comment %}
 Component: Cursor Pagination (spec/01 §4, docs/frontend-plan.md Decision #1)
 Usage: {% include "components/pagination.html" with next_url=page.next target_id="transaction-rows" %}
@@ -6,6 +7,7 @@ Parameters:
   - target_id: The HTML container element ID to append items to
   - label: Optional button label (defaults to 'Muat Lebih Banyak')
 {% endcomment %}
+{% translate "Muat Lebih Banyak" as default_pagination_label %}
 {% if next_url %}
 <div id="pagination-control" class="pagination-container" style="text-align: center; padding: 20px 0;">
   <button class="btn btn-secondary text-body-sm"
@@ -14,10 +16,10 @@ Parameters:
           hx-swap="beforeend"
           hx-indicator="#pagination-spinner"
           style="min-width: 180px;">
-    {{ label|default:"Muat Lebih Banyak" }}
+    {{ label|default:default_pagination_label }}
   </button>
   <div id="pagination-spinner" class="htmx-indicator" style="margin-top: 8px; font-size: 0.8125rem; color: var(--color-ink-500);">
-    <span>Memuat data berikutnya...</span>
+    <span>{% translate "Memuat data berikutnya..." %}</span>
   </div>
 </div>
 {% endif %}

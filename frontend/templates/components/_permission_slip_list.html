@@ -1,3 +1,4 @@
+{% load i18n %}
 {% comment %}
 Fragment: Permission slip list cards with live tally badges (spec/08 PAR-012).
 Swapped into #slip-list-container by the create form (hx-post) and refreshed by
@@ -18,12 +19,12 @@ the polling poller on the console page. Parameters:
               <p class="text-body-sm text-ink-700" style="margin: 6px 0 0 0;">{{ slip.description }}</p>
             {% endif %}
             <p class="text-body-sm text-ink-500" style="margin: 6px 0 0 0;">
-              {% if slip.event_date %}Acara: {{ slip.event_date }}{% endif %}
-              {% if slip.location %}{% if slip.event_date %} • {% endif %}Lokasi: {{ slip.location }}{% endif %}
+              {% if slip.event_date %}{% translate "Acara:" %} {{ slip.event_date }}{% endif %}
+              {% if slip.location %}{% if slip.event_date %} • {% endif %}{% translate "Lokasi:" %} {{ slip.location }}{% endif %}
             </p>
             <p class="text-body-sm text-ink-500" style="margin: 4px 0 0 0;">
-              {% if slip.due_at %}Batas respon: {{ slip.due_at }}{% else %}Tanpa batas waktu{% endif %}
-              {% if slip.is_closed %} • <span class="text-danger" style="font-weight: 600;">Ditutup</span>{% endif %}
+              {% if slip.due_at %}{% translate "Batas respon:" %} {{ slip.due_at }}{% else %}{% translate "Tanpa batas waktu" %}{% endif %}
+              {% if slip.is_closed %} • <span class="text-danger" style="font-weight: 600;">{% translate "Ditutup" %}</span>{% endif %}
             </p>
           </div>
 
@@ -39,14 +40,14 @@ the polling poller on the console page. Parameters:
         </div>
 
         <div style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-          <span class="text-body-sm text-ink-500">Diterbitkan oleh {{ slip.created_by_name }}</span>
+          <span class="text-body-sm text-ink-500">{% blocktranslate with name=slip.created_by_name %}Diterbitkan oleh {{ name }}{% endblocktranslate %}</span>
           <button type="button"
                   class="btn btn-secondary text-body-sm"
                   hx-get="{{ tally_url_prefix }}/{{ slip.id }}/roster/"
                   hx-target="#slip-roster-{{ slip.id }}"
                   hx-swap="innerHTML"
                   aria-controls="slip-roster-{{ slip.id }}">
-            Lihat Rincian Siswa
+            {% translate "Lihat Rincian Siswa" %}
           </button>
         </div>
         <div id="slip-roster-{{ slip.id }}" style="margin-top: 8px;"></div>
@@ -55,9 +56,9 @@ the polling poller on the console page. Parameters:
   </div>
 {% else %}
   <div class="card" style="padding: 32px; text-align: center;">
-    <p class="text-h3 font-display text-ink-900" style="margin: 0 0 4px 0;">Belum Ada Izin</p>
+    <p class="text-h3 font-display text-ink-900" style="margin: 0 0 4px 0;">{% translate "Belum Ada Izin" %}</p>
     <p class="text-body-sm text-ink-500" style="margin: 0;">
-      Terbitkan izin pertama Anda melalui formulir di atas.
+      {% translate "Terbitkan izin pertama Anda melalui formulir di atas." %}
     </p>
   </div>
 {% endif %}

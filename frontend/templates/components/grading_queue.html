@@ -1,3 +1,4 @@
+{% load i18n %}
 {% load l10n %}
 {% comment %}
 Component: Homework Grading Queue (spec/09 §3 TCH-014, spec/17)
@@ -17,10 +18,10 @@ Parameters:
        style="display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--color-line); background-color: var(--color-surface-alt); flex-wrap: wrap; gap: 8px;">
     <div style="display: flex; align-items: center; gap: 12px;">
       <span class="badge" style="background-color: var(--color-ink-900); color: #FFFFFF; font-family: var(--font-mono); font-size: 11px; padding: 4px 8px; border-radius: 0px; font-weight: 600;">
-        ANTREAN PENILAIAN
+        {% translate "ANTREAN PENILAIAN" %}
       </span>
       <h2 class="text-h3" style="margin: 0; font-size: 16px; font-weight: 700; color: var(--color-ink-900);">
-        {% if homework %}{{ homework.title }}{% else %}Penilaian Tugas{% endif %}
+        {% if homework %}{{ homework.title }}{% else %}{% translate "Penilaian Tugas" %}{% endif %}
       </h2>
       {% if class_subject %}
         <span class="text-body-sm text-ink-500 font-mono">
@@ -33,29 +34,29 @@ Parameters:
     <div style="display: flex; align-items: center; gap: 12px;">
       <span id="queue-counter-display" class="font-mono text-sm font-semibold" style="color: var(--color-ink-700);">
         {% if queue %}
-          Pengajuan <span id="queue-current-num">1</span> dari <span id="queue-total-num">{{ queue|length }}</span>
+          {% blocktranslate with total=queue|length %}Pengajuan <span id="queue-current-num">1</span> dari <span id="queue-total-num">{{ total }}</span>{% endblocktranslate %}
         {% else %}
-          0 Antrean
+          {% translate "0 Antrean" %}
         {% endif %}
       </span>
       <div style="display: flex; gap: 4px;">
         <button type="button"
                 id="btn-queue-prev"
                 onclick="window.GradingQueue && window.GradingQueue.prev()"
-                title="Pengajuan Sebelumnya (Shortcut: [ )"
+                title="{% translate "Pengajuan Sebelumnya (Shortcut: [ )" %}"
                 class="btn btn-secondary"
                 style="padding: 4px 10px; font-size: 12px; border-radius: 0px; border: 1px solid var(--color-line); background: var(--color-surface); cursor: pointer;"
                 disabled>
-          &larr; [ Sebelumnya
+          &larr; [ {% translate "Sebelumnya" %}
         </button>
         <button type="button"
                 id="btn-queue-next"
                 onclick="window.GradingQueue && window.GradingQueue.next()"
-                title="Pengajuan Berikutnya (Shortcut: ] )"
+                title="{% translate "Pengajuan Berikutnya (Shortcut: ] )" %}"
                 class="btn btn-secondary"
                 style="padding: 4px 10px; font-size: 12px; border-radius: 0px; border: 1px solid var(--color-line); background: var(--color-surface); cursor: pointer;"
                 {% if queue|length <= 1 %}disabled{% endif %}>
-          Berikutnya ] &rarr;
+          {% translate "Berikutnya" %} ] &rarr;
         </button>
       </div>
     </div>
@@ -70,10 +71,10 @@ Parameters:
       </svg>
     </div>
     <h3 class="text-h3 font-display" style="margin: 0 0 8px; color: var(--color-ink-900); font-size: 18px; font-weight: 700;">
-      Semua Pengajuan Telah Dinilai
+      {% translate "Semua Pengajuan Telah Dinilai" %}
     </h3>
     <p class="text-body-sm text-ink-500" style="margin: 0; max-width: 440px; margin: 0 auto;">
-      Tidak ada pengajuan tugas tertunda yang membutuhkan penilaian saat ini.
+      {% translate "Tidak ada pengajuan tugas tertunda yang membutuhkan penilaian saat ini." %}
     </p>
   </div>
 
@@ -93,14 +94,16 @@ Parameters:
           <div>
             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
               <span class="font-mono text-xs text-ink-500 font-semibold" style="background: var(--color-surface-alt); padding: 2px 6px; border: 1px solid var(--color-line);">
-                NIS: {% firstof item.student_nis item.student.nis '—' %}
+                {% translate "NIS:" %} {% firstof item.student_nis item.student.nis '—' %}
               </span>
               <h3 style="margin: 0; font-size: 18px; font-weight: 700; color: var(--color-ink-900);">
-                {% firstof item.student_name item.student.person.full_name item.student.name item.student_name 'Siswa' %}
+                {% translate "Siswa" as msg_siswa_fallback %}
+                {% firstof item.student_name item.student.person.full_name item.student.name item.student_name msg_siswa_fallback %}
               </h3>
             </div>
             <div class="text-body-sm text-ink-500">
-              Tugas: <strong>{% firstof item.homework_title item.homework.title 'Tugas' %}</strong>
+              {% translate "Tugas" as msg_tugas_fallback %}
+              {% translate "Tugas:" %} <strong>{% firstof item.homework_title item.homework.title msg_tugas_fallback %}</strong>
               {% if item.class_subject_name %}
                 &bull; <span class="font-mono">{{ item.class_subject_name }}</span>
               {% endif %}
@@ -110,19 +113,19 @@ Parameters:
           <div style="text-align: right;">
             {% if item.status == 'LATE' %}
               <span class="badge" style="background-color: #FEF3C7; color: #B45309; border: 1px solid #F59E0B; padding: 4px 8px; font-size: 11px; font-weight: 700; border-radius: 0px;">
-                TERLAMBAT
+                {% translate "TERLAMBAT" %}
               </span>
             {% elif item.status == 'GRADED' %}
               <span class="badge" style="background-color: #D1FAE5; color: #065F46; border: 1px solid #10B981; padding: 4px 8px; font-size: 11px; font-weight: 700; border-radius: 0px;">
-                DINILAI ({{ item.score }})
+                {% blocktranslate %}DINILAI ({{ item.score }}){% endblocktranslate %}
               </span>
             {% else %}
               <span class="badge" style="background-color: #DBEAFE; color: #1E40AF; border: 1px solid #3B82F6; padding: 4px 8px; font-size: 11px; font-weight: 700; border-radius: 0px;">
-                TERKUMPUL
+                {% translate "TERKUMPUL" %}
               </span>
             {% endif %}
             <div class="text-body-sm text-ink-500 font-mono" style="margin-top: 4px;">
-              Dikumpulkan: {{ item.submitted_at|date:"d M Y, H:i" }}
+              {% blocktranslate with submitted=item.submitted_at|date:"d M Y, H:i" %}Dikumpulkan: {{ submitted }}{% endblocktranslate %}
             </div>
           </div>
         </div>
@@ -134,13 +137,13 @@ Parameters:
           <div style="display: flex; flex-direction: column; gap: 16px;">
             <div>
               <label class="text-label text-ink-700" style="display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 8px;">
-                Jawaban / Catatan Siswa
+                {% translate "Jawaban / Catatan Siswa" %}
               </label>
               <div style="border: 1px solid var(--color-line); background: var(--color-surface-alt); padding: 14px; min-height: 110px; font-size: 14px; color: var(--color-ink-900); white-space: pre-wrap; line-height: 1.5;">
                 {% if item.text %}
                   {{ item.text }}
                 {% else %}
-                  <span class="text-ink-400 font-italic">(Tidak ada teks jawaban tertulis)</span>
+                  <span class="text-ink-400 font-italic">{% translate "(Tidak ada teks jawaban tertulis)" %}</span>
                 {% endif %}
               </div>
             </div>
@@ -148,7 +151,11 @@ Parameters:
             <!-- Attached Files -->
             <div>
               <label class="text-label text-ink-700" style="display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 8px;">
-                Berkas Lampiran ({% if item.files %}{{ item.files|length }}{% else %}0{% endif %})
+                {% if item.files %}
+                  {% blocktranslate with count=item.files|length %}Berkas Lampiran ({{ count }}){% endblocktranslate %}
+                {% else %}
+                  {% translate "Berkas Lampiran (0)" %}
+                {% endif %}
               </label>
               {% if item.files %}
                 <div style="display: flex; flex-direction: column; gap: 8px;">
@@ -156,7 +163,7 @@ Parameters:
                     <div style="display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--color-line); background: var(--color-surface); padding: 8px 12px; border-radius: 0px;">
                       <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
                         <span style="font-size: 11px; font-family: var(--font-mono); font-weight: 700; padding: 2px 6px; background: var(--color-surface-alt); border: 1px solid var(--color-line);">
-                          FILE
+                          {% translate "FILE" %}
                         </span>
                         <span class="font-mono text-sm text-ink-900" style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
                           {{ file.filename }}
@@ -167,14 +174,14 @@ Parameters:
                       </div>
                       <a href="{{ file.key }}" target="_blank" rel="noopener noreferrer"
                          style="color: var(--color-info); text-decoration: none; font-size: 13px; font-weight: 600; white-space: nowrap; margin-left: 12px;">
-                        Buka &rarr;
+                        {% translate "Buka" %} &rarr;
                       </a>
                     </div>
                   {% endfor %}
                 </div>
               {% else %}
                 <div style="border: 1px dashed var(--color-line); padding: 12px; text-align: center; color: var(--color-ink-400); font-size: 13px;">
-                  Tidak ada berkas yang dilampirkan.
+                  {% translate "Tidak ada berkas yang dilampirkan." %}
                 </div>
               {% endif %}
             </div>
@@ -185,9 +192,9 @@ Parameters:
             <div>
               <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px;">
                 <label for="input-score-{{ forloop.counter0 }}" style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--color-ink-900);">
-                  Nilai Siswa (Skala 0 - 100)
+                  {% translate "Nilai Siswa (Skala 0 - 100)" %}
                 </label>
-                <span class="text-ink-400 font-mono text-xs">Maksimal 100</span>
+                <span class="text-ink-400 font-mono text-xs">{% translate "Maksimal 100" %}</span>
               </div>
               <input type="number"
                      id="input-score-{{ forloop.counter0 }}"
@@ -201,12 +208,12 @@ Parameters:
                      style="width: 100%; font-size: 24px; font-weight: 700; padding: 10px 14px; border: 2px solid var(--color-line); border-radius: 0px; background: var(--color-surface); color: var(--color-ink-900); margin-bottom: 16px; box-sizing: border-box;" />
 
               <label for="input-feedback-{{ forloop.counter0 }}" style="display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--color-ink-900); margin-bottom: 8px;">
-                Umpan Balik / Catatan Guru
+                {% translate "Umpan Balik / Catatan Guru" %}
               </label>
               <textarea id="input-feedback-{{ forloop.counter0 }}"
                         name="feedback"
                         rows="4"
-                        placeholder="Tuliskan masukan atau evaluasi untuk siswa ini..."
+                        placeholder="{% translate "Tuliskan masukan atau evaluasi untuk siswa ini..." %}"
                         style="width: 100%; font-size: 14px; font-family: var(--font-sans); padding: 10px 12px; border: 1px solid var(--color-line); border-radius: 0px; background: var(--color-surface); color: var(--color-ink-900); resize: vertical; box-sizing: border-box; margin-bottom: 8px;">{{ item.feedback|default:'' }}</textarea>
             </div>
 
@@ -217,16 +224,16 @@ Parameters:
                         onclick="window.GradingQueue && window.GradingQueue.submitGrade({{ forloop.counter0 }})"
                         class="btn-save-grade"
                         style="flex: 2; padding: 10px 16px; background-color: var(--color-brand, #C8102E); color: #FFFFFF; border: none; border-radius: 0px; font-weight: 700; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;">
-                  <span>Simpan & Lanjut</span>
+                  <span>{% translate "Simpan & Lanjut" %}</span>
                   <span style="font-size: 10px; opacity: 0.8; font-family: var(--font-mono);">(Ctrl+Enter)</span>
                 </button>
 
                 <button type="button"
                         onclick="window.GradingQueue && window.GradingQueue.returnForRevision({{ forloop.counter0 }})"
                         class="btn-return-revision"
-                        title="Kembalikan pengajuan untuk perbaikan (Shortcut: Alt+R)"
+                        title="{% translate "Kembalikan pengajuan untuk perbaikan (Shortcut: Alt+R)" %}"
                         style="flex: 1; padding: 10px 12px; background-color: transparent; color: var(--color-warning, #B56A00); border: 1px solid var(--color-warning, #B56A00); border-radius: 0px; font-weight: 600; font-size: 12px; cursor: pointer;">
-                  Kembalikan
+                  {% translate "Kembalikan" %}
                 </button>
               </div>
 
@@ -234,7 +241,7 @@ Parameters:
                 <button type="button"
                         onclick="window.GradingQueue && window.GradingQueue.skip({{ forloop.counter0 }})"
                         style="background: none; border: none; color: var(--color-ink-500); font-size: 12px; cursor: pointer; text-decoration: underline; padding: 0;">
-                  Lewati tanpa simpan
+                  {% translate "Lewati tanpa simpan" %}
                 </button>
                 <span id="queue-save-status-{{ forloop.counter0 }}" class="font-mono text-xs text-ink-500" style="min-height: 16px;"></span>
               </div>
@@ -251,9 +258,9 @@ Parameters:
   <div class="queue-bottom-bar"
        style="display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; border-top: 1px solid var(--color-line); background-color: var(--color-surface-alt); font-size: 12px; color: var(--color-ink-500); flex-wrap: wrap; gap: 8px;">
     <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
-      <span><strong>[ / ]</strong> : Pengajuan Sebelumnya / Berikutnya</span>
-      <span><strong>Ctrl+Enter</strong> : Simpan & Lanjut</span>
-      <span><strong>Alt+R</strong> : Kembalikan Revisi</span>
+      <span>{% blocktranslate %}<strong>[ / ]</strong> : Pengajuan Sebelumnya / Berikutnya{% endblocktranslate %}</span>
+      <span>{% blocktranslate %}<strong>Ctrl+Enter</strong> : Simpan & Lanjut{% endblocktranslate %}</span>
+      <span>{% blocktranslate %}<strong>Alt+R</strong> : Kembalikan Revisi{% endblocktranslate %}</span>
     </div>
     <div class="font-mono text-xs">
       EduCore Teacher Suite &bull; TCH-014
@@ -264,6 +271,15 @@ Parameters:
 
 <!-- Client Controller Script for Keyboard Navigation & Instant Progression -->
 <script>
+{% translate "Semua Selesai" as msg_semua_selesai %}
+{% translate "Menyimpan..." as msg_menyimpan %}
+{% translate "Gagal menyimpan nilai" as msg_gagal_simpan_nilai %}
+{% translate "Tersimpan ✓" as msg_tersimpan %}
+{% translate "Gagal: " as msg_gagal_prefix %}
+{% translate "Mohon tuliskan instruksi perbaikan pada kolom catatan guru sebelum mengembalikan pengajuan." as msg_konfirmasi_revisi %}
+{% translate "Mengembalikan..." as msg_mengembalikan %}
+{% translate "Gagal mengembalikan pengajuan" as msg_gagal_kembalikan %}
+{% translate "Dikembalikan ke siswa ✓" as msg_dikembalikan %}
 (function() {
   function getCookie(name) {
     let cookieValue = null;
@@ -293,7 +309,7 @@ Parameters:
       document.getElementById('queue-cards-wrapper').style.display = 'none';
       document.getElementById('btn-queue-prev').disabled = true;
       document.getElementById('btn-queue-next').disabled = true;
-      document.getElementById('queue-counter-display').textContent = 'Semua Selesai';
+      document.getElementById('queue-counter-display').textContent = '{{ msg_semua_selesai|escapejs }}';
       return;
     }
 
@@ -354,7 +370,7 @@ Parameters:
       const gradeUrl = card.getAttribute('data-grade-url');
 
       if (statusEl) {
-        statusEl.textContent = 'Menyimpan...';
+        statusEl.textContent = '{{ msg_menyimpan|escapejs }}';
         statusEl.style.color = 'var(--color-ink-500)';
       }
 
@@ -371,13 +387,13 @@ Parameters:
       })
       .then(resp => {
         if (!resp.ok) {
-          return resp.json().then(d => { throw new Error(d.error || 'Gagal menyimpan nilai'); });
+          return resp.json().then(d => { throw new Error(d.error || '{{ msg_gagal_simpan_nilai|escapejs }}'); });
         }
         return resp.json();
       })
       .then(data => {
         if (statusEl) {
-          statusEl.textContent = 'Tersimpan ✓';
+          statusEl.textContent = '{{ msg_tersimpan|escapejs }}';
           statusEl.style.color = 'var(--color-success)';
         }
         // Advance to next without returning to a list (TCH-014)
@@ -387,7 +403,7 @@ Parameters:
       })
       .catch(err => {
         if (statusEl) {
-          statusEl.textContent = 'Gagal: ' + err.message;
+          statusEl.textContent = '{{ msg_gagal_prefix|escapejs }}' + err.message;
           statusEl.style.color = 'var(--color-danger, #C8102E)';
         }
       });
@@ -401,13 +417,13 @@ Parameters:
       const returnUrl = card.getAttribute('data-return-url');
 
       if (!feedbackVal) {
-        alert('Mohon tuliskan instruksi perbaikan pada kolom catatan guru sebelum mengembalikan pengajuan.');
+        alert('{{ msg_konfirmasi_revisi|escapejs }}');
         if (feedbackInput) feedbackInput.focus();
         return;
       }
 
       if (statusEl) {
-        statusEl.textContent = 'Mengembalikan...';
+        statusEl.textContent = '{{ msg_mengembalikan|escapejs }}';
         statusEl.style.color = 'var(--color-ink-500)';
       }
 
@@ -423,13 +439,13 @@ Parameters:
       })
       .then(resp => {
         if (!resp.ok) {
-          return resp.json().then(d => { throw new Error(d.error || 'Gagal mengembalikan pengajuan'); });
+          return resp.json().then(d => { throw new Error(d.error || '{{ msg_gagal_kembalikan|escapejs }}'); });
         }
         return resp.json();
       })
       .then(data => {
         if (statusEl) {
-          statusEl.textContent = 'Dikembalikan ke siswa ✓';
+          statusEl.textContent = '{{ msg_dikembalikan|escapejs }}';
           statusEl.style.color = 'var(--color-warning)';
         }
         setTimeout(() => {
@@ -438,7 +454,7 @@ Parameters:
       })
       .catch(err => {
         if (statusEl) {
-          statusEl.textContent = 'Gagal: ' + err.message;
+          statusEl.textContent = '{{ msg_gagal_prefix|escapejs }}' + err.message;
           statusEl.style.color = 'var(--color-danger, #C8102E)';
         }
       });

@@ -1,3 +1,4 @@
+{% load i18n %}
 {% load l10n %}
 {% comment %}
 Component: Homework Teacher Completion Bar (spec/04 §7, ACD-030, spec/17 §6.4)
@@ -15,16 +16,16 @@ Parameters:
   <!-- Header: Homework Meta & Due Status -->
   <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
     <div>
-      <div class="text-label text-ink-500" style="margin-bottom: 4px;">Penyelesaian Tugas Kelas</div>
+      <div class="text-label text-ink-500" style="margin-bottom: 4px;">{% translate "Penyelesaian Tugas Kelas" %}</div>
       <h3 class="text-h3 font-display text-ink-900" style="margin: 0;">{{ homework.title }}</h3>
     </div>
     <div style="text-align: right;">
       <span class="text-body-sm text-ink-500 font-mono">
-        Total Siswa: <strong class="text-ink-900">{{ completion.total }}</strong>
+        {% translate "Total Siswa:" %} <strong class="text-ink-900">{{ completion.total }}</strong>
       </span>
       {% if homework.due_at %}
         <div class="text-body-sm text-ink-500" style="margin-top: 2px;">
-          Tenggat: <span class="font-mono">{{ homework.due_at|date:"d M Y, H:i" }}</span>
+          {% translate "Tenggat:" %} <span class="font-mono">{{ homework.due_at|date:"d M Y, H:i" }}</span>
         </div>
       {% endif %}
     </div>
@@ -40,25 +41,25 @@ Parameters:
 
     {% if completion.percentages.graded > 0 %}
       <div class="bar-segment-graded"
-           title="Dinilai: {{ completion.graded }} siswa ({{ completion.percentages.graded }}%)"
+           title="{% blocktranslate with graded=completion.graded pct=completion.percentages.graded %}Dinilai: {{ graded }} siswa ({{ pct }}%){% endblocktranslate %}"
            style="width: {{ completion.percentages.graded|unlocalize }}%; background-color: var(--color-success); transition: width 300ms ease-out;"></div>
     {% endif %}
 
     {% if completion.percentages.submitted > 0 %}
       <div class="bar-segment-submitted"
-           title="Terkumpul (Tepat Waktu): {{ completion.submitted }} siswa ({{ completion.percentages.submitted }}%)"
+           title="{% blocktranslate with submitted=completion.submitted pct=completion.percentages.submitted %}Terkumpul (Tepat Waktu): {{ submitted }} siswa ({{ pct }}%){% endblocktranslate %}"
            style="width: {{ completion.percentages.submitted|unlocalize }}%; background-color: var(--color-info); transition: width 300ms ease-out;"></div>
     {% endif %}
 
     {% if completion.percentages.late > 0 %}
       <div class="bar-segment-late"
-           title="Terlambat: {{ completion.late }} siswa ({{ completion.percentages.late }}%)"
+           title="{% blocktranslate with late=completion.late pct=completion.percentages.late %}Terlambat: {{ late }} siswa ({{ pct }}%){% endblocktranslate %}"
            style="width: {{ completion.percentages.late|unlocalize }}%; background-color: var(--color-warning); transition: width 300ms ease-out;"></div>
     {% endif %}
 
     {% if completion.percentages.missing > 0 %}
       <div class="bar-segment-missing"
-           title="Belum Mengumpulkan: {{ completion.missing }} siswa ({{ completion.percentages.missing }}%)"
+           title="{% blocktranslate with missing=completion.missing pct=completion.percentages.missing %}Belum Mengumpulkan: {{ missing }} siswa ({{ pct }}%){% endblocktranslate %}"
            style="width: {{ completion.percentages.missing|unlocalize }}%; background-color: var(--color-att-alpa-bg); border-left: 1px dashed var(--color-line); transition: width 300ms ease-out;"></div>
     {% endif %}
   </div>
@@ -71,7 +72,7 @@ Parameters:
     <div style="display: flex; align-items: center; gap: 8px;">
       <span style="display: inline-block; width: 8px; height: 8px; border-radius: 9999px; background-color: var(--color-success); flex-shrink: 0;"></span>
       <div>
-        <div class="text-label text-ink-500">Dinilai</div>
+        <div class="text-label text-ink-500">{% translate "Dinilai" %}</div>
         <div class="text-body font-mono font-semibold" style="color: var(--color-success);">
           {{ completion.graded }} <span class="text-body-sm font-normal text-ink-500">({{ completion.percentages.graded }}%)</span>
         </div>
@@ -82,7 +83,7 @@ Parameters:
     <div style="display: flex; align-items: center; gap: 8px;">
       <span style="display: inline-block; width: 8px; height: 8px; border-radius: 9999px; background-color: var(--color-info); flex-shrink: 0;"></span>
       <div>
-        <div class="text-label text-ink-500">Terkumpul</div>
+        <div class="text-label text-ink-500">{% translate "Terkumpul" %}</div>
         <div class="text-body font-mono font-semibold" style="color: var(--color-info);">
           {{ completion.submitted }} <span class="text-body-sm font-normal text-ink-500">({{ completion.percentages.submitted }}%)</span>
         </div>
@@ -93,7 +94,7 @@ Parameters:
     <div style="display: flex; align-items: center; gap: 8px;">
       <span style="display: inline-block; width: 8px; height: 8px; border-radius: 9999px; background-color: var(--color-warning); flex-shrink: 0;"></span>
       <div>
-        <div class="text-label text-ink-500">Terlambat</div>
+        <div class="text-label text-ink-500">{% translate "Terlambat" %}</div>
         <div class="text-body font-mono font-semibold" style="color: var(--color-warning);">
           {{ completion.late }} <span class="text-body-sm font-normal text-ink-500">({{ completion.percentages.late }}%)</span>
         </div>
@@ -104,7 +105,7 @@ Parameters:
     <div style="display: flex; align-items: center; gap: 8px;">
       <span style="display: inline-block; width: 8px; height: 8px; border-radius: 9999px; background-color: var(--color-danger); flex-shrink: 0;"></span>
       <div>
-        <div class="text-label text-ink-500">Belum Mengumpulkan</div>
+        <div class="text-label text-ink-500">{% translate "Belum Mengumpulkan" %}</div>
         <div class="text-body font-mono font-semibold" style="color: var(--color-danger);">
           {{ completion.missing }} <span class="text-body-sm font-normal text-ink-500">({{ completion.percentages.missing }}%)</span>
         </div>
@@ -122,15 +123,15 @@ Parameters:
                 hx-indicator="#remind-spinner-{{ homework.id }}"
                 style="gap: 8px;">
           <span>🔔</span>
-          <span>Ingatkan Siswa Belum Mengumpulkan ({{ completion.missing }})</span>
+          <span>{% blocktranslate with missing=completion.missing %}Ingatkan Siswa Belum Mengumpulkan ({{ missing }}){% endblocktranslate %}</span>
         </button>
         <span id="remind-spinner-{{ homework.id }}" class="htmx-indicator text-body-sm text-ink-500" style="margin-left: 8px;">
-          Mengirim pengingat ke wali murid...
+          {% translate "Mengirim pengingat ke wali murid..." %}
         </span>
       {% else %}
         <span class="text-body-sm text-success" style="display: inline-flex; align-items: center; gap: 6px;">
           <span>✓</span>
-          <span>Semua siswa telah mengumpulkan tugas.</span>
+          <span>{% translate "Semua siswa telah mengumpulkan tugas." %}</span>
         </span>
       {% endif %}
     </div>
@@ -141,7 +142,7 @@ Parameters:
               hx-target="#remind-receipts-{{ homework.id }}"
               hx-swap="innerHTML"
               style="font-size: 0.8125rem;">
-        <span>📋 Status Pengiriman Pengingat</span>
+        <span>📋 {% translate "Status Pengiriman Pengingat" %}</span>
       </button>
     </div>
   </div>
