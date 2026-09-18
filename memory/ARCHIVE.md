@@ -199,3 +199,14 @@
   - **Storage Migration (PRs #83, #84):** `core.StoredFile` catalog + signed GCS upload pipeline (ARC-026), migrating report cards, settlement statements, homework uploads, and QRIS payment proofs off `MEDIA_ROOT`.
   - **Mobile Track (PR #85):** React Native (Expo) app in `/mobile` — strict TypeScript, `#C8102E` 0px radius tokens, dual-auth JWT authentication (`EduCoreTokenObtainPairSerializer` & `EduCoreJWTAuthentication` resolving via `User.all_tenants`), SQLite offline queue with FIFO sync replay to `/api/v1/period-attendance/sync/`, Teacher Agenda & Roll Call screens with gate pre-fill exceptions (ALPA with Gate badge for students without IN scan per `TCH-003`, ≤15s roll call per `TCH-002`), substitution inspection & accept/decline modal, and device push token registration.
   - Full test suites passing across web, backend, and React Native mobile. All PRs merged into `main`.
+
+## Marketing: Legal Entity Name Update + Dynamic Footer Year (PR #152)
+- **Date:** 2026-09-18
+- **Milestone:** Trivial marketing copy fix, deployed to PRD, Notion synced retroactively
+- **Details:**
+  - Replaced `PT EduCore Nusantara` with `PT Astra Digital Solusi` in the marketing footer tagline and copyright (`frontend/templates/marketing/base.html`), with matching `django.po` msgid/msgstr updated (msgid is the Indonesian source string per `id-ID` first) and `.mo` recompiled to stay in sync.
+  - Replaced hardcoded `2026` with `{% now "Y" %}` in both the marketing footer and the separate app-shell footer (`frontend/templates/base.html`) so the copyright year advances automatically — no `{% load %}` needed, `now` is a Django built-in tag.
+  - `locale/id/LC_MESSAGES/django.po` checked — no entry needed, it's a stub for a handful of enum-label passthroughs only.
+  - Trivial doc/copy fix — initially no Notion Open Item was created (same precedent as PR #143), but the user later asked for one explicitly; logged retroactively as Done with the PR link and deploy verification.
+  - Deployed to PRD (`educore.makan.live`) same day via the `prd-deploy` skill: server checkout fast-forwarded, `check`/`migrate`/`collectstatic` clean (no new migrations/deps/Fernet keys in range), gunicorn restarted, live page verified showing the new entity name and dynamic year. `deploy/crontab` unchanged in this range — no cron resync needed.
+  - PR #152 merged into `main`.
