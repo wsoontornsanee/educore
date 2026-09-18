@@ -9,7 +9,7 @@ Implements:
 """
 from typing import Optional, Set
 from django.db.models import Q
-from .models import RoleAssignment, User
+from .models import RoleAssignment, User, PlatformRoleAssignment
 
 # Canonical Roles (spec/02 §4.2)
 ROLE_FOUNDATION_ADMIN = RoleAssignment.ROLE_FOUNDATION_ADMIN

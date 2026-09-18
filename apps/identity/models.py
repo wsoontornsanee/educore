@@ -910,6 +910,9 @@ class PlatformRoleAssignment(models.Model):
         (ROLE_PLATFORM_OPERATOR, 'Platform Operator'),
     ]
 
+    # Forward access to .user on a freshly-loaded (not select_related'd) PlatformRoleAssignment
+    # requires an active tenant context, or use User.all_tenants.get(pk=assignment.user_id) instead.
+    # This model is deliberately used in situations with NO tenant context; see select_related docs.
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='platform_role_assignments')
     role = models.CharField(max_length=32, choices=ROLE_CHOICES, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
