@@ -18,11 +18,13 @@ def _get_fernet() -> Fernet:
     if raw:
         key = raw if isinstance(raw, bytes) else raw.encode()
         try:
-            Fernet(key)
             return Fernet(key)
-        except Exception:
-            key = base64.urlsafe_b64encode(hashlib.sha256(key).digest())
-            return Fernet(key)
+        except Exception as exc:
+            raise RuntimeError(
+                "EDUCORE_CALENDAR_FERNET_KEY is set but is not a valid Fernet key "
+                "(must be 32 url-safe base64-encoded bytes). Fix the setting — do not "
+                "rely on the SECRET_KEY-derived dev fallback in production."
+            ) from exc
     key = base64.urlsafe_b64encode(hashlib.sha256(str(settings.SECRET_KEY).encode()).digest())
     return Fernet(key)
 

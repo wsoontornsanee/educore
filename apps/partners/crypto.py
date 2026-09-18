@@ -16,13 +16,14 @@ def _get_fernet() -> Fernet:
     raw = getattr(settings, 'EDUCORE_PARTNER_FERNET_KEY', '') or ''
     if raw:
         key = raw if isinstance(raw, bytes) else raw.encode()
-        # Accept both raw 32-byte urlsafe-b64 keys and arbitrary passphrases.
         try:
-            Fernet(key)
             return Fernet(key)
-        except Exception:
-            key = base64.urlsafe_b64encode(hashlib.sha256(key).digest())
-            return Fernet(key)
+        except Exception as exc:
+            raise RuntimeError(
+                "EDUCORE_PARTNER_FERNET_KEY is set but is not a valid Fernet key "
+                "(must be 32 url-safe base64-encoded bytes). Fix the setting — do not "
+                "rely on the SECRET_KEY-derived dev fallback in production."
+            ) from exc
     # Deterministic dev fallback derived from SECRET_KEY.
     key = base64.urlsafe_b64encode(hashlib.sha256(str(settings.SECRET_KEY).encode()).digest())
     return Fernet(key)
