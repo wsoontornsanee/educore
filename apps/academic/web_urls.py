@@ -6,7 +6,12 @@ permission keys.
 """
 from django.urls import path
 
-from apps.academic.console_views import ClassDetailPageView, ClassListPageView, TimetablePageView
+from apps.academic.console_views import (
+    ClassDetailPageView,
+    ClassListPageView,
+    GradingQueuePageView,
+    TimetablePageView,
+)
 from apps.academic.web_views import ExamModeConsolePageView, ExamProctorConsolePageView
 from apps.academic.views import (
     PermissionSlipConsoleCreateView,
@@ -16,6 +21,7 @@ from apps.academic.views import (
 )
 
 urlpatterns = [
+    path('grading-queue/', GradingQueuePageView.as_view(), name='academic-grading-queue-page'),
     path('timetable/', TimetablePageView.as_view(), name='academic-timetable-page'),
     path('classes/', ClassListPageView.as_view(), name='academic-class-list-page'),
     path('classes/<int:class_group_id>/', ClassDetailPageView.as_view(), name='academic-class-detail-page'),

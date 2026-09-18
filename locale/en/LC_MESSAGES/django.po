@@ -7468,3 +7468,32 @@ msgstr "No periods have been scheduled for this selection."
 #: apps/academic/console_views.py
 msgid "Jadwal tidak ditemukan."
 msgstr "Timetable not found."
+
+#: frontend/templates/pages/academic_grading_queue.html
+msgid "Antrean penilaian — EduCore"
+msgstr "Grading queue — EduCore"
+
+#: frontend/templates/pages/academic_grading_queue.html
+msgid "Mata pelajaran & kelas"
+msgstr "Subject & class"
+
+#: frontend/templates/pages/academic_grading_queue.html
+msgid "Menunggu dinilai"
+msgstr "Awaiting grading"
+
+#: frontend/templates/pages/academic_grading_queue.html
+msgid "Dikumpulkan"
+msgstr "Submitted"
+
+#: frontend/templates/pages/academic_grading_queue.html
+msgid "Antrean kosong"
+msgstr "Queue is empty"
+
+#: frontend/templates/pages/academic_grading_queue.html
+msgid "Tidak ada tugas yang menunggu dinilai."
+msgstr "No homework is waiting to be graded."
+
+#: frontend/templates/pages/academic_grading_queue.html
+#, python-format
+msgid "Menampilkan %(shown)s pengumpulan tertua dari %(total)s."
+msgstr "Showing the %(shown)s oldest submissions of %(total)s."

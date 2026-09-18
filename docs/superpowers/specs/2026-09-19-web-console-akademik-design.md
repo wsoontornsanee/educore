@@ -52,8 +52,8 @@ Four independent PRs, in this order: roster, schedule, grading queue, rapor. Eac
 
 ## PR 3: Antrean penilaian
 
-- `GET /web/academic/grading-queue/`: `SUBMITTED` and `LATE` homework submissions, oldest first. Columns: student, homework, class - subject, submitted at, late badge. `?class_subject=<id>` filter.
-- The queue query currently lives inline in `HomeworkViewSet.grading_queue`. It moves to a service function reused by the JSON action and the page.
+- `GET /web/academic/grading-queue/` (`academic-grading-queue-page`): `SUBMITTED` and `LATE` homework submissions, oldest first. Columns: student (name, NIS), homework, subject - class, submitted at, status (Terkumpul / Terlambat). Summary cards show total waiting and late counts. `?class_subject=<id>` filters (malformed ignored; an unknown or cross-tenant id simply yields an empty queue, since it is a filter and not a resource). At most 200 rows render, with a "showing N oldest of M" note.
+- The queue query moves from the two inline JSON actions into `services.get_homework_grading_queue(foundation_id, homework_id, class_subject_id, include_graded)`, now used by both actions and the page. It filters `foundation_id` explicitly.
 - Nav: `grading` flipped, `requires_staff_profile=True`.
 
 ## PR 4: Rapor
