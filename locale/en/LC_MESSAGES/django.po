@@ -3209,9 +3209,9 @@ msgstr "Request a demo"
 
 #: frontend/templates/marketing/base.html:56
 msgid ""
-"Sistem operasi sekolah untuk yayasan pendidikan di Indonesia. PT EduCore "
-"Nusantara, Jakarta."
-msgstr "A school operating system for education foundations in Indonesia. PT EduCore Nusantara, Jakarta."
+"Sistem operasi sekolah untuk yayasan pendidikan di Indonesia. PT Astra "
+"Digital Solusi, Jakarta."
+msgstr "A school operating system for education foundations in Indonesia. PT Astra Digital Solusi, Jakarta."
 
 #: frontend/templates/marketing/base.html:59
 msgid "Produk"
