@@ -52,6 +52,21 @@ class PaymentProvider(ABC):
         pass
 
     @abstractmethod
+    def check_status(self, intent) -> dict | None:
+        """
+        Poll the gateway for whether a PENDING `PaymentIntent` has actually
+        settled — the `sync_payment_status` safety net for a `FIN-013`
+        settlement webhook that never arrived (`ARC-006`/`ARC-009`, spec/01 §5).
+
+        Returns the same normalized shape as `parse_webhook()`, or `None` when
+        the gateway has no matching settled transaction yet (still pending,
+        or — for a provider/method combination with no queryable backend —
+        genuinely unknown; the caller then falls back to expiring the intent
+        once `expires_at` has passed).
+        """
+        pass
+
+    @abstractmethod
     def fetch_settlement(self, date: datetime.date) -> list[dict]:
         """
         Fetch the gateway settlement report for a given settlement date.
@@ -112,6 +127,7 @@ class MidtransPaymentProvider(PaymentProvider):
         return {
             'provider': 'MIDTRANS',
             'qris_payload': qr_payload,
+            'external_id': None,
             'amount': amount,
             'expires_at': expires_at,
         }
@@ -170,6 +186,15 @@ class MidtransPaymentProvider(PaymentProvider):
             'bank': bank,
             'raw': payload,
         }
+
+    def check_status(self, intent) -> dict | None:
+        """Not implemented for real: `create_va`/`create_qris` above never make a
+        real Midtrans API call (they're local simulations — no order_id is ever
+        actually minted at the gateway), so there is no genuine order_id to poll
+        `GET /v2/{order_id}/status` with. Same documented limitation as
+        `fetch_settlement` below; Midtrans intents rely on their webhook only.
+        """
+        return None
 
     def fetch_settlement(self, date: datetime.date) -> list[dict]:
         """Midtrans does not expose a bulk settlement pull API at this time.
@@ -247,6 +272,7 @@ class XenditPaymentProvider(PaymentProvider):
         return {
             'provider': 'XENDIT',
             'qris_payload': body['qr_string'],
+            'external_id': external_id,
             'amount': amount,
             'expires_at': expires_at,
             'raw': body,
@@ -257,6 +283,82 @@ class XenditPaymentProvider(PaymentProvider):
             return False
         token = headers.get('x-callback-token') or headers.get('X-CALLBACK-TOKEN')
         return token == self.callback_token
+
+    def check_status(self, intent) -> dict | None:
+        """Poll `GET /transactions?reference_id=...` — the `sync_payment_status`
+        safety net for a missed FIN-013 webhook.
+
+        QRIS has a real 1:1 `external_id` per intent, captured in
+        `intent.metadata['gateway_external_id']` at creation, so that lookup is
+        exact. VA is a stable, reusable-per-student account (FIN-011), not a
+        per-intent object — there is no single "this intent's transaction id"
+        to look up directly, so this reconstructs the VA's own creation
+        `external_id` (must match `create_va`'s formula exactly) and matches
+        the newest SUCCESS transaction on it by exact amount, created no
+        earlier than the intent itself. That is an amount-based heuristic, not
+        a guaranteed 1:1 match — no worse than the webhook path's own VA
+        fallback in `process_payment_webhook`, which doesn't disambiguate
+        between intents on the same VA at all.
+        """
+        from apps.finance.models import PaymentMethod
+
+        if intent.method == PaymentMethod.QRIS:
+            reference_id = (intent.metadata or {}).get('gateway_external_id')
+            if not reference_id:
+                return None
+        elif intent.method == PaymentMethod.VA:
+            if not intent.va_bank:
+                return None
+            reference_id = f"studentva-{intent.foundation_id}-{intent.student_id}-{intent.va_bank.upper()}"
+        else:
+            return None
+
+        try:
+            response = requests.get(
+                f"{self.base_url}/transactions",
+                params={'reference_id': reference_id, 'statuses': ['SUCCESS']},
+                auth=self._auth(),
+                timeout=15,
+            )
+        except requests.RequestException as exc:
+            raise PaymentGatewayError(f"Xendit transaction status check failed: {exc}") from exc
+        if not response.ok:
+            raise PaymentGatewayError(f"Xendit /transactions returned {response.status_code}: {response.text}")
+
+        data = response.json()
+        items = data if isinstance(data, list) else data.get('data', [])
+        for item in items:
+            if item.get('status') != 'SUCCESS':
+                continue
+            amount = Decimal(str(item.get('amount', '0.00')))
+            if amount != intent.amount:
+                continue
+            created_str = item.get('created')
+            created_at = None
+            if created_str:
+                try:
+                    created_at = dateutil.parser.parse(created_str)
+                    if created_at.tzinfo is None:
+                        created_at = timezone.make_aware(created_at)
+                except (ValueError, OverflowError, TypeError):
+                    created_at = None
+            if created_at and created_at < intent.created_at:
+                continue
+
+            fee = Decimal(str(item.get('fee', '0.00')))
+            channel = str(item.get('channel_code') or reference_id).upper()
+            return {
+                'external_id': str(item.get('id') or item.get('reference_id') or reference_id),
+                'status': 'SETTLED',
+                'amount': amount,
+                'fee': fee,
+                'net': amount - fee,
+                'paid_at': created_at or timezone.now(),
+                'channel': channel,
+                'bank': item.get('channel_code') if intent.method == PaymentMethod.VA else None,
+                'raw': item,
+            }
+        return None
 
     def parse_webhook(self, payload: dict) -> dict:
         status_raw = payload.get('status', '').upper()
@@ -374,9 +476,11 @@ class MockPaymentProvider(PaymentProvider):
     def create_qris(self, student, school, amount: Decimal, expires_at) -> dict:
         code = get_school_code(school)
         payload = f"000201010211MOCK_QRIS_{code}_{student.id}_{int(amount)}"
+        external_id = f"mock-qris-{code}-{student.id}-{int(amount)}"
         return {
             'provider': 'MOCK',
             'qris_payload': payload,
+            'external_id': external_id,
             'amount': amount,
             'expires_at': expires_at,
         }
@@ -410,6 +514,14 @@ class MockPaymentProvider(PaymentProvider):
             'bank': payload.get('bank'),
             'raw': payload,
         }
+
+    def check_status(self, intent) -> dict | None:
+        """The mock provider has no real backend transaction log to poll — tests
+        that need to exercise `sync_payment_status`'s settled path monkeypatch
+        this method directly (same style as `test_payment_providers.py`
+        patching `requests.post`/`requests.get` for the real providers).
+        """
+        return None
 
     def fetch_settlement(self, date: datetime.date) -> list[dict]:
         """Return two deterministic settlement records for any date — one BCA VA,

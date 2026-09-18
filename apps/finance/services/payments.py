@@ -121,6 +121,7 @@ def create_payment_intent(
     va_number = None
     va_bank = None
     qris_payload = None
+    gateway_external_id = None
 
     if method == PaymentMethod.VA:
         va_bank = (bank or 'BCA').upper()
@@ -130,6 +131,9 @@ def create_payment_intent(
     elif method == PaymentMethod.QRIS:
         qr_data = provider.create_qris(student=student, school=school, amount=intent_amount, expires_at=expires_at)
         qris_payload = qr_data.get('qris_payload')
+        # sync_payment_status needs this to poll the gateway later for a missed
+        # FIN-013 webhook — QRIS is per-intent, unlike VA's stable per-student account.
+        gateway_external_id = qr_data.get('external_id')
 
     intent = PaymentIntent.objects.create(
         foundation_id=school.foundation_id,
@@ -149,6 +153,7 @@ def create_payment_intent(
             'invoice_ids': [inv.id for inv in invoices],
             'base_amount': str(base_amount),
             'convenience_fee_amount': str(convenience_fee_amount),
+            'gateway_external_id': gateway_external_id,
         },
     )
     return intent
@@ -405,112 +410,250 @@ def process_payment_webhook(
     from educore.middleware.tenancy import tenant_context
     with tenant_context(foundation_id):
         if not existing_payment:
-            reference = get_next_payment_reference(school)
-            payment = Payment.objects.create(
-                foundation_id=foundation_id,
-                school=school,
-                student=student,
-                payment_intent=intent,
-                amount=amount,
-                fee=fee,
-                net=net,
-                currency='IDR',
-                method=PaymentMethod.VA if 'VA' in channel else PaymentMethod.QRIS,
-                channel=channel,
-                reference=reference,
-                external_id=external_id,
-                status=PaymentStatus.PENDING,
-                paid_at=parsed['paid_at'],
-                metadata=parsed['raw'],
+            payment = _get_or_create_pending_payment(
+                foundation_id=foundation_id, school=school, student=student, intent=intent, parsed=parsed,
             )
 
         if status == 'SETTLED':
-            payment.status = PaymentStatus.SETTLED
-            payment.settled_at = timezone.now()
-            payment.fee = fee
-            payment.net = net
-            if not payment.receipt_number:
-                payment.receipt_number = get_next_receipt_number(payment.school)
-            payment.save(update_fields=['status', 'settled_at', 'fee', 'net', 'receipt_number', 'updated_at'])
-
-            if payment.payment_intent:
-                payment.payment_intent.status = PaymentIntentStatus.COMPLETED
-                payment.payment_intent.save(update_fields=['status', 'updated_at'])
-
-            # Allocate to invoices
-            allocations, overpayment = allocate_payment_to_invoices(payment)
-
-            # Post balanced double-entry ledger journal (FIN-021, FIN-023, CUR-020)
-            post_payment_settlement_journal(
-                payment=payment,
-                allocations=allocations,
-                overpayment=overpayment,
-            )
-
-            # Record domain event
-            record_domain_event(
-                name='finance.payment_settled',
-                payload={
-                    'payment_id': payment.id,
-                    'reference': payment.reference,
-                    'student_id': payment.student.id if payment.student else None,
-                    'amount': str(payment.amount),
-                    'currency': payment.currency,
-                    'channel': payment.channel,
-                },
-                foundation_id=payment.foundation_id,
-            )
-
-            # PAR-008: Dispatch push notification to guardians
-            _dispatch_payment_received_notification(payment, allocations)
-
-            # spec/18: notify partner integrations (webhook + polling fallback).
-            # Fire-and-forget: a partner-event failure must never roll back a
-            # settled payment.
-            from apps.partners.services import (
-                EVENT_FINANCE_PAYMENT_SETTLED,
-                safe_emit_partner_event,
-            )
-            safe_emit_partner_event(
-                foundation_id=payment.foundation_id,
-                event_type=EVENT_FINANCE_PAYMENT_SETTLED,
-                payload={
-                    'payment_id': payment.id,
-                    'reference': payment.reference,
-                    'student_id': payment.student.id if payment.student else None,
-                    'amount': {'amount': str(payment.amount), 'currency': payment.currency},
-                    'channel': payment.channel,
-                    'settled_at': payment.settled_at.isoformat() if payment.settled_at else None,
-                },
-            )
-
-            audit(
-                action='finance.payment.settled',
-                entity_type='Payment',
-                entity_id=payment.id,
-                foundation_id=payment.foundation_id,
-                school_id=payment.school.id if payment.school else None,
-                role='GATEWAY_WEBHOOK',
-                diff={
-                    'external_id': external_id,
-                    'amount': str(payment.amount),
-                    'status': 'SETTLED',
-                },
-            )
-
-            return {
-                'status': 'settled',
-                'payment_id': payment.id,
-                'reference': payment.reference,
-                'allocated_invoices': len(allocations),
-                'overpayment': str(overpayment),
-            }
+            return _finalize_payment_settlement(payment, fee=fee, net=net, actor_role='GATEWAY_WEBHOOK')
 
         return {
             'status': payment.status,
             'payment_id': payment.id,
             'reference': payment.reference,
         }
+
+
+def _get_or_create_pending_payment(*, foundation_id, school, student, intent, parsed: dict) -> Payment:
+    """Fetch the `Payment` row for `parsed['external_id']`, creating a PENDING
+    one if this is the first time we've seen this gateway transaction.
+    Caller must already be inside `tenant_context(foundation_id)`.
+    Shared by `process_payment_webhook` (inbound push) and `sync_payment_status`
+    (outbound poll fallback for a missed webhook, FIN-013/ARC-006).
+    """
+    external_id = parsed['external_id']
+    payment = Payment.all_tenants.filter(external_id=external_id).first()
+    if payment:
+        return payment
+    channel = parsed['channel']
+    reference = get_next_payment_reference(school)
+    return Payment.objects.create(
+        foundation_id=foundation_id,
+        school=school,
+        student=student,
+        payment_intent=intent,
+        amount=parsed['amount'],
+        fee=parsed['fee'],
+        net=parsed['net'],
+        currency='IDR',
+        method=PaymentMethod.VA if 'VA' in channel else PaymentMethod.QRIS,
+        channel=channel,
+        reference=reference,
+        external_id=external_id,
+        status=PaymentStatus.PENDING,
+        paid_at=parsed['paid_at'],
+        metadata=parsed['raw'],
+    )
+
+
+def _finalize_payment_settlement(payment: Payment, *, fee: Decimal, net: Decimal, actor_role: str) -> dict:
+    """Mark an existing `Payment` SETTLED, allocate it to invoices, post the
+    balanced ledger journal, and fire every settlement side-effect (domain
+    event, guardian notification, partner webhook, audit).
+    Caller must already be inside `tenant_context(payment.foundation_id)`.
+    Shared by `process_payment_webhook` (inbound push) and `sync_payment_status`
+    (outbound poll fallback for a missed webhook, FIN-013/ARC-006).
+    """
+    payment.status = PaymentStatus.SETTLED
+    payment.settled_at = timezone.now()
+    payment.fee = fee
+    payment.net = net
+    if not payment.receipt_number:
+        payment.receipt_number = get_next_receipt_number(payment.school)
+    payment.save(update_fields=['status', 'settled_at', 'fee', 'net', 'receipt_number', 'updated_at'])
+
+    if payment.payment_intent:
+        payment.payment_intent.status = PaymentIntentStatus.COMPLETED
+        payment.payment_intent.save(update_fields=['status', 'updated_at'])
+
+    # Allocate to invoices
+    allocations, overpayment = allocate_payment_to_invoices(payment)
+
+    # Post balanced double-entry ledger journal (FIN-021, FIN-023, CUR-020)
+    post_payment_settlement_journal(
+        payment=payment,
+        allocations=allocations,
+        overpayment=overpayment,
+    )
+
+    # Record domain event
+    record_domain_event(
+        name='finance.payment_settled',
+        payload={
+            'payment_id': payment.id,
+            'reference': payment.reference,
+            'student_id': payment.student.id if payment.student else None,
+            'amount': str(payment.amount),
+            'currency': payment.currency,
+            'channel': payment.channel,
+        },
+        foundation_id=payment.foundation_id,
+    )
+
+    # PAR-008: Dispatch push notification to guardians
+    _dispatch_payment_received_notification(payment, allocations)
+
+    # spec/18: notify partner integrations (webhook + polling fallback).
+    # Fire-and-forget: a partner-event failure must never roll back a
+    # settled payment.
+    from apps.partners.services import (
+        EVENT_FINANCE_PAYMENT_SETTLED,
+        safe_emit_partner_event,
+    )
+    safe_emit_partner_event(
+        foundation_id=payment.foundation_id,
+        event_type=EVENT_FINANCE_PAYMENT_SETTLED,
+        payload={
+            'payment_id': payment.id,
+            'reference': payment.reference,
+            'student_id': payment.student.id if payment.student else None,
+            'amount': {'amount': str(payment.amount), 'currency': payment.currency},
+            'channel': payment.channel,
+            'settled_at': payment.settled_at.isoformat() if payment.settled_at else None,
+        },
+    )
+
+    audit(
+        action='finance.payment.settled',
+        entity_type='Payment',
+        entity_id=payment.id,
+        foundation_id=payment.foundation_id,
+        school_id=payment.school.id if payment.school else None,
+        role=actor_role,
+        diff={
+            'external_id': payment.external_id,
+            'amount': str(payment.amount),
+            'status': 'SETTLED',
+        },
+    )
+
+    return {
+        'status': 'settled',
+        'payment_id': payment.id,
+        'reference': payment.reference,
+        'allocated_invoices': len(allocations),
+        'overpayment': str(overpayment),
+    }
+
+
+# A settlement webhook (FIN-013) typically lands within seconds; polling an
+# intent created moments ago just burns gateway API quota for no benefit.
+SYNC_PAYMENT_STATUS_GRACE_PERIOD = timedelta(minutes=15)
+
+
+def sync_payment_status(
+    limit: int = 50,
+    max_age_hours: int = 24,
+    provider_name: str = None,
+    dry_run: bool = False,
+) -> dict:
+    """`sync_payment_status` cron command body (spec/01 §5.1, ARC-006/ARC-009):
+    poll gateway-mediated PENDING payment intents whose FIN-013 settlement
+    webhook never arrived. This is a safety net, not the primary settlement
+    path — the webhook stays authoritative and this never contradicts it
+    (both funnel through the same idempotent `_get_or_create_pending_payment`
+    / `_finalize_payment_settlement` helpers, so a webhook that lands mid-poll
+    or right after can never double-credit an invoice or double-post a
+    journal entry).
+
+    Only intents older than `SYNC_PAYMENT_STATUS_GRACE_PERIOD` and within
+    `max_age_hours` of creation are polled — too fresh, and the webhook
+    hasn't had a fair chance to arrive yet; too old, and it's already past
+    its `expires_at` (24h by default) and handled by the expiry branch below.
+
+    Also expires intents past their `expires_at` with no matching gateway
+    transaction found (`PaymentIntentStatus.EXPIRED`), and cancels intents the
+    gateway explicitly reports as failed/voided.
+
+    `dry_run=True` performs every gateway lookup but skips all DB writes —
+    the returned counts describe what WOULD have happened.
+
+    Bounded to `limit` intents per run (ARC-009) so a large backlog can never
+    make one `*/5` cron slot run unbounded; the next run picks up the rest via
+    the same PENDING-status query.
+    """
+    from educore.middleware.tenancy import tenant_context
+
+    now = timezone.now()
+    checked = settled = expired = cancelled = errors = 0
+
+    intents_qs = PaymentIntent.all_tenants.filter(
+        status=PaymentIntentStatus.PENDING,
+        method__in=[PaymentMethod.VA, PaymentMethod.QRIS],
+        created_at__lte=now - SYNC_PAYMENT_STATUS_GRACE_PERIOD,
+        created_at__gte=now - timedelta(hours=max_age_hours),
+    )
+    if provider_name:
+        intents_qs = intents_qs.filter(provider=provider_name.upper())
+    intents = list(intents_qs.select_related('school', 'student').order_by('id')[:limit])
+
+    for intent in intents:
+        checked += 1
+        provider = get_payment_provider(intent.provider)
+        try:
+            parsed = provider.check_status(intent)
+        except Exception as exc:
+            errors += 1
+            logger.warning("sync_payment_status: check_status failed for intent %s: %s", intent.id, exc)
+            continue
+
+        if parsed and parsed['status'] == 'SETTLED':
+            settled += 1
+            if dry_run:
+                continue
+            with transaction.atomic(), tenant_context(intent.foundation_id):
+                payment = _get_or_create_pending_payment(
+                    foundation_id=intent.foundation_id, school=intent.school, student=intent.student,
+                    intent=intent, parsed=parsed,
+                )
+                if payment.status != PaymentStatus.SETTLED:
+                    _finalize_payment_settlement(
+                        payment, fee=parsed['fee'], net=parsed['net'], actor_role='GATEWAY_POLL',
+                    )
+        elif parsed and parsed['status'] in ('FAILED', 'CANCELLED'):
+            cancelled += 1
+            if dry_run:
+                continue
+            with transaction.atomic(), tenant_context(intent.foundation_id):
+                intent.status = PaymentIntentStatus.CANCELLED
+                intent.save(update_fields=['status', 'updated_at'])
+                audit(
+                    action='finance.payment_intent.cancelled',
+                    entity_type='PaymentIntent',
+                    entity_id=intent.id,
+                    foundation_id=intent.foundation_id,
+                    school_id=intent.school_id,
+                    role='GATEWAY_POLL',
+                    diff={'status': parsed['status']},
+                )
+        elif parsed is None and intent.expires_at <= now:
+            expired += 1
+            if dry_run:
+                continue
+            with transaction.atomic(), tenant_context(intent.foundation_id):
+                intent.status = PaymentIntentStatus.EXPIRED
+                intent.save(update_fields=['status', 'updated_at'])
+                audit(
+                    action='finance.payment_intent.expired',
+                    entity_type='PaymentIntent',
+                    entity_id=intent.id,
+                    foundation_id=intent.foundation_id,
+                    school_id=intent.school_id,
+                    role='SYSTEM_CRON',
+                    diff={'status': 'EXPIRED'},
+                )
+
+    return {'checked': checked, 'settled': settled, 'expired': expired, 'cancelled': cancelled, 'errors': errors}
 
 
 
