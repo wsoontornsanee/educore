@@ -1,0 +1,90 @@
+{% extends "base_console.html" %}
+{% load i18n finance_extras %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block console_content %}
+{% include "components/_finance_console_styles.html" %}
+<div class="fin-page">
+  <h1 class="fin-title">{{ page_title }}</h1>
+
+  {% for total in totals %}
+  <div class="fin-tiles">
+    <div class="fin-tile"><span class="fin-label">{% translate "Total tagihan" %}</span><span class="fin-value">{{ total.billed|money:total.currency }}</span></div>
+    <div class="fin-tile"><span class="fin-label">{% translate "Terbayar" %}</span><span class="fin-value">{{ total.collected|money:total.currency }}</span></div>
+    <div class="fin-tile"><span class="fin-label">{% translate "Sisa tagihan" %}</span><span class="fin-value">{{ total.outstanding|default:0|money:total.currency }}</span></div>
+  </div>
+  {% endfor %}
+
+  <form method="get" class="fin-filters">
+    <label><span class="fin-label">{% translate "Cari" %}</span>
+      <input type="search" name="q" value="{{ filters.q }}" placeholder="{% translate 'No. tagihan, nama, atau NIS' %}"></label>
+    <label><span class="fin-label">{% translate "Status" %}</span>
+      <select name="status">
+        <option value="">{% translate "Semua" %}</option>
+        {% for value, label in status_choices %}<option value="{{ value }}"{% if value == filters.status %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select></label>
+    <label><span class="fin-label">{% translate "Periode" %}</span>
+      <input type="month" name="period" value="{{ filters.period }}"></label>
+    <button type="submit" class="btn btn-primary text-body-sm">{% translate "Terapkan" %}</button>
+  </form>
+
+  <section>
+    <h2 class="fin-h2">{% translate "Tagihan" %}</h2>
+    {% if rows %}
+    <div class="fin-scroll">
+      <table class="fin-table">
+        <thead><tr>
+          <th>{% translate "No. tagihan" %}</th><th>{% translate "Siswa" %}</th><th>{% translate "Periode" %}</th><th>{% translate "Jatuh tempo" %}</th>
+          <th class="num">{% translate "Total" %}</th><th class="num">{% translate "Terbayar" %}</th><th>{% translate "Status" %}</th>
+        </tr></thead>
+        <tbody>
+        {% for row in rows %}
+          <tr>
+            <td>{{ row.invoice.number }}</td>
+            <td>{{ row.invoice.student.person.full_name }}<br><span class="fin-note">{{ row.invoice.school.name }}</span></td>
+            <td>{{ row.invoice.period }}</td>
+            <td>{{ row.invoice.due_date|date:"d M Y" }}</td>
+            <td class="num">{{ row.invoice.total|money:row.invoice.currency }}</td>
+            <td class="num">{{ row.invoice.paid|money:row.invoice.currency }}</td>
+            <td>{% include "components/badge.html" with status=row.badge label=row.badge_label %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "components/_finance_pager.html" with page=page extra_query=filter_querystring %}
+    {% else %}
+    <p class="fin-empty">{% translate "Belum ada tagihan yang cocok dengan filter ini." %}</p>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2 class="fin-h2">{% translate "Pembayaran terbaru" %}</h2>
+    {% if payments %}
+    <div class="fin-scroll">
+      <table class="fin-table">
+        <thead><tr>
+          <th>{% translate "Referensi" %}</th><th>{% translate "Siswa" %}</th><th>{% translate "Metode" %}</th><th>{% translate "Dibayar" %}</th>
+          <th class="num">{% translate "Jumlah" %}</th><th>{% translate "Status" %}</th>
+        </tr></thead>
+        <tbody>
+        {% for row in payments %}
+          <tr>
+            <td>{{ row.payment.reference }}</td>
+            <td>{{ row.payment.student.person.full_name }}</td>
+            <td>{{ row.payment.get_method_display }}{% if row.payment.channel %} · {{ row.payment.channel }}{% endif %}</td>
+            <td>{{ row.payment.paid_at|date:"d M Y H:i" }}</td>
+            <td class="num">{{ row.payment.amount|money:row.payment.currency }}</td>
+            <td>{% include "components/badge.html" with status=row.badge label=row.badge_label %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="fin-empty">{% translate "Belum ada pembayaran." %}</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

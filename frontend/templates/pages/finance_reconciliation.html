@@ -1,0 +1,72 @@
+{% extends "base_console.html" %}
+{% load i18n finance_extras %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block console_content %}
+{% include "components/_finance_console_styles.html" %}
+<div class="fin-page">
+  <h1 class="fin-title">{{ page_title }}</h1>
+  <p class="fin-note">{% translate "Batch penyelesaian gateway pembayaran per hari. Penyelesaian selisih dilakukan melalui API keuangan." %}</p>
+
+  <section>
+    <h2 class="fin-h2">{% translate "Batch penyelesaian" %}</h2>
+    {% if page.object_list %}
+    <div class="fin-scroll">
+      <table class="fin-table">
+        <thead><tr>
+          <th>{% translate "Tanggal" %}</th><th>{% translate "Penyedia" %}</th><th>{% translate "Status" %}</th>
+          <th class="num">{% translate "Total" %}</th><th class="num">{% translate "Cocok" %}</th><th class="num">{% translate "Hilang" %}</th><th class="num">{% translate "Selisih" %}</th><th></th>
+        </tr></thead>
+        <tbody>
+        {% for batch in page.object_list %}
+          <tr{% if selected and batch.id == selected.id %} style="background:#FAF6F3"{% endif %}>
+            <td>{{ batch.settlement_date|date:"d M Y" }}</td>
+            <td>{{ batch.provider }}</td>
+            <td>{{ batch.get_status_display }}{% if batch.error_message %}<br><span class="fin-note">{{ batch.error_message|truncatechars:80 }}</span>{% endif %}</td>
+            <td class="num">{{ batch.total_records }}</td>
+            <td class="num">{{ batch.matched_count }}</td>
+            <td class="num">{{ batch.missing_count }}</td>
+            <td class="num">{{ batch.mismatch_count }}</td>
+            <td><a href="?batch={{ batch.id }}&page={{ page.number }}#discrepancies">{% translate "Lihat selisih" %}</a></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "components/_finance_pager.html" with page=page %}
+    {% else %}
+    <p class="fin-empty">{% translate "Belum ada batch penyelesaian gateway." %}</p>
+    {% endif %}
+  </section>
+
+  {% if selected %}
+  <section id="discrepancies">
+    <h2 class="fin-h2">{% blocktranslate with provider=selected.provider date=selected.settlement_date|date:"d M Y" %}Selisih {{ provider }} — {{ date }}{% endblocktranslate %}</h2>
+    {% if discrepancies %}
+    <div class="fin-scroll">
+      <table class="fin-table">
+        <thead><tr>
+          <th>{% translate "ID gateway" %}</th><th>{% translate "Jenis" %}</th>
+          <th class="num">{% translate "Gateway" %}</th><th class="num">{% translate "Sistem" %}</th><th>{% translate "Tindak lanjut" %}</th>
+        </tr></thead>
+        <tbody>
+        {% for d in discrepancies %}
+          <tr>
+            <td>{{ d.external_id }}</td>
+            <td>{{ d.get_discrepancy_type_display }}</td>
+            <td class="num">{{ d.gateway_amount|money:d.currency }}</td>
+            <td class="num">{% if d.system_amount is not None %}{{ d.system_amount|money:d.currency }}{% else %}—{% endif %}</td>
+            <td>{{ d.get_resolution_display }}{% if d.resolution_notes %}<br><span class="fin-note">{{ d.resolution_notes|truncatechars:80 }}</span>{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="fin-empty">{% translate "Tidak ada selisih pada batch ini." %}</p>
+    {% endif %}
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

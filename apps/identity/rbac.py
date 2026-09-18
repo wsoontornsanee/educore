@@ -240,6 +240,24 @@ def has_permission(
     return permission_key in user_perms
 
 
+def has_permission_in_any_scope(user: User, permission_key: str, foundation_id: int) -> bool:
+    """True if the user holds `permission_key` foundation-wide, or at any school they are individually assigned to.
+
+    For pages that aren't tied to one school (console landing/list pages):
+    school-scoped staff hold their permissions at school scope only, so a
+    foundation-scope-only check would wrongly lock them out.
+    """
+    if has_permission(user, permission_key, foundation_id, school_id=None):
+        return True
+    assigned_schools = RoleAssignment.all_tenants.filter(
+        foundation_id=foundation_id, user=user, scope_type=SCOPE_SCHOOL, deleted_at__isnull=True,
+    ).values_list('scope_id', flat=True)
+    return any(
+        has_permission(user, permission_key, foundation_id, school_id=school_id)
+        for school_id in assigned_schools
+    )
+
+
 def is_foundation_admin(user: User, foundation_id: int) -> bool:
     """Evaluate whether the user has active Foundation Admin authority (or is superuser).
 
