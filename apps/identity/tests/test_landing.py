@@ -25,6 +25,12 @@ class ResolvePostLoginRedirectTests(TestCase):
         self._assign(user, RoleAssignment.ROLE_FOUNDATION_ADMIN)
         self.assertEqual(resolve_post_login_redirect(user, self.foundation.id), '/web/home/overview/')
 
+    def test_teacher_outranks_finance_officer(self):
+        user = User.objects.create(phone_e164='+6281300000014', full_name='U', foundation_id=self.foundation.id)
+        self._assign(user, RoleAssignment.ROLE_FINANCE_OFFICER)
+        self._assign(user, RoleAssignment.ROLE_TEACHER)
+        self.assertEqual(resolve_post_login_redirect(user, self.foundation.id), '/web/home/agenda/')
+
     def test_canteen_operator_lands_on_console_home(self):
         user = User.objects.create(phone_e164='+6281300000012', full_name='U', foundation_id=self.foundation.id)
         self._assign(user, RoleAssignment.ROLE_CANTEEN_OPERATOR)

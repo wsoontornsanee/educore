@@ -17,9 +17,10 @@ ROLE_LANDING_URLS = {
     RoleAssignment.ROLE_CANTEEN_OPERATOR: '/web/home/',
     RoleAssignment.ROLE_CLINIC_OFFICER: '/web/home/',
 }
-# dict insertion order IS the priority order: foundation_admin outranks
-# school_admin outranks finance_officer outranks teacher outranks the
-# three roles that share the generic /web/home/ landing.
+# dict insertion order IS the priority order (per the design spec's own
+# ROLE_LANDING_URLS ordering): foundation_admin outranks school_admin
+# outranks teacher outranks finance_officer outranks the three roles that
+# share the generic /web/home/ landing.
 ROLE_LANDING_PRIORITY = list(ROLE_LANDING_URLS)
 
 
