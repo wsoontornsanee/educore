@@ -26,6 +26,9 @@ from apps.finance.models import (
     StudentCreditBalance,
     StudentFeeAssignment,
     StudentVirtualAccount,
+    AccountCode,
+    ExternalAccountMapping,
+    ExternalLedgerSystem,
 )
 
 
@@ -691,5 +694,35 @@ class RefundApproveSerializer(serializers.Serializer):
 class RefundExecuteSerializer(serializers.Serializer):
     payout_reference = serializers.CharField(max_length=128, required=True)
     payout_proof_file = serializers.CharField(max_length=512, required=False, allow_blank=True, default='')
+
+
+class ExternalAccountMappingSerializer(serializers.ModelSerializer):
+    internal_code_display = serializers.CharField(source='get_internal_code_display', read_only=True)
+    system_display = serializers.CharField(source='get_system_display', read_only=True)
+
+    class Meta:
+        model = ExternalAccountMapping
+        fields = [
+            'id',
+            'foundation_id',
+            'system',
+            'system_display',
+            'internal_code',
+            'internal_code_display',
+            'external_code',
+            'external_name',
+            'description',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'foundation_id', 'created_at', 'updated_at']
+
+    def validate_internal_code(self, value):
+        if value not in AccountCode.values:
+            raise serializers.ValidationError(
+                f"Kode akun {value} bukan merupakan kode akun valid di Chart of Accounts EduCore."
+            )
+        return value
+
 
 
