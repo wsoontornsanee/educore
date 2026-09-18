@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: EduCore 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-18 18:15+0700\n"
+"POT-Creation-Date: 2026-09-18 18:24+0700\n"
 "PO-Revision-Date: 2026-09-16 11:00+0700\n"
 "Last-Translator: EduCore Team\n"
 "Language-Team: English\n"
@@ -16,116 +16,117 @@ msgstr ""
 
 #: apps/academic/models.py:13 apps/finance/models.py:75
 msgid "e.g. 2026/2027"
-msgstr ""
+msgstr "e.g. 2026/2027"
 
 #: apps/academic/models.py:38
 msgid "e.g. Semester 1 (Ganjil)"
-msgstr ""
+msgstr "e.g. Semester 1 (Odd)"
 
 #: apps/academic/models.py:39
 msgid "1 or 2"
-msgstr ""
+msgstr "1 or 2"
 
 #: apps/academic/models.py:66
 msgid "School level this subject applies to, e.g. SMA"
-msgstr ""
+msgstr "School level this subject applies to, e.g. SMA"
 
 #: apps/academic/models.py:72
 msgid "Ministry subject code for DAPODIK/EMIS export (CMP-017)"
-msgstr ""
+msgstr "Ministry subject code for DAPODIK/EMIS export (CMP-017)"
 
 #: apps/academic/models.py:96
 msgid "Numeric grade level, e.g. 10"
-msgstr ""
+msgstr "Numeric grade level, e.g. 10"
 
 #: apps/academic/models.py:97
 msgid "e.g. X IPA 1"
-msgstr ""
+msgstr "e.g. X IPA 1"
 
 #: apps/academic/models.py:196
 msgid "Formatif"
-msgstr ""
+msgstr "Formative"
 
 #: apps/academic/models.py:197
 msgid "Sumatif"
-msgstr ""
+msgstr "Summative"
 
 #: apps/academic/models.py:198
 msgid "Proyek"
-msgstr ""
+msgstr "Project"
 
 #: apps/academic/models.py:199
 msgid "Praktik"
-msgstr ""
+msgstr "Practical"
 
 #: apps/academic/models.py:200
 msgid "Ujian"
-msgstr ""
+msgstr "Exam"
 
 #: apps/academic/models.py:208
 msgid "Sangat Baik"
-msgstr ""
+msgstr "Excellent"
 
 #: apps/academic/models.py:209
 msgid "Baik"
-msgstr ""
+msgstr "Good"
 
 #: apps/academic/models.py:210
 msgid "Cukup"
-msgstr ""
+msgstr "Fair"
 
 #: apps/academic/models.py:211
 msgid "Perlu Bimbingan"
-msgstr ""
+msgstr "Needs Guidance"
 
 #: apps/academic/models.py:224
 msgid "Percentage weight toward the final term grade, for weighted types only"
 msgstr ""
+"Percentage weight toward the final term grade, for weighted types only"
 
 #: apps/academic/models.py:253
 msgid "Bumped on every update; TCH-007 optimistic concurrency token"
-msgstr ""
+msgstr "Bumped on every update; TCH-007 optimistic concurrency token"
 
 #: apps/academic/models.py:275
 msgid "Senin"
-msgstr ""
+msgstr "Monday"
 
 #: apps/academic/models.py:276
 msgid "Selasa"
-msgstr ""
+msgstr "Tuesday"
 
 #: apps/academic/models.py:277
 msgid "Rabu"
-msgstr ""
+msgstr "Wednesday"
 
 #: apps/academic/models.py:278
 msgid "Kamis"
-msgstr ""
+msgstr "Thursday"
 
 #: apps/academic/models.py:279
 msgid "Jumat"
-msgstr ""
+msgstr "Friday"
 
 #: apps/academic/models.py:280
 msgid "Sabtu"
-msgstr ""
+msgstr "Saturday"
 
 #: apps/academic/models.py:281
 msgid "Minggu"
-msgstr ""
+msgstr "Sunday"
 
 #: apps/academic/models.py:309
 msgid "Menunggu Konfirmasi"
-msgstr ""
+msgstr "Awaiting Confirmation"
 
 #: apps/academic/models.py:310
 msgid "Diterima"
-msgstr ""
+msgstr "Accepted"
 
 #: apps/academic/models.py:311 apps/compliance/models.py:178
 #: apps/wallet/models.py:48 apps/wallet/models.py:177
 msgid "Ditolak"
-msgstr ""
+msgstr "Declined"
 
 #: apps/academic/models.py:375 apps/academic/models.py:513
 #: frontend/templates/components/exam_proctor_console.html:97
@@ -149,83 +150,83 @@ msgstr "Grade"
 
 #: apps/academic/models.py:378 apps/campus/models.py:215
 msgid "Dikembalikan"
-msgstr ""
+msgstr "Returned"
 
 #: apps/academic/models.py:414 apps/academic/models.py:654
 msgid "List of {key, filename, size, content_type}"
-msgstr ""
+msgstr "List of {key, filename, size, content_type}"
 
 #: apps/academic/models.py:441
 msgid "Daring"
-msgstr ""
+msgstr "Online"
 
 #: apps/academic/models.py:442
 msgid "Kertas"
-msgstr ""
+msgstr "Paper"
 
 #: apps/academic/models.py:454
 msgid "one_question_at_a_time, block_back_navigation, full_screen_lock, etc."
-msgstr ""
+msgstr "one_question_at_a_time, block_back_navigation, full_screen_lock, etc."
 
 #: apps/academic/models.py:468
 msgid "Pilihan Ganda"
-msgstr ""
+msgstr "Multiple Choice"
 
 #: apps/academic/models.py:469
 msgid "Pilihan Ganda Kompleks"
-msgstr ""
+msgstr "Complex Multiple Choice"
 
 #: apps/academic/models.py:470
 msgid "Benar/Salah"
-msgstr ""
+msgstr "True/False"
 
 #: apps/academic/models.py:471
 msgid "Jawaban Singkat"
-msgstr ""
+msgstr "Short Answer"
 
 #: apps/academic/models.py:472
 msgid "Esai"
-msgstr ""
+msgstr "Essay"
 
 #: apps/academic/models.py:473
 msgid "Menjodohkan"
-msgstr ""
+msgstr "Matching"
 
 #: apps/academic/models.py:490
 msgid "Choice list for MCQ/MULTI/MATCHING, e.g. [{key, text}]"
-msgstr ""
+msgstr "Choice list for MCQ/MULTI/MATCHING, e.g. [{key, text}]"
 
 #: apps/academic/models.py:492
 msgid "Grading key; shape depends on type"
-msgstr ""
+msgstr "Grading key; shape depends on type"
 
 #: apps/academic/models.py:512
 msgid "Sedang Berjalan"
-msgstr ""
+msgstr "In Progress"
 
 #: apps/academic/models.py:514
 msgid "Terkumpul Otomatis"
-msgstr ""
+msgstr "Auto-Submitted"
 
 #: apps/academic/models.py:527
 msgid "Per-attempt shuffled question id order (ACD-024)"
-msgstr ""
+msgstr "Per-attempt shuffled question id order (ACD-024)"
 
 #: apps/academic/models.py:576
 msgid "Konsep"
-msgstr ""
+msgstr "Draft"
 
 #: apps/academic/models.py:577
 msgid "Menunggu Tinjauan"
-msgstr ""
+msgstr "Awaiting Review"
 
 #: apps/academic/models.py:578
 msgid "Disetujui"
-msgstr ""
+msgstr "Approved"
 
 #: apps/academic/models.py:579
 msgid "Diterbitkan"
-msgstr ""
+msgstr "Published"
 
 #: apps/academic/models.py:589
 msgid ""
@@ -233,111 +234,120 @@ msgid ""
 "may also carry an 'objective_narrative' string (ACD-011), set via "
 "set_report_card_content."
 msgstr ""
+"Per-subject final grade/descriptor/status, frozen at generation. Each item "
+"may also carry an 'objective_narrative' string (ACD-011), set via "
+"set_report_card_content."
 
 #: apps/academic/models.py:592
 msgid "Counts by AttendanceStatus for the term"
-msgstr ""
+msgstr "Counts by AttendanceStatus for the term"
 
 #: apps/academic/models.py:595
 msgid "ACD-011 extracurricular notes: list of {'name': str, 'grade': str}"
-msgstr ""
+msgstr "ACD-011 extracurricular notes: list of {'name': str, 'grade': str}"
 
 #: apps/academic/models.py:598
 msgid "e.g. 'NAIK KE KELAS VIII', set manually via set_report_card_content"
-msgstr ""
+msgstr "e.g. 'NAIK KE KELAS VIII', set manually via set_report_card_content"
 
 #: apps/academic/models.py:651
 msgid "Monday of the ISO week this plan covers"
-msgstr ""
+msgstr "Monday of the ISO week this plan covers"
 
 #: apps/academic/models.py:780
 msgid "Hari Libur / Cuti"
-msgstr ""
+msgstr "Holiday / Leave"
 
 #: apps/academic/models.py:781
 msgid "Jadwal Ujian"
-msgstr ""
+msgstr "Exam Schedule"
 
 #: apps/academic/models.py:782
 msgid "Pengecualian Jadwal / Pembatalan Sesi"
-msgstr ""
+msgstr "Schedule Exception / Session Cancellation"
 
 #: apps/academic/models.py:783
 msgid "Rapat Staf / Guru"
-msgstr ""
+msgstr "Staff / Teacher Meeting"
 
 #: apps/academic/models.py:784
 msgid "Kegiatan Sekolah / Upacara"
-msgstr ""
+msgstr "School Event / Ceremony"
 
 #: apps/academic/models.py:785 apps/campus/models.py:324
 #: apps/wallet/models.py:106
 msgid "Lainnya"
-msgstr ""
+msgstr "Other"
 
 #: apps/academic/models.py:805
 msgid "Kosong berarti berlaku untuk seluruh sekolah"
-msgstr ""
+msgstr "Empty means it applies to the entire school"
 
 #: apps/academic/models.py:806
 msgid ""
 "Jika True, sesi jadwal pada rentang ini dikecualikan/diliburkan dari absensi"
 msgstr ""
+"If True, scheduled sessions in this range are excluded/exempted from "
+"attendance"
 
 #: apps/academic/models.py:811
 msgid "Manual"
-msgstr ""
+msgstr "Manual"
 
 #: apps/academic/models.py:812
 msgid "Synced Calendar"
-msgstr ""
+msgstr "Synced Calendar"
 
 #: apps/academic/models.py:821
 msgid "Tautan ke acara kalender eksternal sumber sinkronisasi"
-msgstr ""
+msgstr "Link to the external calendar event that is the sync source"
 
 #: apps/academic/models.py:829
 msgid "Tautan ke jadwal ujian jika acara ini dipetakan sebagai ujian"
-msgstr ""
+msgstr "Link to the exam schedule if this event is mapped as an exam"
 
 #: apps/academic/models.py:835
 msgid "Acara Kalender Akademik"
-msgstr ""
+msgstr "Academic Calendar Event"
 
 #: apps/academic/models.py:836
 msgid "Daftar Acara Kalender Akademik"
-msgstr ""
+msgstr "Academic Calendar Events"
 
 #: apps/academic/models.py:859
 msgid "Null berarti kebijakan bawaan tingkat yayasan"
-msgstr ""
+msgstr "Null means the foundation-level default policy"
 
 #: apps/academic/models.py:863
 msgid ""
 "Opt-in: izinkan sinkronisasi otomatis dari kalender eksternal ke kalender "
 "akademik"
 msgstr ""
+"Opt-in: allow automatic sync from the external calendar to the academic "
+"calendar"
 
 #: apps/academic/models.py:867
 msgid ""
 "Opt-in: otomatis buat entri Exam draf jika acara kalender bertipe UJIAN"
 msgstr ""
+"Opt-in: automatically create a draft Exam entry if the calendar event type "
+"is EXAM"
 
 #: apps/academic/models.py:873
 msgid "Prefix penanda eksplisit pada judul kalender (opsional)"
-msgstr ""
+msgstr "Explicit marker prefix in the calendar title (optional)"
 
 #: apps/academic/models.py:878
 msgid "Konfigurasi kata kunci kustom per tipe acara"
-msgstr ""
+msgstr "Custom keyword configuration per event type"
 
 #: apps/academic/models.py:884
 msgid "Kebijakan Sinkronisasi Kalender Akademik"
-msgstr ""
+msgstr "Academic Calendar Sync Policy"
 
 #: apps/academic/models.py:885
 msgid "Daftar Kebijakan Sinkronisasi Kalender Akademik"
-msgstr ""
+msgstr "Academic Calendar Sync Policies"
 
 #: apps/academic/services.py:1226
 #: frontend/templates/components/teacher_agenda.html:271
@@ -347,32 +357,37 @@ msgstr ""
 #: apps/academic/views.py:286
 #, python-format
 msgid "Siswa tidak ditemukan: %(id)s"
-msgstr ""
+msgstr "Student not found: %(id)s"
 
 #: apps/academic/views.py:368
 msgid ""
 "Hanya guru pengampu, guru pengganti, atau admin yang dapat melihat rincian "
 "slot jadwal ini."
 msgstr ""
+"Only the assigned teacher, substitute teacher, or admin can view this "
+"schedule slot detail."
 
 #: apps/academic/views.py:408
 msgid "Slot jadwal tidak ditemukan."
-msgstr ""
+msgstr "Schedule slot not found."
 
 #: apps/academic/views.py:414
 msgid "Guru pengganti tidak ditemukan."
-msgstr ""
+msgstr "Substitute teacher not found."
 
 #: apps/academic/views.py:434 apps/academic/views.py:452
 msgid ""
 "Hanya guru pengganti terkait atau admin yang dapat merespons penugasan ini."
 msgstr ""
+"Only the related substitute teacher or admin can respond to this assignment."
 
 #: apps/academic/views.py:480 apps/academic/views.py:490
 msgid ""
 "Hanya guru pengganti terkait, guru utama, atau admin yang dapat melihat "
 "rincian penugasan ini."
 msgstr ""
+"Only the related substitute teacher, the original teacher, or admin can view"
+" this assignment detail."
 
 #: apps/academic/views.py:589 apps/academic/views.py:688
 #: apps/academic/views.py:1057 apps/academic/views.py:1061
@@ -390,23 +405,23 @@ msgstr ""
 #: apps/wallet/views.py:254 apps/wallet/views.py:302 apps/wallet/views.py:310
 #: apps/wallet/views.py:483 apps/wallet/views.py:723
 msgid "Siswa tidak ditemukan."
-msgstr ""
+msgstr "Student not found."
 
 #: apps/academic/views.py:869
 msgid "Soal tidak ditemukan."
-msgstr ""
+msgstr "Question not found."
 
 #: apps/academic/views.py:898
 msgid "Jawaban tidak ditemukan."
-msgstr ""
+msgstr "Answer not found."
 
 #: apps/academic/views.py:944
 msgid "Kelas atau semester tidak ditemukan."
-msgstr ""
+msgstr "Class or term not found."
 
 #: apps/academic/views.py:1002
 msgid "Belum ada dokumen rapor untuk diunduh."
-msgstr ""
+msgstr "No report card document available to download yet."
 
 #: apps/academic/views.py:1034 apps/academic/views.py:1042
 #: apps/academic/views.py:1200 apps/academic/views.py:1208
@@ -422,142 +437,142 @@ msgstr ""
 #: apps/reporting/views.py:146 apps/reporting/views.py:171
 #: apps/wallet/views.py:556 apps/wallet/views.py:656
 msgid "Sekolah tidak ditemukan."
-msgstr ""
+msgstr "School not found."
 
 #: apps/academic/views.py:1104
 msgid "Rapor tidak ditemukan."
-msgstr ""
+msgstr "Report card not found."
 
 #: apps/academic/views.py:1168 apps/academic/views.py:1633
 #: apps/academic/views.py:1900 apps/academic/views.py:1941
 msgid "Akun ini tidak terhubung ke profil staf."
-msgstr ""
+msgstr "This account is not linked to a staff profile."
 
 #: apps/academic/views.py:1175 apps/academic/views.py:1638
 #: apps/academic/views.py:1948
 msgid "Kelas tidak ditemukan."
-msgstr ""
+msgstr "Class not found."
 
 #: apps/academic/views.py:1223
 msgid "Parameter class_subject_id wajib diisi."
-msgstr ""
+msgstr "The class_subject_id parameter is required."
 
 #: apps/academic/views.py:1227 apps/academic/views.py:1281
 msgid "Kelas/mapel tidak ditemukan."
-msgstr ""
+msgstr "Class/subject not found."
 
 #: apps/academic/views.py:1313 apps/academic/views.py:1326
 msgid "Parameter day_of_week wajib diisi."
-msgstr ""
+msgstr "The day_of_week parameter is required."
 
 #: apps/academic/views.py:1348
 msgid "Parameter date wajib diisi."
-msgstr ""
+msgstr "The date parameter is required."
 
 #: apps/academic/views.py:1354
 msgid "Format date tidak valid (YYYY-MM-DD)."
-msgstr ""
+msgstr "Invalid date format (YYYY-MM-DD)."
 
 #: apps/academic/views.py:1642 apps/academic/views.py:1952
 msgid "Judul izin wajib diisi."
-msgstr ""
+msgstr "Permission slip title is required."
 
 #: apps/academic/views.py:1653 apps/academic/views.py:1960
 msgid "Format tanggal acara tidak valid (YYYY-MM-DD)."
-msgstr ""
+msgstr "Invalid event date format (YYYY-MM-DD)."
 
 #: apps/academic/views.py:1659
 msgid "Format batas waktu tidak valid (ISO 8601)."
-msgstr ""
+msgstr "Invalid deadline format (ISO 8601)."
 
 #: apps/academic/views.py:1688 apps/academic/views.py:1825
 #: apps/academic/views.py:2013 apps/academic/views.py:2030
 msgid "Izin tidak ditemukan."
-msgstr ""
+msgstr "Permission slip not found."
 
 #: apps/academic/views.py:1830
 msgid "Akun ini tidak terhubung ke profil wali murid."
-msgstr ""
+msgstr "This account is not linked to a guardian profile."
 
 #: apps/academic/views.py:1966
 msgid "Format batas waktu tidak valid."
-msgstr ""
+msgstr "Invalid deadline format."
 
 #: apps/academic/views.py:2114
 msgid "Yayasan tidak valid."
-msgstr ""
+msgstr "Invalid foundation."
 
 #: apps/attendance/models.py:11
 msgid "RFID (MIFARE DESFire)"
-msgstr ""
+msgstr "RFID (MIFARE DESFire)"
 
 #: apps/attendance/models.py:12
 msgid "NFC"
-msgstr ""
+msgstr "NFC"
 
 #: apps/attendance/models.py:13
 msgid "QR Code Fallback"
-msgstr ""
+msgstr "QR Code Fallback"
 
 #: apps/attendance/models.py:17
 msgid "Active"
-msgstr ""
+msgstr "Active"
 
 #: apps/attendance/models.py:18
 msgid "Revoked"
-msgstr ""
+msgstr "Revoked"
 
 #: apps/attendance/models.py:19
 msgid "Expired"
-msgstr ""
+msgstr "Expired"
 
 #: apps/attendance/models.py:33
 msgid "Linked student (if issued to a student)"
-msgstr ""
+msgstr "Linked student (if issued to a student)"
 
 #: apps/attendance/models.py:41
 msgid "Linked staff member (if issued to a staff member)"
-msgstr ""
+msgstr "Linked staff member (if issued to a staff member)"
 
 #: apps/attendance/models.py:52
 msgid "Card UID hex string or QR cryptographic payload token"
-msgstr ""
+msgstr "Card UID hex string or QR cryptographic payload token"
 
 #: apps/attendance/models.py:58
 msgid "Human-readable printed card identifier"
-msgstr ""
+msgstr "Human-readable printed card identifier"
 
 #: apps/attendance/models.py:81
 msgid "Expiry timestamp for temporary credentials (HW-020: <=15 min QR)"
-msgstr ""
+msgstr "Expiry timestamp for temporary credentials (HW-020: <=15 min QR)"
 
 #: apps/attendance/models.py:85
 msgid "Single-use flag for temporary QR fallback credentials"
-msgstr ""
+msgstr "Single-use flag for temporary QR fallback credentials"
 
 #: apps/attendance/models.py:89
 msgid "Flag indicating replacement fee was posted to invoice (HW-018)"
-msgstr ""
+msgstr "Flag indicating replacement fee was posted to invoice (HW-018)"
 
 #: apps/attendance/models.py:94
 msgid "Credential"
-msgstr ""
+msgstr "Credential"
 
 #: apps/attendance/models.py:95
 msgid "Credentials"
-msgstr ""
+msgstr "Credentials"
 
 #: apps/attendance/models.py:106
 msgid "Credential must be bound to either a student or a staff member."
-msgstr ""
+msgstr "Credential must be bound to either a student or a staff member."
 
 #: apps/attendance/models.py:108
 msgid "Credential cannot be simultaneously bound to both student and staff."
-msgstr ""
+msgstr "Credential cannot be simultaneously bound to both student and staff."
 
 #: apps/attendance/models.py:142
 msgid "Hadir (Present)"
-msgstr ""
+msgstr "Hadir (Present)"
 
 #: apps/attendance/models.py:143
 #, fuzzy
@@ -567,393 +582,400 @@ msgstr "Late"
 
 #: apps/attendance/models.py:144
 msgid "Sakit (Excused)"
-msgstr ""
+msgstr "Sakit (Excused)"
 
 #: apps/attendance/models.py:145 apps/attendance/models.py:439
 msgid "Izin (Permitted)"
-msgstr ""
+msgstr "Izin (Permitted)"
 
 #: apps/attendance/models.py:146
 msgid "Alpa (Unexcused Absence)"
-msgstr ""
+msgstr "Alpa (Unexcused Absence)"
 
 #: apps/attendance/models.py:147
 msgid "Dispensasi (Sanctioned)"
-msgstr ""
+msgstr "Dispensasi (Sanctioned)"
 
 #: apps/attendance/models.py:151
 msgid "Gate Scan"
-msgstr ""
+msgstr "Gate Scan"
 
 #: apps/attendance/models.py:152
 msgid "Teacher / Class Attendance"
-msgstr ""
+msgstr "Teacher / Class Attendance"
 
 #: apps/attendance/models.py:153
 msgid "System Default (Cutoff)"
-msgstr ""
+msgstr "System Default (Cutoff)"
 
 #: apps/attendance/models.py:154
 msgid "Manual Staff Override"
-msgstr ""
+msgstr "Manual Staff Override"
 
 #: apps/attendance/models.py:158 apps/hardware/models.py:18
 msgid "Masuk (In)"
-msgstr ""
+msgstr "Masuk (In)"
 
 #: apps/attendance/models.py:159 apps/hardware/models.py:19
 msgid "Keluar (Out)"
-msgstr ""
+msgstr "Keluar (Out)"
 
 #: apps/attendance/models.py:163
 msgid "RFID / Smart Card"
-msgstr ""
+msgstr "RFID / Smart Card"
 
 #: apps/attendance/models.py:164
 msgid "Face Recognition"
-msgstr ""
+msgstr "Face Recognition"
 
 #: apps/attendance/models.py:165
 msgid "Manual Check-in"
-msgstr ""
+msgstr "Manual Check-in"
 
 #: apps/attendance/models.py:166 apps/hardware/models.py:12
 msgid "Kiosk"
-msgstr ""
+msgstr "Kiosk"
 
 #: apps/attendance/models.py:170
 msgid "Accepted"
-msgstr ""
+msgstr "Accepted"
 
 #: apps/attendance/models.py:171 apps/notifications/models.py:73
 msgid "Rejected"
-msgstr ""
+msgstr "Rejected"
 
 #: apps/attendance/models.py:182
 msgid "School where this rule applies"
-msgstr ""
+msgstr "School where this rule applies"
 
 #: apps/attendance/models.py:186
 msgid "Time after which an IN scan is marked TERLAMBAT instead of HADIR"
-msgstr ""
+msgstr "Time after which an IN scan is marked TERLAMBAT instead of HADIR"
 
 #: apps/attendance/models.py:190
 msgid "Cutoff time after which students with no scan are marked ALPA"
-msgstr ""
+msgstr "Cutoff time after which students with no scan are marked ALPA"
 
 #: apps/attendance/models.py:194
 msgid ""
 "Seconds within which duplicate scans are ignored for notification (ATT-007)"
 msgstr ""
+"Seconds within which duplicate scans are ignored for notification (ATT-007)"
 
 #: apps/attendance/models.py:200
 msgid "Attendance Rule"
-msgstr ""
+msgstr "Attendance Rule"
 
 #: apps/attendance/models.py:201
 msgid "Attendance Rules"
-msgstr ""
+msgstr "Attendance Rules"
 
 #: apps/attendance/models.py:256
 msgid "Whether this record was manually overridden by staff (ATT-003)"
-msgstr ""
+msgstr "Whether this record was manually overridden by staff (ATT-003)"
 
 #: apps/attendance/models.py:262
 msgid "Original derived status before staff override"
-msgstr ""
+msgstr "Original derived status before staff override"
 
 #: apps/attendance/models.py:267
 msgid "Daily Attendance"
-msgstr ""
+msgstr "Daily Attendance"
 
 #: apps/attendance/models.py:268
 msgid "Daily Attendances"
-msgstr ""
+msgstr "Daily Attendances"
 
 #: apps/attendance/models.py:292 apps/hardware/models.py:220
 msgid "Client-generated idempotent UUID from edge gateway (HW-005)"
-msgstr ""
+msgstr "Client-generated idempotent UUID from edge gateway (HW-005)"
 
 #: apps/attendance/models.py:329
 msgid "Scanned card UID or QR string from reader"
-msgstr ""
+msgstr "Scanned card UID or QR string from reader"
 
 #: apps/attendance/models.py:349
 msgid "Match confidence score for face recognition terminals (ATT-010)"
-msgstr ""
+msgstr "Match confidence score for face recognition terminals (ATT-010)"
 
 #: apps/attendance/models.py:369
 msgid "Marked True if scanned within debounce window (ATT-007)"
-msgstr ""
+msgstr "Marked True if scanned within debounce window (ATT-007)"
 
 #: apps/attendance/models.py:373
 msgid "Marked True if buffered offline and replayed on reconnect (ATT-012)"
-msgstr ""
+msgstr "Marked True if buffered offline and replayed on reconnect (ATT-012)"
 
 #: apps/attendance/models.py:378
 msgid "Gate Event"
-msgstr ""
+msgstr "Gate Event"
 
 #: apps/attendance/models.py:379
 msgid "Gate Events"
-msgstr ""
+msgstr "Gate Events"
 
 #: apps/attendance/models.py:392
 msgid "Guru (Teacher)"
-msgstr ""
+msgstr "Teacher"
 
 #: apps/attendance/models.py:393
 msgid "Pra-isi dari Gerbang (Gate Pre-fill)"
-msgstr ""
+msgstr "Gate Pre-fill"
 
 #: apps/attendance/models.py:394
 msgid "Override Manual (mis. Klinik/UKS)"
-msgstr ""
+msgstr "Manual Override (e.g. Clinic/UKS)"
 
 #: apps/attendance/models.py:420 apps/attendance/models.py:421
 msgid "Absensi Per Jam Pelajaran"
-msgstr ""
+msgstr "Per-Period Attendance"
 
 #: apps/attendance/models.py:438
 msgid "Sakit (Sick / Medical)"
-msgstr ""
+msgstr "Sakit (Sick / Medical)"
 
 #: apps/attendance/models.py:443
 msgid "Menunggu (Pending)"
-msgstr ""
+msgstr "Menunggu (Pending)"
 
 #: apps/attendance/models.py:444 apps/finance/models.py:37
 #: apps/finance/models.py:779 apps/finance/models.py:1026
 msgid "Disetujui (Approved)"
-msgstr ""
+msgstr "Disetujui (Approved)"
 
 #: apps/attendance/models.py:445 apps/finance/models.py:38
 #: apps/finance/models.py:317 apps/finance/models.py:780
 #: apps/finance/models.py:1027
 msgid "Ditolak (Rejected)"
-msgstr ""
+msgstr "Ditolak (Rejected)"
 
 #: apps/attendance/models.py:458
 msgid "Sekolah tempat siswa terdaftar"
-msgstr ""
+msgstr "School where the student is enrolled"
 
 #: apps/attendance/models.py:464
 msgid "Siswa yang dimohonkan izin/sakit"
-msgstr ""
+msgstr "Student the leave/sick request is for"
 
 #: apps/attendance/models.py:470
 msgid "Orang tua / wali yang mengajukan permohonan"
-msgstr ""
+msgstr "Parent/guardian who submitted the request"
 
 #: apps/attendance/models.py:474
 msgid "Tanggal mulai ketidakhadiran"
-msgstr ""
+msgstr "Absence start date"
 
 #: apps/attendance/models.py:478
 msgid "Tanggal akhir ketidakhadiran (inklusif)"
-msgstr ""
+msgstr "Absence end date (inclusive)"
 
 #: apps/attendance/models.py:487
 msgid "Alasan pengajuan izin atau keterangan sakit"
-msgstr ""
+msgstr "Reason for the leave request or medical note"
 
 #: apps/attendance/models.py:493
 msgid "Kunci StoredFile untuk berkas lampiran foto surat dokter/izin"
-msgstr ""
+msgstr "StoredFile key for the attached doctor's note/permission letter photo"
 
 #: apps/attendance/models.py:507
 msgid "Staf yang memproses persetujuan atau penolakan"
-msgstr ""
+msgstr "Staff who processed the approval or rejection"
 
 #: apps/attendance/models.py:512
 msgid "Waktu keputusan diproses"
-msgstr ""
+msgstr "Time the decision was processed"
 
 #: apps/attendance/models.py:517
 msgid "Catatan keputusan dari staf"
-msgstr ""
+msgstr "Decision notes from staff"
 
 #: apps/attendance/models.py:522 apps/attendance/models.py:523
 msgid "Permohonan Izin / Sakit"
-msgstr ""
+msgstr "Leave / Sick Request"
 
 #: apps/attendance/services.py:56
 msgid "Credential must be assigned to either a student or a staff member."
-msgstr ""
+msgstr "Credential must be assigned to either a student or a staff member."
 
 #: apps/attendance/services.py:58
 msgid ""
 "Credential cannot be simultaneously assigned to both student and staff."
 msgstr ""
+"Credential cannot be simultaneously assigned to both student and staff."
 
 #: apps/attendance/services.py:63
 msgid "Holder does not belong to the active foundation."
-msgstr ""
+msgstr "Holder does not belong to the active foundation."
 
 #: apps/attendance/services.py:79
 msgid "Card UID is required for RFID and NFC credentials."
-msgstr ""
+msgstr "Card UID is required for RFID and NFC credentials."
 
 #: apps/attendance/services.py:84
 #, python-format
 msgid "Card UID '%(uid)s' is already actively assigned to another holder."
-msgstr ""
+msgstr "Card UID '%(uid)s' is already actively assigned to another holder."
 
 #: apps/attendance/services.py:97
 msgid "Otomatis dicabut: penggantian kartu fisik baru (HW-019)"
-msgstr ""
+msgstr "Automatically revoked: physical card replacement (HW-019)"
 
 #: apps/attendance/services.py:170
 msgid "Kartu hilang/rusak atau dicabut oleh admin."
-msgstr ""
+msgstr "Card lost/damaged or revoked by admin."
 
 #: apps/attendance/services.py:237
 msgid "Kredensial tidak ditemukan / tidak terdaftar."
-msgstr ""
+msgstr "Credential not found / not registered."
 
 #: apps/attendance/services.py:245
 msgid "Kredensial telah dicabut (revoked)."
-msgstr ""
+msgstr "Credential has been revoked."
 
 #: apps/attendance/services.py:255
 msgid "Kode QR sekali pakai telah digunakan sebelumnya."
-msgstr ""
+msgstr "Single-use QR code has already been used."
 
 #: apps/attendance/services.py:265
 msgid "Kode QR telah kedaluwarsa (>15 menit)."
-msgstr ""
+msgstr "QR code has expired (>15 minutes)."
 
 #: apps/attendance/services.py:272
 msgid "Kredensial tidak aktif."
-msgstr ""
+msgstr "Credential is inactive."
 
 #: apps/attendance/services.py:284
 msgid "Kredensial valid dan aktif."
-msgstr ""
+msgstr "Credential is valid and active."
 
 #: apps/attendance/services.py:382
 msgid "Kredensial tidak valid"
-msgstr ""
+msgstr "Invalid credential"
 
 #: apps/attendance/services.py:393
 msgid "Siswa tidak ditemukan"
-msgstr ""
+msgstr "Student not found"
 
 #: apps/attendance/services.py:400
 msgid "Staf tidak ditemukan"
-msgstr ""
+msgstr "Staff not found"
 
 #: apps/attendance/services.py:591
 msgid "Catatan alasan wajib diisi saat melakukan override kehadiran staf."
-msgstr ""
+msgstr "Reason notes are required when overriding staff attendance."
 
 #: apps/attendance/services.py:829
 msgid "Alasan check-in manual wajib diisi (misal: kartu tertinggal)."
-msgstr ""
+msgstr "Reason for manual check-in is required (e.g. forgot card)."
 
 #: apps/attendance/services.py:839
 msgid "Siswa tidak ditemukan pada sekolah ini."
-msgstr ""
+msgstr "Student not found at this school."
 
 #: apps/attendance/services.py:1287
 msgid "Ukuran berkas lampiran tidak boleh melebihi 1MB (PAR-011)."
-msgstr ""
+msgstr "Attachment file size must not exceed 1MB (PAR-011)."
 
 #: apps/attendance/services.py:1292
 msgid ""
 "Format berkas lampiran tidak didukung. Harap gunakan JPG, PNG, WebP, atau "
 "PDF."
 msgstr ""
+"Unsupported attachment file format. Please use JPG, PNG, WebP, or PDF."
 
 #: apps/attendance/services.py:1322
 msgid "Tanggal mulai tidak boleh melebihi tanggal akhir."
-msgstr ""
+msgstr "Start date cannot be later than end date."
 
 #: apps/attendance/services.py:1328
 msgid "Alasan izin atau keterangan sakit wajib diisi."
-msgstr ""
+msgstr "Leave reason or medical note is required."
 
 #: apps/attendance/services.py:1404
 msgid ""
 "Permohonan ini telah diproses sebelumnya dan tidak dapat disetujui lagi."
-msgstr ""
+msgstr "This request has already been processed and cannot be approved again."
 
 #: apps/attendance/services.py:1512
 msgid "Permohonan ini telah diproses sebelumnya dan tidak dapat ditolak lagi."
-msgstr ""
+msgstr "This request has already been processed and cannot be rejected again."
 
 #: apps/calendar_sync/models.py:46
 msgid "Fernet-encrypted OAuth access token"
-msgstr ""
+msgstr "Fernet-encrypted OAuth access token"
 
 #: apps/calendar_sync/models.py:49
 msgid ""
 "Fernet-encrypted OAuth refresh token; blank when the provider did not issue "
 "one"
 msgstr ""
+"Fernet-encrypted OAuth refresh token; blank when the provider did not issue "
+"one"
 
 #: apps/calendar_sync/models.py:52
 msgid "Expiry of the stored access token (tz-aware)"
-msgstr ""
+msgstr "Expiry of the stored access token (tz-aware)"
 
 #: apps/calendar_sync/models.py:60
 msgid "Provider calendar identifier being synced"
-msgstr ""
+msgstr "Provider calendar identifier being synced"
 
 #: apps/calendar_sync/models.py:64
 msgid ""
 "Provider incremental-sync cursor (Google syncToken / Graph deltaLink); "
 "reserved — the current pull uses a plain time window"
 msgstr ""
+"Provider incremental-sync cursor (Google syncToken / Graph deltaLink); "
+"reserved — the current pull uses a plain time window"
 
 #: apps/calendar_sync/models.py:73
 msgid "Koneksi Kalender Eksternal"
-msgstr ""
+msgstr "External Calendar Connection"
 
 #: apps/calendar_sync/models.py:74
 msgid "Daftar Koneksi Kalender Eksternal"
-msgstr ""
+msgstr "External Calendar Connections"
 
 #: apps/calendar_sync/models.py:109
 msgid "Video-conference link (Google hangoutLink / Microsoft Teams joinUrl)"
-msgstr ""
+msgstr "Video-conference link (Google hangoutLink / Microsoft Teams joinUrl)"
 
 #: apps/calendar_sync/models.py:117
 msgid "Acara Kalender Eksternal"
-msgstr ""
+msgstr "External Calendar Event"
 
 #: apps/calendar_sync/models.py:118
 msgid "Daftar Acara Kalender Eksternal"
-msgstr ""
+msgstr "External Calendar Events"
 
 #: apps/campus/apps.py:8
 msgid "Kehidupan Kampus & Perilaku (Campus Life)"
-msgstr ""
+msgstr "Campus Life & Behaviour"
 
 #: apps/campus/models.py:14
 msgid "Positif"
-msgstr ""
+msgstr "Positive"
 
 #: apps/campus/models.py:15
 msgid "Pelanggaran Ringan"
-msgstr ""
+msgstr "Minor Violation"
 
 #: apps/campus/models.py:16
 msgid "Pelanggaran Berat"
-msgstr ""
+msgstr "Major Violation"
 
 #: apps/campus/models.py:20 apps/finance/models.py:555
 #: apps/wallet/models.py:258
 msgid "Terbuka"
-msgstr ""
+msgstr "Open"
 
 #: apps/campus/models.py:21
 msgid "Dalam Penanganan"
-msgstr ""
+msgstr "In Progress"
 
 #: apps/campus/models.py:22
 msgid "Terselesaikan"
-msgstr ""
+msgstr "Resolved"
 
 #: apps/campus/models.py:23 apps/finance/models.py:556
 #: apps/wallet/models.py:14
@@ -966,46 +988,50 @@ msgid ""
 "Ambang batas akumulasi poin negatif per semester untuk auto-buka behaviour "
 "case (LIF-009)."
 msgstr ""
+"Threshold of accumulated negative points per semester to auto-open a "
+"behaviour case (LIF-009)."
 
 #: apps/campus/models.py:43
 msgid "Konselor BK default yang ditugaskan saat threshold terlampaui."
-msgstr ""
+msgstr "Default counsellor assigned when the threshold is exceeded."
 
 #: apps/campus/models.py:47
 msgid "Apakah ringkasan poin perilaku dicantumkan di buku rapor (LIF-014)."
 msgstr ""
+"Whether the behaviour points summary is included on the report card "
+"(LIF-014)."
 
 #: apps/campus/models.py:52 apps/campus/models.py:53
 msgid "Kebijakan Perilaku Sekolah"
-msgstr ""
+msgstr "School Behaviour Policy"
 
 #: apps/campus/models.py:69
 msgid "Nilai poin (positif untuk kebaikan, negatif untuk pelanggaran)."
-msgstr ""
+msgstr "Point value (positive for good conduct, negative for violations)."
 
 #: apps/campus/models.py:110
 msgid "Semester akademik saat kejadian (LIF-008)."
-msgstr ""
+msgstr "Academic term when the incident occurred (LIF-008)."
 
 #: apps/campus/models.py:118
 msgid "Snapshot nilai poin yang diterapkan."
-msgstr ""
+msgstr "Snapshot of the point value applied."
 
 #: apps/campus/models.py:141
 msgid "Rekaman pengganti jika catatan ini dikoreksi (LIF-013)."
-msgstr ""
+msgstr "Replacement record if this entry was corrected (LIF-013)."
 
 #: apps/campus/models.py:203
 msgid "Buku"
-msgstr ""
+msgstr "Book"
 
 #: apps/campus/models.py:204
 msgid "E-Buku"
-msgstr ""
+msgstr "E-Book"
 
 #: apps/campus/models.py:205
 msgid "Peralatan"
-msgstr ""
+msgstr "Equipment"
 
 #: apps/campus/models.py:209 apps/compliance/models.py:172
 #: apps/hardware/models.py:129
@@ -1019,172 +1045,181 @@ msgstr ""
 #: apps/campus/models.py:210 apps/compliance/models.py:173
 #: apps/hardware/models.py:130
 msgid "Staf"
-msgstr ""
+msgstr "Staff"
 
 #: apps/campus/models.py:214
 msgid "Dipinjam"
-msgstr ""
+msgstr "Borrowed"
 
 #: apps/campus/models.py:217
 msgid "Hilang"
-msgstr ""
+msgstr "Lost"
 
 #: apps/campus/models.py:242
 msgid "Biaya penggantian jika hilang (LIF-021)."
-msgstr ""
+msgstr "Replacement cost if lost (LIF-021)."
 
 #: apps/campus/models.py:247 apps/campus/models.py:248
 msgid "Item Perpustakaan"
-msgstr ""
+msgstr "Library Item"
 
 #: apps/campus/models.py:270
 msgid "Student.id or Staff.id"
-msgstr ""
+msgstr "Student.id or Staff.id"
 
 #: apps/campus/models.py:276
 msgid "Denda keterlambatan, dihitung saat pengembalian (LIF-020)."
-msgstr ""
+msgstr "Late fine, calculated on return (LIF-020)."
 
 #: apps/campus/models.py:284
 msgid "Kondisi barang saat dipinjamkan, wajib untuk EQUIPMENT (LIF-022)."
-msgstr ""
+msgstr "Item condition when loaned, required for EQUIPMENT (LIF-022)."
 
 #: apps/campus/models.py:290
 msgid "Kondisi barang saat dikembalikan, wajib untuk EQUIPMENT (LIF-022)."
-msgstr ""
+msgstr "Item condition when returned, required for EQUIPMENT (LIF-022)."
 
 #: apps/campus/models.py:302 apps/campus/models.py:303
 msgid "Peminjaman Perpustakaan"
-msgstr ""
+msgstr "Library Loan"
 
 #: apps/campus/models.py:315 apps/notifications/models.py:49
 msgid "Normal"
-msgstr ""
+msgstr "Normal"
 
 #: apps/campus/models.py:316
 msgid "Terbatas (Restricted)"
-msgstr ""
+msgstr "Restricted"
 
 #: apps/campus/models.py:320
 msgid "Sesi Awal"
-msgstr ""
+msgstr "Initial Session"
 
 #: apps/campus/models.py:321
 msgid "Sesi Lanjutan"
-msgstr ""
+msgstr "Follow-up Session"
 
 #: apps/campus/models.py:322
 msgid "Mediasi"
-msgstr ""
+msgstr "Mediation"
 
 #: apps/campus/models.py:323
 msgid "Pertemuan Orang Tua"
-msgstr ""
+msgstr "Parent Meeting"
 
 #: apps/campus/models.py:346
 msgid "Kasus perilaku terkait (opsional) — sesi BK dapat berdiri sendiri."
 msgstr ""
+"Related behaviour case (optional) — a counselling session can stand alone."
 
 #: apps/campus/models.py:367
 msgid "Catatan sesi, terenkripsi at-rest (LIF-015)."
-msgstr ""
+msgstr "Session notes, encrypted at rest (LIF-015)."
 
 #: apps/campus/models.py:372
 msgid "Tanggal tindak lanjut; memicu pengingat tugas konselor (LIF-018)."
-msgstr ""
+msgstr "Follow-up date; triggers a counsellor task reminder (LIF-018)."
 
 #: apps/campus/models.py:378
 msgid ""
 "RESTRICTED hanya terlihat oleh konselor penulis dan kepala sekolah "
 "(LIF-015)."
 msgstr ""
+"RESTRICTED is only visible to the writing counsellor and the principal "
+"(LIF-015)."
 
 #: apps/campus/models.py:382
 msgid ""
 "Eskalasi perlindungan anak (safeguarding) — memberitahu kepala sekolah "
 "langsung (LIF-017)."
 msgstr ""
+"Child safeguarding escalation — notifies the principal directly (LIF-017)."
 
 #: apps/campus/models.py:388
 msgid "Kapan pengingat tugas tindak lanjut dikirim ke konselor (LIF-018)."
-msgstr ""
+msgstr "When the follow-up task reminder is sent to the counsellor (LIF-018)."
 
 #: apps/campus/models.py:420
 msgid "Lama masa pinjam dalam hari (LIF-019)."
-msgstr ""
+msgstr "Loan period length in days (LIF-019)."
 
 #: apps/campus/models.py:424
 msgid "Jumlah maksimum pinjaman aktif bersamaan (LIF-019)."
-msgstr ""
+msgstr "Maximum number of concurrent active loans (LIF-019)."
 
 #: apps/campus/models.py:428
 msgid "Denda keterlambatan per hari (LIF-020)."
-msgstr ""
+msgstr "Late fine per day (LIF-020)."
 
 #: apps/campus/models.py:432
 msgid "Batas maksimum denda keterlambatan (LIF-020)."
-msgstr ""
+msgstr "Maximum late fine cap (LIF-020)."
 
 #: apps/campus/models.py:449
 msgid "Kembali ke Kelas"
-msgstr ""
+msgstr "Back to Class"
 
 #: apps/campus/models.py:450
 msgid "Dipulangkan"
-msgstr ""
+msgstr "Sent Home"
 
 #: apps/campus/models.py:451
 msgid "Dirujuk"
-msgstr ""
+msgstr "Referred"
 
 #: apps/campus/models.py:463
 msgid ""
 "LIF-006: guru dapat melihat daftar alergi siswa pada ringkasan non-klinis "
 "(default aktif karena keselamatan)."
 msgstr ""
+"LIF-006: teachers can view the student allergy list in the non-clinical "
+"summary (default active for safety)."
 
 #: apps/campus/models.py:468 apps/campus/models.py:469
 msgid "Kebijakan Klinik Sekolah"
-msgstr ""
+msgstr "School Clinic Policy"
 
 #: apps/campus/models.py:490 apps/campus/models.py:491
 msgid "Profil Kesehatan Siswa"
-msgstr ""
+msgstr "Student Health Profile"
 
 #: apps/campus/models.py:536
 msgid "LIF-007: keluhan terenkripsi Fernet, lihat apps.campus.crypto."
-msgstr ""
+msgstr "LIF-007: complaint Fernet-encrypted, see apps.campus.crypto."
 
 #: apps/campus/models.py:540
 msgid "LIF-007: penanganan terenkripsi Fernet, lihat apps.campus.crypto."
-msgstr ""
+msgstr "LIF-007: treatment Fernet-encrypted, see apps.campus.crypto."
 
 #: apps/compliance/models.py:11
 msgid "DAPODIK (Kemendikbudristek)"
-msgstr ""
+msgstr "DAPODIK (Kemendikbudristek)"
 
 #: apps/compliance/models.py:12
 msgid "EMIS (Kemenag Madrasah)"
-msgstr ""
+msgstr "EMIS (Kemenag Madrasah)"
 
 #: apps/compliance/models.py:38
 msgid "Which ministry reporting system this schema targets"
-msgstr ""
+msgstr "Which ministry reporting system this schema targets"
 
 #: apps/compliance/models.py:42
 msgid ""
 "Statutory schema version label, e.g. '2026.1' — data, not code (CMP-020)"
 msgstr ""
+"Statutory schema version label, e.g. '2026.1' — data, not code (CMP-020)"
 
 #: apps/compliance/models.py:46
 msgid "Only the active schema version is used for new exports"
-msgstr ""
+msgstr "Only the active schema version is used for new exports"
 
 #: apps/compliance/models.py:51
 msgid ""
 "Entity sheet -> {EduCore field path -> statutory column name}. Entity "
 "sheets: students, staff, rombel."
 msgstr ""
+"Entity sheet -> {EduCore field path -> statutory column name}. Entity "
+"sheets: students, staff, rombel."
 
 #: apps/compliance/models.py:59
 msgid ""
@@ -1192,58 +1227,61 @@ msgid ""
 "(CMP-018, CMP-020). E.g., {'students': ['person.mother_name', "
 "'person.home_latitude', 'person.home_longitude']}"
 msgstr ""
+"Optional mandatory field paths per entity sheet for pre-export validation "
+"(CMP-018, CMP-020). E.g., {'students': ['person.mother_name', "
+"'person.home_latitude', 'person.home_longitude']}"
 
 #: apps/compliance/models.py:95
 msgid "Associated async export job if generated via ExportJob pipeline"
-msgstr ""
+msgstr "Associated async export job if generated via ExportJob pipeline"
 
 #: apps/compliance/models.py:100
 msgid "Registered report key, e.g. 'statutory_dapodik', 'statutory_emis'"
-msgstr ""
+msgstr "Registered report key, e.g. 'statutory_dapodik', 'statutory_emis'"
 
 #: apps/compliance/models.py:104
 msgid "Export format (e.g. XLSX, CSV)"
-msgstr ""
+msgstr "Export format (e.g. XLSX, CSV)"
 
 #: apps/compliance/models.py:109
 msgid "User ID of the requesting actor"
-msgstr ""
+msgstr "User ID of the requesting actor"
 
 #: apps/compliance/models.py:115
 msgid "Full name of the requesting actor"
-msgstr ""
+msgstr "Full name of the requesting actor"
 
 #: apps/compliance/models.py:121
 msgid "Target school ID if the export was school-scoped"
-msgstr ""
+msgstr "Target school ID if the export was school-scoped"
 
 #: apps/compliance/models.py:126
 msgid "Filters applied to the export query"
-msgstr ""
+msgstr "Filters applied to the export query"
 
 #: apps/compliance/models.py:130
 msgid "Number of records/rows exported"
-msgstr ""
+msgstr "Number of records/rows exported"
 
 #: apps/compliance/models.py:135
 msgid "Visible watermark text stamped on the document"
-msgstr ""
+msgstr "Visible watermark text stamped on the document"
 
 #: apps/compliance/models.py:141
 msgid "Generated filename"
-msgstr ""
+msgstr "Generated filename"
 
 #: apps/compliance/models.py:145
 msgid "File size in bytes"
-msgstr ""
+msgstr "File size in bytes"
 
 #: apps/compliance/models.py:149
 msgid "Number of times download link was accessed"
-msgstr ""
+msgstr "Number of times download link was accessed"
 
 #: apps/compliance/models.py:154
 msgid "Last time the download link was retrieved"
-msgstr ""
+msgstr "Last time the download link was retrieved"
 
 #: apps/compliance/models.py:177 apps/wallet/models.py:47
 #: apps/wallet/models.py:176 apps/wallet/models.py:343
@@ -1254,646 +1292,651 @@ msgstr ""
 
 #: apps/compliance/models.py:184
 msgid "Pendaftaran Biometrik"
-msgstr ""
+msgstr "Biometric Enrollment"
 
 #: apps/compliance/models.py:185
 msgid "Penggunaan Foto/Media"
-msgstr ""
+msgstr "Photo/Media Usage"
 
 #: apps/compliance/models.py:186
 msgid "Pemrosesan Data Kesehatan"
-msgstr ""
+msgstr "Health Data Processing"
 
 #: apps/compliance/models.py:187
 msgid "Komunikasi Pemasaran"
-msgstr ""
+msgstr "Marketing Communications"
 
 #: apps/compliance/models.py:206
 msgid "User ID of the guardian/admin who recorded the grant"
-msgstr ""
+msgstr "User ID of the guardian/admin who recorded the grant"
 
 #: apps/finance/models.py:13
 msgid "SPP (Monthly Tuition)"
-msgstr ""
+msgstr "SPP (Monthly Tuition)"
 
 #: apps/finance/models.py:14
 msgid "Uang Pangkal (Entry Fee)"
-msgstr ""
+msgstr "Uang Pangkal (Entry Fee)"
 
 #: apps/finance/models.py:15
 msgid "Uang Kegiatan (Activity Fee)"
-msgstr ""
+msgstr "Uang Kegiatan (Activity Fee)"
 
 #: apps/finance/models.py:16
 msgid "Uang Ujian (Exam Fee)"
-msgstr ""
+msgstr "Uang Ujian (Exam Fee)"
 
 #: apps/finance/models.py:17
 msgid "Seragam (Uniform)"
-msgstr ""
+msgstr "Seragam (Uniform)"
 
 #: apps/finance/models.py:18
 msgid "Buku Paket (Book)"
-msgstr ""
+msgstr "Buku Paket (Book)"
 
 #: apps/finance/models.py:19
 msgid "Lainnya (Other)"
-msgstr ""
+msgstr "Lainnya (Other)"
 
 #: apps/finance/models.py:23
 msgid "Bulanan (Monthly)"
-msgstr ""
+msgstr "Bulanan (Monthly)"
 
 #: apps/finance/models.py:24
 msgid "Per Semester (Term)"
-msgstr ""
+msgstr "Per Semester (Term)"
 
 #: apps/finance/models.py:25
 msgid "Tahunan (Annual)"
-msgstr ""
+msgstr "Tahunan (Annual)"
 
 #: apps/finance/models.py:26
 msgid "Sekali Bayar (One-off)"
-msgstr ""
+msgstr "Sekali Bayar (One-off)"
 
 #: apps/finance/models.py:30
 msgid "Persentase (Percent)"
-msgstr ""
+msgstr "Persentase (Percent)"
 
 #: apps/finance/models.py:31 apps/finance/models.py:660
 msgid "Nominal Tetap (Fixed Amount)"
-msgstr ""
+msgstr "Nominal Tetap (Fixed Amount)"
 
 #: apps/finance/models.py:35 apps/finance/models.py:155
 msgid "Konsep (Draft)"
-msgstr ""
+msgstr "Konsep (Draft)"
 
 #: apps/finance/models.py:36 apps/finance/models.py:778
 #: apps/finance/models.py:1025
 msgid "Menunggu Persetujuan (Pending Approval)"
-msgstr ""
+msgstr "Menunggu Persetujuan (Pending Approval)"
 
 #: apps/finance/models.py:42
 msgid "Siswa Individu (Individual Student)"
-msgstr ""
+msgstr "Siswa Individu (Individual Student)"
 
 #: apps/finance/models.py:43
 msgid "Rombel Kelas (Class Group)"
-msgstr ""
+msgstr "Rombel Kelas (Class Group)"
 
 #: apps/finance/models.py:44
 msgid "Tingkat Kelas (Grade Level)"
-msgstr ""
+msgstr "Tingkat Kelas (Grade Level)"
 
 #: apps/finance/models.py:50
 msgid "e.g. SPP_REGULER, UANG_GEDUNG"
-msgstr ""
+msgstr "e.g. SPP_REGULER, UANG_GEDUNG"
 
 #: apps/finance/models.py:51
 msgid "Display label, e.g. SPP Bulanan"
-msgstr ""
+msgstr "Display label, e.g. SPP Bulanan"
 
 #: apps/finance/models.py:54
 msgid "Default fee amount in standard currency"
-msgstr ""
+msgstr "Default fee amount in standard currency"
 
 #: apps/finance/models.py:76
 msgid "e.g. Paket SPP & Kegiatan Kelas 7"
-msgstr ""
+msgstr "e.g. Paket SPP & Kegiatan Kelas 7"
 
 #: apps/finance/models.py:77
 msgid "List of grade level strings e.g. ['7', '8', '9']"
-msgstr ""
+msgstr "List of grade level strings e.g. ['7', '8', '9']"
 
 #: apps/finance/models.py:78
 msgid "List of fee line items [{fee_type_id, amount, currency}]"
-msgstr ""
+msgstr "List of fee line items [{fee_type_id, amount, currency}]"
 
 #: apps/finance/models.py:97
 msgid "Effective start period YYYY-MM"
-msgstr ""
+msgstr "Effective start period YYYY-MM"
 
 #: apps/finance/models.py:98
 msgid "Optional end period YYYY-MM"
-msgstr ""
+msgstr "Optional end period YYYY-MM"
 
 #: apps/finance/models.py:117
 msgid "Percentage (e.g. 10.00) or fixed amount in currency"
-msgstr ""
+msgstr "Percentage (e.g. 10.00) or fixed amount in currency"
 
 #: apps/finance/models.py:118
 msgid "Alasan diskon/keringanan, e.g. Beasiswa Tahfidz, Prestasi"
-msgstr ""
+msgstr "Discount/waiver reason, e.g. Tahfidz Scholarship, Merit"
 
 #: apps/finance/models.py:139
 msgid "Child order (2 for 2nd child, 3 for 3rd child, etc.)"
-msgstr ""
+msgstr "Child order (2 for 2nd child, 3 for 3rd child, etc.)"
 
 #: apps/finance/models.py:140
 msgid "Discount percentage (e.g. 10.00 for 10%)"
-msgstr ""
+msgstr "Discount percentage (e.g. 10.00 for 10%)"
 
 #: apps/finance/models.py:156
 msgid "Diterbitkan (Issued)"
-msgstr ""
+msgstr "Diterbitkan (Issued)"
 
 #: apps/finance/models.py:157 apps/finance/models.py:253
 msgid "Dibayar Sebagian (Partially Paid)"
-msgstr ""
+msgstr "Dibayar Sebagian (Partially Paid)"
 
 #: apps/finance/models.py:158 apps/finance/models.py:254
 msgid "Lunas (Paid)"
-msgstr ""
+msgstr "Lunas (Paid)"
 
 #: apps/finance/models.py:159 apps/finance/models.py:255
 #: apps/finance/models.py:315 apps/finance/models.py:324
 #: apps/finance/models.py:1029
 msgid "Dibatalkan (Cancelled)"
-msgstr ""
+msgstr "Dibatalkan (Cancelled)"
 
 #: apps/finance/models.py:160
 msgid "Dihapusbukukan (Written Off)"
-msgstr ""
+msgstr "Dihapusbukukan (Written Off)"
 
 #: apps/finance/models.py:166
 msgid "Calendar year (e.g. 2026)"
-msgstr ""
+msgstr "Calendar year (e.g. 2026)"
 
 #: apps/finance/models.py:167
 msgid "Latest allocated sequence number"
-msgstr ""
+msgstr "Latest allocated sequence number"
 
 #: apps/finance/models.py:183
 #, python-brace-format
 msgid "Format: INV/{school_code}/{YYYY}/{NNNNNN}"
-msgstr ""
+msgstr "Format: INV/{school_code}/{YYYY}/{NNNNNN}"
 
 #: apps/finance/models.py:184
 msgid "Billing period format YYYY-MM (e.g. 2026-10)"
-msgstr ""
+msgstr "Billing period format YYYY-MM (e.g. 2026-10)"
 
 #: apps/finance/models.py:186
 msgid "Payment due date"
-msgstr ""
+msgstr "Payment due date"
 
 #: apps/finance/models.py:188
 msgid "Sum of lines before discounts"
-msgstr ""
+msgstr "Sum of lines before discounts"
 
 #: apps/finance/models.py:189
 msgid "Total discounts applied"
-msgstr ""
+msgstr "Total discounts applied"
 
 #: apps/finance/models.py:190
 msgid "PEMBULATAN line adjustment (FIN-008c, CUR-019)"
-msgstr ""
+msgstr "PEMBULATAN line adjustment (FIN-008c, CUR-019)"
 
 #: apps/finance/models.py:191
 msgid "Final amount payable (subtotal - discount + rounding)"
-msgstr ""
+msgstr "Final amount payable (subtotal - discount + rounding)"
 
 #: apps/finance/models.py:192
 msgid "Cumulative settled payments"
-msgstr ""
+msgstr "Cumulative settled payments"
 
 #: apps/finance/models.py:194
 msgid "Invoice currency (CUR-002, CUR-008)"
-msgstr ""
+msgstr "Invoice currency (CUR-002, CUR-008)"
 
 #: apps/finance/models.py:233
 msgid "Line code, e.g. SPP_REGULER or PEMBULATAN"
-msgstr ""
+msgstr "Line code, e.g. SPP_REGULER or PEMBULATAN"
 
 #: apps/finance/models.py:234
 msgid "Display item description"
-msgstr ""
+msgstr "Display item description"
 
 #: apps/finance/models.py:235
 msgid "Base line item amount"
-msgstr ""
+msgstr "Base line item amount"
 
 #: apps/finance/models.py:236
 msgid "Discount deduction on this line"
-msgstr ""
+msgstr "Discount deduction on this line"
 
 #: apps/finance/models.py:237
 msgid "Net line total (amount - discount)"
-msgstr ""
+msgstr "Net line total (amount - discount)"
 
 #: apps/finance/models.py:239
 msgid ""
 "Set when a FIXED-type discount (waiver) is approved against this line "
 "(spec/03 FND-007 AC#2, spec/06 §2)"
 msgstr ""
+"Set when a FIXED-type discount (waiver) is approved against this line "
+"(spec/03 FND-007 AC#2, spec/06 §2)"
 
 #: apps/finance/models.py:252 apps/finance/models.py:312
 #: apps/finance/models.py:321
 msgid "Menunggu Pembayaran (Pending)"
-msgstr ""
+msgstr "Menunggu Pembayaran (Pending)"
 
 #: apps/finance/models.py:261
 msgid "Installment index starting from 1"
-msgstr ""
+msgstr "Installment index starting from 1"
 
 #: apps/finance/models.py:262
 msgid "Due date for this installment"
-msgstr ""
+msgstr "Due date for this installment"
 
 #: apps/finance/models.py:263
 msgid "Scheduled installment amount (CUR-018)"
-msgstr ""
+msgstr "Scheduled installment amount (CUR-018)"
 
 #: apps/finance/models.py:264
 msgid "Cumulative settled payments on this installment"
-msgstr ""
+msgstr "Cumulative settled payments on this installment"
 
 #: apps/finance/models.py:305 apps/wallet/models.py:55
 msgid "Virtual Account"
-msgstr ""
+msgstr "Virtual Account"
 
 #: apps/finance/models.py:306 apps/wallet/models.py:56
 msgid "QRIS"
-msgstr ""
+msgstr "QRIS"
 
 #: apps/finance/models.py:307
 msgid "Transfer Manual (Manual Transfer)"
-msgstr ""
+msgstr "Transfer Manual (Manual Transfer)"
 
 #: apps/finance/models.py:308
 msgid "Tunai di Sekolah (Cash at School)"
-msgstr ""
+msgstr "Tunai di Sekolah (Cash at School)"
 
 #: apps/finance/models.py:313
 msgid "Berhasil/Lunas (Settled)"
-msgstr ""
+msgstr "Berhasil/Lunas (Settled)"
 
 #: apps/finance/models.py:314 apps/finance/models.py:837
 msgid "Gagal (Failed)"
-msgstr ""
+msgstr "Gagal (Failed)"
 
 #: apps/finance/models.py:316
 msgid "Menunggu Verifikasi (Pending Verification)"
-msgstr ""
+msgstr "Menunggu Verifikasi (Pending Verification)"
 
 #: apps/finance/models.py:322 apps/finance/models.py:836
 msgid "Selesai (Completed)"
-msgstr ""
+msgstr "Selesai (Completed)"
 
 #: apps/finance/models.py:323
 msgid "Kedaluwarsa (Expired)"
-msgstr ""
+msgstr "Kedaluwarsa (Expired)"
 
 #: apps/finance/models.py:328
 msgid "Kas / Bank"
-msgstr ""
+msgstr "Cash / Bank"
 
 #: apps/finance/models.py:329
 msgid "Piutang SPP & Biaya"
-msgstr ""
+msgstr "Tuition & Fee Receivables"
 
 #: apps/finance/models.py:330
 msgid "Pendapatan Diterima di Muka"
-msgstr ""
+msgstr "Unearned Revenue"
 
 #: apps/finance/models.py:331
 msgid "Saldo Deposit Siswa"
-msgstr ""
+msgstr "Student Deposit Balance"
 
 #: apps/finance/models.py:332
 msgid "Pendapatan SPP"
-msgstr ""
+msgstr "Tuition Revenue"
 
 #: apps/finance/models.py:333
 msgid "Pendapatan Lain-lain"
-msgstr ""
+msgstr "Other Revenue"
 
 #: apps/finance/models.py:334
 msgid "Beban Transaksi & Gateway"
-msgstr ""
+msgstr "Transaction & Gateway Expense"
 
 #: apps/finance/models.py:335
 msgid "Beban Potongan & Keringanan"
-msgstr ""
+msgstr "Discount & Waiver Expense"
 
 #: apps/finance/models.py:336
 msgid "Beban / Pendapatan Pembulatan"
-msgstr ""
+msgstr "Rounding Expense / Revenue"
 
 #: apps/finance/models.py:337
 msgid "Beban Piutang Tak Tertagih (Bad Debt)"
-msgstr ""
+msgstr "Bad Debt Expense"
 
 #: apps/finance/models.py:343
 msgid "e.g. BCA, MANDIRI, BRI, BNI, PERMATA"
-msgstr ""
+msgstr "e.g. BCA, MANDIRI, BRI, BNI, PERMATA"
 
 #: apps/finance/models.py:370
 msgid "MIDTRANS, XENDIT, MOCK, MANUAL"
-msgstr ""
+msgstr "MIDTRANS, XENDIT, MOCK, MANUAL"
 
 #: apps/finance/models.py:371
 msgid "Bank code for VA, e.g. BCA, MANDIRI"
-msgstr ""
+msgstr "Bank code for VA, e.g. BCA, MANDIRI"
 
 #: apps/finance/models.py:396
 msgid "PAYMENT, RECEIPT, JOURNAL"
-msgstr ""
+msgstr "PAYMENT, RECEIPT, JOURNAL"
 
 #: apps/finance/models.py:397
 msgid "Calendar year e.g. 2026"
-msgstr ""
+msgstr "Calendar year e.g. 2026"
 
 #: apps/finance/models.py:423
 msgid "e.g. BCA_VA, QRIS_GOPAY, CASHIER, MANDIRI_TRANSFER"
-msgstr ""
+msgstr "e.g. BCA_VA, QRIS_GOPAY, CASHIER, MANDIRI_TRANSFER"
 
 #: apps/finance/models.py:424
 msgid "Unique payment reference e.g. PAY/SDIT01/2026/000001"
-msgstr ""
+msgstr "Unique payment reference e.g. PAY/SDIT01/2026/000001"
 
 #: apps/finance/models.py:425
 msgid "Gateway order_id or transaction ID"
-msgstr ""
+msgstr "Gateway order_id or transaction ID"
 
 #: apps/finance/models.py:431
 msgid "Gateway or transaction fee"
-msgstr ""
+msgstr "Gateway or transaction fee"
 
 #: apps/finance/models.py:432
 msgid "Net amount received by school (amount - fee)"
-msgstr ""
+msgstr "Net amount received by school (amount - fee)"
 
 #: apps/finance/models.py:434
 msgid "Receipt number e.g. RCP/SDIT01/2026/000001"
-msgstr ""
+msgstr "Receipt number e.g. RCP/SDIT01/2026/000001"
 
 #: apps/finance/models.py:435
 msgid "GCS object key for rendered receipt document (PAR-009, FIN-019)"
-msgstr ""
+msgstr "GCS object key for rendered receipt document (PAR-009, FIN-019)"
 
 #: apps/finance/models.py:437
 msgid "Proof upload file path"
-msgstr ""
+msgstr "Proof upload file path"
 
 #: apps/finance/models.py:511
 #, python-brace-format
 msgid "Format: JRN/{school_code}/{YYYY}/{NNNNNN}"
-msgstr ""
+msgstr "Format: JRN/{school_code}/{YYYY}/{NNNNNN}"
 
 #: apps/finance/models.py:513
 msgid "e.g. INVOICE, PAYMENT, REVENUE_RECOGNITION, REFUND"
-msgstr ""
+msgstr "e.g. INVOICE, PAYMENT, REVENUE_RECOGNITION, REFUND"
 
 #: apps/finance/models.py:514
 msgid "Primary identifier of the triggering entity"
-msgstr ""
+msgstr "Primary identifier of the triggering entity"
 
 #: apps/finance/models.py:533
 msgid "e.g. 1100, 1200, 2100, 4100"
-msgstr ""
+msgstr "e.g. 1100, 1200, 2100, 4100"
 
 #: apps/finance/models.py:562
 msgid "Format YYYY-MM, e.g. 2026-08"
-msgstr ""
+msgstr "Format YYYY-MM, e.g. 2026-08"
 
 #: apps/finance/models.py:592
 msgid "CPSSoft Accurate Online"
-msgstr ""
+msgstr "CPSSoft Accurate Online"
 
 #: apps/finance/models.py:593
 msgid "Mekari Jurnal.id"
-msgstr ""
+msgstr "Mekari Jurnal.id"
 
 #: apps/finance/models.py:603
 msgid "Kode akun internal EduCore (Chart of Accounts)"
-msgstr ""
+msgstr "EduCore internal account code (Chart of Accounts)"
 
 #: apps/finance/models.py:607
 msgid "Kode akun pada sistem buku besar eksternal (Accurate / Jurnal)"
-msgstr ""
+msgstr "Account code in the external ledger system (Accurate / Jurnal)"
 
 #: apps/finance/models.py:613
 msgid "Nama akun pada sistem buku besar eksternal (opsional)"
-msgstr ""
+msgstr "Account name in the external ledger system (optional)"
 
 #: apps/finance/models.py:643
 msgid "MEDIA_ROOT-relative key of the uploaded static QRIS image"
-msgstr ""
+msgstr "MEDIA_ROOT-relative key of the uploaded static QRIS image"
 
 #: apps/finance/models.py:644
 msgid ""
 "Raw QRIS string, if the school has it in addition to/instead of an image"
 msgstr ""
+"Raw QRIS string, if the school has it in addition to/instead of an image"
 
 #: apps/finance/models.py:655
 msgid "Ditanggung Sekolah (Absorbed by School)"
-msgstr ""
+msgstr "Ditanggung Sekolah (Absorbed by School)"
 
 #: apps/finance/models.py:656
 msgid "Dibebankan ke Orang Tua (Passed to Parent)"
-msgstr ""
+msgstr "Dibebankan ke Orang Tua (Passed to Parent)"
 
 #: apps/finance/models.py:661
 msgid "Persentase (Percentage)"
-msgstr ""
+msgstr "Persentase (Percentage)"
 
 #: apps/finance/models.py:689
 msgid ""
 "Fixed amount (in the invoice's currency) or percentage (e.g. 1.50 for 1.5%),"
 " per fee_type"
 msgstr ""
+"Fixed amount (in the invoice's currency) or percentage (e.g. 1.50 for 1.5%),"
+" per fee_type"
 
 #: apps/finance/models.py:701
 msgid "SWIFT MT940"
-msgstr ""
+msgstr "SWIFT MT940"
 
 #: apps/finance/models.py:702
 msgid "ISO 20022 CAMT.053"
-msgstr ""
+msgstr "ISO 20022 CAMT.053"
 
 #: apps/finance/models.py:717
 msgid "e.g. BCA, MANDIRI, BRI"
-msgstr ""
+msgstr "e.g. BCA, MANDIRI, BRI"
 
 #: apps/finance/models.py:721
 msgid "Remote directory to list/pull statement files from"
-msgstr ""
+msgstr "Remote directory to list/pull statement files from"
 
 #: apps/finance/models.py:752
 msgid "Offsets in days relative to due date, e.g. [-3, 0, 3, 7, 14, 30]"
-msgstr ""
+msgstr "Offsets in days relative to due date, e.g. [-3, 0, 3, 7, 14, 30]"
 
 #: apps/finance/models.py:758
 msgid "Base URL or template for payment link in reminders (FIN-028)"
-msgstr ""
+msgstr "Base URL or template for payment link in reminders (FIN-028)"
 
 #: apps/finance/models.py:787
 msgid "Nominal piutang yang dihapusbukukan"
-msgstr ""
+msgstr "Receivable amount written off"
 
 #: apps/finance/models.py:789
 msgid "Alasan penghapusbukuan piutang tak tertagih"
-msgstr ""
+msgstr "Reason for writing off the bad debt receivable"
 
 #: apps/finance/models.py:834
 msgid "Menunggu Proses (Pending)"
-msgstr ""
+msgstr "Menunggu Proses (Pending)"
 
 #: apps/finance/models.py:835
 msgid "Sedang Diproses (Processing)"
-msgstr ""
+msgstr "Sedang Diproses (Processing)"
 
 #: apps/finance/models.py:838
 msgid "Sebagian Berhasil (Partial)"
-msgstr ""
+msgstr "Sebagian Berhasil (Partial)"
 
 #: apps/finance/models.py:851
 msgid "Payment provider: MIDTRANS, XENDIT, MOCK"
-msgstr ""
+msgstr "Payment provider: MIDTRANS, XENDIT, MOCK"
 
 #: apps/finance/models.py:855
 msgid "The settlement calendar date this batch covers (YYYY-MM-DD)"
-msgstr ""
+msgstr "The settlement calendar date this batch covers (YYYY-MM-DD)"
 
 #: apps/finance/models.py:866
 msgid "Timestamp when gateway data was successfully fetched"
-msgstr ""
+msgstr "Timestamp when gateway data was successfully fetched"
 
 #: apps/finance/models.py:870
 msgid "Total settlement records returned by the gateway"
-msgstr ""
+msgstr "Total settlement records returned by the gateway"
 
 #: apps/finance/models.py:874
 msgid "Records matched to an existing Payment and auto-settled"
-msgstr ""
+msgstr "Records matched to an existing Payment and auto-settled"
 
 #: apps/finance/models.py:878
 msgid "Gateway records with no matching Payment in EduCore"
-msgstr ""
+msgstr "Gateway records with no matching Payment in EduCore"
 
 #: apps/finance/models.py:882
 msgid "Records where gateway amount differs from Payment amount"
-msgstr ""
+msgstr "Records where gateway amount differs from Payment amount"
 
 #: apps/finance/models.py:887
 msgid "Error traceback or message if the batch run failed"
-msgstr ""
+msgstr "Error traceback or message if the batch run failed"
 
 #: apps/finance/models.py:892
 msgid "Provider-specific aggregate totals from gateway response"
-msgstr ""
+msgstr "Provider-specific aggregate totals from gateway response"
 
 #: apps/finance/models.py:917
 msgid "Ada di Gateway, Tidak Ada di Sistem (Missing in System)"
-msgstr ""
+msgstr "Ada di Gateway, Tidak Ada di Sistem (Missing in System)"
 
 #: apps/finance/models.py:918
 msgid "Jumlah Tidak Sesuai (Amount Mismatch)"
-msgstr ""
+msgstr "Jumlah Tidak Sesuai (Amount Mismatch)"
 
 #: apps/finance/models.py:919
 msgid "Duplikat (Duplicate Entry)"
-msgstr ""
+msgstr "Duplikat (Duplicate Entry)"
 
 #: apps/finance/models.py:920
 msgid "Ada di Sistem, Tidak Ada di Gateway (Extra in System)"
-msgstr ""
+msgstr "Ada di Sistem, Tidak Ada di Gateway (Extra in System)"
 
 #: apps/finance/models.py:924
 msgid "Menunggu Tindak Lanjut (Pending Review)"
-msgstr ""
+msgstr "Menunggu Tindak Lanjut (Pending Review)"
 
 #: apps/finance/models.py:925
 msgid "Diselesaikan Otomatis (Auto-settled)"
-msgstr ""
+msgstr "Diselesaikan Otomatis (Auto-settled)"
 
 #: apps/finance/models.py:926
 msgid "Diselesaikan Manual (Manually Settled)"
-msgstr ""
+msgstr "Diselesaikan Manual (Manually Settled)"
 
 #: apps/finance/models.py:927
 msgid "Diabaikan (Waived)"
-msgstr ""
+msgstr "Diabaikan (Waived)"
 
 #: apps/finance/models.py:928
 msgid "Diteruskan ke Tim Keuangan (Escalated)"
-msgstr ""
+msgstr "Diteruskan ke Tim Keuangan (Escalated)"
 
 #: apps/finance/models.py:943
 msgid "Parent batch this discrepancy belongs to"
-msgstr ""
+msgstr "Parent batch this discrepancy belongs to"
 
 #: apps/finance/models.py:951
 msgid "Matched Payment record, if found (null for MISSING_IN_SYSTEM)"
-msgstr ""
+msgstr "Matched Payment record, if found (null for MISSING_IN_SYSTEM)"
 
 #: apps/finance/models.py:956
 msgid "Gateway transaction or reference ID"
-msgstr ""
+msgstr "Gateway transaction or reference ID"
 
 #: apps/finance/models.py:965
 msgid "Gross amount reported by the gateway"
-msgstr ""
+msgstr "Gross amount reported by the gateway"
 
 #: apps/finance/models.py:969
 msgid "Fee reported by the gateway"
-msgstr ""
+msgstr "Fee reported by the gateway"
 
 #: apps/finance/models.py:973
 msgid "Net amount reported by the gateway (amount - fee)"
-msgstr ""
+msgstr "Net amount reported by the gateway (amount - fee)"
 
 #: apps/finance/models.py:978
 msgid "Amount recorded in the EduCore Payment record (if matched)"
-msgstr ""
+msgstr "Amount recorded in the EduCore Payment record (if matched)"
 
 #: apps/finance/models.py:986
 msgid "Timestamp of settlement according to the gateway"
-msgstr ""
+msgstr "Timestamp of settlement according to the gateway"
 
 #: apps/finance/models.py:1006
 msgid "Unmodified gateway settlement record for audit trail"
-msgstr ""
+msgstr "Unmodified gateway settlement record for audit trail"
 
 #: apps/finance/models.py:1028
 msgid "Berhasil Dikirim (Executed)"
-msgstr ""
+msgstr "Berhasil Dikirim (Executed)"
 
 #: apps/finance/models.py:1038
 msgid "The settled payment being refunded"
-msgstr ""
+msgstr "The settled payment being refunded"
 
 #: apps/finance/models.py:1050
 msgid "Nominal pengembalian dana"
-msgstr ""
+msgstr "Refund amount"
 
 #: apps/finance/models.py:1052
 msgid "Alasan pengembalian dana"
-msgstr ""
+msgstr "Refund reason"
 
 #: apps/finance/models.py:1054
 msgid "Nama bank penerima (e.g. BCA, MANDIRI)"
-msgstr ""
+msgstr "Recipient bank name (e.g. BCA, MANDIRI)"
 
 #: apps/finance/models.py:1055
 msgid "Nomor rekening tujuan"
-msgstr ""
+msgstr "Destination account number"
 
 #: apps/finance/models.py:1056
 msgid "Nama pemilik rekening tujuan"
-msgstr ""
+msgstr "Destination account holder name"
 
 #: apps/finance/models.py:1083
 msgid "Gateway payout ID atau referensi transfer bank"
-msgstr ""
+msgstr "Gateway payout ID or bank transfer reference"
 
 #: apps/finance/models.py:1089
 msgid "File path bukti transfer pengembalian dana"
-msgstr ""
+msgstr "File path of the refund transfer proof"
 
 #: apps/finance/models.py:1106
 msgid "Compensating double-entry ledger journal (FIN-020)"
-msgstr ""
+msgstr "Compensating double-entry ledger journal (FIN-020)"
 
 #: apps/finance/services/accounting_export.py:97
 #, python-format
@@ -1901,302 +1944,320 @@ msgid ""
 "Jurnal %(number)s tidak seimbang: Total Debit (%(debit)s) != Total Kredit "
 "(%(credit)s)"
 msgstr ""
+"Journal %(number)s is unbalanced: Total Debit (%(debit)s) != Total Credit "
+"(%(credit)s)"
 
 #: apps/finance/services/installments.py:46
 #: apps/finance/services/installments.py:162
 msgid "Jumlah cicilan minimal 1."
-msgstr ""
+msgstr "Number of installments must be at least 1."
 
 #: apps/finance/services/installments.py:49
 msgid "Total tagihan yang dicicil harus lebih besar dari 0."
-msgstr ""
+msgstr "The total installment amount must be greater than 0."
 
 #: apps/finance/services/installments.py:105
 msgid ""
 "Rencana cicilan hanya dapat dibuat untuk tagihan berstatus Diterbitkan atau "
 "Dibayar Sebagian."
 msgstr ""
+"An installment plan can only be created for invoices with status Issued or "
+"Partially Paid."
 
 #: apps/finance/services/installments.py:115
 msgid ""
 "Tagihan sudah memiliki rencana cicilan aktif. Batalkan terlebih dahulu "
 "sebelum membuat yang baru."
 msgstr ""
+"This invoice already has an active installment plan. Cancel it first before "
+"creating a new one."
 
 #: apps/finance/services/installments.py:120
 msgid "Sisa tagihan (balance due) adalah 0."
-msgstr ""
+msgstr "The invoice balance due is 0."
 
 #: apps/finance/services/installments.py:126
 msgid "Jadwal cicilan tidak boleh kosong."
-msgstr ""
+msgstr "The installment schedule cannot be empty."
 
 #: apps/finance/services/installments.py:177
 msgid "Harap tentukan jumlah cicilan (count) atau daftar jadwal (schedule)."
-msgstr ""
+msgstr "Please specify either the installment count or a schedule list."
 
 #: apps/finance/services/installments.py:242
 msgid "Tidak ada rencana cicilan aktif untuk tagihan ini."
-msgstr ""
+msgstr "There is no active installment plan for this invoice."
 
 #: apps/finance/services/invoicing.py:173
 msgid "Persentase diskon harus antara 0.01% dan 100%."
-msgstr ""
+msgstr "The discount percentage must be between 0.01% and 100%."
 
 #: apps/finance/services/invoicing.py:175
 msgid "Nominal diskon harus lebih dari 0.00."
-msgstr ""
+msgstr "The discount amount must be greater than 0.00."
 
 #: apps/finance/services/invoicing.py:228
 msgid ""
 "Hanya permohonan diskon dengan status PENDING_APPROVAL yang dapat disetujui."
-msgstr ""
+msgstr "Only discount requests with status PENDING_APPROVAL can be approved."
 
 #: apps/finance/services/invoicing.py:232
 msgid ""
 "Persetujuan diskon atau keringanan biaya memerlukan wewenang Admin Yayasan "
 "(FIN-007, FND-007)."
 msgstr ""
+"Approving a discount or fee waiver requires Foundation Admin authority "
+"(FIN-007, FND-007)."
 
 #: apps/finance/services/invoicing.py:235
 msgid "Alasan persetujuan diskon wajib diisi."
-msgstr ""
+msgstr "Discount approval reason is required."
 
 #: apps/finance/services/invoicing.py:347
 msgid ""
 "Hanya permohonan diskon dengan status PENDING_APPROVAL yang dapat ditolak."
-msgstr ""
+msgstr "Only discount requests with status PENDING_APPROVAL can be rejected."
 
 #: apps/finance/services/invoicing.py:351
 msgid ""
 "Penolakan permohonan diskon memerlukan wewenang Admin Yayasan (FIN-007, "
 "FND-007)."
 msgstr ""
+"Rejecting a discount request requires Foundation Admin authority (FIN-007, "
+"FND-007)."
 
 #: apps/finance/services/invoicing.py:354
 msgid "Alasan penolakan diskon wajib diisi."
-msgstr ""
+msgstr "Discount rejection reason is required."
 
 #: apps/finance/services/invoicing.py:570
 msgid "Status bukan ACTIVE (FIN-005)"
-msgstr ""
+msgstr "Status is not ACTIVE (FIN-005)"
 
 #: apps/finance/services/invoicing.py:687
 msgid "Pembulatan ke ratusan terdekat"
-msgstr ""
+msgstr "Rounded to the nearest hundred"
 
 #: apps/finance/services/invoicing.py:784
 msgid ""
 "Faktur yang sudah dibayar, dibatalkan, atau dihapusbuku tidak dapat "
 "dibatalkan."
 msgstr ""
+"An invoice that is already paid, cancelled, or written off cannot be "
+"cancelled."
 
 #: apps/finance/services/invoicing.py:786
 msgid ""
 "Faktur yang sudah memiliki pembayaran parsial tidak dapat dibatalkan "
 "langsung."
 msgstr ""
+"An invoice that already has a partial payment cannot be cancelled directly."
 
 #: apps/finance/services/invoicing.py:815
 msgid "Faktur dengan status ini tidak dapat diajukan untuk penghapusbukuan."
-msgstr ""
+msgstr "An invoice with this status cannot be submitted for write-off."
 
 #: apps/finance/services/invoicing.py:818
 msgid "Faktur tidak memiliki saldo piutang tertunggak."
-msgstr ""
+msgstr "The invoice has no outstanding receivable balance."
 
 #: apps/finance/services/invoicing.py:822
 msgid "Nominal penghapusbukuan tidak valid atau melebihi sisa tagihan."
-msgstr ""
+msgstr "The write-off amount is invalid or exceeds the outstanding balance."
 
 #: apps/finance/services/invoicing.py:829
 msgid ""
 "Permohonan penghapusbukuan untuk faktur ini sedang menunggu persetujuan."
-msgstr ""
+msgstr "A write-off request for this invoice is already pending approval."
 
 #: apps/finance/services/invoicing.py:863
 #: apps/finance/services/invoicing.py:914
 msgid "Permohonan penghapusbukuan sudah diproses sebelumnya."
-msgstr ""
+msgstr "The write-off request has already been processed."
 
 #: apps/finance/services/invoicing.py:867
 msgid ""
 "Persetujuan penghapusbukuan piutang memerlukan wewenang Yayasan (FIN-031)."
 msgstr ""
+"Approving a receivable write-off requires Foundation authority (FIN-031)."
 
 #: apps/finance/services/invoicing.py:918
 msgid ""
 "Penolakan penghapusbukuan piutang memerlukan wewenang Yayasan (FIN-031)."
 msgstr ""
+"Rejecting a receivable write-off requires Foundation authority (FIN-031)."
 
 #: apps/finance/services/period_close.py:37
 msgid "Format periode tidak valid. Gunakan format YYYY-MM (contoh: 2026-08)."
-msgstr ""
+msgstr "Invalid period format. Use YYYY-MM format (e.g. 2026-08)."
 
 #: apps/finance/services/period_close.py:242
 msgid "Alasan pembukaan kembali periode fiskal wajib diisi."
-msgstr ""
+msgstr "Reason for reopening the fiscal period is required."
 
 #: apps/finance/services/period_close.py:253
 msgid "Periode fiskal tidak dalam status tertutup."
-msgstr ""
+msgstr "The fiscal period is not in closed status."
 
 #: apps/finance/services/refunds.py:68
 msgid ""
 "Hanya pembayaran dengan status SETTLED yang dapat diajukan pengembalian "
 "dana."
-msgstr ""
+msgstr "Only payments with status SETTLED can have a refund requested."
 
 #: apps/finance/services/refunds.py:74
 msgid "Nominal pengembalian dana harus lebih dari 0.00."
-msgstr ""
+msgstr "The refund amount must be greater than 0.00."
 
 #: apps/finance/services/refunds.py:82
 msgid "Nama bank tujuan wajib diisi."
-msgstr ""
+msgstr "Destination bank name is required."
 
 #: apps/finance/services/refunds.py:85
 msgid "Nomor rekening tujuan wajib diisi."
-msgstr ""
+msgstr "Destination account number is required."
 
 #: apps/finance/services/refunds.py:88
 msgid "Nama pemilik rekening tujuan wajib diisi."
-msgstr ""
+msgstr "Destination account holder name is required."
 
 #: apps/finance/services/refunds.py:91
 msgid "Alasan pengembalian dana wajib diisi."
-msgstr ""
+msgstr "Refund reason is required."
 
 #: apps/finance/services/refunds.py:180
 msgid ""
 "Persetujuan atau penolakan pengembalian dana memerlukan wewenang Admin "
 "Yayasan (FND-007, FIN-032)."
 msgstr ""
+"Approving or rejecting a refund requires Foundation Admin authority "
+"(FND-007, FIN-032)."
 
 #: apps/finance/services/refunds.py:185
 msgid ""
 "Hanya pengembalian dana dengan status PENDING_APPROVAL yang dapat diproses "
 "persetujuannya."
 msgstr ""
+"Only refunds with status PENDING_APPROVAL can have their approval processed."
 
 #: apps/finance/services/refunds.py:190
 msgid "Keputusan harus 'APPROVE' atau 'REJECT'."
-msgstr ""
+msgstr "Decision must be 'APPROVE' or 'REJECT'."
 
 #: apps/finance/services/refunds.py:194
 msgid "Alasan persetujuan pengembalian dana wajib diisi."
-msgstr ""
+msgstr "Refund approval reason is required."
 
 #: apps/finance/services/refunds.py:196
 msgid "Alasan penolakan pengembalian dana wajib diisi."
-msgstr ""
+msgstr "Refund rejection reason is required."
 
 #: apps/finance/services/refunds.py:272
 msgid "Hanya pengembalian dana dengan status APPROVED yang dapat dieksekusi."
-msgstr ""
+msgstr "Only refunds with status APPROVED can be executed."
 
 #: apps/finance/services/refunds.py:276
 msgid "Nomor referensi payout atau bukti transfer bank wajib diisi."
-msgstr ""
+msgstr "Payout reference number or bank transfer proof is required."
 
 #: apps/finance/services/refunds.py:288
 msgid "Total pengembalian dana melebihi nominal pembayaran."
-msgstr ""
+msgstr "Total refund amount exceeds the payment amount."
 
 #: apps/finance/services/refunds.py:491
 msgid "Hanya pengembalian dana yang belum dieksekusi yang dapat dibatalkan."
-msgstr ""
+msgstr "Only refunds that have not yet been executed can be cancelled."
 
 #: apps/finance/views.py:494
 msgid "Parameter school_id dan period wajib diisi."
-msgstr ""
+msgstr "The school_id and period parameters are required."
 
 #: apps/finance/views.py:681 apps/finance/views.py:692
 #: apps/finance/views.py:1177
 msgid "Tagihan tidak ditemukan."
-msgstr ""
+msgstr "Invoice not found."
 
 #: apps/finance/views.py:870
 msgid ""
 "Kwitansi hanya dapat diakses untuk pembayaran yang telah lunas (SETTLED)."
-msgstr ""
+msgstr "Receipts are only accessible for payments that are settled (SETTLED)."
 
 #: apps/finance/views.py:945 apps/finance/views.py:1820
 #: apps/finance/views.py:1869
 msgid "Konteks yayasan tidak ditemukan."
-msgstr ""
+msgstr "Foundation context not found."
 
 #: apps/finance/views.py:985
 msgid "Konfigurasi QRIS belum diatur."
-msgstr ""
+msgstr "QRIS configuration has not been set up."
 
 #: apps/finance/views.py:1237
 msgid "Konteks yayasan diperlukan."
-msgstr ""
+msgstr "Foundation context is required."
 
 #: apps/finance/views.py:1246
 msgid "Format as_of tidak valid. Gunakan YYYY-MM-DD."
-msgstr ""
+msgstr "Invalid as_of format. Use YYYY-MM-DD."
 
 #: apps/finance/views.py:1367
 msgid "Batch tidak ditemukan."
-msgstr ""
+msgstr "Batch not found."
 
 #: apps/finance/views.py:1390
 msgid "Field 'resolution' wajib diisi."
-msgstr ""
+msgstr "The 'resolution' field is required."
 
 #: apps/finance/views.py:1403
 msgid "Discrepancy tidak ditemukan."
-msgstr ""
+msgstr "Discrepancy not found."
 
 #: apps/finance/views.py:1433
 msgid "Field 'file' wajib diisi."
-msgstr ""
+msgstr "The 'file' field is required."
 
 #: apps/finance/views.py:1435
 msgid "Field 'bank_code' wajib diisi."
-msgstr ""
+msgstr "The 'bank_code' field is required."
 
 #: apps/finance/views.py:1441
 msgid "Field 'settlement_date' harus format YYYY-MM-DD."
-msgstr ""
+msgstr "The 'settlement_date' field must be in YYYY-MM-DD format."
 
 #: apps/finance/views.py:1536 apps/finance/views.py:1595
 msgid "Parameter periode wajib diisi (format YYYY-MM)."
-msgstr ""
+msgstr "The period parameter is required (format YYYY-MM)."
 
 #: apps/finance/views.py:1573
 msgid "Alasan pembukaan kembali wajib diisi."
-msgstr ""
+msgstr "Reason for reopening is required."
 
 #: apps/finance/views.py:1662
 msgid "Pembayaran tidak ditemukan."
-msgstr ""
+msgstr "Payment not found."
 
 #: apps/hardware/models.py:9
 msgid "Gate Reader (Turnstile)"
-msgstr ""
+msgstr "Gate Reader (Turnstile)"
 
 #: apps/hardware/models.py:10
 msgid "Face Terminal"
-msgstr ""
+msgstr "Face Terminal"
 
 #: apps/hardware/models.py:11
 msgid "POS Terminal"
-msgstr ""
+msgstr "POS Terminal"
 
 #: apps/hardware/models.py:13
 msgid "Handheld"
-msgstr ""
+msgstr "Handheld"
 
 #: apps/hardware/models.py:14
 msgid "Campus Gateway"
-msgstr ""
+msgstr "Campus Gateway"
 
 #: apps/hardware/models.py:20
 msgid "Dua Arah (Bidirectional)"
-msgstr ""
+msgstr "Bidirectional"
 
 #: apps/hardware/models.py:24
 #: frontend/templates/components/parent_nutrition_dashboard.html:38
@@ -2207,43 +2268,43 @@ msgstr ""
 
 #: apps/hardware/models.py:25
 msgid "Offline"
-msgstr ""
+msgstr "Offline"
 
 #: apps/hardware/models.py:26
 msgid "Degraded"
-msgstr ""
+msgstr "Degraded"
 
 #: apps/hardware/models.py:27
 msgid "Retired"
-msgstr ""
+msgstr "Retired"
 
 #: apps/hardware/models.py:39
 msgid "School where the device is deployed"
-msgstr ""
+msgstr "School where the device is deployed"
 
 #: apps/hardware/models.py:43
 msgid "Unique hardware serial number or device identifier"
-msgstr ""
+msgstr "Unique hardware serial number or device identifier"
 
 #: apps/hardware/models.py:47
 msgid "Friendly label, e.g. Gerbang Utama Masuk"
-msgstr ""
+msgstr "Friendly label, e.g. Main Entrance Gate"
 
 #: apps/hardware/models.py:64
 msgid "Physical campus location"
-msgstr ""
+msgstr "Physical campus location"
 
 #: apps/hardware/models.py:75
 msgid "Local IP address on campus LAN"
-msgstr ""
+msgstr "Local IP address on campus LAN"
 
 #: apps/hardware/models.py:108
 msgid "Device"
-msgstr ""
+msgstr "Device"
 
 #: apps/hardware/models.py:109
 msgid "Devices"
-msgstr ""
+msgstr "Devices"
 
 #: apps/hardware/models.py:134 apps/marketing/views.py:119
 #: apps/marketing/views.py:121 apps/marketing/views.py:122
@@ -2253,122 +2314,134 @@ msgstr "Active"
 
 #: apps/hardware/models.py:135
 msgid "Ditarik (Consent Withdrawn)"
-msgstr ""
+msgstr "Ditarik (Consent Withdrawn)"
 
 #: apps/hardware/models.py:136
 msgid "Dihapus (Purged)"
-msgstr ""
+msgstr "Dihapus (Purged)"
 
 #: apps/hardware/models.py:160
 msgid ""
 "Enrollment device class — always FACE_TERMINAL today; kept general per "
 "spec/12 §2"
 msgstr ""
+"Enrollment device class — always FACE_TERMINAL today; kept general per "
+"spec/12 §2"
 
 #: apps/hardware/models.py:163
 msgid ""
 "apps.compliance.ConsentRecord.id this enrollment relies on (CMP-009: no "
 "bundling, no template without a purpose-matched consent)"
 msgstr ""
+"apps.compliance.ConsentRecord.id this enrollment relies on (CMP-009: no "
+"bundling, no template without a purpose-matched consent)"
 
 #: apps/hardware/models.py:168
 msgid "Fernet-encrypted template payload; blanked on withdrawal/purge"
-msgstr ""
+msgstr "Fernet-encrypted template payload; blanked on withdrawal/purge"
 
 #: apps/hardware/models.py:177
 msgid "Biometric Template"
-msgstr ""
+msgstr "Biometric Template"
 
 #: apps/hardware/models.py:178
 msgid "Biometric Templates"
-msgstr ""
+msgstr "Biometric Templates"
 
 #: apps/hardware/models.py:189 apps/notifications/models.py:54
 #: apps/notifications/models.py:63 apps/notifications/models.py:72
 msgid "Pending"
-msgstr ""
+msgstr "Pending"
 
 #: apps/hardware/models.py:190
 msgid "Applied"
-msgstr ""
+msgstr "Applied"
 
 #: apps/hardware/models.py:191 apps/notifications/models.py:58
 #: apps/notifications/models.py:67
 msgid "Failed"
-msgstr ""
+msgstr "Failed"
 
 #: apps/hardware/models.py:223
 msgid ""
 "Raw event fields as uploaded: occurred_at, raw_uid, direction, method, etc."
 msgstr ""
+"Raw event fields as uploaded: occurred_at, raw_uid, direction, method, etc."
 
 #: apps/hardware/models.py:236
 msgid "Device Event Staging Row"
-msgstr ""
+msgstr "Device Event Staging Row"
 
 #: apps/hardware/models.py:237
 msgid "Device Event Staging Rows"
-msgstr ""
+msgstr "Device Event Staging Rows"
 
 #: apps/identity/authentication.py:32
 msgid ""
 "X-Foundation-ID header value does not match the authenticated user's "
 "foundation."
 msgstr ""
+"X-Foundation-ID header value does not match the authenticated user's "
+"foundation."
 
 #: apps/identity/authentication.py:55
 msgid "Token contained no recognizable user identification"
-msgstr ""
+msgstr "Token contained no recognizable user identification"
 
 #: apps/identity/authentication.py:62
 msgid "User not found"
-msgstr ""
+msgstr "User not found"
 
 #: apps/identity/authentication.py:65
 msgid "User is inactive"
-msgstr ""
+msgstr "User is inactive"
 
 #: apps/identity/web_views.py:77
 msgid "Nomor HP / Email dan kata sandi wajib diisi."
-msgstr ""
+msgstr "Phone number / Email and password are required."
 
 #: apps/identity/web_views.py:91 apps/identity/web_views.py:108
 msgid "Akun pengguna tidak aktif. Hubungi Tata Usaha."
-msgstr ""
+msgstr "User account is inactive. Contact the administration office."
 
 #: apps/identity/web_views.py:100
 msgid "Kredensial tidak valid atau akun terkunci. Periksa kembali data Anda."
 msgstr ""
+"Invalid credentials or account locked. Please check your details again."
 
 #: apps/identity/web_views.py:130
 msgid "Format data tidak valid."
-msgstr ""
+msgstr "Invalid data format."
 
 #: apps/identity/web_views.py:138
 msgid "Provider dan id_token wajib diisi."
-msgstr ""
+msgstr "Provider and id_token are required."
 
 #: apps/identity/web_views.py:155
 msgid "Akun Google/Microsoft belum terhubung dengan akun staf EduCore."
 msgstr ""
+"The Google/Microsoft account is not linked to an EduCore staff account."
 
 #: apps/identity/web_views.py:165
 msgid "Akun pengguna tidak aktif."
-msgstr ""
+msgstr "User account is inactive."
 
 #: apps/identity/web_views.py:270 apps/identity/web_views.py:273
 msgid "Hanya Administrator Yayasan yang berwenang mengakses pengaturan ini."
 msgstr ""
+"Only the Foundation Administrator is authorized to access this setting."
 
 #: apps/identity/web_views.py:331
 msgid "Penyematan tenant Microsoft Entra berhasil disimpan."
-msgstr ""
+msgstr "Microsoft Entra tenant pinning saved successfully."
 
 #: apps/identity/web_views.py:360
 msgid ""
 "Penyematan tenant Microsoft Entra berhasil dilepas. SSO kembali menggunakan "
 "mode multi-tenant standar."
 msgstr ""
+"Microsoft Entra tenant pinning removed successfully. SSO has reverted to "
+"standard multi-tenant mode."
 
 #: apps/marketing/views.py:12 frontend/templates/marketing/base.html:92
 msgid "Akademik & rapor"
@@ -2909,451 +2982,457 @@ msgstr "Printed report cards no longer truncate long names"
 
 #: apps/notifications/models.py:13
 msgid "WhatsApp"
-msgstr ""
+msgstr "WhatsApp"
 
 #: apps/notifications/models.py:14
 msgid "Push Notification"
-msgstr ""
+msgstr "Push Notification"
 
 #: apps/notifications/models.py:15
 msgid "SMS"
-msgstr ""
+msgstr "SMS"
 
 #: apps/notifications/models.py:16
 msgid "Email"
-msgstr ""
+msgstr "Email"
 
 #: apps/notifications/models.py:17
 msgid "In-App"
-msgstr ""
+msgstr "In-App"
 
 #: apps/notifications/models.py:21
 msgid "Kedatangan (Arrival)"
-msgstr ""
+msgstr "Kedatangan (Arrival)"
 
 #: apps/notifications/models.py:22
 msgid "Kepulangan (Departure)"
-msgstr ""
+msgstr "Kepulangan (Departure)"
 
 #: apps/notifications/models.py:23
 msgid "Darurat (Emergency)"
-msgstr ""
+msgstr "Darurat (Emergency)"
 
 #: apps/notifications/models.py:24
 msgid "Tagihan Pembayaran (Payment Due)"
-msgstr ""
+msgstr "Tagihan Pembayaran (Payment Due)"
 
 #: apps/notifications/models.py:25
 msgid "Pembayaran Diterima (Payment Received)"
-msgstr ""
+msgstr "Pembayaran Diterima (Payment Received)"
 
 #: apps/notifications/models.py:26
 msgid "Nilai Diumumkan (Grade Published)"
-msgstr ""
+msgstr "Nilai Diumumkan (Grade Published)"
 
 #: apps/notifications/models.py:27
 msgid "Buku Rapor (Report Card)"
-msgstr ""
+msgstr "Buku Rapor (Report Card)"
 
 #: apps/notifications/models.py:28
 msgid "Tugas Sekolah (Homework)"
-msgstr ""
+msgstr "Tugas Sekolah (Homework)"
 
 #: apps/notifications/models.py:29
 msgid "Pelanggaran Berat (Major Behaviour)"
-msgstr ""
+msgstr "Pelanggaran Berat (Major Behaviour)"
 
 #: apps/notifications/models.py:30
 msgid "Catatan Ringan (Minor Behaviour)"
-msgstr ""
+msgstr "Catatan Ringan (Minor Behaviour)"
 
 #: apps/notifications/models.py:31
 msgid "Transaksi Kantin (Canteen)"
-msgstr ""
+msgstr "Transaksi Kantin (Canteen)"
 
 #: apps/notifications/models.py:32
 msgid "Pengumuman Sekolah (Announcement)"
-msgstr ""
+msgstr "Pengumuman Sekolah (Announcement)"
 
 #: apps/notifications/models.py:33
 msgid "Rekonsiliasi Dompet (Wallet Reconciliation)"
-msgstr ""
+msgstr "Rekonsiliasi Dompet (Wallet Reconciliation)"
 
 #: apps/notifications/models.py:34
 msgid "Penugasan Guru Pengganti (Substitute Assigned)"
-msgstr ""
+msgstr "Penugasan Guru Pengganti (Substitute Assigned)"
 
 #: apps/notifications/models.py:35
 msgid "Penolakan Guru Pengganti (Substitute Declined)"
-msgstr ""
+msgstr "Penolakan Guru Pengganti (Substitute Declined)"
 
 #: apps/notifications/models.py:36
 msgid "Ekspor Laporan Siap (Export Ready)"
-msgstr ""
+msgstr "Ekspor Laporan Siap (Export Ready)"
 
 #: apps/notifications/models.py:37
 msgid "Ketidakhadiran (Absence)"
-msgstr ""
+msgstr "Ketidakhadiran (Absence)"
 
 #: apps/notifications/models.py:38
 msgid "Insiden Klinik (Clinic Incident)"
-msgstr ""
+msgstr "Insiden Klinik (Clinic Incident)"
 
 #: apps/notifications/models.py:39
 msgid "Perangkat Offline (Device Offline)"
-msgstr ""
+msgstr "Perangkat Offline (Device Offline)"
 
 #: apps/notifications/models.py:40
 msgid "Ringkasan Aktivitas Harian (Daily Digest)"
-msgstr ""
+msgstr "Ringkasan Aktivitas Harian (Daily Digest)"
 
 #: apps/notifications/models.py:41
 msgid "Peminjaman Perpustakaan Jatuh Tempo (Library Loan Due)"
-msgstr ""
+msgstr "Peminjaman Perpustakaan Jatuh Tempo (Library Loan Due)"
 
 #: apps/notifications/models.py:42
 msgid "Eskalasi BK Mendesak (Urgent Counselling Escalation)"
-msgstr ""
+msgstr "Eskalasi BK Mendesak (Urgent Counselling Escalation)"
 
 #: apps/notifications/models.py:43
 msgid "Pengingat Tindak Lanjut BK (Counselling Follow-up)"
-msgstr ""
+msgstr "Pengingat Tindak Lanjut BK (Counselling Follow-up)"
 
 #: apps/notifications/models.py:47
 msgid "Critical"
-msgstr ""
+msgstr "Critical"
 
 #: apps/notifications/models.py:48
 msgid "High"
-msgstr ""
+msgstr "High"
 
 #: apps/notifications/models.py:50
 msgid "Low"
-msgstr ""
+msgstr "Low"
 
 #: apps/notifications/models.py:55
 msgid "Processing"
-msgstr ""
+msgstr "Processing"
 
 #: apps/notifications/models.py:56
 msgid "Dispatched"
-msgstr ""
+msgstr "Dispatched"
 
 #: apps/notifications/models.py:57
 msgid "Cancelled"
-msgstr ""
+msgstr "Cancelled"
 
 #: apps/notifications/models.py:59
 msgid "Digested"
-msgstr ""
+msgstr "Digested"
 
 #: apps/notifications/models.py:64
 msgid "Sent"
-msgstr ""
+msgstr "Sent"
 
 #: apps/notifications/models.py:65
 msgid "Delivered"
-msgstr ""
+msgstr "Delivered"
 
 #: apps/notifications/models.py:66
 msgid "Read"
-msgstr ""
+msgstr "Read"
 
 #: apps/notifications/models.py:71
 msgid "Approved"
-msgstr ""
+msgstr "Approved"
 
 #: apps/notifications/models.py:102
 msgid "Tagihan telah lunas sebelum pengingat terkirim (FIN-027)"
-msgstr ""
+msgstr "Invoice was already paid before the reminder was sent (FIN-027)"
 
 #: apps/notifications/models.py:176
 msgid "Saldo telah diselesaikan sebelum notifikasi terkirim (REC-008)"
 msgstr ""
+"Balance was already settled before the notification was sent (REC-008)"
 
 #: apps/notifications/models.py:258
 msgid "e.g. attendance.arrival"
-msgstr ""
+msgstr "e.g. attendance.arrival"
 
 #: apps/notifications/models.py:260
 msgid "Default id-ID per NTF-008"
-msgstr ""
+msgstr "Default id-ID per NTF-008"
 
 #: apps/notifications/models.py:262
 #, python-brace-format
 msgid "Message template with {variable} placeholders"
-msgstr ""
+msgstr "Message template with {variable} placeholders"
 
 #: apps/notifications/models.py:263
 msgid "Declared variable keys"
-msgstr ""
+msgstr "Declared variable keys"
 
 #: apps/notifications/models.py:269
 msgid "Approval tracking for WhatsApp templates (NTF-005)"
-msgstr ""
+msgstr "Approval tracking for WhatsApp templates (NTF-005)"
 
 #: apps/notifications/models.py:287
 msgid "Ordered list of preferred channels"
-msgstr ""
+msgstr "Ordered list of preferred channels"
 
 #: apps/notifications/models.py:288
 msgid "Default 21:00 local"
-msgstr ""
+msgstr "Default 21:00 local"
 
 #: apps/notifications/models.py:289
 msgid "Default 06:00 local"
-msgstr ""
+msgstr "Default 06:00 local"
 
 #: apps/notifications/models.py:315
 msgid "Idempotency dedupe key (NTF-003)"
-msgstr ""
+msgstr "Idempotency dedupe key (NTF-003)"
 
 #: apps/notifications/models.py:347
 msgid "Per-channel provider cost per NTF-011"
-msgstr ""
+msgstr "Per-channel provider cost per NTF-011"
 
 #: apps/notifications/models.py:362
 msgid "Android"
-msgstr ""
+msgstr "Android"
 
 #: apps/notifications/models.py:363
 msgid "iOS"
-msgstr ""
+msgstr "iOS"
 
 #: apps/notifications/models.py:364
 msgid "Web"
-msgstr ""
+msgstr "Web"
 
 #: apps/notifications/services.py:155
 msgid "Pengguna memilih tidak menerima notifikasi kategori ini (Opt-out)"
-msgstr ""
+msgstr "User chose not to receive notifications for this category (Opt-out)"
 
 #: apps/notifications/services.py:192
 msgid "Batas harian tercapai (maksimal 20 pesan per hari per NTF-012)"
-msgstr ""
+msgstr "Daily limit reached (max 20 messages per day per NTF-012)"
 
 #: apps/notifications/services.py:372
 msgid "Kondisi notifikasi tidak lagi berlaku saat pengiriman (NTF-004)"
-msgstr ""
+msgstr "The notification condition no longer applied at send time (NTF-004)"
 
 #: apps/notifications/services.py:520
 msgid "Perilaku & Catatan Guru"
-msgstr ""
+msgstr "Behaviour & Teacher Notes"
 
 #: apps/notifications/services.py:521
 msgid "Tugas Sekolah"
-msgstr ""
+msgstr "Homework"
 
 #: apps/notifications/services.py:522
 msgid "Ringkasan Keuangan/Kantin"
-msgstr ""
+msgstr "Finance/Canteen Summary"
 
 #: apps/notifications/views.py:160
 msgid "Notifikasi tidak ditemukan"
-msgstr ""
+msgstr "Notification not found"
 
 #: apps/notifications/views.py:190
 msgid "Kategori wajib diisi"
-msgstr ""
+msgstr "Category is required"
 
 #: apps/notifications/views.py:237
 msgid "Token perangkat wajib diisi."
-msgstr ""
+msgstr "Device token is required."
 
 #: apps/notifications/views.py:284
 msgid "Parameter token wajib disertakan."
-msgstr ""
+msgstr "The token parameter is required."
 
 #: apps/partners/models.py:51
 msgid "Human-readable partner/integration name"
-msgstr ""
+msgstr "Human-readable partner/integration name"
 
 #: apps/partners/models.py:52
 msgid "Public key identifier, e.g. ak_live_7Qp2R9"
-msgstr ""
+msgstr "Public key identifier, e.g. ak_live_7Qp2R9"
 
 #: apps/partners/models.py:53
 msgid "Fernet-encrypted HMAC secret; never returned after issue time"
-msgstr ""
+msgstr "Fernet-encrypted HMAC secret; never returned after issue time"
 
 #: apps/partners/models.py:54
 msgid "Granted scope strings, subset of ALLOWED_SCOPES"
-msgstr ""
+msgstr "Granted scope strings, subset of ALLOWED_SCOPES"
 
 #: apps/partners/models.py:55
 msgid "School IDs in scope; empty list = every school in the foundation"
-msgstr ""
+msgstr "School IDs in scope; empty list = every school in the foundation"
 
 #: apps/partners/models.py:56
 msgid ""
 "Optional CIDR/address list; empty = unrestricted (REQUIRED for "
 "payroll.write, PVA-013)"
 msgstr ""
+"Optional CIDR/address list; empty = unrestricted (REQUIRED for "
+"payroll.write, PVA-013)"
 
 #: apps/partners/models.py:59
 msgid "key_id (numeric pk) of the key this one supersedes"
-msgstr ""
+msgstr "key_id (numeric pk) of the key this one supersedes"
 
 #: apps/partners/models.py:60
 msgid "PVA-012: superseded key becomes read-only (day 23 of overlap)"
-msgstr ""
+msgstr "PVA-012: superseded key becomes read-only (day 23 of overlap)"
 
 #: apps/partners/models.py:61
 msgid "PVA-012: superseded key stops working (day 30 of overlap)"
-msgstr ""
+msgstr "PVA-012: superseded key stops working (day 30 of overlap)"
 
 #: apps/partners/models.py:99
 msgid "Partner's HTTPS endpoint (https:// enforced)"
-msgstr ""
+msgstr "Partner's HTTPS endpoint (https:// enforced)"
 
 #: apps/partners/models.py:100
 msgid "LIVE or TEST; one active endpoint per environment"
-msgstr ""
+msgstr "LIVE or TEST; one active endpoint per environment"
 
 #: apps/partners/models.py:101
 msgid "Fernet-encrypted secret used to sign outgoing webhook deliveries"
-msgstr ""
+msgstr "Fernet-encrypted secret used to sign outgoing webhook deliveries"
 
 #: apps/partners/models.py:132
 msgid "e.g. finance.payment.settled"
-msgstr ""
+msgstr "e.g. finance.payment.settled"
 
 #: apps/partners/models.py:135
 msgid "Failed delivery attempts so far"
-msgstr ""
+msgstr "Failed delivery attempts so far"
 
 #: apps/partners/models.py:185
 msgid "Payroll period YYYY-MM (e.g. 2026-08)"
-msgstr ""
+msgstr "Payroll period YYYY-MM (e.g. 2026-08)"
 
 #: apps/partners/models.py:195
 msgid "Approval + acknowledgement window; past this, ack is locked"
-msgstr ""
+msgstr "Approval + acknowledgement window; past this, ack is locked"
 
 #: apps/partners/models.py:197
 msgid "Partner key_id that acknowledged"
-msgstr ""
+msgstr "Partner key_id that acknowledged"
 
 #: apps/partners/models.py:230
 msgid "apps.identity.Staff ID"
-msgstr ""
+msgstr "apps.identity.Staff ID"
 
 #: apps/reporting/models.py:25 apps/reporting/models.py:57
 #: apps/reporting/models.py:89 apps/reporting/models.py:116
 #: apps/reporting/models.py:153 apps/reporting/models.py:184
 msgid "RPT-005: data freshness timestamp"
-msgstr ""
+msgstr "RPT-005: data freshness timestamp"
 
 #: apps/reporting/models.py:88
 msgid "{descriptor: count}"
-msgstr ""
+msgstr "{descriptor: count}"
 
 #: apps/reporting/models.py:114
 msgid "Normalized to the 1st of the month"
-msgstr ""
+msgstr "Normalized to the 1st of the month"
 
 #: apps/reporting/models.py:180
 msgid "CURRENT, 0_30, 31_60, 61_90, 90_PLUS"
-msgstr ""
+msgstr "CURRENT, 0_30, 31_60, 61_90, 90_PLUS"
 
 #: apps/reporting/views.py:38 apps/reporting/views.py:45
 #, python-format
 msgid "Format %(param)s tidak valid (YYYY-MM-DD)."
-msgstr ""
+msgstr "Invalid %(param)s format (YYYY-MM-DD)."
 
 #: apps/reporting/views.py:60 apps/reporting/views.py:85
 #: apps/reporting/views.py:114 apps/reporting/views.py:143
 #: apps/reporting/views.py:168 apps/wallet/views.py:552
 #: apps/wallet/views.py:652
 msgid "Parameter school_id wajib diisi."
-msgstr ""
+msgstr "The school_id parameter is required."
 
 #: apps/wallet/models.py:13
 msgid "Dibekukan"
-msgstr ""
+msgstr "Frozen"
 
 #: apps/wallet/models.py:23
 msgid "Guardian-configured daily spend limit (WAL-009)"
-msgstr ""
+msgstr "Guardian-configured daily spend limit (WAL-009)"
 
 #: apps/wallet/models.py:25
 msgid ""
 "Set when an offline overspend was accepted and took the wallet negative "
 "(WAL-017)"
 msgstr ""
+"Set when an offline overspend was accepted and took the wallet negative "
+"(WAL-017)"
 
 #: apps/wallet/models.py:39
 msgid "Isi Ulang"
-msgstr ""
+msgstr "Top-up"
 
 #: apps/wallet/models.py:40
 msgid "Pembelian"
-msgstr ""
+msgstr "Purchase"
 
 #: apps/wallet/models.py:41
 msgid "Pengembalian"
-msgstr ""
+msgstr "Refund"
 
 #: apps/wallet/models.py:42
 msgid "Penyesuaian"
-msgstr ""
+msgstr "Adjustment"
 
 #: apps/wallet/models.py:43
 msgid "Transfer Keluar"
-msgstr ""
+msgstr "Transfer Out"
 
 #: apps/wallet/models.py:49
 msgid "Perlu Rekonsiliasi"
-msgstr ""
+msgstr "Needs Reconciliation"
 
 #: apps/wallet/models.py:53
 msgid "Tunai di Kantor Sekolah"
-msgstr ""
+msgstr "Cash at School Office"
 
 #: apps/wallet/models.py:54 apps/wallet/models.py:254
 msgid "Penyesuaian Manual"
-msgstr ""
+msgstr "Manual Adjustment"
 
 #: apps/wallet/models.py:63
 msgid ""
 "Signed delta: positive for TOPUP/REFUND, negative for PURCHASE/TRANSFER_OUT"
 msgstr ""
+"Signed delta: positive for TOPUP/REFUND, negative for PURCHASE/TRANSFER_OUT"
 
 #: apps/wallet/models.py:91
 msgid "List of product SKUs"
-msgstr ""
+msgstr "List of product SKUs"
 
 #: apps/wallet/models.py:103
 msgid "Kantin"
-msgstr ""
+msgstr "Canteen"
 
 #: apps/wallet/models.py:104
 msgid "Seragam"
-msgstr ""
+msgstr "Uniform"
 
 #: apps/wallet/models.py:105
 msgid "Alat Tulis"
-msgstr ""
+msgstr "Stationery"
 
 #: apps/wallet/models.py:115
 msgid "Commission in basis points (100 = 1%)"
-msgstr ""
+msgstr "Commission in basis points (100 = 1%)"
 
 #: apps/wallet/models.py:135
 msgid "e.g. {calories, sugar_g}"
-msgstr ""
+msgstr "e.g. {calories, sugar_g}"
 
 #: apps/wallet/models.py:158
 msgid "Nonaktif"
-msgstr ""
+msgstr "Inactive"
 
 #: apps/wallet/models.py:178
 msgid "Dibatalkan"
-msgstr ""
+msgstr "Cancelled"
 
 #: apps/wallet/models.py:186
 msgid "List of {sku, name, qty, unit_price}"
-msgstr ""
+msgstr "List of {sku, name, qty, unit_price}"
 
 #: apps/wallet/models.py:218 apps/wallet/models.py:305
 #: frontend/templates/components/_permission_slip_roster.html:30
@@ -3362,23 +3441,23 @@ msgstr ""
 
 #: apps/wallet/models.py:219 apps/wallet/models.py:306
 msgid "Dibayar"
-msgstr ""
+msgstr "Paid"
 
 #: apps/wallet/models.py:252
 msgid "Kelebihan Belanja Luring"
-msgstr ""
+msgstr "Offline Overspend"
 
 #: apps/wallet/models.py:253
 msgid "Selisih Sinkronisasi"
-msgstr ""
+msgstr "Sync Discrepancy"
 
 #: apps/wallet/models.py:259
 msgid "Diselesaikan"
-msgstr ""
+msgstr "Resolved"
 
 #: apps/wallet/models.py:260
 msgid "Dihapusbukukan"
-msgstr ""
+msgstr "Written Off"
 
 #: apps/wallet/models.py:261
 #, fuzzy
@@ -3388,73 +3467,73 @@ msgstr "Invoice"
 
 #: apps/wallet/models.py:273
 msgid "Absolute value of the negative balance at detection (REC-002)"
-msgstr ""
+msgstr "Absolute value of the negative balance at detection (REC-002)"
 
 #: apps/wallet/models.py:307
 msgid "Didonasikan"
-msgstr ""
+msgstr "Donated"
 
 #: apps/wallet/models.py:342
 msgid "Menunggu Pembayaran"
-msgstr ""
+msgstr "Awaiting Payment"
 
 #: apps/wallet/models.py:344
 msgid "Kedaluwarsa"
-msgstr ""
+msgstr "Expired"
 
 #: apps/wallet/models.py:345
 msgid "Gagal"
-msgstr ""
+msgstr "Failed"
 
 #: apps/wallet/models.py:393
 msgid "Explicit opt-in required (WAL-006)"
-msgstr ""
+msgstr "Explicit opt-in required (WAL-006)"
 
 #: apps/wallet/models.py:394
 msgid "Auto-top-up triggers when balance drops below this"
-msgstr ""
+msgstr "Auto-top-up triggers when balance drops below this"
 
 #: apps/wallet/models.py:395
 msgid "Amount requested each time auto-top-up triggers"
-msgstr ""
+msgstr "Amount requested each time auto-top-up triggers"
 
 #: apps/wallet/views.py:219
 msgid "Topup intent tidak ditemukan."
-msgstr ""
+msgstr "Top-up intent not found."
 
 #: apps/wallet/views.py:406
 msgid "Settlement tidak ditemukan."
-msgstr ""
+msgstr "Settlement not found."
 
 #: apps/wallet/views.py:408
 msgid "Belum ada dokumen statement untuk diunduh."
-msgstr ""
+msgstr "No statement document available to download yet."
 
 #: apps/wallet/views.py:466 apps/wallet/views.py:480 apps/wallet/views.py:524
 #: apps/wallet/views.py:539
 msgid "Terminal tidak ditemukan."
-msgstr ""
+msgstr "Terminal not found."
 
 #: apps/wallet/views.py:582 apps/wallet/views.py:602 apps/wallet/views.py:615
 #: apps/wallet/views.py:633
 msgid "Kasus tidak ditemukan."
-msgstr ""
+msgstr "Case not found."
 
 #: apps/wallet/views.py:604
 msgid "INVALID_STATE: kasus tidak lagi OPEN."
-msgstr ""
+msgstr "INVALID_STATE: the case is no longer OPEN."
 
 #: apps/wallet/views.py:675 apps/wallet/views.py:700
 msgid "Permintaan tidak ditemukan."
-msgstr ""
+msgstr "Request not found."
 
 #: apps/wallet/views.py:734
 msgid "Format tanggal tidak valid. Gunakan format YYYY-MM-DD."
-msgstr ""
+msgstr "Invalid date format. Use YYYY-MM-DD format."
 
 #: apps/wallet/views.py:740
 msgid "Parameter 'from' tidak boleh melebihi 'to'."
-msgstr ""
+msgstr "The 'from' parameter cannot exceed 'to'."
 
 #: frontend/templates/base.html:9 frontend/templates/marketing/base.html:7
 msgid "EduCore — Sistem Operasi Sekolah"
@@ -3624,12 +3703,10 @@ msgid "STAF / PELAKU"
 msgstr "STAFF / ACTOR"
 
 #: frontend/templates/components/_microsoft_tenant_settings.html:165
-#| msgid "TRANSAKSI"
 msgid "AKSI"
 msgstr "ACTION"
 
 #: frontend/templates/components/_microsoft_tenant_settings.html:166
-#| msgid "PERUBAHAN"
 msgid "DETAIL PERUBAHAN"
 msgstr "CHANGE DETAIL"
 
@@ -3825,7 +3902,6 @@ msgid "Kumpulkan Ujian"
 msgstr "Submit Exam"
 
 #: frontend/templates/components/exam_lockdown.html:124
-#| msgid "Daftar isi"
 msgid "Daftar Soal"
 msgstr "Question List"
 
@@ -3973,7 +4049,6 @@ msgstr "(%(duration)s Minutes · %(question_count)s Questions)"
 
 #: frontend/templates/components/exam_proctor_console.html:38
 #: frontend/templates/components/exam_proctor_console.html:349
-#| msgid "sekolah aktif"
 msgid "Sinkron aktif"
 msgstr "Sync active"
 
@@ -4043,7 +4118,6 @@ msgid "Siswa (NIS & Nama)"
 msgstr "Student (NIS & Name)"
 
 #: frontend/templates/components/exam_proctor_console.html:185
-#| msgid "Status layanan"
 msgid "Status"
 msgstr "Status"
 
@@ -4095,7 +4169,6 @@ msgstr "Remaining: %(remaining)sd"
 
 #: frontend/templates/components/exam_proctor_console.html:299
 #: frontend/templates/components/exam_proctor_console.html:359
-#| msgid "Data yang dikumpulkan"
 msgid "Paksa Kumpulkan"
 msgstr "Force Submit"
 
@@ -4122,13 +4195,11 @@ msgstr ""
 #: frontend/templates/components/gradebook_grid.html:256
 #: frontend/templates/components/teacher_agenda.html:116
 #: frontend/templates/components/teacher_agenda.html:251
-#| msgid "Batas"
 msgid "Batal"
 msgstr "Cancel"
 
 #: frontend/templates/components/exam_proctor_console.html:340
 #: frontend/templates/components/exam_proctor_console.html:363
-#| msgid "Data yang dikumpulkan"
 msgid "Ya, Paksa Kumpulkan"
 msgstr "Yes, Force Submit"
 
@@ -4201,7 +4272,6 @@ msgid "Belum ada asesmen yang dikonfigurasi untuk kelas ini."
 msgstr "No assessments configured for this class yet."
 
 #: frontend/templates/components/gradebook_grid.html:95
-#| msgid "Nilai"
 msgid "Nilai Akhir"
 msgstr "Final Grade"
 
@@ -4211,7 +4281,6 @@ msgid "Asesmen"
 msgstr "Assessment"
 
 #: frontend/templates/components/gradebook_grid.html:168
-#| msgid "Nilai"
 msgid "Konflik nilai"
 msgstr "Grade conflict"
 
@@ -4268,7 +4337,6 @@ msgid "Konflik data terdeteksi"
 msgstr "Data conflict detected"
 
 #: frontend/templates/components/gradebook_grid.html:281
-#| msgid "Guru — saat ini"
 msgid "Guru Lain"
 msgstr "Another Teacher"
 
@@ -4436,7 +4504,6 @@ msgid "Semua Selesai"
 msgstr "All Done"
 
 #: frontend/templates/components/grading_queue.html:276
-#| msgid "8 tugas menunggu nilai"
 msgid "Gagal menyimpan nilai"
 msgstr "Failed to save grade"
 
@@ -4457,7 +4524,6 @@ msgstr ""
 "returning the submission."
 
 #: frontend/templates/components/grading_queue.html:280
-#| msgid "Pengembang"
 msgid "Mengembalikan..."
 msgstr "Returning..."
 
@@ -4609,7 +4675,6 @@ msgid "terpilih"
 msgstr "selected"
 
 #: frontend/templates/components/parent_nutrition_dashboard.html:153
-#| msgid "Bayar sekarang"
 msgid "sekarang"
 msgstr "now"
 
@@ -4809,7 +4874,6 @@ msgid "Kelas"
 msgstr "Class"
 
 #: frontend/templates/components/permission_slip_console.html:56
-#| msgid "Pilih bahasa"
 msgid "Pilih kelas…"
 msgstr "Select class…"
 
@@ -4858,7 +4922,6 @@ msgid "Transaksi Offline"
 msgstr "Offline Transactions"
 
 #: frontend/templates/components/pos_kiosk.html:38
-#| msgid "Bayar sekarang"
 msgid "Sync Sekarang"
 msgstr "Sync Now"
 
@@ -4872,7 +4935,6 @@ msgstr "Search products by name or SKU..."
 
 #: frontend/templates/components/pos_kiosk.html:79
 #: frontend/templates/components/pos_kiosk.html:244
-#| msgid "Semua"
 msgid "Semua Menu"
 msgstr "All Items"
 
@@ -4940,7 +5002,6 @@ msgid "Total Tagihan:"
 msgstr "Total Bill:"
 
 #: frontend/templates/components/pos_kiosk.html:193
-#| msgid "Bayar sekarang"
 msgid "Bayar Sekarang (Rp 0)"
 msgstr "Pay Now (Rp 0)"
 
@@ -4957,7 +5018,6 @@ msgid "TOTAL:"
 msgstr "TOTAL:"
 
 #: frontend/templates/components/pos_kiosk.html:231
-#| msgid "Sisa saldo"
 msgid "Sisa Saldo:"
 msgstr "Remaining Balance:"
 
@@ -4966,7 +5026,6 @@ msgid "Selesai / Transaksi Baru"
 msgstr "Done / New Transaction"
 
 #: frontend/templates/components/pos_kiosk.html:245
-#| msgid "Keterangan"
 msgid "Keranjang ("
 msgstr "Cart ("
 
@@ -4996,7 +5055,6 @@ msgid ")."
 msgstr ")."
 
 #: frontend/templates/components/pos_kiosk.html:254
-#| msgid "Kategori data"
 msgid "Kategori \\"
 msgstr "Category \\"
 
@@ -5013,7 +5071,6 @@ msgid "Melebihi batas saldo minimum offline (Rp 50.000)."
 msgstr "Exceeds the minimum offline balance limit (Rp 50,000)."
 
 #: frontend/templates/components/pos_kiosk.html:259
-#| msgid "Bayar sekarang"
 msgid "Bayar Sekarang"
 msgstr "Pay Now"
 
@@ -5078,7 +5135,6 @@ msgid "Agenda Mengajar Harian"
 msgstr "Daily Teaching Agenda"
 
 #: frontend/templates/components/teacher_agenda.html:26
-#| msgid "Guru"
 msgid "Guru:"
 msgstr "Teacher:"
 
@@ -5108,7 +5164,6 @@ msgid "Terima"
 msgstr "Accept"
 
 #: frontend/templates/components/teacher_agenda.html:90
-#| msgid "Keterangan"
 msgid "Berhalangan"
 msgstr "Unavailable"
 
@@ -5227,7 +5282,6 @@ msgid "Terjadi kesalahan koneksi saat mengirim presensi."
 msgstr "A connection error occurred while submitting attendance."
 
 #: frontend/templates/components/teacher_agenda.html:478
-#| msgid "Daftar isi"
 msgid "Daftar Siswa Kelas"
 msgstr "Class Student List"
 
@@ -6331,7 +6385,6 @@ msgid "Pengaturan SSO Microsoft Entra — EduCore"
 msgstr "Microsoft Entra SSO Settings — EduCore"
 
 #: frontend/templates/pages/foundation_microsoft_tenant_page.html:15
-#| msgid "Ketua yayasan"
 msgid "Pengaturan Yayasan"
 msgstr "Foundation Settings"
 
@@ -6356,7 +6409,6 @@ msgid "Akses Ditolak"
 msgstr "Access Denied"
 
 #: frontend/templates/pages/login.html:4
-#| msgid "Changelog — EduCore"
 msgid "Masuk — EduCore"
 msgstr "Sign In — EduCore"
 
@@ -6377,7 +6429,6 @@ msgid "08123456789 atau nama@sekolah.sch.id"
 msgstr "08123456789 or name@school.sch.id"
 
 #: frontend/templates/pages/login.html:59
-#| msgid "Data anak"
 msgid "Kata Sandi"
 msgstr "Password"
 
@@ -6446,7 +6497,6 @@ msgid " untuk pengujian SSO:"
 msgstr " for SSO testing:"
 
 #: frontend/templates/pages/permission_slip_console_page.html:11
-#| msgid "Retensi Data — EduCore"
 msgid "Konsol Izin Digital — EduCore"
 msgstr "Digital Permission Slip Console — EduCore"
 
