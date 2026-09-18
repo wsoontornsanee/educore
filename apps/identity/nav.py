@@ -11,9 +11,10 @@ staff user" (used only for the task inbox item: every source it lists
 applies its own permission/ownership check, see apps.identity.inbox).
 
 Only 'inbox', the four Operasional items (attendance, permission_slips, canteen,
-exam) and the three Keuangan items have real destinations (console-inbox,
-attendance-gate-console-page, permission-slip-console-page,
-canteen-console-page, exam-mode-console-page, finance-console-*). Every other
+exam), the three Keuangan items and the four Administrasi items have real
+destinations (console-inbox, attendance-gate-console-page,
+permission-slip-console-page, canteen-console-page, exam-mode-console-page,
+finance-console-*, admin-staff/partners/settings/audit). Every other
 item still routes to the 'console:coming_soon' placeholder in this table (kept
 so a future task can flip one item's url_name the moment
 its real page ships), but get_nav_for_user hides every coming_soon item
@@ -32,11 +33,16 @@ reach a school-side console). Without this check the
 nav would show an item that then 404s on click instead of just not showing
 it — reported as a real bug (2026-09-18) against a Teacher-role account
 with no Staff profile.
+
+requires_foundation_admin=True is the same idea for pages whose backing API
+gates on is_foundation_admin rather than a permission key (the partner-key
+console): school_admin holds school_config.write too, but the page would only
+redirect them home, so the nav must not show it.
 """
 from django.utils.translation import gettext_lazy as _
 
 from .models import RoleAssignment, Staff
-from .rbac import get_user_permissions, SCOPE_SCHOOL
+from .rbac import get_user_permissions, is_foundation_admin, SCOPE_SCHOOL
 
 COMING_SOON_URL_NAME = "console:coming_soon"
 
@@ -62,10 +68,10 @@ NAV_GROUPS = [
         {"id": "ar", "label": _("Piutang & keringanan"), "permission": "finance.invoice.read", "url_name": "finance-console-receivables", "requires_staff_profile": True},
     ]},
     {"label": _("Administrasi"), "items": [
-        {"id": "staff", "label": _("Staf & jabatan"), "permission": "school_config.read", "url_name": "console:coming_soon"},
-        {"id": "partners", "label": _("Mitra & kunci API"), "permission": "school_config.write", "url_name": "console:coming_soon"},
-        {"id": "settings", "label": _("Pengaturan sekolah"), "permission": "school_config.write", "url_name": "console:coming_soon"},
-        {"id": "audit", "label": _("Jejak audit"), "permission": "audit_log.read", "url_name": "console:coming_soon"},
+        {"id": "staff", "label": _("Staf & jabatan"), "permission": "school_config.read", "url_name": "admin-staff"},
+        {"id": "partners", "label": _("Mitra & kunci API"), "permission": "school_config.write", "url_name": "admin-partners", "requires_foundation_admin": True},
+        {"id": "settings", "label": _("Pengaturan sekolah"), "permission": "school_config.write", "url_name": "admin-settings"},
+        {"id": "audit", "label": _("Jejak audit"), "permission": "audit_log.read", "url_name": "admin-audit"},
     ]},
 ]
 
@@ -116,6 +122,10 @@ def get_nav_for_user(user, foundation_id):
         item.get("requires_staff_profile") for group in NAV_GROUPS for item in group["items"]
     )
     has_staff = has_staff_profile(user, foundation_id) if needs_staff_check else None
+    needs_admin_check = any(
+        item.get("requires_foundation_admin") for group in NAV_GROUPS for item in group["items"]
+    )
+    is_admin = is_foundation_admin(user, foundation_id) if needs_admin_check else None
 
     result = []
     for group in NAV_GROUPS:
@@ -125,6 +135,7 @@ def get_nav_for_user(user, foundation_id):
             if item["url_name"] != COMING_SOON_URL_NAME
             and (item["permission"] is None or item["permission"] in permissions)
             and (not item.get("requires_staff_profile") or has_staff)
+            and (not item.get("requires_foundation_admin") or is_admin)
         ]
         if visible_items:
             result.append({"label": group["label"], "items": visible_items})

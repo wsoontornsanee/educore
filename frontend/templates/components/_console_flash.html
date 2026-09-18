@@ -1,0 +1,6 @@
+{% comment %}Flash messages (django.contrib.messages) for console pages.{% endcomment %}
+{% for message in messages %}
+  <div class="card" role="{% if message.tags == 'error' %}alert{% else %}status{% endif %}" style="border-left:4px solid {% if message.tags == 'error' %}var(--color-danger){% else %}var(--color-success){% endif %};padding:12px 16px">
+    <p class="text-body text-ink-900 font-medium">{{ message }}</p>
+  </div>
+{% endfor %}

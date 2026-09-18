@@ -85,7 +85,7 @@ class PartnerAdminKeyListView(PartnerAdminMixin, APIView):
         if not label:
             raise PartnerAPIError(400, 'VALIDATION_ERROR', 'label is required.')
         try:
-            key, secret = services.issue_api_key(
+            key, secret = services.issue_api_key_audited(
                 foundation_id=request.foundation_id,
                 label=label,
                 scopes=scopes,
@@ -98,14 +98,6 @@ class PartnerAdminKeyListView(PartnerAdminMixin, APIView):
         except ValueError as exc:
             raise PartnerAPIError(400, 'VALIDATION_ERROR', str(exc))
 
-        audit(
-            action='integration.key.issued',
-            entity_type='PartnerApiKey',
-            entity_id=key.key_id,
-            foundation_id=request.foundation_id,
-            actor_id=str(request.user.pk),
-            diff={'label': label, 'scopes': scopes},
-        )
         data = _key_json(key)
         data['secret'] = secret
         data['note'] = 'Store this secret now; it is never shown again.'

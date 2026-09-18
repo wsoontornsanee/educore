@@ -1,0 +1,14 @@
+{% comment %}Renders every field of a Django form in the console's form-group style.
+Usage: {% include "components/_console_form_fields.html" with form=form %}{% endcomment %}
+{% if form.non_field_errors %}
+<div class="card" role="alert" style="border-left:4px solid var(--color-danger);padding:12px 16px;grid-column:1/-1">
+  {% for error in form.non_field_errors %}<p class="text-body text-ink-900">{{ error }}</p>{% endfor %}
+</div>
+{% endif %}
+{% for field in form %}
+<div class="form-group">
+  <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+  {{ field }}
+  {% for error in field.errors %}<p class="text-body-sm text-danger" style="margin:4px 0 0">{{ error }}</p>{% endfor %}
+</div>
+{% endfor %}

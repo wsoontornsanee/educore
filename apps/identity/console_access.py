@@ -11,6 +11,8 @@ browser page on its own:
 3. school scoping — a school-scoped role sees only the schools it is assigned
    to, a foundation-scoped role sees every school in the foundation.
 """
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.shortcuts import redirect
 from django.utils.translation import gettext as _
 from rest_framework.exceptions import NotFound
 
@@ -18,7 +20,7 @@ from educore.middleware.tenancy import get_current_foundation_id
 
 from .models import RoleAssignment, School, Staff
 from .permissions import HasRequiredPermission
-from .rbac import SCOPE_SCHOOL, get_user_permissions
+from .rbac import SCOPE_SCHOOL, get_user_permissions, has_permission_in_any_scope, is_foundation_admin
 
 
 def permitted_schools(user, foundation_id, permission_key):
@@ -80,3 +82,64 @@ class StaffConsoleMixin:
         if school is None:
             raise NotFound(_("Sekolah tidak ditemukan."))
         return foundation_id, schools, school
+
+
+def accessible_school_ids(user, foundation_id, permission_key):
+    """School ids the user may act on for `permission_key`, for pages that
+    also list foundation-wide rows and inactive schools (unlike
+    permitted_schools, which is active-schools-only).
+
+    Returns None when the permission is held at foundation scope (every
+    school in the foundation, including rows that belong to no school);
+    otherwise the set of school ids where a school-scoped assignment grants
+    it (possibly empty)."""
+    if permission_key in get_user_permissions(user, foundation_id, school_id=None):
+        return None
+    assigned = RoleAssignment.all_tenants.filter(
+        foundation_id=foundation_id, user=user, scope_type=SCOPE_SCHOOL, deleted_at__isnull=True,
+    ).values_list('scope_id', flat=True)
+    return {
+        school_id for school_id in assigned
+        if permission_key in get_user_permissions(user, foundation_id, school_id=school_id)
+    }
+
+
+class ConsolePermissionMixin(LoginRequiredMixin):
+    """Login + RBAC gate for the Administrasi console pages (plain Django
+    views, not DRF — unlike StaffConsoleMixin, no Staff profile is required:
+    a foundation admin need not have one, and none of the Administrasi
+    permission keys are held by guardian roles).
+
+    Subclasses set `required_permission` (an RBAC key), or
+    `foundation_admin_only = True` for pages whose backing API is gated by
+    is_foundation_admin rather than a permission key. A denied user is
+    redirected to web-console-home rather than shown a raw 403 (matching the
+    console landing pages: never leave a user at a dead end).
+    `self.foundation_id` is set once the gate passes.
+    """
+    required_permission = None
+    foundation_admin_only = False
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated:
+            self.foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+            if not self.foundation_id or not self._is_allowed(request.user):
+                return redirect('web-console-home')
+        return super().dispatch(request, *args, **kwargs)
+
+    def _is_allowed(self, user):
+        if self.foundation_admin_only:
+            return is_foundation_admin(user, self.foundation_id)
+        return has_permission_in_any_scope(user, self.required_permission, self.foundation_id)
+
+
+def paginate_queryset(request, queryset, per_page=25):
+    """Page-number pagination for console list pages. Returns
+    (page_obj, query_string) where query_string is the current GET filter
+    set minus `page`, ready to append to prev/next links."""
+    from django.core.paginator import Paginator
+
+    page_obj = Paginator(queryset, per_page).get_page(request.GET.get('page'))
+    params = request.GET.copy()
+    params.pop('page', None)
+    return page_obj, params.urlencode()
