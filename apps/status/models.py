@@ -37,3 +37,37 @@ class ServiceComponent(models.Model):
 
     def __str__(self):
         return self.name_id
+
+
+class ComponentHeartbeat(models.Model):
+    component = models.ForeignKey(ServiceComponent, on_delete=models.CASCADE, related_name='heartbeats')
+    checked_at = models.DateTimeField(db_index=True)
+    is_up = models.BooleanField()
+    latency_ms = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'status_component_heartbeats'
+        indexes = [models.Index(fields=['component', 'checked_at'])]
+        verbose_name = 'Denyut Nadi Komponen'
+        verbose_name_plural = 'Daftar Denyut Nadi Komponen'
+
+    def __str__(self):
+        return f"{self.component.key} @ {self.checked_at} ({'up' if self.is_up else 'down'})"
+
+
+class DailyComponentStatus(models.Model):
+    component = models.ForeignKey(ServiceComponent, on_delete=models.CASCADE, related_name='daily_statuses')
+    date = models.DateField(db_index=True)
+    status = models.CharField(max_length=16, choices=ServiceComponent.STATUS_CHOICES)
+
+    class Meta:
+        db_table = 'status_daily_component_status'
+        constraints = [
+            models.UniqueConstraint(fields=['component', 'date'], name='unique_component_date')
+        ]
+        indexes = [models.Index(fields=['date'])]
+        verbose_name = 'Status Harian Komponen'
+        verbose_name_plural = 'Daftar Status Harian Komponen'
+
+    def __str__(self):
+        return f"{self.component.key} {self.date} = {self.status}"
