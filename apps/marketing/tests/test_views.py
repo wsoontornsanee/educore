@@ -32,8 +32,34 @@ class MarketingPagesTests(TestCase):
         )
         self.assertContains(response, 'http://app.educore.id/api/v1/')
 
+    def test_privacy_policy_page_renders(self):
+        response = self.client.get(reverse('marketing:privacy-policy'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Kebijakan Privasi')
+        self.assertContains(response, 'support@makan.live')
+
+    def test_dpa_page_renders(self):
+        response = self.client.get(reverse('marketing:dpa'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Perjanjian Pemrosesan Data')
+
+    def test_data_retention_page_renders(self):
+        response = self.client.get(reverse('marketing:data-retention'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Retensi Data')
+        self.assertContains(response, '90 hari')
+
+    def test_footer_no_longer_mailtos_compliance_pages(self):
+        response = self.client.get(reverse('marketing:home'))
+        self.assertContains(response, reverse('marketing:privacy-policy'))
+        self.assertContains(response, reverse('marketing:dpa'))
+        self.assertContains(response, reverse('marketing:data-retention'))
+
     def test_pages_require_no_authentication(self):
-        for name in ('marketing:home', 'marketing:downloads', 'marketing:partner-api'):
+        for name in (
+            'marketing:home', 'marketing:downloads', 'marketing:partner-api',
+            'marketing:privacy-policy', 'marketing:dpa', 'marketing:data-retention',
+        ):
             response = self.client.get(reverse(name))
             self.assertNotIn(response.status_code, (301, 302, 401, 403))
 

@@ -1,0 +1,49 @@
+{% extends "marketing/base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Retensi Data — EduCore" %}{% endblock %}
+
+{% block content %}
+<section class="site-container" style="padding-top: 40px;">
+  <span class="site-eyebrow">{% translate "Kepatuhan" %}</span>
+  <h1 class="site-hero-title" style="font-size: 2.5rem;">{% translate "Retensi Data" %}</h1>
+  <p class="site-hero-lede" style="max-width: 60ch;">{% translate "Berapa lama setiap kategori data disimpan, dan kapan data dihapus secara otomatis, sesuai kewajiban statutori dan UU PDP." %}</p>
+</section>
+
+<div class="site-container doc-layout">
+  <aside class="doc-toc">
+    <span class="doc-toc-eyebrow">{% translate "Daftar isi" %}</span>
+    <ul>
+      <li><a href="#periode">{% translate "Periode retensi per kategori" %}</a></li>
+      <li><a href="#penegakan">{% translate "Bagaimana retensi ditegakkan" %}</a></li>
+      <li><a href="#penarikan">{% translate "Penarikan persetujuan biometrik" %}</a></li>
+      <li><a href="#penghapusan-dini">{% translate "Permintaan penghapusan lebih awal" %}</a></li>
+      <li><a href="#kontak">{% translate "Kontak" %}</a></li>
+    </ul>
+  </aside>
+
+  <div class="doc-content">
+    <h2 id="periode">{% translate "Periode retensi per kategori" %}</h2>
+    <table>
+      <tr><th>{% translate "Kategori data" %}</th><th>{% translate "Periode retensi" %}</th></tr>
+      <tr><td>{% translate "Catatan keuangan (tagihan, pembayaran, buku besar)" %}</td><td>{% translate "10 tahun, sesuai kewajiban statutori" %}</td></tr>
+      <tr><td>{% translate "Catatan akademik & rapor" %}</td><td>{% translate "Sesuai kebijakan sekolah — permanen secara default" %}</td></tr>
+      <tr><td>{% translate "Template biometrik (wajah/sidik jari)" %}</td><td>{% translate "Dihapus saat siswa keluar atau saat persetujuan ditarik, maksimal 24 jam" %}</td></tr>
+      <tr><td>{% translate "Foto gerbang / kehadiran" %}</td><td>{% translate "90 hari secara default" %}</td></tr>
+      <tr><td>{% translate "Data kepegawaian staf" %}</td><td>{% translate "Sepanjang masa kerja, ditambah periode statutori ketenagakerjaan setelah keluar" %}</td></tr>
+    </table>
+
+    <h2 id="penegakan">{% translate "Bagaimana retensi ditegakkan" %}</h2>
+    <p>{% translate "Kebijakan retensi dijalankan oleh proses terjadwal otomatis, bukan proses manual. Setiap eksekusi menghasilkan laporan dry-run yang mencantumkan secara spesifik data mana yang akan dihapus sebelum penghapusan aktual dilakukan, sehingga admin yayasan dapat meninjau sebelum data hilang secara permanen." %}</p>
+
+    <h2 id="penarikan">{% translate "Penarikan persetujuan biometrik" %}</h2>
+    <p>{% translate "Orang tua/wali dapat menarik persetujuan penggunaan biometrik kapan saja melalui aplikasi orang tua. Penarikan berlaku dalam 24 jam: template biometrik dihapus dan siswa kembali menggunakan verifikasi kartu." %}</p>
+
+    <h2 id="penghapusan-dini">{% translate "Permintaan penghapusan lebih awal" %}</h2>
+    <p>{% translate "Permintaan penghapusan data pribadi sebelum periode retensi berakhir diproses sepanjang tidak bertentangan dengan kewajiban statutori (misalnya catatan keuangan yang wajib disimpan 10 tahun). Admin sekolah dapat mengajukan permintaan ini dan menerima hasilnya dalam satu sesi administrasi." %}</p>
+
+    <h2 id="kontak">{% translate "Kontak" %}</h2>
+    <p>{% translate "Pertanyaan mengenai jadwal retensi atau permintaan penghapusan data dapat dikirim ke" %} <a href="mailto:support@makan.live">support@makan.live</a>.</p>
+  </div>
+</div>
+{% endblock %}

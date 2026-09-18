@@ -1,0 +1,54 @@
+{% extends "marketing/base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Kebijakan Privasi — EduCore" %}{% endblock %}
+
+{% block content %}
+<section class="site-container" style="padding-top: 40px;">
+  <span class="site-eyebrow">{% translate "Kepatuhan" %}</span>
+  <h1 class="site-hero-title" style="font-size: 2.5rem;">{% translate "Kebijakan Privasi" %}</h1>
+  <p class="site-hero-lede" style="max-width: 60ch;">{% translate "Berlaku untuk data yang diproses EduCore atas nama yayasan pendidikan yang menggunakan platform ini, sesuai UU No. 27 Tahun 2022 tentang Pelindungan Data Pribadi (UU PDP)." %}</p>
+</section>
+
+<div class="site-container doc-layout">
+  <aside class="doc-toc">
+    <span class="doc-toc-eyebrow">{% translate "Daftar isi" %}</span>
+    <ul>
+      <li><a href="#peran">{% translate "Peran pengendali & pemroses" %}</a></li>
+      <li><a href="#data-dikumpulkan">{% translate "Data yang dikumpulkan" %}</a></li>
+      <li><a href="#dasar-hukum">{% translate "Dasar & tujuan pemrosesan" %}</a></li>
+      <li><a href="#keamanan">{% translate "Keamanan & lokasi data" %}</a></li>
+      <li><a href="#hak-subjek">{% translate "Hak subjek data" %}</a></li>
+      <li><a href="#anak">{% translate "Data anak" %}</a></li>
+      <li><a href="#insiden">{% translate "Insiden kebocoran data" %}</a></li>
+      <li><a href="#kontak">{% translate "Kontak" %}</a></li>
+    </ul>
+  </aside>
+
+  <div class="doc-content">
+    <h2 id="peran">{% translate "Peran pengendali & pemroses" %}</h2>
+    <p>{% translate "Yayasan/sekolah adalah pengendali data (data controller) atas data siswa, orang tua, dan staf yang dimasukkan ke EduCore. EduCore bertindak sebagai pemroses data (data processor) yang memproses data tersebut hanya sesuai instruksi tertulis yayasan, sebagaimana diatur dalam Perjanjian Pemrosesan Data (DPA)." %}</p>
+
+    <h2 id="data-dikumpulkan">{% translate "Data yang dikumpulkan" %}</h2>
+    <p>{% translate "Bergantung pada modul yang diaktifkan yayasan, EduCore dapat memproses: identitas siswa dan orang tua/wali (nama, NISN, NIK, tanggal lahir, alamat), data kehadiran dan foto gerbang, template biometrik (opsional, dengan persetujuan terpisah), data akademik dan rapor, data keuangan dan tagihan, data kepegawaian dan jabatan staf, serta log komunikasi ke orang tua." %}</p>
+
+    <h2 id="dasar-hukum">{% translate "Dasar & tujuan pemrosesan" %}</h2>
+    <p>{% translate "Dasar hukum pemrosesan dicatat per tujuan (pelaksanaan layanan pendidikan, kewajiban pelaporan ke pemerintah, atau persetujuan eksplisit untuk biometrik, media, dan komunikasi pemasaran). Persetujuan diminta per tujuan secara terpisah — tidak pernah digabung dalam satu persetujuan umum — dan dicatat dengan versi serta waktu." %}</p>
+
+    <h2 id="keamanan">{% translate "Keamanan & lokasi data" %}</h2>
+    <p>{% translate "Seluruh data produksi — basis data, penyimpanan objek, cadangan, dan log — berada di pusat data Indonesia, tanpa replikasi lintas negara. Data terenkripsi TLS 1.3 saat transit dan AES-256 saat tersimpan, dengan kunci enkripsi terpisah untuk PII umum, template biometrik, dan data kesehatan/konseling. Akses staf EduCore ke lingkungan produksi dibatasi waktu, disetujui, dan tercatat — tidak ada kredensial produksi yang berlaku permanen." %}</p>
+
+    <h2 id="hak-subjek">{% translate "Hak subjek data" %}</h2>
+    <p>{% translate "Orang tua/wali dan staf dapat mengajukan permintaan akses, koreksi, penghapusan, pembatasan pemrosesan, atau portabilitas data melalui admin sekolah. Permintaan yang sah dilayani dalam 30 hari, kecuali data yang wajib dipertahankan sesuai kewajiban retensi statutori (lihat" %} <a href="{% url 'marketing:data-retention' %}">{% translate "halaman retensi data" %}</a>).</p>
+
+    <h2 id="anak">{% translate "Data anak" %}</h2>
+    <p>{% translate "Pengaturan berbagi data siswa secara default menggunakan opsi paling ketat. Perluasan akses (misalnya berbagi data ke pihak ketiga baru) hanya dapat dilakukan lewat tindakan eksplisit admin sekolah dan selalu tercatat dalam jejak audit." %}</p>
+
+    <h2 id="insiden">{% translate "Insiden kebocoran data" %}</h2>
+    <p>{% translate "Dugaan kebocoran data pribadi ditangani melalui prosedur insiden internal dengan jam notifikasi 3×24 jam kepada yayasan terdampak, disertai bukti kejadian dan daftar subjek data yang terpengaruh." %}</p>
+
+    <h2 id="kontak">{% translate "Kontak" %}</h2>
+    <p>{% translate "Pertanyaan mengenai kebijakan ini atau permintaan terkait data pribadi dapat dikirim ke" %} <a href="mailto:support@makan.live">support@makan.live</a>.</p>
+  </div>
+</div>
+{% endblock %}

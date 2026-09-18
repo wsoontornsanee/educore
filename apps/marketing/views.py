@@ -175,3 +175,33 @@ class PartnerApiView(TemplateView):
         ctx['domains'] = DOMAINS
         ctx['features'] = PARTNER_FEATURES
         return ctx
+
+
+class PrivacyPolicyView(TemplateView):
+    """Static compliance copy (spec/14-compliance-and-integrations.md §3)."""
+    template_name = 'marketing/privacy_policy.html'
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['active_page'] = 'privacy-policy'
+        return ctx
+
+
+class DataProcessingAgreementView(TemplateView):
+    """Static compliance copy (spec/14-compliance-and-integrations.md §3, CMP-008)."""
+    template_name = 'marketing/dpa.html'
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['active_page'] = 'dpa'
+        return ctx
+
+
+class DataRetentionView(TemplateView):
+    """Static compliance copy (spec/14-compliance-and-integrations.md, CMP-012/013)."""
+    template_name = 'marketing/data_retention.html'
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['active_page'] = 'data-retention'
+        return ctx

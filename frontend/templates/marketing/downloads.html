@@ -18,13 +18,13 @@
       <p class="text-body" style="color: var(--color-ink-700); margin: 8px 0 20px;">{{ app.body }}</p>
       {% if app.stores %}
       <div style="display: flex; flex-direction: column; gap: 8px; max-width: 260px;">
-        <a href="mailto:demo@educore.id?subject={% blocktranslate with app_title=app.title %}Unduh {{ app_title }}{% endblocktranslate %}" class="btn btn-primary" style="justify-content: center;">Google Play</a>
-        <a href="mailto:demo@educore.id?subject={% blocktranslate with app_title=app.title %}Unduh {{ app_title }}{% endblocktranslate %}" class="btn btn-secondary" style="justify-content: center;">App Store</a>
+        <a href="mailto:support@makan.live?subject={% blocktranslate with app_title=app.title %}Unduh {{ app_title }}{% endblocktranslate %}" class="btn btn-primary" style="justify-content: center;">Google Play</a>
+        <a href="mailto:support@makan.live?subject={% blocktranslate with app_title=app.title %}Unduh {{ app_title }}{% endblocktranslate %}" class="btn btn-secondary" style="justify-content: center;">App Store</a>
       </div>
       {% else %}
       <div style="display: flex; flex-direction: column; gap: 8px; max-width: 260px;">
-        <a href="mailto:demo@educore.id?subject={% blocktranslate with app_title=app.title %}Unduh {{ app_title }}{% endblocktranslate %}" class="btn btn-primary" style="justify-content: center;">{% translate "Unduh APK terkelola" %}</a>
-        <a href="mailto:demo@educore.id?subject={% blocktranslate with app_title=app.title %}Panduan pemasangan {{ app_title }}{% endblocktranslate %}" class="btn btn-secondary" style="justify-content: center;">{% translate "Panduan pemasangan" %}</a>
+        <a href="mailto:support@makan.live?subject={% blocktranslate with app_title=app.title %}Unduh {{ app_title }}{% endblocktranslate %}" class="btn btn-primary" style="justify-content: center;">{% translate "Unduh APK terkelola" %}</a>
+        <a href="mailto:support@makan.live?subject={% blocktranslate with app_title=app.title %}Panduan pemasangan {{ app_title }}{% endblocktranslate %}" class="btn btn-secondary" style="justify-content: center;">{% translate "Panduan pemasangan" %}</a>
       </div>
       {% endif %}
       <div class="text-body-sm text-ink-500 font-mono" style="margin-top: 16px;">{{ app.version }} · {{ app.size }} · {{ app.os }}</div>

@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "educore-dev",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["manage.py", "runserver", "8000"],
+      "port": 8000,
+      "env": { "EDUCORE_USE_SQLITE": "1" }
+    }
+  ]
+}
