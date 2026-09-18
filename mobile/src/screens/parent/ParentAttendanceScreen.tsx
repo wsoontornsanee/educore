@@ -25,6 +25,7 @@ import { todayWib } from '../../services/localDate.ts';
 import { attendanceStatusLabel } from '../../constants/attendance.ts';
 import { findAttendanceRowIndex } from '../../services/deepLink.ts';
 import { StaleOfflineBanner } from '../../components/StaleOfflineBanner.tsx';
+import { track } from '../../services/analytics.ts';
 import { useLocale } from '../../i18n/LocaleContext.tsx';
 import { colors, radius, spacing, typography } from '../../theme/tokens.ts';
 import type {
@@ -203,6 +204,7 @@ export const ParentAttendanceScreen: React.FC<ParentAttendanceScreenProps> = ({ 
         attachmentSize: formAttachmentSize,
       });
       setModalVisible(false);
+      track('absence_submitted');
       setFormReason('');
       handleClearAttachment();
       await loadAbsenceData();

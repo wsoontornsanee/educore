@@ -5,7 +5,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, SafeAreaView, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { checkAuth, logout } from './src/services/auth';
-import { todayWib } from './src/services/localDate';
 import { isParent, isStaff } from './src/services/roleRouting';
 import { fetchSubstitutionSlot } from './src/services/agenda';
 import { track } from './src/services/analytics';
@@ -22,9 +21,7 @@ import { getBiometricEnabled } from './src/services/storage';
 import { authenticateBiometric } from './src/services/biometric';
 import { LocaleProvider } from './src/i18n/LocaleContext';
 import { LoginScreen } from './src/screens/LoginScreen';
-import { AgendaScreen } from './src/screens/AgendaScreen';
-import { RollCallScreen } from './src/screens/RollCallScreen';
-import { SubstitutionModal } from './src/screens/SubstitutionModal';
+import { TeacherShell } from './src/screens/teacher/TeacherShell';
 import { ParentShell, ParentTab } from './src/screens/parent/ParentShell';
 import { ParentHomeScreen } from './src/screens/parent/ParentHomeScreen';
 import { ParentAttendanceScreen } from './src/screens/parent/ParentAttendanceScreen';
@@ -35,17 +32,14 @@ import { ParentMessagesScreen } from './src/screens/parent/ParentMessagesScreen'
 import { ParentProfileScreen } from './src/screens/parent/ParentProfileScreen';
 import { POSKioskScreen } from './src/screens/POSKioskScreen';
 import { ParentNutritionDashboardScreen } from './src/screens/ParentNutritionDashboardScreen';
-
 import { initPosQueueDb } from './src/services/posOfflineQueue';
 import { colors } from './src/theme/tokens';
-import { StudentRosterItem, TimetableSlotItem, UserProfile } from './src/types';
+import { UserProfile } from './src/types';
 
 
 export default function App() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  const [activeSlot, setActiveSlot] = useState<TimetableSlotItem | null>(null);
-  const [subModalSlot, setSubModalSlot] = useState<TimetableSlotItem | null>(null);
   const [parentTab, setParentTab] = useState<ParentTab>('HOME');
   const [posMode, setPosMode] = useState(false);
   const [nutritionMode, setNutritionMode] = useState(false);
@@ -56,7 +50,6 @@ export default function App() {
   const [biometricChecked, setBiometricChecked] = useState(false);
 
   const isCanteenOperator = currentUser?.roles?.some((r) => r.role === 'canteen_operator');
-  const todayStr = todayWib();
 
   const parseNumericId = (value: unknown): number | null => {
     if (value === null || value === undefined) return null;
@@ -192,26 +185,6 @@ export default function App() {
     );
   }
 
-  // Sample student roster generator for slots
-  const getMockRosterForSlot = (slot: TimetableSlotItem): StudentRosterItem[] => {
-    if (slot.roster && slot.roster.length > 0) return slot.roster;
-    // Generate 32 sample students with 2 gate exceptions per TCH-001/003
-    return Array.from({ length: 32 }, (_, idx) => {
-      const id = idx + 1;
-      const isAbsentAtGate = id === 5 || id === 18;
-      return {
-        student_id: id,
-        full_name: `Siswa Contoh ${id}`,
-        nis: `2026${String(id).padStart(3, '0')}`,
-        nisn: `00${String(id).padStart(8, '0')}`,
-        gate_status: isAbsentAtGate ? 'NO_SCAN' : 'IN',
-        prefill_status: isAbsentAtGate ? 'ALPA' : 'HADIR',
-        is_gate_prefill: isAbsentAtGate,
-        medical_flags: id === 12 ? ['ASMA'] : [],
-      };
-    });
-  };
-
   return (
     <LocaleProvider>
       <View style={styles.root}>
@@ -292,32 +265,12 @@ export default function App() {
               }
             }}
           />
-        ) : activeSlot ? (
-          <RollCallScreen
-            slot={activeSlot}
-            dateStr={todayStr}
-            initialRoster={getMockRosterForSlot(activeSlot)}
-            onBack={() => setActiveSlot(null)}
-            onSaved={() => setActiveSlot(null)}
-          />
         ) : (
-          <AgendaScreen
+          <TeacherShell
             user={currentUser}
-            onSelectSlot={(slot) => setActiveSlot(slot)}
-            onOpenSubstitution={(slot) => setSubModalSlot(slot)}
             onLogout={handleLogout}
           />
         )}
-
-        {/* Substitution Modal */}
-        <SubstitutionModal
-          visible={!!subModalSlot}
-          slot={subModalSlot}
-          onClose={() => setSubModalSlot(null)}
-          onResolved={() => {
-            setSubModalSlot(null);
-          }}
-        />
       </View>
     </LocaleProvider>
   );

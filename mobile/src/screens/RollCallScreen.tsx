@@ -347,8 +347,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   toggleButton: {
-    width: 38,
-    height: 38,
+    width: 44,
+    minHeight: 44,    // PAR-016: was 38px — below 44dp minimum touch target, also clips text at 200% font scale
     borderWidth: 1,
     borderColor: colors.borderDark,
     borderRadius: radius.button,

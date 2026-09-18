@@ -29,6 +29,7 @@ interface AgendaScreenProps {
   user: UserProfile;
   onSelectSlot: (slot: TimetableSlotItem) => void;
   onOpenSubstitution: (slot: TimetableSlotItem) => void;
+  onOpenBehaviour: (slot: TimetableSlotItem) => void;
   onLogout: () => void;
 }
 
@@ -36,6 +37,7 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
   user,
   onSelectSlot,
   onOpenSubstitution,
+  onOpenBehaviour,
   onLogout,
 }) => {
   const [slots, setSlots] = useState<TimetableSlotItem[]>([]);
@@ -148,7 +150,7 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
             </View>
           )}
 
-          {/* Bottom Row: Status Badge & Roll Call CTA */}
+          {/* Bottom Row: Status Badge, Roll Call CTA & Behaviour CTA */}
           <View style={styles.bottomRow}>
             <View style={styles.badgeWrapper}>
               {item.attendance_submitted ? (
@@ -163,23 +165,36 @@ export const AgendaScreen: React.FC<AgendaScreenProps> = ({
               )}
             </View>
 
-            <TouchableOpacity
-              style={[
-                styles.rollCallButton,
-                item.attendance_submitted && styles.rollCallButtonSecondary,
-              ]}
-              onPress={() => onSelectSlot(item)}
-              activeOpacity={0.85}
-            >
-              <Text
-                style={[
-                  styles.rollCallButtonText,
-                  item.attendance_submitted && styles.rollCallButtonTextSecondary,
-                ]}
+            <View style={styles.ctaRow}>
+              {/* TCH-008: Behaviour button — ≤3 taps from agenda */}
+              <TouchableOpacity
+                style={styles.behaviourButton}
+                onPress={() => onOpenBehaviour(item)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Catat perilaku siswa"
               >
-                {item.attendance_submitted ? 'Edit Presensi' : 'Isi Presensi'}
-              </Text>
-            </TouchableOpacity>
+                <Text style={styles.behaviourButtonText}>Perilaku</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.rollCallButton,
+                  item.attendance_submitted && styles.rollCallButtonSecondary,
+                ]}
+                onPress={() => onSelectSlot(item)}
+                activeOpacity={0.85}
+              >
+                <Text
+                  style={[
+                    styles.rollCallButtonText,
+                    item.attendance_submitted && styles.rollCallButtonTextSecondary,
+                  ]}
+                >
+                  {item.attendance_submitted ? 'Edit Presensi' : 'Isi Presensi'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </View>
@@ -440,6 +455,25 @@ const styles = StyleSheet.create({
   badgeWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  ctaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  behaviourButton: {
+    backgroundColor: colors.substituteLight,
+    borderWidth: 1,
+    borderColor: colors.substitute,
+    borderRadius: radius.button,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs + 2,
+  },
+  behaviourButtonText: {
+    color: colors.substitute,
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.bold,
+    textTransform: 'uppercase',
   },
   rollCallButton: {
     backgroundColor: colors.primary,
