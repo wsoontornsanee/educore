@@ -1,7 +1,8 @@
 """API views for Identity, User Profile, and Entitlements (spec/02 §6, §7)."""
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import permissions, status, views, viewsets
-from rest_framework.exceptions import ValidationError as DRFValidationError
+from django.utils.translation import gettext as _
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError as DRFValidationError
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -101,6 +102,10 @@ class StaffViewSet(viewsets.ModelViewSet):
     Enforces:
     - 3-Layer tenancy scoping (TenantManager).
     - RBAC permissions: school_config.read for viewing, school_config.write for management.
+    - School ceiling (IAM-012): a school-scoped holder only sees and manages staff of the
+      schools they hold the permission in; foundation-wide staff (no school) and staff whose
+      access reaches beyond the actor's schools are foundation-scope territory. Out-of-ceiling
+      rows are 404s, exactly as on the web console (console_access.can_manage_staff).
     - IAM-021: staff offboarding lifecycle with session revocation and class reassignment event.
     """
     from .models import Staff
@@ -118,9 +123,33 @@ class StaffViewSet(viewsets.ModelViewSet):
         'offboard': 'school_config.write',
     }
 
+    def _foundation_id(self):
+        return get_current_foundation_id() or getattr(self.request.user, 'foundation_id', None)
+
+    def _ceiling(self, permission=None):
+        """None = whole foundation, else the set of school ids the actor holds
+        `permission` (default: this action's) in."""
+        from .console_access import accessible_school_ids
+
+        permission = permission or self.action_permissions.get(self.action) or 'school_config.read'
+        return accessible_school_ids(self.request.user, self._foundation_id(), permission)
+
+    def _require_manageable(self, staff):
+        """404 unless the actor may manage `staff` (see can_manage_staff)."""
+        from .console_access import can_manage_staff
+
+        assignments = list(RoleAssignment.all_tenants.filter(
+            foundation_id=staff.foundation_id, user_id=staff.user_id, deleted_at__isnull=True,
+        ))
+        if not can_manage_staff(self.request.user, staff, self._ceiling('school_config.write'), assignments):
+            raise NotFound()
+
     def get_queryset(self):
         from .models import Staff
         qs = Staff.objects.select_related('person', 'user', 'school').all()
+        ceiling = self._ceiling()
+        if ceiling is not None:
+            qs = qs.filter(school_id__in=ceiling)
         school_id = self.request.query_params.get('school_id')
         if school_id and school_id.isdigit():
             qs = qs.filter(school_id=int(school_id))
@@ -148,15 +177,31 @@ class StaffViewSet(viewsets.ModelViewSet):
 
         foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
 
+        ceiling = self._ceiling()
         school = None
         if data.get('school_id'):
-            school = School.objects.get(id=data['school_id'])
+            school = School.objects.filter(id=data['school_id'], deleted_at__isnull=True).first()
+            if school is None or (ceiling is not None and school.id not in ceiling):
+                raise NotFound(_("Sekolah tidak ditemukan."))
+        elif ceiling is not None:
+            raise PermissionDenied(_("Hanya pemegang wewenang tingkat yayasan yang dapat menambah staf tingkat yayasan."))
 
         staff = create_staff_member(
             foundation_id=foundation_id, school=school, data=data, actor=request.user,
             ip_address=request.META.get('REMOTE_ADDR'),
         )
         return Response(StaffSerializer(staff).data, status=status.HTTP_201_CREATED)
+
+    def perform_update(self, serializer):
+        ceiling = self._ceiling()
+        new_school = serializer.validated_data.get('school', serializer.instance.school)
+        if ceiling is not None and (new_school is None or new_school.id not in ceiling):
+            raise PermissionDenied(_("Staf tidak dapat dipindahkan ke luar sekolah yang Anda kelola."))
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._require_manageable(instance)
+        super().perform_destroy(instance)
 
     from rest_framework.decorators import action
     @action(detail=True, methods=['post'], url_path='offboard')
@@ -166,6 +211,7 @@ class StaffViewSet(viewsets.ModelViewSet):
         from .services import offboard_staff
 
         staff = self.get_object()
+        self._require_manageable(staff)
         serializer = StaffOffboardSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
