@@ -7,6 +7,7 @@
 {% include "components/_finance_console_styles.html" %}
 <div class="fin-page">
   <h1 class="fin-title">{{ page_title }}</h1>
+  {% include "components/_console_messages.html" %}
 
   {% for total in totals %}
   <div class="fin-tiles">
@@ -15,6 +16,23 @@
     <div class="fin-tile"><span class="fin-label">{% translate "Sisa tagihan" %}</span><span class="fin-value">{{ total.outstanding|default:0|money:total.currency }}</span></div>
   </div>
   {% endfor %}
+
+  {% if can_record_cash %}
+  <section>
+    <h2 class="fin-h2">{% translate "Catat pembayaran tunai" %}</h2>
+    <form method="post" action="{% url 'finance-console-cash-payment' %}" class="fin-filters" onsubmit="this.querySelector('button[type=submit]').disabled = true">
+      {% csrf_token %}
+      <label><span class="fin-label">{% translate "NIS siswa" %}</span>
+        <input type="text" name="nis" required maxlength="32" autocomplete="off"></label>
+      <label><span class="fin-label">{% translate "Jumlah (Rp)" %}</span>
+        <input type="text" name="amount" required inputmode="decimal" autocomplete="off"></label>
+      <label><span class="fin-label">{% translate "Catatan" %}</span>
+        <input type="text" name="notes" maxlength="255"></label>
+      <button type="submit" class="btn btn-primary text-body-sm">{% translate "Catat pembayaran" %}</button>
+    </form>
+    <p class="fin-note">{% translate "Dialokasikan otomatis ke tagihan terbuka yang paling lama." %}</p>
+  </section>
+  {% endif %}
 
   <form method="get" class="fin-filters">
     <label><span class="fin-label">{% translate "Cari" %}</span>

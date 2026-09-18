@@ -7,6 +7,7 @@
 {% include "components/_finance_console_styles.html" %}
 <div class="fin-page">
   <h1 class="fin-title">{{ page_title }}</h1>
+  {% include "components/_console_messages.html" %}
 
   <section>
     <h2 class="fin-h2">{% blocktranslate with date=report.as_of %}Umur piutang per {{ date }}{% endblocktranslate %}</h2>
@@ -49,7 +50,7 @@
     <div class="fin-scroll">
       <table class="fin-table">
         <thead><tr>
-          <th>{% translate "Siswa" %}</th><th>{% translate "Jenis biaya" %}</th><th>{% translate "Alasan" %}</th><th class="num">{% translate "Nilai" %}</th><th>{% translate "Berlaku" %}</th>
+          <th>{% translate "Siswa" %}</th><th>{% translate "Jenis biaya" %}</th><th>{% translate "Alasan" %}</th><th class="num">{% translate "Nilai" %}</th><th>{% translate "Berlaku" %}</th>{% if can_decide %}<th></th>{% endif %}
         </tr></thead>
         <tbody>
         {% for d in pending_discounts %}
@@ -59,6 +60,14 @@
             <td>{{ d.reason }}</td>
             <td class="num">{% if d.type == "PERCENT" %}{{ d.value|floatformat:"-2" }}%{% else %}{{ d.value|money }}{% endif %}</td>
             <td>{{ d.valid_from|date:"d M Y" }}{% if d.valid_to %} – {{ d.valid_to|date:"d M Y" }}{% endif %}</td>
+            {% if can_decide %}<td>
+              <form method="post" action="{% url 'finance-console-discount-approve' d.id %}" class="fin-actionform">
+                {% csrf_token %}
+                <input type="text" name="reason" required maxlength="255" placeholder="{% translate 'Alasan keputusan' %}">
+                <button type="submit" class="btn btn-primary text-body-sm">{% translate "Setujui" %}</button>
+                <button type="submit" formaction="{% url 'finance-console-discount-reject' d.id %}" class="btn btn-secondary text-body-sm">{% translate "Tolak" %}</button>
+              </form>
+            </td>{% endif %}
           </tr>
         {% endfor %}
         </tbody>
@@ -75,7 +84,7 @@
     <div class="fin-scroll">
       <table class="fin-table">
         <thead><tr>
-          <th>{% translate "No. tagihan" %}</th><th>{% translate "Siswa" %}</th><th>{% translate "Alasan" %}</th><th class="num">{% translate "Nominal" %}</th>
+          <th>{% translate "No. tagihan" %}</th><th>{% translate "Siswa" %}</th><th>{% translate "Alasan" %}</th><th class="num">{% translate "Nominal" %}</th>{% if can_decide %}<th></th>{% endif %}
         </tr></thead>
         <tbody>
         {% for w in pending_write_offs %}
@@ -84,6 +93,17 @@
             <td>{{ w.invoice.student.person.full_name }}</td>
             <td>{{ w.reason|truncatechars:120 }}</td>
             <td class="num">{{ w.amount|money:w.currency }}</td>
+            {% if can_decide %}<td>
+              <form method="post" action="{% url 'finance-console-writeoff-approve' w.id %}" class="fin-actionform">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary text-body-sm">{% translate "Setujui" %}</button>
+              </form>
+              <form method="post" action="{% url 'finance-console-writeoff-reject' w.id %}" class="fin-actionform">
+                {% csrf_token %}
+                <input type="text" name="notes" maxlength="500" placeholder="{% translate 'Alasan penolakan' %}">
+                <button type="submit" class="btn btn-secondary text-body-sm">{% translate "Tolak" %}</button>
+              </form>
+            </td>{% endif %}
           </tr>
         {% endfor %}
         </tbody>
