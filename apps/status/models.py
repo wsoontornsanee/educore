@@ -71,3 +71,41 @@ class DailyComponentStatus(models.Model):
 
     def __str__(self):
         return f"{self.component.key} {self.date} = {self.status}"
+
+
+class StatusIncident(models.Model):
+    SEVERITY_MINOR = 'MINOR'
+    SEVERITY_MAJOR = 'MAJOR'
+    SEVERITY_MAINTENANCE = 'MAINTENANCE'
+    SEVERITY_CHOICES = [
+        (SEVERITY_MINOR, 'Minor'),
+        (SEVERITY_MAJOR, 'Major'),
+        (SEVERITY_MAINTENANCE, 'Maintenance'),
+    ]
+
+    severity = models.CharField(max_length=16, choices=SEVERITY_CHOICES)
+    title_id = models.CharField(max_length=200)
+    title_en = models.CharField(max_length=200)
+    body_id = models.TextField()
+    body_en = models.TextField()
+    occurred_at = models.DateTimeField(db_index=True)
+    duration_minutes = models.PositiveIntegerField()
+    affected_components = models.ManyToManyField(ServiceComponent, related_name='incidents', blank=True)
+    published = models.BooleanField(default=True, db_index=True)
+    created_by = models.ForeignKey(
+        'identity.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    updated_by = models.ForeignKey(
+        'identity.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'status_incidents'
+        ordering = ['-occurred_at']
+        verbose_name = 'Insiden Status'
+        verbose_name_plural = 'Daftar Insiden Status'
+
+    def __str__(self):
+        return f"[{self.severity}] {self.title_id}"

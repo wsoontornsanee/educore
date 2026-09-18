@@ -6,7 +6,9 @@ from django.db import connection
 from django.db.models import Avg
 from django.utils import timezone
 
-from .models import ComponentHeartbeat, DailyComponentStatus, ServiceComponent
+from apps.core.services import audit
+
+from .models import ComponentHeartbeat, DailyComponentStatus, ServiceComponent, StatusIncident
 
 BAR_COLORS = {
     ServiceComponent.STATUS_OPERATIONAL: '#0E7A4F',
@@ -128,3 +130,38 @@ def get_open_component_count(as_of=None):
         1 for component in ServiceComponent.objects.all()
         if get_component_status(component, as_of) != ServiceComponent.STATUS_OPERATIONAL
     )
+
+
+def create_incident(*, severity, title_id, title_en, body_id, body_en, occurred_at,
+                     duration_minutes, affected_component_ids, published, actor):
+    """Create a StatusIncident and write an audit event (AGENTS.md red line #4)."""
+    incident = StatusIncident.objects.create(
+        severity=severity, title_id=title_id, title_en=title_en,
+        body_id=body_id, body_en=body_en, occurred_at=occurred_at,
+        duration_minutes=duration_minutes, published=published,
+        created_by=actor, updated_by=actor,
+    )
+    incident.affected_components.set(affected_component_ids)
+    audit(
+        action='status.incident.created', entity_type='StatusIncident', entity_id=str(incident.id),
+        actor_id=str(actor.id) if actor else None, role='platform_operator',
+    )
+    return incident
+
+
+def update_incident(incident, *, actor, **fields):
+    """Update a StatusIncident's fields and write an audit event."""
+    for key, value in fields.items():
+        setattr(incident, key, value)
+    incident.updated_by = actor
+    incident.save()
+    audit(
+        action='status.incident.updated', entity_type='StatusIncident', entity_id=str(incident.id),
+        actor_id=str(actor.id) if actor else None, role='platform_operator',
+    )
+    return incident
+
+
+def list_published_incidents():
+    """Published incidents, newest occurred_at first (StatusIncident.Meta.ordering)."""
+    return StatusIncident.objects.filter(published=True).prefetch_related('affected_components')

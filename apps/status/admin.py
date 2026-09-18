@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import ServiceComponent, ComponentHeartbeat, DailyComponentStatus
+from .models import ServiceComponent, ComponentHeartbeat, DailyComponentStatus, StatusIncident
 
 
 @admin.register(ServiceComponent)
@@ -19,3 +19,10 @@ class ComponentHeartbeatAdmin(admin.ModelAdmin):
 class DailyComponentStatusAdmin(admin.ModelAdmin):
     list_display = ('component', 'date', 'status')
     list_filter = ('component', 'status')
+
+
+@admin.register(StatusIncident)
+class StatusIncidentAdmin(admin.ModelAdmin):
+    list_display = ('title_id', 'severity', 'occurred_at', 'published')
+    list_filter = ('severity', 'published')
+    filter_horizontal = ('affected_components',)
