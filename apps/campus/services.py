@@ -448,6 +448,10 @@ def record_counselling_session(
         raise ValidationError("Siswa tidak terdaftar di sekolah yang bersangkutan.")
     if case is not None and case.student_id != student.id:
         raise ValidationError("Kasus perilaku tidak sesuai dengan siswa.")
+    if confidentiality not in CounsellingConfidentiality.values:
+        raise ValidationError("Tingkat kerahasiaan (confidentiality) tidak valid.")
+    if session_type not in CounsellingSessionType.values:
+        raise ValidationError("Jenis sesi (type) tidak valid.")
     if occurred_at is None:
         occurred_at = timezone.now()
 
@@ -563,7 +567,17 @@ def _dispatch_urgent_counselling_escalation(session: CounsellingSession):
             if getattr(session.student, 'person', None)
             else f"Siswa ID {session.student_id}"
         )
-        for principal in get_principal_users(session.school):
+        principals = get_principal_users(session.school)
+        if not principals:
+            logger.warning(
+                "Urgent counselling session %s has no principal (school_admin/foundation_admin) "
+                "to escalate to at school %s — LIF-017 escalation NOT sent.",
+                session.id,
+                session.school_id,
+            )
+            return
+
+        for principal in principals:
             dispatch_intent(
                 foundation_id=session.foundation_id,
                 category=NotificationCategory.COUNSELLING_URGENT,
@@ -581,6 +595,9 @@ def _dispatch_urgent_counselling_escalation(session: CounsellingSession):
                 dedupe_key=f"counselling_urgent:{session.id}:{principal.id}",
                 immediate=True,
             )
+        # Only stamped once at least one principal was actually notified — LIF-017's
+        # bypass-the-queue guarantee must not be reported as satisfied when nobody
+        # was reachable (see the school-has-no-principal branch above).
         session.urgent_notified_at = timezone.now()
         session.save(update_fields=['urgent_notified_at', 'updated_at'])
     except Exception as exc:

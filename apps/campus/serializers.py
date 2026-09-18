@@ -7,7 +7,9 @@ from .models import (
     BehaviourReason,
     BehaviourRecord,
     CaseStatus,
+    CounsellingConfidentiality,
     CounsellingSession,
+    CounsellingSessionType,
 )
 
 
@@ -215,10 +217,10 @@ class RecordCounsellingSessionInputSerializer(serializers.Serializer):
     counsellor_id = serializers.IntegerField(required=True)
     case_id = serializers.IntegerField(required=False, allow_null=True)
     occurred_at = serializers.DateTimeField(required=False, allow_null=True)
-    type = serializers.CharField(required=False, default='INITIAL')
+    type = serializers.ChoiceField(choices=CounsellingSessionType.choices, required=False, default=CounsellingSessionType.INITIAL)
     notes = serializers.CharField(required=False, allow_blank=True, default='')
     follow_up_at = serializers.DateTimeField(required=False, allow_null=True)
-    confidentiality = serializers.CharField(required=False, default='NORMAL')
+    confidentiality = serializers.ChoiceField(choices=CounsellingConfidentiality.choices, required=False, default=CounsellingConfidentiality.NORMAL)
     is_urgent = serializers.BooleanField(required=False, default=False)
 
 

@@ -37,3 +37,9 @@ def decrypt_notes(ciphertext: str) -> str:
         return _get_fernet().decrypt(ciphertext.encode()).decode()
     except InvalidToken:
         raise RuntimeError("Counselling note decryption failed: Fernet key mismatch.")
+    except Exception as exc:
+        # Malformed ciphertext (corrupt write, manual DB edit) raises something
+        # other than InvalidToken (e.g. a base64/padding error) before Fernet
+        # even reaches the HMAC check — surface the same clear error instead of
+        # letting a raw decode exception 500 every list/retrieve of this row.
+        raise RuntimeError("Counselling note decryption failed: malformed ciphertext.") from exc

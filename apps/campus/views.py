@@ -27,7 +27,6 @@ from .services import (
     get_or_create_behaviour_policy,
     get_principal_users,
     get_student_behaviour_summary,
-    is_counselling_reader_authorized,
     record_behaviour,
     record_counselling_session,
     supersede_behaviour_record,
@@ -450,30 +449,50 @@ class CounsellingSessionViewSet(viewsets.ModelViewSet):
             qs = qs.filter(school_id=school_id)
         return qs
 
-    def _attach_decrypted_notes(self, sessions, user, foundation_id):
+    @staticmethod
+    def _attach_notes(sessions):
+        """Decrypts notes for sessions the caller has ALREADY authorized (list()
+        excluded unauthorized RESTRICTED rows before calling this; retrieve()
+        raised via `access_counselling_session` first) — no re-check here."""
         for session in sessions:
-            if session.confidentiality == CounsellingConfidentiality.RESTRICTED and not is_counselling_reader_authorized(session, user, foundation_id):
-                session._decrypted_notes = ''
-            else:
-                session._decrypted_notes = session.notes
+            session._decrypted_notes = session.notes
+
+    @staticmethod
+    def _is_authorized(session, user, principal_ids_by_school):
+        """Same rule as `is_counselling_reader_authorized`, but reusing a
+        pre-resolved {school_id: {principal_user_id, ...}} map instead of
+        re-querying RoleAssignment per row (avoids O(RESTRICTED rows) query
+        fan-out in `list()` — each `get_principal_users` call is 2-3 queries)."""
+        if not user or not user.is_authenticated:
+            return False
+        if user.is_superuser:
+            return True
+        if session.counsellor.user_id == user.id:
+            return True
+        return user.id in principal_ids_by_school.get(session.school_id, set())
 
     def list(self, request, *args, **kwargs):
         """LIF-015: RESTRICTED sessions the requester isn't authorized for are
         silently omitted from listings (no audit — nothing was actually read).
         Unauthorized ids are excluded via `.exclude()` (not a Python list) so
         cursor pagination still gets a real queryset to order and slice."""
-        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
         queryset = self.filter_queryset(self.get_queryset())
+        restricted = list(queryset.filter(confidentiality=CounsellingConfidentiality.RESTRICTED))
+
+        principal_ids_by_school = {
+            school_id: {u.id for u in get_principal_users(session.school)}
+            for school_id, session in {s.school_id: s for s in restricted}.items()
+        }
         unauthorized_ids = [
-            s.id for s in queryset.filter(confidentiality=CounsellingConfidentiality.RESTRICTED)
-            if not is_counselling_reader_authorized(s, request.user, foundation_id)
+            s.id for s in restricted
+            if not self._is_authorized(s, request.user, principal_ids_by_school)
         ]
         if unauthorized_ids:
             queryset = queryset.exclude(id__in=unauthorized_ids)
 
         page = self.paginate_queryset(queryset)
         target = page if page is not None else list(queryset)
-        self._attach_decrypted_notes(target, request.user, foundation_id)
+        self._attach_notes(target)
         serializer = self.get_serializer(target, many=True)
         if page is not None:
             return self.get_paginated_response(serializer.data)
@@ -486,7 +505,7 @@ class CounsellingSessionViewSet(viewsets.ModelViewSet):
             access_counselling_session(instance, request.user, foundation_id)
         except PermissionDenied as exc:
             raise exceptions.PermissionDenied(str(exc))
-        self._attach_decrypted_notes([instance], request.user, foundation_id)
+        self._attach_notes([instance])
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
@@ -531,6 +550,6 @@ class CounsellingSessionViewSet(viewsets.ModelViewSet):
         except Exception as exc:
             raise exceptions.ValidationError(str(exc))
 
-        self._attach_decrypted_notes([session], request.user, foundation_id)
+        self._attach_notes([session])
         output_serializer = self.get_serializer(session)
         return Response(output_serializer.data, status=status.HTTP_201_CREATED)

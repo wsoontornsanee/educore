@@ -187,6 +187,41 @@ class CounsellingServiceTests(TestCase):
             ).exists()
         )
 
+    def test_urgent_session_without_a_principal_does_not_falsely_stamp_notified(self):
+        """A school with no active school_admin/foundation_admin must not report
+        the LIF-017 escalation as sent when nobody was actually reachable."""
+        RoleAssignment.all_tenants.filter(
+            foundation_id=self.fx['foundation'].id, user=self.principal,
+        ).delete()
+        session = record_counselling_session(
+            foundation_id=self.fx['foundation'].id,
+            school=self.fx['school'],
+            student=self.fx['student'],
+            counsellor=self.counsellor,
+            recorded_by=self.counsellor.user,
+            notes="Indikasi darurat, tidak ada kepala sekolah terdaftar.",
+            is_urgent=True,
+        )
+        session.refresh_from_db()
+        self.assertIsNone(session.urgent_notified_at)
+        self.assertFalse(
+            NotificationIntent.objects.filter(
+                foundation_id=self.fx['foundation'].id,
+                category=NotificationCategory.COUNSELLING_URGENT,
+            ).exists()
+        )
+
+    def test_invalid_confidentiality_value_rejected(self):
+        with self.assertRaises(Exception):
+            record_counselling_session(
+                foundation_id=self.fx['foundation'].id,
+                school=self.fx['school'],
+                student=self.fx['student'],
+                counsellor=self.counsellor,
+                recorded_by=self.counsellor.user,
+                confidentiality='restricted',  # wrong case: must not silently be treated as NORMAL
+            )
+
     def test_followup_reminder_due_and_dispatch(self):
         session = record_counselling_session(
             foundation_id=self.fx['foundation'].id,
@@ -295,6 +330,16 @@ class CounsellingAPITests(TestCase):
         res = self.client.get(f'/api/v1/campus/counselling/sessions/?student_id={self.fx["student"].id}')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data['results'], [])
+
+    def test_invalid_confidentiality_choice_rejected_by_api(self):
+        self.client.force_authenticate(user=self.counsellor.user)
+        res = self.client.post('/api/v1/campus/counselling/sessions/', {
+            'student_id': self.fx['student'].id,
+            'counsellor_id': self.counsellor.id,
+            'notes': 'x',
+            'confidentiality': 'restricted',  # wrong case — must be rejected, not silently NORMAL
+        })
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_normal_session_visible_to_staff(self):
         session_id = self._create_session(confidentiality='NORMAL', notes='Sesi biasa')
