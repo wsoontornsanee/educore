@@ -3205,6 +3205,14 @@ msgstr "Select language"
 msgid "Tutup"
 msgstr "Close"
 
+#: frontend/templates/marketing/base.html:57
+msgid "Bahasa sumber — selalu paling lengkap"
+msgstr "Source language — always the most complete"
+
+#: frontend/templates/marketing/base.html:64
+msgid "Terjemahan penuh"
+msgstr "Full translation"
+
 #: frontend/templates/marketing/base.html:38
 msgid "Masuk"
 msgstr "Log in"
@@ -3229,9 +3237,9 @@ msgstr "Product"
 msgid "Pengembang"
 msgstr "Developers"
 
-#: frontend/templates/marketing/base.html:69
-msgid "Dokumentasi API"
-msgstr "API documentation"
+#: frontend/templates/marketing/base.html:96
+msgid "Dokumentasi"
+msgstr "Documentation"
 
 #: frontend/templates/marketing/base.html:71
 msgid "Status layanan"
@@ -3669,6 +3677,151 @@ msgid ""
 "<code>Retry-After</code>. Ekspor besar memakai endpoint job asinkron, bukan "
 "paginasi beruntun."
 msgstr "Exceeding the limit produces a <code>429 RATE_LIMITED</code> with a <code>Retry-After</code> header. Large exports use an async job endpoint, not sequential pagination."
+
+#: frontend/templates/marketing/partner_api.html:9
+msgid "API mitra untuk data sekolah."
+msgstr "A partner API for school data."
+
+#: frontend/templates/marketing/partner_api.html:10
+msgid ""
+"Baca roster, data pribadi dan jabatan staf, tagihan, serta kehadiran dari "
+"EduCore lewat REST yang berversi dan bertanda tangan."
+msgstr "Read roster, staff personal and position records, invoices and attendance from EduCore over a versioned, signed REST surface."
+
+#: frontend/templates/marketing/partner_api.html:13
+msgid "Baca dokumentasi"
+msgstr "Read the documentation"
+
+#: frontend/templates/marketing/partner_api.html:19
+msgid "Permukaan integrasi"
+msgstr "Integration surface"
+
+#: frontend/templates/marketing/partner_api.html:20
+msgid "Domain yang terbuka untuk mitra"
+msgstr "Domains open to partners"
+
+#: frontend/templates/marketing/partner_api.html:21
+msgid ""
+"Setiap kunci API diberi cakupan per domain dan per sekolah. Cakupan yang "
+"tidak diminta tidak pernah terbaca."
+msgstr "Every API key is scoped per domain and per school. A scope you did not request is never readable."
+
+#: frontend/templates/marketing/partner_api.html:23
+msgid "Batas data"
+msgstr "Data boundary"
+
+#: frontend/templates/marketing/partner_api.html:24
+msgid ""
+"EduCore tidak menyimpan data penggajian atau kompensasi. Permukaan mitra "
+"hanya memaparkan data pribadi, jabatan, dan kepegawaian — gaji, komponen "
+"upah, potongan, dan slip tetap berada di sistem penggajian Anda sebagai "
+"sumber kebenaran."
+msgstr "EduCore does not store payroll or compensation data. The partner surface exposes personal, position and employment records only — salaries, pay components, deductions and payslips stay in your payroll system as the system of record."
+
+#: frontend/templates/marketing/partner_api.html:51
+msgid "Opsional per kunci, wajib untuk cakupan <code>roster.pii</code>."
+msgstr "Optional per key, required for the <code>roster.pii</code> scope."
+
+#: frontend/templates/marketing/partner_api.html:88
+msgid ""
+"Webhook adalah jalur utama. Daftarkan satu endpoint HTTPS per lingkungan, "
+"terima POST bertanda tangan, dan balas 2xx dalam 5 detik. Kegagalan "
+"dicoba ulang lima kali hingga 6 jam; setelahnya kejadian tetap tersedia "
+"lewat polling."
+msgstr "Webhooks are the primary path. Register one HTTPS endpoint per environment, accept a signed POST, and answer 2xx within 5 seconds. Failures retry five times up to 6 hours; after that the event remains available by polling."
+
+#: frontend/templates/marketing/partner_api.html:91
+msgid "Data pribadi, jabatan, atau status kepegawaian staf berubah"
+msgstr "A staff member's personal, position or employment record changed"
+
+#: frontend/templates/marketing/partner_api.html:93
+msgid "Pembayaran VA atau QRIS ter-settle dan teralokasi"
+msgstr "A virtual-account or QRIS payment settled and was allocated"
+
+#: frontend/templates/marketing/partner_api.html:102
+msgid "Staf aktif beserta jabatan, kursor terpaginasi"
+msgstr "Active staff with position, cursor-paginated"
+
+#: frontend/templates/marketing/partner_api.html:103
+msgid "Satu staf — data pribadi, jabatan, kepegawaian"
+msgstr "One staff member — personal, position, employment"
+
+#: frontend/templates/marketing/partner_api.html:104
+msgid "Siswa aktif per sekolah atau kelas"
+msgstr "Active students by school or class"
+
+#: frontend/templates/marketing/partner_api.html:110
+msgid "Daftarkan endpoint penerima webhook"
+msgstr "Register a webhook receiver"
+
+#: apps/marketing/views.py
+msgid "Roster & staf"
+msgstr "Roster & staff"
+
+#: apps/marketing/views.py
+msgid ""
+"Yayasan, sekolah, kelas, siswa aktif, dan staf beserta jabatan serta "
+"status kepegawaian."
+msgstr "Foundations, schools, classes, active students, and staff with position and employment status."
+
+#: apps/marketing/views.py
+msgid "Keuangan"
+msgstr "Finance"
+
+#: apps/marketing/views.py
+msgid ""
+"Tagihan, alokasi pembayaran, AR aging, dan statement per siswa. Uang "
+"selalu string 2dp dengan mata uang."
+msgstr "Invoices, payment allocation, AR aging, and per-student statements. Money is always a 2dp string with its currency."
+
+#: apps/marketing/views.py
+msgid "Kehadiran"
+msgstr "Attendance"
+
+#: apps/marketing/views.py
+msgid ""
+"Rekap harian dan per sesi dengan enam status tetap. Foto gerbang tidak "
+"pernah diekspor."
+msgstr "Daily and per-session summaries across six fixed statuses. Gate photos are never exported."
+
+#: apps/marketing/views.py
+msgid "Akademik"
+msgstr "Academics"
+
+#: apps/marketing/views.py
+msgid ""
+"Struktur kurikulum, jadwal, dan ringkasan capaian per periode penilaian."
+msgstr "Curriculum structure, timetables, and achievement summaries per assessment period."
+
+#: apps/marketing/views.py
+msgid "Autentikasi yang bisa dirotasi"
+msgstr "Authentication you can rotate"
+
+#: apps/marketing/views.py
+msgid ""
+"Pasangan key-id dan secret per yayasan, ditandatangani HMAC-SHA256 per "
+"permintaan. Rotasi tanpa downtime."
+msgstr "A key-id and secret pair per foundation, HMAC-SHA256 signed per request. Rotate with no downtime."
+
+#: apps/marketing/views.py
+msgid "Aman diulang"
+msgstr "Safe to retry"
+
+#: apps/marketing/views.py
+msgid ""
+"Setiap endpoint mutasi menerima Idempotency-Key. Kirim ulang permintaan "
+"yang sama dan Anda mendapat respons yang sama."
+msgstr "Every mutating endpoint accepts an Idempotency-Key. Replay the same request and you get the same response, not a double effect."
+
+#: apps/marketing/views.py
+msgid "Webhook, dengan jaring polling"
+msgstr "Webhooks, with a polling net"
+
+#: apps/marketing/views.py
+msgid ""
+"Webhook bertanda tangan untuk kejadian domain, lima kali coba ulang — dan "
+"endpoint events bila penerima Anda pernah mati."
+msgstr "Signed webhooks for domain events with five retries — and an events endpoint for when your receiver was down."
 
 #~ msgid "Hadir"
 #~ msgstr "Present"

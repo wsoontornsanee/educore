@@ -23,7 +23,8 @@ class MarketingPagesTests(TestCase):
         response = self.client.get(reverse('marketing:partner-api'))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'SCOPE_DENIED')
-        self.assertContains(response, 'payroll.run.approved')
+        self.assertContains(response, 'roster.staff.updated')
+        self.assertNotContains(response, 'payroll')
 
     def test_partner_api_base_url_reflects_request_host(self):
         response = self.client.get(
