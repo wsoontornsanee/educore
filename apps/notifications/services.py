@@ -273,6 +273,9 @@ def render_template_message(
         elif template_key == 'attendance.absent':
             body_fmt = "Pemberitahuan: Ananda {student_name} belum tercatat hadir di {school_name} hingga batas waktu {cutoff_time} WIB pada {date}. Mohon konfirmasi kehadiran siswa."
             subj_fmt = "Pemberitahuan Ketidakhadiran Siswa"
+        elif template_key == 'device.offline':
+            body_fmt = "Perangkat {device_name} di {school_name} ({location}) terdeteksi offline. Mohon segera diperiksa."
+            subj_fmt = "Peringatan: Perangkat Offline"
         else:
             body_fmt = "Pemberitahuan sekolah: {message}"
             subj_fmt = "Pemberitahuan EduCore"

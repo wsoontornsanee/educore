@@ -120,3 +120,62 @@ class Device(TenantModel):
 
     def __str__(self):
         return f"{self.name} ({self.device_code}) - {self.get_device_class_display()}"
+
+
+class DeviceEventStagingStatus(models.TextChoices):
+    PENDING = 'PENDING', _('Pending')
+    APPLIED = 'APPLIED', _('Applied')
+    FAILED = 'FAILED', _('Failed')
+
+
+class DeviceEventStaging(TenantModel):
+    """
+    Raw batched device events uploaded by an edge gateway, staged for async
+    domain application by the `ingest_device_events` cron (spec/12 §3 HW-005,
+    §7 `POST /device/events`).
+
+    Kept separate from `attendance.GateEvent` (the applied domain record) so a
+    large offline-reconnect-burst upload (HW-004: up to 72h buffered) can be
+    accepted quickly without blocking on attendance/notification processing
+    inline in the HTTP request — that inline path stays the primary route for
+    normal small, real-time batches via `POST /gate/events/` (ATT-006's <5s
+    notification SLA depends on that request finishing fast).
+    """
+    school = models.ForeignKey(
+        'identity.School',
+        on_delete=models.PROTECT,
+        related_name='device_event_staging_rows',
+    )
+    device = models.ForeignKey(
+        'hardware.Device',
+        on_delete=models.PROTECT,
+        related_name='staged_events',
+    )
+    event_uuid = models.UUIDField(
+        unique=True,
+        db_index=True,
+        help_text=_('Client-generated idempotent UUID from edge gateway (HW-005)'),
+    )
+    payload = models.JSONField(
+        help_text=_('Raw event fields as uploaded: occurred_at, raw_uid, direction, method, etc.'),
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=DeviceEventStagingStatus.choices,
+        default=DeviceEventStagingStatus.PENDING,
+        db_index=True,
+    )
+    applied_at = models.DateTimeField(null=True, blank=True)
+    error_text = models.CharField(max_length=500, blank=True, default='')
+
+    class Meta(TenantModel.Meta):
+        db_table = 'device_event_staging'
+        verbose_name = _('Device Event Staging Row')
+        verbose_name_plural = _('Device Event Staging Rows')
+        indexes = [
+            models.Index(fields=['foundation_id', 'status', 'created_at'], name='idx_devevtstg_fnd_st_crt'),
+            models.Index(fields=['foundation_id', 'school', 'status'], name='idx_devevtstg_fnd_sch_st'),
+        ]
+
+    def __str__(self):
+        return f"{self.event_uuid} [{self.status}]"

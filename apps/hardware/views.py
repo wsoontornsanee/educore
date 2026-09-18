@@ -5,9 +5,10 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.response import Response
 
 from apps.core.pagination import StandardCursorPagination
-from apps.hardware.models import Device, DeviceStatus
+from apps.hardware.models import Device, DeviceEventStaging, DeviceStatus
 from apps.hardware.serializers import (
     DeviceCreateSerializer,
+    DeviceEventBatchSerializer,
     DeviceHeartbeatSerializer,
     DeviceSerializer,
 )
@@ -211,6 +212,87 @@ class DeviceViewSet(viewsets.ModelViewSet):
             since_cursor=cursor,
         )
         return Response(data, status=status.HTTP_200_OK)
+
+
+class DeviceEventIngestView(views.APIView):
+    """
+    POST /device/events per spec/12 §7 (HW-005): stages a raw event batch from
+    an edge gateway for async application by the `ingest_device_events` cron,
+    rather than applying it inline — the fast path for large offline-reconnect
+    bursts. Small real-time batches keep using `POST /gate/events/` unchanged.
+    """
+    required_permission = 'school_config.read'
+    permission_classes = [HasRequiredPermission]
+
+    def post(self, request):
+        foundation_id = getattr(request, 'foundation_id', None)
+        serializer = DeviceEventBatchSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        school_id = data['school_id']
+        user = request.user
+        has_fnd_admin = RoleAssignment.all_tenants.filter(
+            user=user,
+            foundation_id=foundation_id,
+            scope_type=RoleAssignment.SCOPE_FOUNDATION,
+            deleted_at__isnull=True,
+        ).exists()
+        if not has_fnd_admin:
+            user_school_ids = RoleAssignment.all_tenants.filter(
+                user=user,
+                foundation_id=foundation_id,
+                scope_type=RoleAssignment.SCOPE_SCHOOL,
+                deleted_at__isnull=True,
+            ).values_list('scope_id', flat=True)
+            if school_id not in user_school_ids:
+                raise NotFound("Sekolah tidak ditemukan.")
+
+        actor_id = str(user.id) if user and user.is_authenticated else ''
+        staged = 0
+        duplicates = 0
+
+        for item in data['batch']:
+            device_id = item.pop('device_id')
+            event_uuid = item['event_uuid']
+            try:
+                device = Device.objects.get(id=device_id, foundation_id=foundation_id, school_id=school_id)
+            except Device.DoesNotExist:
+                continue
+
+            if DeviceEventStaging.objects.filter(foundation_id=foundation_id, event_uuid=event_uuid).exists():
+                duplicates += 1
+                continue
+
+            payload = {
+                'event_uuid': str(item['event_uuid']),
+                'device_id': device_id,
+                'occurred_at': item['occurred_at'].isoformat(),
+                'raw_uid': item.get('raw_uid', ''),
+                'student_id': item.get('student_id'),
+                'staff_id': item.get('staff_id'),
+                'direction': item.get('direction'),
+                'method': item.get('method', 'RFID'),
+                'confidence': str(item['confidence']) if item.get('confidence') is not None else None,
+                'photo_key': item.get('photo_key', ''),
+                'replayed': item.get('replayed', False),
+            }
+            DeviceEventStaging.objects.create(
+                foundation_id=foundation_id,
+                school_id=school_id,
+                device=device,
+                event_uuid=event_uuid,
+                payload=payload,
+                created_by=actor_id,
+                updated_by=actor_id,
+            )
+            staged += 1
+
+        return Response({
+            'staged': staged,
+            'duplicates_skipped': duplicates,
+            'total': len(data['batch']),
+        }, status=status.HTTP_202_ACCEPTED)
 
 
 class DeviceSyncView(views.APIView):
