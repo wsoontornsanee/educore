@@ -1,6 +1,7 @@
 import logging
 from datetime import timedelta
 from decimal import Decimal
+from typing import Any, Dict, Optional
 
 from django.db import transaction
 from django.db.models import Sum
@@ -11,6 +12,7 @@ logger = logging.getLogger(__name__)
 from apps.core import storage
 from apps.core.services import audit, write_generated_file
 from apps.wallet.models import (
+    Merchant,
     MerchantSettlement,
     WalletAutoTopupConfig,
     MerchantSettlementStatus,
@@ -666,6 +668,169 @@ def mark_settlement_paid(settlement: MerchantSettlement) -> MerchantSettlement:
         foundation_id=settlement.foundation_id,
     )
     return settlement
+
+
+def settle_merchants_for_school(
+    school: Any,
+    period_start: Optional[Any] = None,
+    period_end: Optional[Any] = None,
+    anchor_date: Optional[Any] = None,
+    days: int = 7,
+    dry_run: bool = False,
+    skip_zero_sales: bool = False,
+    generate_statements: bool = True,
+    merchant_id: Optional[Any] = None,
+    user: Optional[Any] = None,
+) -> dict:
+    """Automated weekly batch merchant settlement for a school (spec/07 §6 WAL-022, deploy/crontab:30).
+
+    Computes gross, commission, and net for each active merchant in the school over the period,
+    persisting MerchantSettlement rows (updating PENDING rows in place) and generating statement documents.
+    Honors school local timezone (ARC-014).
+    """
+    import datetime
+    from zoneinfo import ZoneInfo
+
+    school_tz_str = getattr(school, 'timezone', None) or 'Asia/Jakarta'
+    try:
+        school_tz = ZoneInfo(school_tz_str)
+    except Exception:
+        school_tz = ZoneInfo('Asia/Jakarta')
+
+    with timezone.override(school_tz):
+        now_local = timezone.now().astimezone(school_tz)
+        today_local = now_local.date()
+
+        anchor = anchor_date or today_local
+        if period_end is None:
+            period_end = anchor - datetime.timedelta(days=1)
+        if period_start is None:
+            period_start = period_end - datetime.timedelta(days=days - 1)
+
+        if period_start > period_end:
+            raise ValueError(f"Invalid period: period_start ({period_start}) cannot be after period_end ({period_end})")
+
+        merchants_qs = Merchant.objects.filter(
+            foundation_id=school.foundation_id,
+            school=school,
+            is_active=True,
+            deleted_at__isnull=True,
+        )
+        if merchant_id:
+            merchants_qs = merchants_qs.filter(id=merchant_id)
+
+        total_merchants = merchants_qs.count()
+        settled_count = 0
+        skipped_count = 0
+        failed_count = 0
+        total_gross = Decimal('0.00')
+        total_commission = Decimal('0.00')
+        total_net = Decimal('0.00')
+        results = []
+
+        for merchant in merchants_qs:
+            existing = MerchantSettlement.objects.filter(
+                foundation_id=merchant.foundation_id,
+                merchant=merchant,
+                period_start=period_start,
+                period_end=period_end,
+                deleted_at__isnull=True,
+            ).first()
+
+            if existing and existing.status == MerchantSettlementStatus.PAID:
+                skipped_count += 1
+                results.append({
+                    'merchant_id': str(merchant.id),
+                    'merchant_name': merchant.name,
+                    'status': 'SKIPPED_ALREADY_PAID',
+                    'reason': f"Settlement #{existing.id} sudah dibayar (PAID) pada {existing.paid_at}.",
+                })
+                continue
+
+            tx_qs = POSTransaction.objects.filter(
+                foundation_id=merchant.foundation_id,
+                merchant=merchant,
+                status=POSTransactionStatus.COMPLETED,
+                occurred_at__date__gte=period_start,
+                occurred_at__date__lte=period_end,
+                deleted_at__isnull=True,
+            )
+            tx_count = tx_qs.count()
+
+            if tx_count == 0 and skip_zero_sales:
+                skipped_count += 1
+                results.append({
+                    'merchant_id': str(merchant.id),
+                    'merchant_name': merchant.name,
+                    'status': 'SKIPPED_ZERO_SALES',
+                    'reason': "Tidak ada transaksi selesai pada periode ini.",
+                })
+                continue
+
+            if dry_run:
+                totals = tx_qs.aggregate(gross=Sum('total'), commission=Sum('commission'))
+                gross = totals['gross'] or Decimal('0.00')
+                commission = totals['commission'] or Decimal('0.00')
+                net = gross - commission
+                settled_count += 1
+                total_gross += gross
+                total_commission += commission
+                total_net += net
+                results.append({
+                    'merchant_id': str(merchant.id),
+                    'merchant_name': merchant.name,
+                    'status': 'DRY_RUN',
+                    'gross': str(gross),
+                    'commission': str(commission),
+                    'net': str(net),
+                    'transaction_count': tx_count,
+                })
+            else:
+                try:
+                    settlement = run_merchant_settlement(merchant, period_start, period_end)
+                    statement_key = ''
+                    if generate_statements:
+                        statement_key = generate_settlement_statement_pdf(settlement)
+                    settled_count += 1
+                    total_gross += settlement.gross
+                    total_commission += settlement.commission
+                    total_net += settlement.net
+                    results.append({
+                        'merchant_id': str(merchant.id),
+                        'merchant_name': merchant.name,
+                        'settlement_id': str(settlement.id),
+                        'status': 'SETTLED',
+                        'gross': str(settlement.gross),
+                        'commission': str(settlement.commission),
+                        'net': str(settlement.net),
+                        'transaction_count': tx_count,
+                        'statement_key': statement_key,
+                    })
+                except Exception as exc:
+                    failed_count += 1
+                    logger.exception("Failed settling merchant %s: %s", merchant.id, exc)
+                    results.append({
+                        'merchant_id': str(merchant.id),
+                        'merchant_name': merchant.name,
+                        'status': 'FAILED',
+                        'error': str(exc),
+                    })
+
+        return {
+            'school_id': str(school.id),
+            'school_name': school.name,
+            'period_start': period_start.isoformat(),
+            'period_end': period_end.isoformat(),
+            'total_merchants': total_merchants,
+            'settled': settled_count,
+            'skipped': skipped_count,
+            'failed': failed_count,
+            'total_gross': total_gross,
+            'total_commission': total_commission,
+            'total_net': total_net,
+            'results': results,
+            'status': 'DRY_RUN' if dry_run else 'COMPLETED',
+        }
 
 
 DEFAULT_OFFLINE_FLOOR_LIMIT = Decimal('50000.00')
