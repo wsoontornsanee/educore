@@ -27,3 +27,7 @@ class ConsoleNavRenderTests(TestCase):
         # as parsed HTML (rather than a raw substring) matches semantically.
         self.assertContains(response, 'Kehadiran & gerbang', html=True)
         self.assertNotContains(response, 'Rekonsiliasi')
+
+    def test_nav_brand_block_links_to_console_home(self):
+        response = self.client.get(reverse('console:coming_soon'))
+        self.assertContains(response, f'href="{reverse("web-console-home")}"')
