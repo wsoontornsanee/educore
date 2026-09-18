@@ -595,6 +595,42 @@ def _anonymize_person(person) -> None:
     person.save()
 
 
+def _anonymize_user(user) -> None:
+    """Anonymize the identifying PII on a Staff member's linked login account.
+
+    Only identity fields — is_active/status/permissions are deliberately left
+    alone: account deactivation is a separate lifecycle concern from erasure.
+    phone_e164 is UNIQUE and NOT NULL, so it gets an id-based placeholder
+    rather than a bare empty string (which would collide on the second erasure).
+    """
+    if user is None:
+        return
+    user.full_name = f"[ERASED-{user.id}]"
+    user.phone_e164 = f"[ERASED-{user.id}]"
+    user.email = None
+    user.save(update_fields=['full_name', 'phone_e164', 'email'])
+
+
+def _erase_subject_photos(subject_type, subject) -> None:
+    """Blank the erased subject's facial imagery immediately (CMP-012).
+
+    The CMP-013 retention sweeper only purges gate photos past their own
+    90-day window; an accepted erasure request must not wait for it.
+    all_tenants is used deliberately: erase_person may run outside any
+    thread-local tenant context (management commands, services), and the
+    queryset is already pinned to this one subject's rows.
+    """
+    from apps.attendance.models import GateEvent
+
+    if subject_type == DataSubjectRequestSubjectType.STUDENT:
+        if getattr(subject, 'photo_key', ''):
+            subject.photo_key = ''
+            subject.save(update_fields=['photo_key'])
+        GateEvent.all_tenants.filter(student=subject).exclude(photo_key='').update(photo_key='')
+    else:
+        GateEvent.all_tenants.filter(staff=subject).exclude(photo_key='').update(photo_key='')
+
+
 def erase_person(subject_type, subject_id, foundation_id, requested_by, requested_by_name) -> DataSubjectRequest:
     """CMP-012 right to erasure. Refuses on anyone not already departed, or
     unknown. Anonymizes the Person PII-vault row only — Student/Staff/
@@ -605,7 +641,11 @@ def erase_person(subject_type, subject_id, foundation_id, requested_by, requeste
         subject = Student.objects.filter(foundation_id=foundation_id, id=subject_id).select_related('person').first()
         erasable_statuses = _STUDENT_ERASABLE_STATUSES
     elif subject_type == DataSubjectRequestSubjectType.STAFF:
-        subject = Staff.objects.filter(foundation_id=foundation_id, id=subject_id).select_related('person').first()
+        subject = (
+            Staff.objects.filter(foundation_id=foundation_id, id=subject_id)
+            .select_related('person', 'user')
+            .first()
+        )
         erasable_statuses = _STAFF_ERASABLE_STATUSES
     else:
         subject = None
@@ -635,6 +675,9 @@ def erase_person(subject_type, subject_id, foundation_id, requested_by, requeste
     person = subject.person
     person_id = person.id
     _anonymize_person(person)
+    _erase_subject_photos(subject_type, subject)
+    if subject_type == DataSubjectRequestSubjectType.STAFF:
+        _anonymize_user(subject.user)
 
     audit(
         action='compliance.person.erase',
