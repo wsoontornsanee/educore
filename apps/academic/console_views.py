@@ -5,11 +5,14 @@ Every view is gated by StaffConsoleMixin: the RBAC read permission for the
 page plus a linked Staff profile (a guardian holds student_records.read /
 grades.read too and must never reach the school-side console).
 """
+import datetime
 from decimal import Decimal
+from urllib.parse import urlencode
 
-from django.db.models import Count, Q
+from django.db.models import Count, F, Q
 from django.http import HttpResponse
 from django.shortcuts import render
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import status
 from rest_framework.response import Response
@@ -24,8 +27,10 @@ from apps.academic.models import (
     HomeworkSubmissionStatus,
     ReportCard,
     ReportCardStatus,
+    SubstitutionStatus,
     Term,
     TimetableSlot,
+    TimetableSubstitution,
 )
 from apps.academic.services import compute_descriptor, get_homework_grading_queue, render_report_card_html
 from apps.identity.console_access import StaffConsoleMixin
@@ -138,10 +143,30 @@ def build_timetable_grid(slots):
     return {'days': days, 'rows': rows}
 
 
+def _parse_week_start(raw):
+    """Monday of the week containing `raw` (ISO date); today's week if missing or invalid."""
+    try:
+        day = datetime.date.fromisoformat(raw)
+    except (TypeError, ValueError):
+        day = timezone.localdate()
+    return day - datetime.timedelta(days=day.weekday())
+
+
+def _week_url(lens, week_start=None):
+    params = {}
+    if lens is not None:
+        params['lens'] = f'{lens[0]}:{lens[1]}'
+    if week_start is not None:
+        params['week'] = week_start.isoformat()
+    return '?' + urlencode(params)
+
+
 class TimetablePageView(StaffConsoleMixin, APIView):
-    """GET /web/academic/timetable/?lens=class:<id>|teacher:<staff id> — weekly
-    grid for one class or one teacher. Default: the first class of an active
-    academic year. Recurring slots only; substitutions are not overlaid."""
+    """GET /web/academic/timetable/?lens=class:<id>|teacher:<staff id>&week=<date>
+    — weekly grid for one class or one teacher. Default: the first class of an
+    active academic year, this week. Single-date substitutions for the shown
+    week are overlaid (pending and accepted, mirroring get_effective_teacher_for_slot;
+    declined ones are ignored), and a teacher's view also lists slots they cover."""
 
     def get_required_permission(self):
         return 'student_records.read'
@@ -166,8 +191,17 @@ class TimetablePageView(StaffConsoleMixin, APIView):
         if lens is None and class_groups:
             lens = ('class', class_groups[0].id)
 
+        week_start = _parse_week_start(request.query_params.get('week'))
+        week_end = week_start + datetime.timedelta(days=6)
+        # A substitution counts only on the weekday its slot recurs on.
+        week_substitutions = TimetableSubstitution.objects.filter(
+            foundation_id=foundation_id, deleted_at__isnull=True,
+            date__range=(week_start, week_end), date__iso_week_day=F('slot__day_of_week'),
+        ).exclude(status=SubstitutionStatus.DECLINED)
+
         slots = TimetableSlot.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True)
         title = None
+        grid = build_timetable_grid([])
         if lens is not None:
             kind, object_id = lens
             if kind == 'class':
@@ -179,15 +213,24 @@ class TimetablePageView(StaffConsoleMixin, APIView):
             else:
                 selected = next((t for t in teachers if t.id == object_id), None)
                 title = selected.person.full_name if selected else None
-                slots = slots.filter(class_subject__teacher_id=object_id)
+                covered_slot_ids = week_substitutions.filter(substitute_teacher_id=object_id).values('slot_id')
+                slots = slots.filter(Q(class_subject__teacher_id=object_id) | Q(id__in=covered_slot_ids))
             if selected is None:
                 return Response({'error': _("Jadwal tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
-            slots = slots.select_related(
+            slots = list(slots.select_related(
                 'class_subject__subject', 'class_subject__teacher__person', 'class_subject__class_group',
-            )
+            ))
+            substitution_by_slot = {
+                sub.slot_id: sub
+                for sub in week_substitutions.filter(slot_id__in=[slot.id for slot in slots])
+                .select_related('substitute_teacher__person')
+            }
+            for slot in slots:
+                slot.substitution = substitution_by_slot.get(slot.id)
             grid = build_timetable_grid(slots)
-        else:
-            grid = build_timetable_grid([])
+        grid['headers'] = [
+            {'label': day.label, 'date': week_start + datetime.timedelta(days=day.value - 1)} for day in grid['days']
+        ]
 
         return render(request, 'pages/academic_timetable.html', {
             'class_groups': class_groups,
@@ -196,6 +239,12 @@ class TimetablePageView(StaffConsoleMixin, APIView):
             'title': title,
             'is_teacher_lens': lens is not None and lens[0] == 'teacher',
             'grid': grid,
+            'week_start': week_start,
+            'week_end': week_end,
+            'is_current_week': week_start == _parse_week_start(None),
+            'prev_week_url': _week_url(lens, week_start - datetime.timedelta(days=7)),
+            'next_week_url': _week_url(lens, week_start + datetime.timedelta(days=7)),
+            'this_week_url': _week_url(lens),
         })
 
 
