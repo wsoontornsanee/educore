@@ -1,0 +1,49 @@
+{% load i18n %}
+{% comment %}
+Fragment: the Kotak tugas sections. Rendered inline by pages/console_inbox.html and
+returned on its own by ConsoleInboxActionView after an in-place decision (HTMX swaps
+it into #inbox-sections). Items with `actions` carry approve/reject-style buttons.
+{% endcomment %}
+{% if message %}
+<p role="{% if message.level == 'error' %}alert{% else %}status{% endif %}" style="margin:0 0 16px;padding:10px 14px;font-family:'IBM Plex Sans',sans-serif;font-size:13.5px;border:1px solid {% if message.level == 'error' %}#FECACA;background:#FEF2F2;color:#B91C1C{% else %}#A7F3D0;background:#ECFDF5;color:#047857{% endif %}">{{ message.text }}</p>
+{% endif %}
+{% for section in sections %}
+<section aria-labelledby="inbox-{{ section.id }}" style="margin-bottom:24px">
+  <h2 id="inbox-{{ section.id }}" style="margin:0 0 8px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8E8178">
+    {{ section.label }} · {{ section.total }}
+  </h2>
+  <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px">
+    {% for item in section.items %}
+    <li style="background:#fff;border:1px solid #E5DDD9;padding:14px 16px;display:flex;flex-direction:column;gap:4px">
+      <span style="font-family:'IBM Plex Sans',sans-serif;font-size:14px;font-weight:600;color:#16110F">{{ item.title }}</span>
+      <span style="font-family:'IBM Plex Sans',sans-serif;font-size:13px;color:#5C514A">{{ item.detail }}</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8E8178">{{ item.requested_at|date:"d/m/Y H:i" }}</span>
+      {% if item.actions %}
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px">
+        {% if item.note_hint %}
+        <input type="text" name="note" maxlength="255" placeholder="{{ item.note_hint }}" aria-label="{{ item.note_hint }}" style="flex:1;min-width:180px;padding:7px 10px;border:1px solid #E5DDD9;border-radius:0;font:inherit;font-size:13px">
+        {% endif %}
+        {% for action in item.actions %}
+        <button type="button"
+                hx-post="{% url 'console-inbox-action' kind=item.kind pk=item.pk action=action.key %}"
+                hx-include="closest div"
+                hx-target="#inbox-sections"
+                hx-swap="innerHTML"
+                style="padding:7px 14px;border:1px solid {% if forloop.first %}#C8102E;background:#C8102E;color:#fff{% else %}#E5DDD9;background:#fff;color:#16110F{% endif %};border-radius:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:13px;cursor:pointer">{{ action.label }}</button>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% if section.total > section.items|length %}
+  <p style="margin:8px 0 0;font-family:'IBM Plex Sans',sans-serif;font-size:12.5px;color:#8E8178">
+    {% blocktranslate with shown=section.items|length total=section.total %}Menampilkan {{ shown }} dari {{ total }} item.{% endblocktranslate %}
+  </p>
+  {% endif %}
+</section>
+{% empty %}
+<p style="margin:0;padding:32px 0;font-family:'IBM Plex Sans',sans-serif;font-size:14px;color:#5C514A">
+  {% translate "Tidak ada tugas yang menunggu Anda saat ini." %}
+</p>
+{% endfor %}
