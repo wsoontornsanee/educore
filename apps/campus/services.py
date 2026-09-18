@@ -1,4 +1,6 @@
+import datetime
 import logging
+from decimal import Decimal
 from typing import Optional
 
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -18,6 +20,9 @@ from .models import (
     CounsellingConfidentiality,
     CounsellingSession,
     CounsellingSessionType,
+    LibraryItem,
+    LibraryItemType,
+    LibraryPolicy,
     Loan,
     LoanBorrowerType,
     LoanStatus,
@@ -744,3 +749,254 @@ def remind_overdue_loans(foundation_id: int) -> dict:
             logger.warning(f"Error notifying borrower of overdue loan #{loan.id}: {exc}")
 
     return {'reminded_loan_ids': reminded_loan_ids, 'count': len(reminded_loan_ids)}
+
+
+def _resolve_borrower(foundation_id: int, borrower_type: str, borrower_id: int):
+    """Resolves a Loan's generic (borrower_type, borrower_id) pair to a Student or Staff row."""
+    if borrower_type == LoanBorrowerType.STUDENT:
+        borrower = Student.objects.filter(pk=borrower_id, foundation_id=foundation_id, deleted_at__isnull=True).select_related('person', 'school').first()
+    else:
+        borrower = Staff.objects.filter(pk=borrower_id, foundation_id=foundation_id, deleted_at__isnull=True).select_related('person', 'school').first()
+    return borrower
+
+
+def get_or_create_library_policy(school: School, borrower_type: str) -> LibraryPolicy:
+    """Gets or creates the LibraryPolicy for a school + borrower type (LIF-019, LIF-020)."""
+    policy, _ = LibraryPolicy.objects.get_or_create(
+        foundation_id=school.foundation_id,
+        school=school,
+        borrower_type=borrower_type,
+        defaults={
+            'loan_period_days': 7,
+            'max_concurrent_loans': 3,
+            'fine_per_day': Decimal('0.00'),
+            'fine_cap': Decimal('0.00'),
+        },
+    )
+    return policy
+
+
+def checkout_library_item(
+    school: School,
+    item: LibraryItem,
+    borrower_type: str,
+    borrower_id: int,
+    checked_out_by: Optional[User] = None,
+    occurred_at=None,
+    condition_on_issue: str = '',
+) -> Loan:
+    """Checks out a LibraryItem to a student or staff borrower (LIF-019, LIF-022, LIF-023).
+
+    Availability is decremented under a row lock so concurrent checkouts of the
+    last copy never both succeed.
+    """
+    if item.school_id != school.id:
+        raise ValidationError("Barang perpustakaan tidak sesuai dengan sekolah.")
+    if borrower_type not in (LoanBorrowerType.STUDENT, LoanBorrowerType.STAFF):
+        raise ValidationError("Tipe peminjam tidak valid.")
+
+    borrower = _resolve_borrower(school.foundation_id, borrower_type, borrower_id)
+    if not borrower:
+        raise ValidationError("Peminjam tidak ditemukan.")
+
+    if item.type == LibraryItemType.EQUIPMENT and not (condition_on_issue or '').strip():
+        raise ValidationError("Kondisi barang wajib dicatat saat peminjaman peralatan (LIF-022).")
+
+    if occurred_at is None:
+        occurred_at = timezone.now()
+
+    policy = get_or_create_library_policy(school, borrower_type)
+
+    active_loans_count = Loan.objects.filter(
+        foundation_id=school.foundation_id,
+        borrower_type=borrower_type,
+        borrower_id=borrower_id,
+        status__in=[LoanStatus.ACTIVE, LoanStatus.OVERDUE],
+        deleted_at__isnull=True,
+    ).count()
+    if active_loans_count >= policy.max_concurrent_loans:
+        raise ValidationError(
+            f"Batas maksimum pinjaman aktif ({policy.max_concurrent_loans}) telah tercapai."
+        )
+
+    with transaction.atomic():
+        locked_item = LibraryItem.objects.select_for_update().get(pk=item.pk)
+        if locked_item.copies_available < 1:
+            raise ValidationError("Tidak ada salinan barang yang tersedia untuk dipinjam.")
+
+        locked_item.copies_available -= 1
+        locked_item.save(update_fields=['copies_available', 'updated_at'])
+
+        loan = Loan.objects.create(
+            foundation_id=school.foundation_id,
+            item=locked_item,
+            borrower_type=borrower_type,
+            borrower_id=borrower_id,
+            borrowed_at=occurred_at,
+            due_at=occurred_at + datetime.timedelta(days=policy.loan_period_days),
+            status=LoanStatus.ACTIVE,
+            condition_on_issue=condition_on_issue or '',
+            checked_out_by=checked_out_by,
+        )
+
+        audit(
+            action='campus.library.checked_out',
+            entity_type='Loan',
+            entity_id=loan.id,
+            actor_id=str(checked_out_by.id) if checked_out_by else None,
+            foundation_id=school.foundation_id,
+            school_id=school.id,
+            diff={
+                'item_id': item.id,
+                'borrower_type': borrower_type,
+                'borrower_id': borrower_id,
+                'due_at': loan.due_at.isoformat(),
+            },
+        )
+
+    return loan
+
+
+def return_library_item(
+    loan: Loan,
+    condition_on_return: str = '',
+    occurred_at=None,
+) -> Loan:
+    """Returns a checked-out Loan, posting an overdue fine to the borrower's invoice
+    as an OTHER fee line if applicable (LIF-020, LIF-022, LIF-023)."""
+    if loan.status not in (LoanStatus.ACTIVE, LoanStatus.OVERDUE):
+        raise ValidationError("Pinjaman ini sudah dikembalikan atau ditandai hilang.")
+
+    if loan.item.type == LibraryItemType.EQUIPMENT and not (condition_on_return or '').strip():
+        raise ValidationError("Kondisi barang wajib dicatat saat pengembalian peralatan (LIF-022).")
+
+    if occurred_at is None:
+        occurred_at = timezone.now()
+
+    school = loan.item.school
+    policy = get_or_create_library_policy(school, loan.borrower_type)
+
+    fine = Decimal('0.00')
+    if occurred_at > loan.due_at and policy.fine_per_day > 0:
+        days_late = (occurred_at.date() - loan.due_at.date()).days
+        if days_late > 0:
+            fine = policy.fine_per_day * days_late
+            if policy.fine_cap > 0:
+                fine = min(fine, policy.fine_cap)
+
+    with transaction.atomic():
+        locked_item = LibraryItem.objects.select_for_update().get(pk=loan.item_id)
+        locked_item.copies_available = min(locked_item.copies_available + 1, locked_item.copies_total)
+        locked_item.save(update_fields=['copies_available', 'updated_at'])
+
+        loan.returned_at = occurred_at
+        loan.status = LoanStatus.RETURNED
+        loan.condition_on_return = condition_on_return or ''
+        loan.fine = fine
+        loan.save(update_fields=['returned_at', 'status', 'condition_on_return', 'fine', 'updated_at'])
+
+        if fine > 0 and loan.borrower_type == LoanBorrowerType.STUDENT:
+            student = Student.objects.filter(pk=loan.borrower_id, foundation_id=loan.foundation_id).first()
+            if student:
+                from apps.finance.services import add_adhoc_invoice_line
+                add_adhoc_invoice_line(
+                    student=student,
+                    school=school,
+                    code='LIB_FINE',
+                    description=f"Denda keterlambatan perpustakaan: {loan.item.title}",
+                    amount=fine,
+                )
+
+        audit(
+            action='campus.library.returned',
+            entity_type='Loan',
+            entity_id=loan.id,
+            foundation_id=loan.foundation_id,
+            school_id=school.id,
+            diff={
+                'returned_at': occurred_at.isoformat(),
+                'fine': str(fine),
+            },
+        )
+
+    return loan
+
+
+def mark_loan_lost(
+    loan: Loan,
+    approved_by: Staff,
+    occurred_at=None,
+) -> Loan:
+    """Marks a Loan's item as lost and charges the configured replacement cost to the
+    borrower's invoice with staff approval (LIF-021). The lost copy is permanently
+    removed from circulation."""
+    if loan.status not in (LoanStatus.ACTIVE, LoanStatus.OVERDUE):
+        raise ValidationError("Pinjaman ini sudah dikembalikan atau ditandai hilang.")
+    if not approved_by:
+        raise ValidationError("Persetujuan staf wajib untuk menandai barang hilang (LIF-021).")
+
+    if occurred_at is None:
+        occurred_at = timezone.now()
+
+    school = loan.item.school
+
+    with transaction.atomic():
+        locked_item = LibraryItem.objects.select_for_update().get(pk=loan.item_id)
+        locked_item.copies_total = max(locked_item.copies_total - 1, 0)
+        locked_item.save(update_fields=['copies_total', 'updated_at'])
+
+        loan.status = LoanStatus.LOST
+        loan.returned_at = occurred_at
+        loan.save(update_fields=['status', 'returned_at', 'updated_at'])
+
+        replacement_cost = locked_item.replacement_cost
+        if replacement_cost > 0 and loan.borrower_type == LoanBorrowerType.STUDENT:
+            student = Student.objects.filter(pk=loan.borrower_id, foundation_id=loan.foundation_id).first()
+            if student:
+                from apps.finance.services import add_adhoc_invoice_line
+                add_adhoc_invoice_line(
+                    student=student,
+                    school=school,
+                    code='LIB_LOST',
+                    description=f"Biaya penggantian barang hilang: {locked_item.title}",
+                    amount=replacement_cost,
+                )
+
+        audit(
+            action='campus.library.lost',
+            entity_type='Loan',
+            entity_id=loan.id,
+            actor_id=str(approved_by.id),
+            foundation_id=loan.foundation_id,
+            school_id=school.id,
+            diff={
+                'item_id': locked_item.id,
+                'replacement_cost': str(replacement_cost),
+                'approved_by_staff_id': approved_by.id,
+            },
+        )
+
+    return loan
+
+
+def get_overdue_loans(foundation_id: int, school_id: Optional[int] = None, at_datetime=None):
+    """Returns loans past their due date and not yet returned (spec/10 §7 GET /library/overdue).
+
+    Includes both ACTIVE loans whose due_at has passed (before the daily
+    `remind_library_loans` cron has swept them) and loans already flipped to
+    OVERDUE by that cron, so this endpoint is accurate at any time of day.
+    """
+    if at_datetime is None:
+        at_datetime = timezone.now()
+
+    qs = Loan.objects.filter(
+        foundation_id=foundation_id,
+        deleted_at__isnull=True,
+    ).filter(
+        Q(status=LoanStatus.OVERDUE) | Q(status=LoanStatus.ACTIVE, due_at__lt=at_datetime)
+    ).select_related('item').order_by('due_at')
+
+    if school_id:
+        qs = qs.filter(item__school_id=school_id)
+
+    return qs

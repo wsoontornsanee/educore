@@ -8,27 +8,46 @@ from apps.core.pagination import StandardCursorPagination
 from apps.identity.models import Guardian, School, Staff, Student
 from apps.identity.permissions import HasRequiredPermission
 from educore.middleware.tenancy import get_current_foundation_id
-from .models import BehaviourCase, BehaviourPolicy, BehaviourReason, BehaviourRecord, CounsellingConfidentiality, CounsellingSession
+from .models import (
+    BehaviourCase,
+    BehaviourPolicy,
+    BehaviourReason,
+    BehaviourRecord,
+    CounsellingConfidentiality,
+    CounsellingSession,
+    LibraryItem,
+    Loan,
+    LoanBorrowerType,
+)
 from .serializers import (
     AcknowledgeRecordInputSerializer,
     BehaviourCaseSerializer,
     BehaviourPolicySerializer,
     BehaviourReasonSerializer,
     BehaviourRecordSerializer,
+    CheckoutLoanInputSerializer,
     CounsellingSessionSerializer,
+    LibraryItemSerializer,
+    LoanSerializer,
+    MarkLoanLostInputSerializer,
     RecordBehaviourInputSerializer,
     RecordCounsellingSessionInputSerializer,
+    ReturnLoanInputSerializer,
     StudentBehaviourSummarySerializer,
     SupersedeRecordInputSerializer,
 )
 from .services import (
     access_counselling_session,
     acknowledge_behaviour_record,
+    checkout_library_item,
     get_or_create_behaviour_policy,
+    get_overdue_loans,
     get_principal_users,
     get_student_behaviour_summary,
+    mark_loan_lost,
     record_behaviour,
     record_counselling_session,
+    return_library_item,
     supersede_behaviour_record,
 )
 
@@ -553,3 +572,201 @@ class CounsellingSessionViewSet(viewsets.ModelViewSet):
         self._attach_notes([session])
         output_serializer = self.get_serializer(session)
         return Response(output_serializer.data, status=status.HTTP_201_CREATED)
+
+
+class LibraryItemViewSet(viewsets.ModelViewSet):
+    """CRUD viewset for the library/asset catalogue (spec/10 §6)."""
+    queryset = LibraryItem.objects.all()
+    serializer_class = LibraryItemSerializer
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'library.read'
+    action_permissions = {
+        'create': 'library.write',
+        'update': 'library.write',
+        'partial_update': 'library.write',
+        'destroy': 'library.write',
+    }
+    pagination_class = StandardCursorPagination
+
+    def get_queryset(self):
+        foundation_id = get_current_foundation_id()
+        if not foundation_id:
+            return LibraryItem.objects.none()
+        qs = LibraryItem.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True).order_by('title')
+        school_id = self.request.query_params.get('school_id')
+        if school_id:
+            qs = qs.filter(school_id=school_id)
+        item_type = self.request.query_params.get('type')
+        if item_type:
+            qs = qs.filter(type=item_type)
+        available_only = self.request.query_params.get('available_only')
+        if available_only is not None and available_only.lower() in ['true', '1']:
+            qs = qs.filter(copies_available__gt=0)
+        return qs
+
+    def perform_create(self, serializer):
+        foundation_id = get_current_foundation_id() or getattr(self.request.user, 'foundation_id', None)
+        copies_total = serializer.validated_data.get('copies_total', 1)
+        serializer.save(foundation_id=foundation_id, copies_available=copies_total)
+
+
+class LoanViewSet(viewsets.ModelViewSet):
+    """Checkout/return viewset for library loans (LIF-019 to LIF-023)."""
+    queryset = Loan.objects.all().select_related('item')
+    serializer_class = LoanSerializer
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'library.read'
+    action_permissions = {
+        'create': 'library.write',
+        'return_item': 'library.write',
+        'mark_lost': 'library.write',
+    }
+    pagination_class = StandardCursorPagination
+    http_method_names = ['get', 'post', 'head', 'options']
+
+    def get_queryset(self):
+        foundation_id = get_current_foundation_id()
+        if not foundation_id:
+            return Loan.objects.none()
+        qs = Loan.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True).select_related(
+            'item'
+        ).order_by('-borrowed_at', '-id')
+
+        user = self.request.user
+        if not user or not user.is_authenticated:
+            return Loan.objects.none()
+
+        if not user.is_superuser:
+            from django.db.models import Q
+            from apps.identity.models import RoleAssignment
+            from apps.identity.guardian_access import get_guardian_student_ids, STAFF_ROLES
+
+            has_fnd_admin = RoleAssignment.all_tenants.filter(
+                foundation_id=foundation_id,
+                user=user,
+                role=RoleAssignment.ROLE_FOUNDATION_ADMIN,
+                scope_type=RoleAssignment.SCOPE_FOUNDATION,
+                deleted_at__isnull=True,
+            ).exists()
+
+            if not has_fnd_admin:
+                staff_school_ids = set(RoleAssignment.all_tenants.filter(
+                    foundation_id=foundation_id,
+                    user=user,
+                    role__in=STAFF_ROLES,
+                    scope_type=RoleAssignment.SCOPE_SCHOOL,
+                    deleted_at__isnull=True,
+                ).values_list('scope_id', flat=True))
+
+                parent_student_ids = get_guardian_student_ids(user, foundation_id)
+                student_borrower_q = Q(borrower_type=LoanBorrowerType.STUDENT, borrower_id__in=parent_student_ids)
+
+                if staff_school_ids and parent_student_ids:
+                    qs = qs.filter(Q(item__school_id__in=staff_school_ids) | student_borrower_q)
+                elif staff_school_ids:
+                    qs = qs.filter(item__school_id__in=staff_school_ids)
+                elif parent_student_ids:
+                    qs = qs.filter(student_borrower_q)
+                else:
+                    return Loan.objects.none()
+
+        borrower_id = self.request.query_params.get('borrower_id')
+        if borrower_id:
+            qs = qs.filter(borrower_id=borrower_id)
+        borrower_type = self.request.query_params.get('borrower_type')
+        if borrower_type:
+            qs = qs.filter(borrower_type=borrower_type)
+        school_id = self.request.query_params.get('school_id')
+        if school_id:
+            qs = qs.filter(item__school_id=school_id)
+        loan_status = self.request.query_params.get('status')
+        if loan_status:
+            qs = qs.filter(status=loan_status)
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        """POST /library/loans — checkout by student/staff card tap (LIF-019)."""
+        serializer = CheckoutLoanInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        try:
+            item = LibraryItem.objects.get(pk=data['item_id'], foundation_id=foundation_id, deleted_at__isnull=True)
+        except LibraryItem.DoesNotExist:
+            raise exceptions.NotFound("Barang perpustakaan tidak ditemukan.")
+
+        try:
+            loan = checkout_library_item(
+                school=item.school,
+                item=item,
+                borrower_type=data['borrower_type'],
+                borrower_id=data['borrower_id'],
+                checked_out_by=request.user,
+                occurred_at=data.get('occurred_at'),
+                condition_on_issue=data.get('condition_on_issue', ''),
+            )
+        except Exception as exc:
+            raise exceptions.ValidationError(str(exc))
+
+        output_serializer = LoanSerializer(loan)
+        return Response(output_serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='return')
+    def return_item(self, request, pk=None):
+        """POST /library/loans/:id/return (spec/10 §7)."""
+        loan = self.get_object()
+        serializer = ReturnLoanInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        try:
+            returned = return_library_item(
+                loan=loan,
+                condition_on_return=data.get('condition_on_return', ''),
+                occurred_at=data.get('occurred_at'),
+            )
+        except Exception as exc:
+            raise exceptions.ValidationError(str(exc))
+
+        output_serializer = LoanSerializer(returned)
+        return Response(output_serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='lost')
+    def mark_lost(self, request, pk=None):
+        """POST /library/loans/:id/lost — lost item handling with staff approval (LIF-021)."""
+        loan = self.get_object()
+        serializer = MarkLoanLostInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        try:
+            approved_by = Staff.objects.get(pk=data['approved_by_staff_id'], foundation_id=foundation_id, deleted_at__isnull=True)
+        except Staff.DoesNotExist:
+            raise exceptions.NotFound("Staf yang menyetujui tidak ditemukan.")
+
+        try:
+            lost_loan = mark_loan_lost(
+                loan=loan,
+                approved_by=approved_by,
+                occurred_at=data.get('occurred_at'),
+            )
+        except Exception as exc:
+            raise exceptions.ValidationError(str(exc))
+
+        output_serializer = LoanSerializer(lost_loan)
+        return Response(output_serializer.data, status=status.HTTP_200_OK)
+
+
+class OverdueLoansView(APIView):
+    """GET /library/overdue (spec/10 §7)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'library.read'
+
+    def get(self, request):
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        school_id = request.query_params.get('school_id')
+        overdue = get_overdue_loans(foundation_id=foundation_id, school_id=school_id)
+        serializer = LoanSerializer(overdue, many=True)
+        return Response(serializer.data)

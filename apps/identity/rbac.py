@@ -37,6 +37,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'wallet.topup.read',
         'behaviour.read',
         'clinic.read',
+        'library.read',
         'payroll.read', 'payroll.write',
         'hardware.read', 'hardware.write',
         'audit_log.read',
@@ -53,6 +54,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'wallet.topup.read',
         'behaviour.read', 'behaviour.write',
         'clinic.read',
+        'library.read', 'library.write',
         'payroll.read',
         'hardware.read', 'hardware.write',
         'audit_log.read',
@@ -106,6 +108,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'wallet.topup.read', 'wallet.topup.write',
         'behaviour.read',
         'clinic.read',
+        'library.read',
         'analytics.event.write',
     },
 }

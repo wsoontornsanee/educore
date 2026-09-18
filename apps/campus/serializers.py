@@ -10,6 +10,9 @@ from .models import (
     CounsellingConfidentiality,
     CounsellingSession,
     CounsellingSessionType,
+    LibraryItem,
+    Loan,
+    LoanBorrowerType,
 )
 
 
@@ -239,3 +242,80 @@ class StudentBehaviourSummarySerializer(serializers.Serializer):
     unacknowledged_infractions_count = serializers.IntegerField()
     active_cases_count = serializers.IntegerField()
     escalation_threshold = serializers.IntegerField()
+
+
+class LibraryItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LibraryItem
+        fields = [
+            'id',
+            'school',
+            'type',
+            'title',
+            'author',
+            'isbn',
+            'copies_total',
+            'copies_available',
+            'location',
+            'replacement_cost',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'copies_available', 'created_at', 'updated_at']
+
+
+class LoanSerializer(serializers.ModelSerializer):
+    item_title = serializers.CharField(source='item.title', read_only=True)
+    school = serializers.IntegerField(source='item.school_id', read_only=True)
+    borrower_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Loan
+        fields = [
+            'id',
+            'school',
+            'item',
+            'item_title',
+            'borrower_type',
+            'borrower_id',
+            'borrower_name',
+            'borrowed_at',
+            'due_at',
+            'returned_at',
+            'fine',
+            'status',
+            'condition_on_issue',
+            'condition_on_return',
+            'checked_out_by',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = fields
+
+    def get_borrower_name(self, obj) -> str:
+        from apps.identity.models import Staff, Student
+        if obj.borrower_type == LoanBorrowerType.STUDENT:
+            borrower = Student.objects.filter(pk=obj.borrower_id).select_related('person').first()
+        else:
+            borrower = Staff.objects.filter(pk=obj.borrower_id).select_related('person').first()
+        if borrower and getattr(borrower, 'person', None):
+            return borrower.person.full_name
+        return f"{obj.borrower_type} #{obj.borrower_id}"
+
+
+class CheckoutLoanInputSerializer(serializers.Serializer):
+    item_id = serializers.IntegerField(required=True)
+    borrower_type = serializers.ChoiceField(choices=LoanBorrowerType.choices, required=True)
+    borrower_id = serializers.IntegerField(required=True)
+    condition_on_issue = serializers.CharField(required=False, allow_blank=True, default='')
+    occurred_at = serializers.DateTimeField(required=False, allow_null=True)
+
+
+class ReturnLoanInputSerializer(serializers.Serializer):
+    condition_on_return = serializers.CharField(required=False, allow_blank=True, default='')
+    occurred_at = serializers.DateTimeField(required=False, allow_null=True)
+
+
+class MarkLoanLostInputSerializer(serializers.Serializer):
+    approved_by_staff_id = serializers.IntegerField(required=True)
+    occurred_at = serializers.DateTimeField(required=False, allow_null=True)
