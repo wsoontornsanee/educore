@@ -19,3 +19,14 @@ class ClinicCryptoTests(TestCase):
         ciphertext = Fernet(Fernet.generate_key()).encrypt(b"data").decode()
         with self.assertRaises(RuntimeError):
             decrypt_note(ciphertext)
+
+    @override_settings(EDUCORE_CLINIC_FERNET_KEY='not-a-valid-fernet-key')
+    def test_malformed_explicit_key_fails_hard_instead_of_silent_fallback(self):
+        with self.assertRaises(RuntimeError):
+            encrypt_note("Demam tinggi")
+
+    @override_settings(EDUCORE_COUNSELLING_FERNET_KEY='also-not-valid')
+    def test_malformed_explicit_counselling_key_fails_hard(self):
+        from apps.campus.crypto import encrypt_notes
+        with self.assertRaises(RuntimeError):
+            encrypt_notes("Catatan sesi")
