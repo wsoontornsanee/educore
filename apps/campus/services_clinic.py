@@ -214,55 +214,29 @@ def _apply_sakit_override_to_remaining_periods(visit: ClinicVisit) -> None:
 
     'Remaining' = the student's TimetableSlots that weekday whose start_time is still
     ahead of the visit's school-local wall-clock time — the in-progress period at the
-    moment of the visit, and every period before it, are left alone entirely (get_or_create
-    only creates a row if none exists yet, so a teacher's real earlier-in-the-day
-    attendance is never overwritten). Queries use the unscoped `all_tenants` manager with
-    an explicit `foundation_id` filter, the same pattern `_apply_sakit_override` (above)
-    uses for `AttendanceDay` — this function must work correctly even if ever called
-    outside an HTTP request's ambient tenancy thread-local (e.g. a future management
-    command), where the default `TenantManager` would otherwise fail closed to empty.
+    moment of the visit, and every period before it, are left alone entirely. Delegates the
+    actual TimetableSlot lookup + get_or_create write to the shared
+    apps.attendance.services.mark_period_attendance_for_day (also used by
+    approve_absence_request for a whole excused day), so both callers share one
+    implementation of "never overwrite an already-recorded period."
     """
-    from apps.academic.models import ClassEnrollment, TimetableSlot
-    from apps.attendance.models import AttendanceStatus, PeriodAttendance, PeriodAttendanceSource
-    from apps.attendance.services import get_school_timezone
+    from apps.attendance.models import AttendanceStatus, PeriodAttendanceSource
+    from apps.attendance.services import get_school_timezone, mark_period_attendance_for_day
 
     visit_local = visit.occurred_at.astimezone(get_school_timezone(visit.school))
-
-    class_group_ids = ClassEnrollment.all_tenants.filter(
-        foundation_id=visit.foundation_id, student=visit.student, is_active=True, deleted_at__isnull=True,
-    ).values_list('class_group_id', flat=True)
-
-    # Scoped by class_subject__class_group__school too (matching
-    # get_expected_periods_for_school's own scope), not just foundation_id: a stale
-    # duplicate active ClassEnrollment in a different school within the same foundation
-    # must never pull in that other school's timetable slots.
-    remaining_slots = TimetableSlot.all_tenants.filter(
-        foundation_id=visit.foundation_id,
-        class_subject__class_group_id__in=class_group_ids,
-        class_subject__class_group__school=visit.school,
-        day_of_week=visit_local.isoweekday(),
-        start_time__gt=visit_local.time(),
-        deleted_at__isnull=True,
-    )
-
     note_text, user = _clinic_override_note_and_user(visit)
-    created_slot_ids = []
 
-    for slot in remaining_slots:
-        _record, created = PeriodAttendance.all_tenants.get_or_create(
-            foundation_id=visit.foundation_id,
-            student=visit.student,
-            slot=slot,
-            date=visit_local.date(),
-            defaults={
-                'status': AttendanceStatus.SAKIT,
-                'source': PeriodAttendanceSource.MANUAL,
-                'note': note_text,
-                'recorded_by': user,
-            },
-        )
-        if created:
-            created_slot_ids.append(slot.id)
+    created_slot_ids = mark_period_attendance_for_day(
+        foundation_id=visit.foundation_id,
+        school=visit.school,
+        student=visit.student,
+        date=visit_local.date(),
+        status=AttendanceStatus.SAKIT,
+        source=PeriodAttendanceSource.MANUAL,
+        note=note_text,
+        user=user,
+        after_time=visit_local.time(),
+    )
 
     if created_slot_ids:
         audit(
