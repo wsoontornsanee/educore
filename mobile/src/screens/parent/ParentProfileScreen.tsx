@@ -15,6 +15,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -23,6 +24,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { ParentClinicHistoryScreen } from './ParentClinicHistoryScreen';
 import { useLocale } from '../../i18n/LocaleContext';
 import { t } from '../../i18n/strings';
 import {
@@ -74,6 +76,9 @@ export const ParentProfileScreen: React.FC<ParentProfileScreenProps> = ({
   const [bioHardwareAvailable, setBioHardwareAvailable] = useState(false);
   const [bioEnabled, setBioEnabled] = useState(false);
   const [bioLabel, setBioLabel] = useState('Biometrik');
+
+  // Clinic visit history modal — which child's history is currently shown, if any
+  const [clinicHistoryChild, setClinicHistoryChild] = useState<ChildSummary | null>(null);
 
   // Load data on mount
   useEffect(() => {
@@ -208,6 +213,27 @@ export const ParentProfileScreen: React.FC<ParentProfileScreenProps> = ({
             ))
           )}
         </View>
+
+        {/* 2b. Child health / clinic visit history (Notion: Guardian Read Scoping for Clinic Visit History) */}
+        {allChildren.length > 0 && (
+          <>
+            <Text style={styles.sectionHeader}>{t('profile.section.health', locale)}</Text>
+            <View style={styles.card}>
+              {allChildren.map((child) => (
+                <TouchableOpacity
+                  key={child.student_id}
+                  style={styles.healthRow}
+                  onPress={() => setClinicHistoryChild(child)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t('profile.health.view_history', locale)} ${child.full_name}`}
+                >
+                  <Text style={styles.childName}>{child.full_name}</Text>
+                  <Text style={styles.healthLink}>{t('profile.health.view_history', locale)}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        )}
 
         {/* 3. Notification preferences */}
         <Text style={styles.sectionHeader}>{t('profile.section.notif', locale)}</Text>
@@ -374,6 +400,20 @@ export const ParentProfileScreen: React.FC<ParentProfileScreenProps> = ({
 
         <View style={{ height: spacing.xxl }} />
       </ScrollView>
+
+      <Modal
+        visible={!!clinicHistoryChild}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setClinicHistoryChild(null)}
+      >
+        {clinicHistoryChild && (
+          <ParentClinicHistoryScreen
+            child={clinicHistoryChild}
+            onClose={() => setClinicHistoryChild(null)}
+          />
+        )}
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -417,6 +457,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: spacing.xs,
+  },
+  healthRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 44,
+    paddingVertical: spacing.xs,
+  },
+  healthLink: {
+    fontSize: typography.fontSize.sm,
+    color: colors.primary,
+    fontWeight: typography.fontWeight.medium,
   },
   childName: {
     flex: 1,
