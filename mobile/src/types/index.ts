@@ -115,6 +115,41 @@ export interface AttendanceDayItem {
   first_out_at: string | null;
 }
 
+export interface HealthProfileItem {
+  id: number;
+  student: number;
+  blood_type: string;
+  allergies: string[];
+  chronic_conditions: string[];
+  medications: string[];
+  emergency_contacts: Record<string, unknown>[];
+  has_medical_alert: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClinicVisitItem {
+  id: number;
+  school: number;
+  student: number;
+  student_name: string;
+  occurred_at: string;
+  complaint: string;
+  treatment: string;
+  vitals: Record<string, unknown>;
+  medication_given: number | null;
+  medication_name: string | null;
+  medication_quantity_used: number | null;
+  outcome: string;
+  handled_by: number;
+  handled_by_name: string;
+  guardian_consent_confirmed: boolean;
+  guardian_consent_note: string;
+  guardian_notified_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface InvoiceItem {
   id: number;
   number: string;
