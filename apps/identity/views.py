@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 from apps.core.services import audit
+from apps.core.throttling import LoginRateThrottle, OtpRequestIPThrottle
 from educore.middleware.tenancy import get_current_foundation_id
 from .guardian_access import is_staff_user
 from .models import FoundationEntitlement, Guardian, GuardianLink, RoleAssignment, User as UserModel
@@ -26,6 +27,8 @@ from .services import request_phone_otp, verify_phone_otp, normalize_phone_e164
 class EduCoreTokenObtainPairView(TokenObtainPairView):
     """Custom JWT token obtain view supporting dual phone/email identifier login (IAM-001)."""
     serializer_class = EduCoreTokenObtainPairSerializer
+    throttle_classes = [LoginRateThrottle]
+    throttle_scope = 'auth_login'
 
 class EduCoreTokenRefreshView(TokenRefreshView):
     """Tenant-aware JWT token refresh view."""
@@ -551,6 +554,8 @@ class StudentViewSet(viewsets.ModelViewSet):
 class RequestOtpView(views.APIView):
     """POST /api/v1/auth/otp/request/ — guardian OTP login, step 1 (PAR-001, IAM-002)."""
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [OtpRequestIPThrottle]
+    throttle_scope = 'otp_request_ip'
 
     def post(self, request):
         try:

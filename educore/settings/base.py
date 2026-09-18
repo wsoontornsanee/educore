@@ -198,14 +198,25 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 REST_FRAMEWORK = {
     'COERCE_DECIMAL_TO_STRING': True,  # CUR-026: serialize MoneyField/Decimal as string
     'DEFAULT_PAGINATION_CLASS': 'apps.core.pagination.StandardCursorPagination',
-    # spec/18 §5: partner views render RFC 9457 problem+json. The handler is
-    # view-scoped (apps.partners only) — every other app keeps its shape.
+    # Global handler (apps/partners/errors.py): partner views render RFC 9457
+    # problem+json (spec/18 §5); any Throttled exception renders the platform's
+    # standard 429 contract (apps.core.throttling); every other app/exception
+    # is delegated to DRF's own default handler unchanged.
     'EXCEPTION_HANDLER': 'apps.partners.errors._drf_problem_handler',
     'PAGE_SIZE': 50,
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'apps.identity.authentication.EduCoreJWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
+    # Per-view scoped rate limits (apps.core.throttling) for the endpoints named
+    # in the Production Readiness rate-limiting task — NOT a blanket
+    # DEFAULT_THROTTLE_CLASSES (see apps/core/throttling.py's module docstring
+    # for why a platform-wide anonymous throttle was deliberately not added).
+    'DEFAULT_THROTTLE_RATES': {
+        'auth_login': '10/min',
+        'otp_request_ip': '10/hour',
+        'payment_webhook': '100/min',
+    },
 }
 
 # Xendit payment gateway (spec/06 §4 FIN-011/FIN-012) — launch VA provider per the
