@@ -8,19 +8,21 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.academic.models import (
-    ClassGroup, DayOfWeek, ReportCard, ReportCardStatus, SubstitutionStatus, TimetableSubstitution,
+    ClassGroup, DayOfWeek, Homework, HomeworkSubmission, HomeworkSubmissionStatus, ReportCard, ReportCardStatus,
+    SubstitutionStatus, TimetableSubstitution,
 )
 from apps.academic.services import assign_substitution, create_timetable_slot
 from apps.academic.tests.base import build_academic_fixture
 from apps.attendance.models import AbsenceRequest, AbsenceRequestStatus
 from apps.finance.models import (
-    DiscountType, Invoice, InvoiceStatus, InvoiceWriteOffRequest, InvoiceWriteOffStatus,
+    DiscountType, Invoice, InvoiceStatus, InvoiceWriteOffRequest, InvoiceWriteOffStatus, Payment, PaymentMethod,
+    PaymentStatus,
 )
 from apps.finance.services.invoicing import create_discount_with_approval_check
 from apps.identity.inbox import ITEMS_PER_SECTION, get_inbox_count, get_inbox_for_user
 from apps.identity.models import Person, School, Staff, User
 from apps.identity.rbac import (
-    ROLE_FOUNDATION_ADMIN, ROLE_SCHOOL_ADMIN, ROLE_TEACHER, SCOPE_FOUNDATION, SCOPE_SCHOOL, assign_role,
+    ROLE_FINANCE_OFFICER, ROLE_FOUNDATION_ADMIN, ROLE_SCHOOL_ADMIN, ROLE_TEACHER, SCOPE_FOUNDATION, SCOPE_SCHOOL, assign_role,
 )
 from educore.middleware.tenancy import clear_current_foundation_id, set_current_foundation_id
 
@@ -252,3 +254,62 @@ class InboxBadgeTests(InboxTestBase):
         with CaptureQueriesContext(connection) as queries:
             console_nav(request)
         self.assertFalse([q for q in queries if 'absence_requests' in q['sql']])
+
+
+class ManualTransferInboxTests(InboxTestBase):
+    def setUp(self):
+        super().setUp()
+        self.finance = _user(self.fx, '+6281290000006', 'Keuangan', ROLE_FINANCE_OFFICER)
+        Payment.objects.create(
+            foundation_id=self.foundation.id, school=self.school, student=self.fx['student'],
+            amount=Decimal('500000.00'), net=Decimal('500000.00'), method=PaymentMethod.MANUAL,
+            channel='MANUAL_TRANSFER', reference='PAY/T/2026/000001', status=PaymentStatus.PENDING_VERIFICATION,
+        )
+
+    def test_shown_to_invoice_writers_in_that_school_only(self):
+        for user in (self.finance, self.admin):
+            self.assertEqual(_section_ids(user, self.foundation), ['manual_transfers'], user.full_name)
+        self.assertEqual(_section_ids(self.school_admin, self.foundation), [])  # invoice.read only
+        self.assertEqual(_section_ids(self.teacher, self.foundation), [])
+        self.assertIn('PAY/T/2026/000001', get_inbox_for_user(self.finance, self.foundation.id)[0]['items'][0].title)
+
+    def test_verified_transfers_are_not_tasks(self):
+        Payment.objects.update(status=PaymentStatus.SETTLED)
+        self.assertEqual(_section_ids(self.finance, self.foundation), [])
+
+    def test_finance_officer_of_another_school_does_not_see_it(self):
+        other = _user(self.fx, '+6281290000007', 'Keuangan B', ROLE_FINANCE_OFFICER, school=self.school_b)
+        self.assertEqual(_section_ids(other, self.foundation), [])
+
+
+class HomeworkToGradeInboxTests(InboxTestBase):
+    def setUp(self):
+        super().setUp()
+        now = timezone.now()
+        self.homework = Homework.objects.create(
+            foundation_id=self.foundation.id, class_subject=self.fx['class_subject'], title='Latihan Aljabar',
+            assigned_at=now - datetime.timedelta(days=5), due_at=now - datetime.timedelta(days=1),
+        )
+        self.submission = HomeworkSubmission.objects.create(
+            foundation_id=self.foundation.id, homework=self.homework, student=self.fx['student'],
+            submitted_at=now - datetime.timedelta(days=2), status=HomeworkSubmissionStatus.SUBMITTED,
+        )
+
+    def test_shown_only_to_the_teacher_of_that_class(self):
+        owner = self.fx['teacher_user']
+        sections = get_inbox_for_user(owner, self.foundation.id)
+        self.assertEqual([s['id'] for s in sections], ['homework_to_grade'])
+        self.assertIn('Latihan Aljabar', sections[0]['items'][0].title)
+        self.assertEqual(_section_ids(self.teacher, self.foundation), [])  # a teacher, but not of this class
+        self.assertEqual(_section_ids(self.admin, self.foundation), [])
+
+    def test_late_submissions_count_too(self):
+        HomeworkSubmission.objects.update(status=HomeworkSubmissionStatus.LATE)
+        self.assertEqual(_section_ids(self.fx['teacher_user'], self.foundation), ['homework_to_grade'])
+
+    def test_graded_returned_and_not_yet_due_are_not_tasks(self):
+        HomeworkSubmission.objects.update(status=HomeworkSubmissionStatus.GRADED)
+        self.assertEqual(_section_ids(self.fx['teacher_user'], self.foundation), [])
+        HomeworkSubmission.objects.update(status=HomeworkSubmissionStatus.SUBMITTED)
+        Homework.objects.update(due_at=timezone.now() + datetime.timedelta(days=1))
+        self.assertEqual(_section_ids(self.fx['teacher_user'], self.foundation), [])

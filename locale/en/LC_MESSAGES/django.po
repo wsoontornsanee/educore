@@ -7048,3 +7048,26 @@ msgstr "Exam proctor console — EduCore"
 #: frontend/templates/components/_console_school_select.html:9
 msgid "Sekolah"
 msgstr "School"
+
+#: apps/identity/inbox.py
+msgid "Transfer manual menunggu verifikasi"
+msgstr "Manual transfers awaiting verification"
+
+#: apps/identity/inbox.py
+msgid "Tugas menunggu penilaian"
+msgstr "Homework awaiting grading"
+
+#: apps/identity/inbox.py
+#, python-format
+msgid "Transfer manual %(reference)s — %(student)s"
+msgstr "Manual transfer %(reference)s — %(student)s"
+
+#: apps/identity/inbox.py
+#, python-format
+msgid "Nilai %(homework)s — %(student)s"
+msgstr "Grade %(homework)s — %(student)s"
+
+#: apps/identity/inbox.py
+#, python-format
+msgid "%(subject)s · %(class_group)s · tenggat %(due)s"
+msgstr "%(subject)s · %(class_group)s · due %(due)s"

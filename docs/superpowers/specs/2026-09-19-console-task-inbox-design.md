@@ -19,10 +19,18 @@ An item is shown only to a user who could act on it, using the same predicate as
 | Izin & sakit siswa | `AbsenceRequest` PENDING | holders of `attendance.write`, only for schools they hold it in |
 | Rapor menunggu tinjauan | current `ReportCard` PENDING_REVIEW | holders of `school_config.write` (the approve action's permission), same school scoping |
 | Permintaan mengganti kelas | `TimetableSubstitution` PENDING, date ≥ today | the assigned substitute (own `Staff` row); personal, no permission |
+| Transfer manual menunggu verifikasi | `Payment` PENDING_VERIFICATION, oldest first | holders of `finance.invoice.write` (the verify action's permission), school-scoped |
+| Tugas menunggu penilaian | `HomeworkSubmission` SUBMITTED/LATE whose homework deadline has passed | the teacher of that class (`ClassSubject.teacher` = own `Staff` row); personal |
 
 School scoping: `None` when the permission is held foundation-wide, else the set of schools where the user holds it (empty ⇒ section skipped without querying).
 
 Empty sections are omitted; no sections ⇒ an empty state. Rows are capped at 25 per section with the real total shown ("Menampilkan N dari M item").
+
+## Overdue rules (decided)
+
+"Overdue" is defined per source as a task that is waiting on the user and cannot get more input: homework is only listed once its deadline has passed (nothing more will be submitted, so what is ungraded is overdue); manual transfers are listed from the moment they need verification, oldest first (proofs are always waiting on a person).
+
+**Overdue invoices are deliberately not a source.** A school can have thousands, the arrears ladder already chases them automatically, and per-invoice tasks would pin every finance user's nav badge at 99+ and bury the items that need a decision. That backlog belongs on the Keuangan receivables page.
 
 ## Non-goals (follow-ups)
 
