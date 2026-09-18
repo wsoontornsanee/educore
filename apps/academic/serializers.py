@@ -1,11 +1,13 @@
 from rest_framework import serializers
 
 from apps.academic.models import (
+    AcademicCalendarEvent,
     AcademicYear,
     Assessment,
     AssessmentScore,
     Broadcast,
     BroadcastPolicy,
+    CalendarAcademicSyncPolicy,
     ClassEnrollment,
     ClassGroup,
     ClassSubject,
@@ -497,4 +499,28 @@ class ExamProctorResponseSerializer(serializers.Serializer):
     exam = ExamProctorHeaderSerializer()
     summary = ExamProctorSummarySerializer()
     students = ExamProctorStudentSerializer(many=True)
+
+
+class AcademicCalendarEventSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AcademicCalendarEvent
+        fields = [
+            'id', 'foundation_id', 'school', 'academic_year', 'term',
+            'event_type', 'title', 'description', 'location',
+            'start_at', 'end_at', 'is_all_day', 'class_groups',
+            'affects_attendance', 'source', 'external_event', 'exam',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'foundation_id', 'created_at', 'updated_at']
+
+
+class CalendarAcademicSyncPolicySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CalendarAcademicSyncPolicy
+        fields = [
+            'id', 'foundation_id', 'school', 'auto_sync_enabled',
+            'auto_create_exams', 'tag_prefix', 'custom_keywords',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'foundation_id', 'created_at', 'updated_at']
 

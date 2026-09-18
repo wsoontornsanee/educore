@@ -1036,11 +1036,41 @@ def get_teacher_agenda(teacher: Staff, date) -> list:
         ).values_list('slot_id', flat=True).distinct()
     )
 
+    # Check for active AcademicCalendarEvents affecting attendance on this date
+    from datetime import datetime, time
+    from apps.academic.models import AcademicCalendarEvent
+    tz = timezone.get_current_timezone()
+    day_start = timezone.make_aware(datetime.combine(date, time.min), tz)
+    day_end = timezone.make_aware(datetime.combine(date, time.max), tz)
+
+    cal_events = list(AcademicCalendarEvent.objects.filter(
+        foundation_id=teacher.foundation_id,
+        school_id=teacher.school_id,
+        affects_attendance=True,
+        start_at__lte=day_end,
+        end_at__gte=day_start,
+        deleted_at__isnull=True,
+    ).prefetch_related('class_groups'))
+
+    def _find_exemption(slot_obj):
+        for ev in cal_events:
+            ev_cgroups = set(ev.class_groups.values_list('id', flat=True))
+            if ev_cgroups and slot_obj.class_subject.class_group_id not in ev_cgroups:
+                continue
+            if ev.is_all_day:
+                return ev
+            s_start = timezone.make_aware(datetime.combine(date, slot_obj.start_time), tz)
+            s_end = timezone.make_aware(datetime.combine(date, slot_obj.end_time), tz)
+            if s_start < ev.end_at and s_end > ev.start_at:
+                return ev
+        return None
+
     agenda = []
     for slot in own_slots:
         # A slot substituted away to another teacher no longer belongs on this teacher's agenda.
         if slot.id in substitutions_by_slot_id:
             continue
+        ev = _find_exemption(slot)
         agenda.append({
             'slot_id': slot.id,
             'period_no': slot.period_no,
@@ -1051,12 +1081,16 @@ def get_teacher_agenda(teacher: Staff, date) -> list:
             'room': slot.room,
             'is_substitution': False,
             'attendance_submitted': slot.id in submitted_slot_ids,
+            'is_exempt': ev is not None,
+            'exemption_reason': ev.title if ev else None,
+            'calendar_event_id': ev.id if ev else None,
         })
     for sub in substituted_in:
         slot = sub.slot
         orig_name = ''
         if sub.original_teacher and hasattr(sub.original_teacher, 'person'):
             orig_name = sub.original_teacher.person.full_name
+        ev = _find_exemption(slot)
         agenda.append({
             'slot_id': slot.id,
             'period_no': slot.period_no,
@@ -1071,6 +1105,9 @@ def get_teacher_agenda(teacher: Staff, date) -> list:
             'original_teacher_name': orig_name,
             'substitution_reason': sub.reason,
             'attendance_submitted': slot.id in submitted_slot_ids,
+            'is_exempt': ev is not None,
+            'exemption_reason': ev.title if ev else None,
+            'calendar_event_id': ev.id if ev else None,
         })
 
     agenda.sort(key=lambda a: a['period_no'])
