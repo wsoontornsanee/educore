@@ -1,0 +1,87 @@
+{% extends "base_console.html" %}
+{% load i18n %}
+
+{% comment %}
+Page: Administrasi > Jejak audit. Filterable, paginated audit-event viewer.
+Served by apps.foundation.web_views.AuditLogView at /web/admin/audit/.
+{% endcomment %}
+
+{% block title %}{% translate "Jejak audit — EduCore" %}{% endblock %}
+
+{% block console_content %}
+<main style="display:flex;flex-direction:column;gap:20px;max-width:1180px">
+  <header>
+    <div class="text-label text-ink-500" style="margin-bottom:2px">{% translate "Administrasi" %}</div>
+    <h1 class="text-h2 font-display text-ink-900" style="margin:0">{% translate "Jejak audit" %}</h1>
+    <p class="text-body-sm text-ink-500" style="margin:6px 0 0">{% translate "Catatan permanen setiap perubahan data. Data tidak dapat diubah atau dihapus." %}</p>
+  </header>
+
+  {% if invalid_dates %}
+  <div class="card" role="alert" style="border-left:4px solid var(--color-danger);padding:12px 16px">
+    <p class="text-body text-ink-900">{% translate "Format tanggal tidak valid (gunakan YYYY-MM-DD); filter tanggal tersebut diabaikan." %}</p>
+  </div>
+  {% endif %}
+
+  <form method="get" class="card" style="padding:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;align-items:end">
+    <div class="form-group">
+      <label class="form-label" for="audit-module">{% translate "Modul" %}</label>
+      <input class="form-input" type="text" id="audit-module" name="module" value="{{ filters.module }}" maxlength="64" placeholder="finance">
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="audit-action">{% translate "Aksi" %}</label>
+      <input class="form-input" type="text" id="audit-action" name="action" value="{{ filters.action }}" maxlength="128" placeholder="finance.invoice.issue">
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="audit-school">{% translate "Sekolah" %}</label>
+      <select class="form-input" id="audit-school" name="school">
+        <option value="">{% translate "Semua sekolah" %}</option>
+        {% for school in schools %}<option value="{{ school.id }}" {% if filters.school == school.id|stringformat:"s" %}selected{% endif %}>{{ school.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="audit-from">{% translate "Dari tanggal" %}</label>
+      <input class="form-input" type="date" id="audit-from" name="from" value="{{ filters.from }}">
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="audit-to">{% translate "Sampai tanggal" %}</label>
+      <input class="form-input" type="date" id="audit-to" name="to" value="{{ filters.to }}">
+    </div>
+    <div><button type="submit" class="btn btn-primary">{% translate "Terapkan" %}</button></div>
+  </form>
+
+  {% if events %}
+  <div class="card" style="padding:0;overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;min-width:760px">
+      <thead>
+        <tr style="text-align:left;border-bottom:1px solid var(--color-line)">
+          <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Waktu" %}</th>
+          <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Aktor" %}</th>
+          <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Aksi" %}</th>
+          <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Entitas" %}</th>
+          <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Sekolah" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for event in events %}
+        <tr style="border-bottom:1px solid var(--color-line);vertical-align:top">
+          <td class="text-body-sm font-mono text-ink-700" style="padding:12px 16px;white-space:nowrap">{{ event.timestamp|date:"d M Y H:i:s" }}</td>
+          <td class="text-body-sm text-ink-900" style="padding:12px 16px">{{ event.actor_name|default:_("Sistem") }}{% if event.role %}<div class="text-ink-500">{{ event.role }}</div>{% endif %}</td>
+          <td class="text-body-sm font-mono text-ink-900" style="padding:12px 16px">
+            {{ event.action }}
+            {% if event.diff_text %}<details style="margin-top:6px"><summary class="text-ink-500" style="cursor:pointer">{% translate "Perubahan" %}</summary><pre class="font-mono" style="margin:6px 0 0;font-size:0.75rem;white-space:pre-wrap;word-break:break-word">{{ event.diff_text }}</pre></details>{% endif %}
+          </td>
+          <td class="text-body-sm font-mono text-ink-700" style="padding:12px 16px">{{ event.entity_type }}#{{ event.entity_id }}</td>
+          <td class="text-body-sm text-ink-700" style="padding:12px 16px">{{ event.school_name|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "components/_console_pager.html" with page_obj=page_obj query_string=query_string %}
+  {% else %}
+  <div class="card" style="padding:32px;text-align:center">
+    <p class="text-body text-ink-500">{% translate "Belum ada catatan audit yang cocok dengan filter ini." %}</p>
+  </div>
+  {% endif %}
+</main>
+{% endblock %}

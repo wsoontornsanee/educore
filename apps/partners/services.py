@@ -88,6 +88,29 @@ def issue_api_key(foundation_id, label, scopes, school_ids=None, ip_allowlist=No
     return key, secret
 
 
+def issue_api_key_audited(foundation_id, label, scopes, school_ids=None, ip_allowlist=None,
+                          created_by='') -> tuple[PartnerApiKey, str]:
+    """issue_api_key plus the `integration.key.issued` audit event — the entry
+    point for operator-initiated issuance (JSON admin API and web console).
+    rotate_api_key calls the bare issue_api_key instead and audits the
+    rotation as its own event."""
+    from apps.core.services import audit
+
+    key, secret = issue_api_key(
+        foundation_id=foundation_id, label=label, scopes=scopes, school_ids=school_ids,
+        ip_allowlist=ip_allowlist, created_by=created_by,
+    )
+    audit(
+        action='integration.key.issued',
+        entity_type='PartnerApiKey',
+        entity_id=key.key_id,
+        foundation_id=foundation_id,
+        actor_id=created_by or None,
+        diff={'label': label, 'scopes': scopes},
+    )
+    return key, secret
+
+
 def rotate_api_key(old_key: PartnerApiKey, created_by: str = '') -> tuple[PartnerApiKey, str]:
     """PVA-012: issue a successor; the old key becomes read-only on day 23
     and stops working entirely on day 30. The old key is never hard-deleted."""

@@ -1,0 +1,76 @@
+{% extends "base_console.html" %}
+{% load i18n %}
+
+{% comment %}
+Page: Administrasi > Staf & jabatan. Read-only staff directory with role
+assignments. Served by apps.identity.web_admin_views.StaffDirectoryView at
+/web/admin/staff/.
+{% endcomment %}
+
+{% block title %}{% translate "Staf & jabatan — EduCore" %}{% endblock %}
+
+{% block console_content %}
+<main style="display:flex;flex-direction:column;gap:20px;max-width:1080px">
+  <header>
+    <div class="text-label text-ink-500" style="margin-bottom:2px">{% translate "Administrasi" %}</div>
+    <h1 class="text-h2 font-display text-ink-900" style="margin:0">{% translate "Staf & jabatan" %}</h1>
+    <p class="text-body-sm text-ink-500" style="margin:6px 0 0">{% translate "Direktori staf dan peran (jabatan) akses yang ditugaskan kepada masing-masing." %}</p>
+  </header>
+
+  <form method="get" class="card" style="padding:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;align-items:end">
+    <div class="form-group">
+      <label class="form-label" for="staff-q">{% translate "Cari nama / NIP" %}</label>
+      <input class="form-input" type="search" id="staff-q" name="q" value="{{ filters.q }}" maxlength="64">
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="staff-school">{% translate "Sekolah" %}</label>
+      <select class="form-input" id="staff-school" name="school">
+        <option value="">{% translate "Semua sekolah" %}</option>
+        {% for school in schools %}<option value="{{ school.id }}" {% if filters.school == school.id|stringformat:"s" %}selected{% endif %}>{{ school.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="staff-status">{% translate "Status" %}</label>
+      <select class="form-input" id="staff-status" name="status">
+        <option value="">{% translate "Semua status" %}</option>
+        {% for value, label in status_choices %}<option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div><button type="submit" class="btn btn-primary">{% translate "Terapkan" %}</button></div>
+  </form>
+
+  {% if staff_rows %}
+  <div class="card" style="padding:0;overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;min-width:640px">
+      <thead>
+        <tr style="text-align:left;border-bottom:1px solid var(--color-line)">
+          <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Nama" %}</th>
+          <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "NIP" %}</th>
+          <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Sekolah" %}</th>
+          <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Peran" %}</th>
+          <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Status" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for staff in staff_rows %}
+        <tr style="border-bottom:1px solid var(--color-line)">
+          <td class="text-body-sm text-ink-900 font-medium" style="padding:12px 16px">{{ staff.person.full_name }}</td>
+          <td class="text-body-sm font-mono text-ink-700" style="padding:12px 16px">{{ staff.nip|default:"—" }}</td>
+          <td class="text-body-sm text-ink-700" style="padding:12px 16px">{% if staff.school %}{{ staff.school.name }}{% else %}{% translate "Yayasan" %}{% endif %}</td>
+          <td class="text-body-sm text-ink-700" style="padding:12px 16px">
+            {% for role in staff.role_list %}<div>{{ role.label }}{% if role.scope %} <span class="text-ink-500">· {{ role.scope }}</span>{% endif %}</div>{% empty %}<span class="text-ink-500">—</span>{% endfor %}
+          </td>
+          <td class="text-body-sm text-ink-700" style="padding:12px 16px">{{ staff.get_status_display }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% include "components/_console_pager.html" with page_obj=page_obj query_string=query_string %}
+  {% else %}
+  <div class="card" style="padding:32px;text-align:center">
+    <p class="text-body text-ink-500">{% translate "Tidak ada staf yang cocok dengan filter ini." %}</p>
+  </div>
+  {% endif %}
+</main>
+{% endblock %}
