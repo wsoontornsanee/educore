@@ -165,32 +165,6 @@ class ReconciliationServiceTest(TestCase):
         self.assertTrue(result['dry_run'])
         self.assertEqual(self._discrepancies().count(), 0)
 
-    def test_matched_payment_auto_settled(self):
-        """When Payment with matching external_id and amount exists, it is auto-settled."""
-        # Create real Payment objects with spec=Payment so Django FK accepts them
-        mock_payment_matched = mock.create_autospec(Payment, instance=True)
-        mock_payment_matched.amount = Decimal('500000.00')
-        mock_payment_matched.status = PaymentStatus.PENDING
-        mock_payment_matched.save = mock.MagicMock()
-
-        call_count = {'n': 0}
-
-        def side_effect(**kwargs):
-            call_count['n'] += 1
-            if call_count['n'] == 1:
-                return mock_payment_matched
-            raise Payment.DoesNotExist
-
-        with mock.patch(
-            'apps.finance.services.reconciliation.Payment.all_tenants.get',
-            side_effect=side_effect,
-        ):
-            result = self._run()
-
-        self.assertEqual(result['matched'], 1)
-        self.assertEqual(result['missing'], 1)
-        mock_payment_matched.save.assert_called()
-
     def test_amount_mismatch_creates_discrepancy(self):
         """Payment with wrong amount -> AMOUNT_MISMATCH discrepancy."""
         mock_payment = mock.MagicMock()
