@@ -373,6 +373,7 @@ class StudentViewSet(viewsets.ModelViewSet):
             religion=data.get('religion', ''),
             birth_city=data.get('birth_city', ''),
             birth_certificate_number=data.get('birth_certificate_number', ''),
+            mother_name=data.get('mother_name', ''),
             citizenship=data.get('citizenship', 'WNI'),
             rt=data.get('rt', ''),
             rw=data.get('rw', ''),
@@ -382,6 +383,8 @@ class StudentViewSet(viewsets.ModelViewSet):
             kabupaten_kota=data.get('kabupaten_kota', ''),
             provinsi=data.get('provinsi', ''),
             postal_code=data.get('postal_code', ''),
+            home_latitude=data.get('home_latitude'),
+            home_longitude=data.get('home_longitude'),
             created_by=str(request.user.id),
         )
 

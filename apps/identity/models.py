@@ -14,9 +14,10 @@ from datetime import timedelta
 from decimal import Decimal
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
-from apps.core.fields import MoneyField, soft_delete_uniqueness_marker
+from apps.core.fields import CoordinateField, MoneyField, soft_delete_uniqueness_marker
 from apps.core.models import TenantModel
 from .managers import UserManager, AllUsersManager
 
@@ -179,6 +180,10 @@ class Person(TenantModel):
         max_length=64, blank=True, default='',
         help_text="Nomor Akta Kelahiran (DAPODIK/EMIS statutory field)"
     )
+    mother_name = models.CharField(
+        max_length=128, blank=True, default='',
+        help_text="Nama ibu kandung (DAPODIK/EMIS statutory field)"
+    )
     citizenship = models.CharField(
         max_length=32, blank=True, default='WNI',
         help_text="Kewarganegaraan (default WNI)"
@@ -194,6 +199,22 @@ class Person(TenantModel):
     kabupaten_kota = models.CharField(max_length=64, blank=True, default='', help_text="Kabupaten / Kota")
     provinsi = models.CharField(max_length=64, blank=True, default='', help_text="Provinsi")
     postal_code = models.CharField(max_length=10, blank=True, default='', help_text="Kode pos")
+    home_latitude = CoordinateField(
+        null=True, blank=True,
+        validators=[
+            MinValueValidator(Decimal('-90.000000')),
+            MaxValueValidator(Decimal('90.000000')),
+        ],
+        help_text="Lintang koordinat tempat tinggal (-90 s/d +90)",
+    )
+    home_longitude = CoordinateField(
+        null=True, blank=True,
+        validators=[
+            MinValueValidator(Decimal('-180.000000')),
+            MaxValueValidator(Decimal('180.000000')),
+        ],
+        help_text="Bujur koordinat tempat tinggal (-180 s/d +180)",
+    )
 
     class Meta:
         db_table = 'persons'

@@ -103,6 +103,8 @@ class StaffPersonSummarySerializer(serializers.Serializer):
     nik = serializers.CharField(read_only=True)
     full_name = serializers.CharField(read_only=True)
     gender = serializers.CharField(read_only=True)
+    home_latitude = serializers.DecimalField(max_digits=9, decimal_places=6, read_only=True)
+    home_longitude = serializers.DecimalField(max_digits=9, decimal_places=6, read_only=True)
 
 
 class StaffUserSummarySerializer(serializers.Serializer):
@@ -223,6 +225,7 @@ class StudentPersonSerializer(serializers.Serializer):
     religion = serializers.CharField(read_only=True)
     birth_city = serializers.CharField(read_only=True)
     birth_certificate_number = serializers.CharField(read_only=True)
+    mother_name = serializers.CharField(read_only=True)
     citizenship = serializers.CharField(read_only=True)
     rt = serializers.CharField(read_only=True)
     rw = serializers.CharField(read_only=True)
@@ -232,6 +235,8 @@ class StudentPersonSerializer(serializers.Serializer):
     kabupaten_kota = serializers.CharField(read_only=True)
     provinsi = serializers.CharField(read_only=True)
     postal_code = serializers.CharField(read_only=True)
+    home_latitude = serializers.DecimalField(max_digits=9, decimal_places=6, read_only=True)
+    home_longitude = serializers.DecimalField(max_digits=9, decimal_places=6, read_only=True)
 
 
 class StudentSerializer(serializers.ModelSerializer):
@@ -285,6 +290,7 @@ class StudentCreateSerializer(serializers.Serializer):
     )
     birth_city = serializers.CharField(max_length=64, required=False, allow_blank=True, default='')
     birth_certificate_number = serializers.CharField(max_length=64, required=False, allow_blank=True, default='')
+    mother_name = serializers.CharField(max_length=128, required=False, allow_blank=True, default='')
     citizenship = serializers.CharField(max_length=32, required=False, allow_blank=True, default='WNI')
     rt = serializers.CharField(max_length=8, required=False, allow_blank=True, default='')
     rw = serializers.CharField(max_length=8, required=False, allow_blank=True, default='')
@@ -294,6 +300,8 @@ class StudentCreateSerializer(serializers.Serializer):
     kabupaten_kota = serializers.CharField(max_length=64, required=False, allow_blank=True, default='')
     provinsi = serializers.CharField(max_length=64, required=False, allow_blank=True, default='')
     postal_code = serializers.CharField(max_length=10, required=False, allow_blank=True, default='')
+    home_latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
+    home_longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
 
 
 class StudentStatusTransitionSerializer(serializers.Serializer):
