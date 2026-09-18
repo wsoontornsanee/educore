@@ -111,3 +111,42 @@ class IncidentServiceTests(TestCase):
         )
         result = list(list_published_incidents())
         self.assertEqual(result, [new, old])
+
+    def test_create_incident_enqueues_email_task_per_subscriber(self):
+        from apps.core.models import TaskQueue
+        from apps.status.models import StatusSubscriber
+
+        StatusSubscriber.objects.create(email='a@example.com')
+        StatusSubscriber.objects.create(email='b@example.com')
+
+        incident = create_incident(
+            severity=StatusIncident.SEVERITY_MAJOR, title_id='X', title_en='X',
+            body_id='X', body_en='X', occurred_at=timezone.now(), duration_minutes=10,
+            affected_component_ids=[], published=True, actor=self.actor,
+        )
+
+        tasks = TaskQueue.objects.filter(task_type='status.subscriber_email.send')
+        self.assertEqual(tasks.count(), 2)
+        subscriber_ids = {t.payload['subscriber_id'] for t in tasks}
+        self.assertEqual(
+            subscriber_ids,
+            set(StatusSubscriber.objects.values_list('id', flat=True)),
+        )
+        for t in tasks:
+            self.assertEqual(t.payload['incident_id'], incident.id)
+
+    def test_create_incident_unpublished_enqueues_no_email_tasks(self):
+        from apps.core.models import TaskQueue
+        from apps.status.models import StatusSubscriber
+
+        StatusSubscriber.objects.create(email='a@example.com')
+
+        create_incident(
+            severity=StatusIncident.SEVERITY_MINOR, title_id='X', title_en='X',
+            body_id='X', body_en='X', occurred_at=timezone.now(), duration_minutes=10,
+            affected_component_ids=[], published=False, actor=self.actor,
+        )
+
+        self.assertEqual(
+            TaskQueue.objects.filter(task_type='status.subscriber_email.send').count(), 0,
+        )
