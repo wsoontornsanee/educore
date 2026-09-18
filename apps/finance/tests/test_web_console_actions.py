@@ -327,10 +327,18 @@ class CashPaymentTests(ActionTestBase):
 
     def test_bad_amounts_create_nothing(self):
         self.client.force_login(self.officer)
-        for bad in ('0', '-5', 'abc', '10.999', 'NaN', 'Infinity', ''):
+        for bad in ('0', '-5', 'abc', '10.999', 'NaN', 'Infinity', '', '1e30', '1E+100', '1e20', '1_000',
+                    '\u0661\u0660\u0660', '99999999999999999', '0.00', ' ', '1.'):
             response = self._post(amount=bad)
             self.assertEqual(len(flashes(response)), 1, bad)
         self.assertFalse(Payment.all_tenants.exists())
+
+    def test_modest_two_decimal_amount_is_accepted_and_long_notes_truncated(self):
+        self.client.force_login(self.officer)
+        self._post(amount=' 1500000.50 ', notes='x' * 300)
+        payment = Payment.all_tenants.get(student=self.s1)
+        self.assertEqual(payment.amount, Decimal('1500000.50'))
+        self.assertEqual(len(payment.metadata['notes']), 255)
 
     def test_unknown_nis_creates_nothing(self):
         self.client.force_login(self.officer)

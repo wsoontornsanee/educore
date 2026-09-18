@@ -231,6 +231,9 @@ class BillingConsoleView(FinanceConsoleView):
         }
 
 
+AMOUNT_RE = re.compile(r'[0-9]{1,16}(\.[0-9]{1,2})?')
+
+
 class CashPaymentView(FinanceActionView):
     """POST: record a cash payment for a student found by NIS within the
     caller's schools. The service allocates to open invoices oldest-first,
@@ -242,11 +245,14 @@ class CashPaymentView(FinanceActionView):
         return reverse('finance-console-billing')
 
     def _parse_amount(self, raw):
-        try:
-            amount = Decimal(raw.strip())
-        except (InvalidOperation, AttributeError):
+        # Strict ASCII plain-decimal grammar checked BEFORE Decimal(): rejects
+        # exponents, NaN/Infinity, underscores, non-ASCII digits, signs, more
+        # than two decimals and anything beyond DECIMAL(18,2) (16 integer digits).
+        text = raw.strip()
+        if not AMOUNT_RE.fullmatch(text):
             raise ValueError(_('Jumlah tidak valid.'))
-        if not amount.is_finite() or amount <= 0 or amount != amount.quantize(Decimal('0.01')):
+        amount = Decimal(text)
+        if amount <= 0:
             raise ValueError(_('Jumlah harus lebih dari nol dengan maksimal dua desimal.'))
         return amount
 
@@ -271,7 +277,7 @@ class CashPaymentView(FinanceActionView):
             student=student,
             amount=amount,
             received_by=self.request.user,
-            notes=self.request.POST.get('notes', '').strip(),
+            notes=self.request.POST.get('notes', '').strip()[:255],
         )
         return _('Pembayaran tunai tercatat. No. kwitansi: %(receipt)s') % {'receipt': payment.receipt_number}
 
@@ -331,7 +337,7 @@ class DiscrepancyResolveView(FinanceActionView):
             resolution=resolution,
             resolved_by=self.request.user,
             foundation_id=self.foundation_id,
-            notes=self.request.POST.get('notes', '').strip(),
+            notes=self.request.POST.get('notes', '').strip()[:255],
         )
         return _('Selisih berhasil diperbarui.')
 
