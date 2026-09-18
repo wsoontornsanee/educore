@@ -2,15 +2,16 @@
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.http import HttpResponseBadRequest, HttpResponseRedirect
+from django.template.response import TemplateResponse
 from django.urls import reverse
 from django.utils.translation import get_language
-from django.views.generic import TemplateView
+from django.views.generic import TemplateView, View
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 
 from apps.core.throttling import StatusSubscribeThrottle
 
-from .models import ServiceComponent, StatusIncident
+from .models import ServiceComponent, StatusIncident, StatusSubscriber
 from .services import (
     BAR_COLORS, get_average_latency_ms, get_component_bars, get_component_status,
     get_open_component_count, get_uptime_percentage, list_published_incidents,
@@ -123,3 +124,12 @@ class StatusSubscribeView(APIView):
             return HttpResponseBadRequest('email tidak valid')
         subscribe_email(email)
         return HttpResponseRedirect(reverse('status:page'))
+
+
+class StatusUnsubscribeView(View):
+    """Public, unauthenticated. Deletes the StatusSubscriber matching `token`
+    if one exists, and renders a generic confirmation page regardless — an
+    unknown token must not reveal whether it was ever subscribed."""
+    def get(self, request, token, *args, **kwargs):
+        StatusSubscriber.objects.filter(unsubscribe_token=token).delete()
+        return TemplateResponse(request, 'status/unsubscribe.html', {})

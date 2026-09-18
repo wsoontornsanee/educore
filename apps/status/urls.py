@@ -8,4 +8,5 @@ app_name = 'status'
 urlpatterns = [
     path('', views.StatusPageView.as_view(), name='page'),
     path('subscribe/', views.StatusSubscribeView.as_view(), name='subscribe'),
+    path('unsubscribe/<uuid:token>/', views.StatusUnsubscribeView.as_view(), name='unsubscribe'),
 ]

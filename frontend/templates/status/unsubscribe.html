@@ -1,0 +1,13 @@
+{% extends "marketing/base.html" %}
+
+{% block title %}Berhenti Berlangganan — Status Layanan{% endblock %}
+
+{% block content %}
+<section style="background:#fff">
+  <div style="max-width:640px;margin:0 auto;padding:80px 24px;display:flex;flex-direction:column;gap:16px;text-align:center">
+    <h1 style="margin:0;font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:clamp(24px,4vw,32px);letter-spacing:-.03em">Anda telah berhenti berlangganan.</h1>
+    <p style="margin:0;font-size:15px;line-height:1.65;color:#6B615C">Anda tidak akan lagi menerima pembaruan insiden lewat surel dari halaman status EduCore.</p>
+    <a href="{% url 'status:page' %}" style="margin-top:12px;font-family:'IBM Plex Sans',sans-serif;font-size:14px;font-weight:600;color:#16110F;text-decoration:underline">Kembali ke Status Layanan</a>
+  </div>
+</section>
+{% endblock %}
