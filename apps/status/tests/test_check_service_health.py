@@ -1,4 +1,6 @@
 import io
+from unittest.mock import patch, MagicMock
+
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 from apps.core.locks import advisory_lock
@@ -30,3 +32,21 @@ class CheckServiceHealthCommandTests(TestCase):
             call_command('check_service_health', stdout=out)
         self.assertEqual(ComponentHeartbeat.objects.count(), 0)
         self.assertIn('already held', out.getvalue())
+
+
+class CheckServiceHealthProviderProbesIntegrationTests(TestCase):
+    @override_settings(XENDIT_API_KEY='test-key', WHATSAPP_API_TOKEN='', WHATSAPP_PHONE_NUMBER_ID='')
+    @patch('apps.status.probes.requests.get')
+    def test_command_records_real_payments_signal_end_to_end(self, mock_get):
+        mock_get.return_value = MagicMock(ok=True, status_code=200)
+        call_command('check_service_health')
+        payments = ServiceComponent.objects.get(key='payments')
+        hb = ComponentHeartbeat.objects.filter(component=payments).latest('checked_at')
+        self.assertEqual(hb.status, ServiceComponent.STATUS_OPERATIONAL)
+        daily = DailyComponentStatus.objects.get(component=payments)
+        self.assertEqual(daily.status, ServiceComponent.STATUS_OPERATIONAL)
+        # notifications had no credentials configured -> DB-only fallback, unaffected by the mock.
+        notifications = ServiceComponent.objects.get(key='notifications')
+        self.assertTrue(
+            ComponentHeartbeat.objects.filter(component=notifications).exists()
+        )
