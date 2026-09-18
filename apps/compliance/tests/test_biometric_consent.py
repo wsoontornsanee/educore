@@ -201,3 +201,52 @@ class BiometricEnrollmentAndWithdrawalTests(TestCase):
                 subject_type='STUDENT', subject_id=self.student.id, foundation_id=other_foundation.id,
                 actor_id='7',
             )
+
+    def test_has_active_health_consent_true_after_grant(self):
+        from apps.compliance.services import has_active_health_consent
+        from apps.compliance.models import ConsentPurpose, DataSubjectRequestSubjectType
+        from apps.compliance.services import record_consent
+
+        record_consent(
+            subject_type=DataSubjectRequestSubjectType.STUDENT,
+            subject_id=self.student.id,
+            foundation_id=self.foundation.id,
+            purpose=ConsentPurpose.HEALTH_DATA,
+            granted_by='tester',
+        )
+        self.assertTrue(has_active_health_consent(
+            subject_type=DataSubjectRequestSubjectType.STUDENT,
+            subject_id=self.student.id,
+            foundation_id=self.foundation.id,
+        ))
+
+    def test_has_active_health_consent_false_when_none_granted(self):
+        from apps.compliance.services import has_active_health_consent
+        from apps.compliance.models import DataSubjectRequestSubjectType
+
+        self.assertFalse(has_active_health_consent(
+            subject_type=DataSubjectRequestSubjectType.STUDENT,
+            subject_id=self.student.id,
+            foundation_id=self.foundation.id,
+        ))
+
+    def test_has_active_health_consent_false_after_withdrawal(self):
+        from apps.compliance.services import has_active_health_consent, record_consent
+        from apps.compliance.models import ConsentPurpose, ConsentRecord, DataSubjectRequestSubjectType
+        from django.utils import timezone
+
+        record = record_consent(
+            subject_type=DataSubjectRequestSubjectType.STUDENT,
+            subject_id=self.student.id,
+            foundation_id=self.foundation.id,
+            purpose=ConsentPurpose.HEALTH_DATA,
+            granted_by='tester',
+        )
+        record.withdrawn_at = timezone.now()
+        record.save(update_fields=['withdrawn_at'])
+
+        self.assertFalse(has_active_health_consent(
+            subject_type=DataSubjectRequestSubjectType.STUDENT,
+            subject_id=self.student.id,
+            foundation_id=self.foundation.id,
+        ))
