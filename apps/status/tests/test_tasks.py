@@ -2,6 +2,7 @@ from django.core import mail
 from django.test import TestCase
 from django.utils import timezone
 
+from apps.core.services import get_task_handler
 from apps.status.models import ServiceComponent, StatusIncident, StatusSubscriber
 from apps.status.tasks import send_subscriber_incident_email
 
@@ -51,3 +52,11 @@ class SendSubscriberIncidentEmailTests(TestCase):
                 'incident_id': 999999,
                 'subscriber_id': self.subscriber.id,
             })
+
+
+class TaskHandlerRegistrationTests(TestCase):
+    def test_handler_is_registered_via_app_registry(self):
+        # Regression: catches the case where apps/status/tasks.py is never
+        # imported at process startup, so drain_tasks finds no handler and
+        # every subscriber email task dead-letters silently.
+        self.assertIsNotNone(get_task_handler('status.subscriber_email.send'))

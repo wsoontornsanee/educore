@@ -132,4 +132,8 @@ class StatusUnsubscribeView(View):
     unknown token must not reveal whether it was ever subscribed."""
     def get(self, request, token, *args, **kwargs):
         StatusSubscriber.objects.filter(unsubscribe_token=token).delete()
-        return TemplateResponse(request, 'status/unsubscribe.html', {})
+        response = TemplateResponse(request, 'status/unsubscribe.html', {})
+        # Prevent the unsubscribe token from leaking via a Referer header if
+        # this page's own links are followed onward (spec/14 security norms).
+        response['Referrer-Policy'] = 'no-referrer'
+        return response

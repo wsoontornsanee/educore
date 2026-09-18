@@ -1,6 +1,7 @@
 """Async task handlers for apps.status (ARC-010/011 — drained by drain_tasks)."""
 from django.conf import settings
 from django.core.mail import send_mail
+from django.utils import timezone
 
 from apps.core.services import register_task_handler
 
@@ -26,7 +27,7 @@ def send_subscriber_incident_email(payload: dict):
         f"{incident.title_id}\n\n"
         f"{incident.body_id}\n\n"
         f"Tingkat keparahan: {incident.severity}\n"
-        f"Waktu kejadian: {incident.occurred_at.strftime('%d %B %Y %H:%M')} WIB\n\n"
+        f"Waktu kejadian: {timezone.localtime(incident.occurred_at).strftime('%d %B %Y %H:%M')} WIB\n\n"
         f"---\n"
         f"Berhenti berlangganan pembaruan status: {unsubscribe_url}"
     )
