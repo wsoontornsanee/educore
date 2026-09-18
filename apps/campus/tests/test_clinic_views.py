@@ -393,3 +393,66 @@ class ClinicVisitCardTapLookupTests(TestCase):
             'outcome': ClinicOutcome.RETURNED_TO_CLASS,
         }, format='json')
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class MedicationStockSchoolScopingTests(TestCase):
+    """Medication stock listing must be school-scoped for staff, not foundation-wide by default."""
+
+    def setUp(self):
+        self.fx = build_academic_fixture()
+        set_current_foundation_id(self.fx['foundation'].id)
+        self.school_b = School.all_tenants.create(
+            foundation_id=self.fx['foundation'].id,
+            name="SMP Cendekia Mandiri C",
+            npsn=f"239{str(abs(hash(self.fx['school'].npsn)) % 100000).zfill(5)}",
+            level=School.LEVEL_SMP,
+        )
+        self.stock_a = MedicationStock.objects.create(
+            foundation_id=self.fx['foundation'].id, school=self.fx['school'],
+            name='Paracetamol', unit='tablet', quantity=50, reorder_level=10,
+            expiry_date=_dt.date(2030, 1, 1),
+        )
+        self.stock_b = MedicationStock.objects.create(
+            foundation_id=self.fx['foundation'].id, school=self.school_b,
+            name='Antiseptik', unit='botol', quantity=20, reorder_level=5,
+            expiry_date=_dt.date(2030, 1, 1),
+        )
+        self.client = APIClient()
+
+    def test_clinic_officer_at_school_a_only_sees_school_a_stock(self):
+        assign(self.fx, self.fx['teacher_user'], ROLE_CLINIC_OFFICER, scope_id=self.fx['school'].id)
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+        resp = self.client.get('/api/v1/campus/medication-stock/')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        names = {row['name'] for row in resp.data['results']}
+        self.assertIn('Paracetamol', names)
+        self.assertNotIn('Antiseptik', names)
+
+    def test_foundation_admin_sees_stock_across_all_schools(self):
+        from apps.identity.rbac import ROLE_FOUNDATION_ADMIN
+        assign(self.fx, self.fx['teacher_user'], ROLE_FOUNDATION_ADMIN, scope_type=RoleAssignment.SCOPE_FOUNDATION, scope_id=self.fx['foundation'].id)
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+        resp = self.client.get('/api/v1/campus/medication-stock/')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        names = {row['name'] for row in resp.data['results']}
+        self.assertIn('Paracetamol', names)
+        self.assertIn('Antiseptik', names)
+
+    def test_guardian_with_clinic_read_but_no_staff_role_sees_no_stock(self):
+        from apps.identity.rbac import ROLE_PARENT
+
+        parent_person = Person.all_tenants.create(
+            foundation_id=self.fx['foundation'].id, nik='3471010101019991', full_name='Bu Wali',
+        )
+        parent_user = User.objects.create(
+            foundation_id=self.fx['foundation'].id, phone_e164='+62817000001', email='wali@sch.id', full_name='Bu Wali',
+        )
+        # ROLE_PARENT holds clinic.read (for the parent-app follow-up item), but medication
+        # stock is operational inventory data, not guardian-facing — a parent role alone
+        # (foundation-scoped, no staff assignment) must see zero rows, not 403 (they do hold
+        # the permission) and not every school's stock (they hold no staff scope).
+        assign(self.fx, parent_user, ROLE_PARENT, scope_type=RoleAssignment.SCOPE_FOUNDATION, scope_id=self.fx['foundation'].id)
+        self.client.force_authenticate(user=parent_user)
+        resp = self.client.get('/api/v1/campus/medication-stock/')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data['results'], [])
