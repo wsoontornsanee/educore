@@ -2,8 +2,8 @@
 {% load i18n %}
 
 {% comment %}
-Page: Administrasi > Staf & jabatan. Read-only staff directory with role
-assignments. Served by apps.identity.web_admin_views.StaffDirectoryView at
+Page: Administrasi > Staf & jabatan. Staff directory with role assignments,
+plus add/offboard for school_config.write holders. Served by apps.identity.web_admin_views.StaffDirectoryView at
 /web/admin/staff/.
 {% endcomment %}
 
@@ -11,11 +11,15 @@ assignments. Served by apps.identity.web_admin_views.StaffDirectoryView at
 
 {% block console_content %}
 <main style="display:flex;flex-direction:column;gap:20px;max-width:1080px">
-  <header>
-    <div class="text-label text-ink-500" style="margin-bottom:2px">{% translate "Administrasi" %}</div>
-    <h1 class="text-h2 font-display text-ink-900" style="margin:0">{% translate "Staf & jabatan" %}</h1>
-    <p class="text-body-sm text-ink-500" style="margin:6px 0 0">{% translate "Direktori staf dan peran (jabatan) akses yang ditugaskan kepada masing-masing." %}</p>
+  <header style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
+    <div>
+      <div class="text-label text-ink-500" style="margin-bottom:2px">{% translate "Administrasi" %}</div>
+      <h1 class="text-h2 font-display text-ink-900" style="margin:0">{% translate "Staf & jabatan" %}</h1>
+      <p class="text-body-sm text-ink-500" style="margin:6px 0 0">{% translate "Direktori staf dan peran (jabatan) akses yang ditugaskan kepada masing-masing." %}</p>
+    </div>
+    {% if can_write %}<a class="btn btn-primary" href="{% url 'admin-staff-create' %}">{% translate "Tambah staf" %}</a>{% endif %}
   </header>
+  {% include "components/_console_flash.html" %}
 
   <form method="get" class="card" style="padding:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;align-items:end">
     <div class="form-group">
@@ -49,6 +53,7 @@ assignments. Served by apps.identity.web_admin_views.StaffDirectoryView at
           <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Sekolah" %}</th>
           <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Peran" %}</th>
           <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Status" %}</th>
+          {% if can_write %}<th class="text-label text-ink-500" style="padding:12px 16px"><span class="sr-only">{% translate "Aksi" %}</span></th>{% endif %}
         </tr>
       </thead>
       <tbody>
@@ -61,6 +66,31 @@ assignments. Served by apps.identity.web_admin_views.StaffDirectoryView at
             {% for role in staff.role_list %}<div>{{ role.label }}{% if role.scope %} <span class="text-ink-500">· {{ role.scope }}</span>{% endif %}</div>{% empty %}<span class="text-ink-500">—</span>{% endfor %}
           </td>
           <td class="text-body-sm text-ink-700" style="padding:12px 16px">{{ staff.get_status_display }}</td>
+          {% if can_write %}
+          <td class="text-body-sm" style="padding:12px 16px;min-width:180px">
+            {% if staff.can_offboard %}
+            <details>
+              <summary class="text-danger" style="cursor:pointer">{% translate "Offboard" %}</summary>
+              <form method="post" action="{% url 'admin-staff-offboard' staff.id %}" style="display:flex;flex-direction:column;gap:8px;margin-top:8px"
+                    onsubmit="return confirm('{% translate "Offboard staf ini? Akun dinonaktifkan, sesi dan peran dicabut." %}')">
+                {% csrf_token %}
+                <label class="form-label" for="off-date-{{ staff.id }}">{% translate "Tanggal berhenti" %}</label>
+                <input class="form-input" type="date" id="off-date-{{ staff.id }}" name="resignation_date">
+                <label class="form-label" for="off-reason-{{ staff.id }}">{% translate "Alasan" %}</label>
+                <input class="form-input" type="text" id="off-reason-{{ staff.id }}" name="reason" maxlength="255">
+                {% if staff.colleague_options %}
+                <label class="form-label" for="off-reassign-{{ staff.id }}">{% translate "Alihkan kelas ke" %}</label>
+                <select class="form-input" id="off-reassign-{{ staff.id }}" name="reassign_to_staff_id">
+                  <option value="">—</option>
+                  {% for colleague_id, colleague_name in staff.colleague_options %}<option value="{{ colleague_id }}">{{ colleague_name }}</option>{% endfor %}
+                </select>
+                {% endif %}
+                <button type="submit" class="btn btn-primary">{% translate "Offboard" %}</button>
+              </form>
+            </details>
+            {% endif %}
+          </td>
+          {% endif %}
         </tr>
         {% endfor %}
       </tbody>

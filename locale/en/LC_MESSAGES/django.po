@@ -7372,3 +7372,81 @@ msgstr "Download CSV"
 msgid "Sedang diproses"
 msgstr "Processing"
 
+
+#: apps/identity/web_admin_views.py
+#, python-format
+msgid "Staf %(name)s ditambahkan."
+msgstr "Staff %(name)s added."
+
+#: apps/identity/web_admin_views.py
+#, python-format
+msgid "Staf %(name)s di-offboard."
+msgstr "Staff %(name)s offboarded."
+
+#: apps/identity/web_admin_views.py
+msgid "Staf pengganti tidak valid."
+msgstr "Invalid replacement staff member."
+
+#: apps/identity/web_admin_views.py
+msgid "Tanggal pengunduran diri tidak valid."
+msgstr "Invalid resignation date."
+
+#: apps/identity/web_admin_views.py
+msgid "Nama lengkap"
+msgstr "Full name"
+
+#: apps/identity/web_admin_views.py
+msgid "Nomor HP"
+msgstr "Phone number"
+
+#: apps/identity/web_admin_views.py
+msgid "Format 08… atau +62…"
+msgstr "Format 08… or +62…"
+
+#: apps/identity/web_admin_views.py
+msgid "Status kepegawaian"
+msgstr "Employment type"
+
+#: apps/identity/web_admin_views.py
+msgid "Tanggal bergabung"
+msgstr "Join date"
+
+#: apps/identity/web_admin_views.py
+msgid "Yayasan (semua sekolah)"
+msgstr "Foundation (all schools)"
+
+#: apps/identity/web_admin_views.py
+msgid "Nomor HP ini sudah terdaftar."
+msgstr "This phone number is already registered."
+
+#: apps/identity/web_admin_views.py
+msgid "Email ini sudah terdaftar."
+msgstr "This email is already registered."
+
+#: apps/identity/web_admin_views.py
+msgid "Tambah staf"
+msgstr "Add staff"
+
+#: apps/identity/web_admin_views.py
+msgid "Tambah staf — EduCore"
+msgstr "Add staff — EduCore"
+
+#: apps/identity/web_admin_views.py
+msgid "Staf masuk dengan OTP nomor HP atau SSO; tidak ada kata sandi yang perlu dibuat. Peran akses ditetapkan terpisah."
+msgstr "Staff sign in with a phone OTP or SSO; no password needs to be created. Access roles are assigned separately."
+
+#: apps/identity/web_admin_views.py
+msgid "Offboard"
+msgstr "Offboard"
+
+#: apps/identity/web_admin_views.py
+msgid "Offboard staf ini? Akun dinonaktifkan, sesi dan peran dicabut."
+msgstr "Offboard this staff member? Their account is deactivated and sessions and roles are revoked."
+
+#: apps/identity/web_admin_views.py
+msgid "Tanggal berhenti"
+msgstr "Resignation date"
+
+#: apps/identity/web_admin_views.py
+msgid "Alihkan kelas ke"
+msgstr "Reassign classes to"

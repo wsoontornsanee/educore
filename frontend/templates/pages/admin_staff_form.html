@@ -1,0 +1,30 @@
+{% extends "base_console.html" %}
+{% load i18n %}
+
+{% comment %}
+Page: Administrasi > Staf & jabatan > tambah staf. Served by
+apps.identity.web_admin_views.StaffCreateView at /web/admin/staff/new/.
+{% endcomment %}
+
+{% block title %}{% translate "Tambah staf — EduCore" %}{% endblock %}
+
+{% block console_content %}
+<main style="display:flex;flex-direction:column;gap:20px;max-width:1080px">
+  <header>
+    <a class="text-body-sm text-ink-500" href="{% url 'admin-staff' %}">← {% translate "Staf & jabatan" %}</a>
+    <h1 class="text-h2 font-display text-ink-900" style="margin:6px 0 0">{% translate "Tambah staf" %}</h1>
+    <p class="text-body-sm text-ink-500" style="margin:6px 0 0">{% translate "Staf masuk dengan OTP nomor HP atau SSO; tidak ada kata sandi yang perlu dibuat. Peran akses ditetapkan terpisah." %}</p>
+  </header>
+
+  <section class="card" style="padding:24px">
+    <form method="post" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">
+      {% csrf_token %}
+      {% include "components/_console_form_fields.html" with form=form %}
+      <div style="grid-column:1/-1;display:flex;gap:12px">
+        <button type="submit" class="btn btn-primary">{% translate "Simpan" %}</button>
+        <a class="btn btn-secondary" href="{% url 'admin-staff' %}">{% translate "Batal" %}</a>
+      </div>
+    </form>
+  </section>
+</main>
+{% endblock %}

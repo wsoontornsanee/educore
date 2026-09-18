@@ -132,6 +132,67 @@ def create_user_with_person(
         return user, person
 
 
+def create_staff(*, foundation_id: int, school, data: dict, actor_id: str, role: str = '', ip_address=None) -> 'Staff':
+    """Create a Staff member with their Person PII vault record and User
+    account, atomically, and write the audit event (spec/02 §2, §5).
+
+    `data` is the validated StaffCreateSerializer payload; `school` is the
+    School row (or None for foundation-wide staff) — the caller has already
+    authorised the actor for that school. Shared by the JSON API and the web
+    console so both create staff identically."""
+    from apps.core.services import audit
+    from .models import Staff
+
+    with transaction.atomic():
+        user, person = create_user_with_person(
+            foundation_id=foundation_id,
+            full_name=data['full_name'],
+            phone=data['phone_e164'],
+            email=data.get('email'),
+            password=data.get('password'),
+            nik=data.get('nik'),
+            dob=data.get('dob'),
+            gender=data.get('gender', ''),
+            address=data.get('address', ''),
+            person_extra={
+                key: data.get(key, 'WNI' if key == 'citizenship' else '')
+                for key in (
+                    'religion', 'birth_city', 'birth_certificate_number', 'citizenship',
+                    'rt', 'rw', 'dusun', 'kelurahan', 'kecamatan', 'kabupaten_kota', 'provinsi', 'postal_code',
+                )
+            },
+        )
+        staff = Staff.objects.create(
+            foundation_id=foundation_id,
+            person=person,
+            user=user,
+            school=school,
+            nip=data.get('nip', ''),
+            nuptk=data.get('nuptk') or None,
+            employment_type=data.get('employment_type', Staff.TYPE_PERMANENT),
+            appointment_type=data.get('appointment_type', ''),
+            certification_status=data.get('certification_status', ''),
+            highest_degree=data.get('highest_degree', ''),
+            degree_institution=data.get('degree_institution', ''),
+            degree_graduation_year=data.get('degree_graduation_year'),
+            join_date=data['join_date'],
+            status=Staff.STATUS_ACTIVE,
+            created_by=actor_id,
+        )
+        audit(
+            action="identity.staff.created",
+            entity_type="Staff",
+            entity_id=str(staff.id),
+            actor_id=actor_id,
+            role=role or 'school_admin',
+            foundation_id=foundation_id,
+            school_id=staff.school_id,
+            ip_address=ip_address,
+            diff={"nip": {"after": staff.nip}, "full_name": {"after": person.full_name}},
+        )
+    return staff
+
+
 def offboard_staff(staff_id: int, actor_id: str = None, role: str = '', reason: str = '', resignation_date=None, reassign_to_staff_id: int = None) -> 'Staff':
     """Execute staff offboarding lifecycle per IAM-021 (spec/02 §5).
     

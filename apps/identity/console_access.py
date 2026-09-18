@@ -104,6 +104,28 @@ def accessible_school_ids(user, foundation_id, permission_key):
     }
 
 
+def can_manage_staff(actor, staff, ceiling, assignments):
+    """May `actor` offboard `staff`, given `ceiling` (accessible_school_ids
+    for school_config.write: None = foundation-wide) and the target's active
+    RoleAssignment rows?
+
+    Never yourself (a self-offboard would revoke your own sessions and
+    roles). A school-scoped manager may only manage staff whose entire
+    access lives inside their own schools: a foundation-scope role, a school
+    outside the ceiling, or a superuser flag on the target means they hold
+    authority the manager does not, and offboarding them would revoke it —
+    a privilege escalation in reverse."""
+    if staff.user_id == actor.id:
+        return False
+    if ceiling is None:
+        return True
+    if staff.school_id not in ceiling or staff.user.is_superuser:
+        return False
+    return all(
+        a.scope_type == RoleAssignment.SCOPE_SCHOOL and a.scope_id in ceiling for a in assignments
+    )
+
+
 class ConsolePermissionMixin(LoginRequiredMixin):
     """Login + RBAC gate for the Administrasi console pages (plain Django
     views, not DRF — unlike StaffConsoleMixin, no Staff profile is required:
