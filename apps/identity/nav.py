@@ -11,7 +11,14 @@ staff user" (used only for the placeholder task inbox item, which has no
 real backing feature yet either).
 
 Only 'permission_slips' has a real destination (permission-slip-console-page).
-Every other item routes to the 'console:coming_soon' placeholder — see
+Every other item still routes to the 'console:coming_soon' placeholder in
+this table (kept so a future task can flip one item's url_name the moment
+its real page ships), but get_nav_for_user hides every coming_soon item
+from the rendered nav — reported as a bug (2026-09-19): a user with full
+permissions saw the whole menu, clicked into modules that only ever showed
+"Modul ini belum tersedia", and read that as a broken/no-access page rather
+than an unbuilt one. The corresponding dev work is tracked in Notion
+instead of being exposed as a dead menu item. See
 docs/superpowers/specs/2026-09-18-web-console-nav-and-landing-design.md.
 
 An item may also declare requires_staff_profile=True: some real pages gate
@@ -27,6 +34,8 @@ from django.utils.translation import gettext_lazy as _
 
 from .models import RoleAssignment, Staff
 from .rbac import get_user_permissions, SCOPE_SCHOOL
+
+COMING_SOON_URL_NAME = "console:coming_soon"
 
 NAV_GROUPS = [
     {"label": _("Beranda"), "items": [
@@ -91,8 +100,9 @@ def _has_staff_profile(user, foundation_id):
 
 
 def get_nav_for_user(user, foundation_id):
-    """NAV_GROUPS filtered to items `user` can actually reach: they must hold
-    the item's RBAC permission, and — for the handful of items that declare
+    """NAV_GROUPS filtered to items `user` can actually reach and use: the
+    item must not be a coming_soon placeholder, they must hold its RBAC
+    permission, and — for the handful of items that declare
     requires_staff_profile — have a linked Staff row too.
 
     Groups whose every item was filtered out are omitted entirely (a group
@@ -109,7 +119,8 @@ def get_nav_for_user(user, foundation_id):
         visible_items = [
             {"id": item["id"], "label": item["label"], "url_name": item["url_name"]}
             for item in group["items"]
-            if (item["permission"] is None or item["permission"] in permissions)
+            if item["url_name"] != COMING_SOON_URL_NAME
+            and (item["permission"] is None or item["permission"] in permissions)
             and (not item.get("requires_staff_profile") or has_staff)
         ]
         if visible_items:
