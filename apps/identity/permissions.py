@@ -7,7 +7,10 @@ Enforces:
 from rest_framework import permissions
 from rest_framework.exceptions import PermissionDenied
 from educore.middleware.tenancy import get_current_foundation_id
-from .rbac import has_permission, ROLE_FOUNDATION_ADMIN, SCOPE_FOUNDATION, SCOPE_SCHOOL
+from .rbac import (
+    has_permission, has_platform_permission, PLATFORM_PERMISSION_KEYS,
+    ROLE_FOUNDATION_ADMIN, SCOPE_FOUNDATION, SCOPE_SCHOOL,
+)
 from .models import RoleAssignment
 
 class HasRequiredPermission(permissions.BasePermission):
@@ -34,6 +37,16 @@ class HasRequiredPermission(permissions.BasePermission):
 
         if not required_permission:
             raise PermissionDenied("Akses ditolak: Handler API tidak mendefinisikan required_permission (IAM-010).")
+
+        # Platform-wide permission short-circuit (no tenant context required) —
+        # see docs/superpowers/specs/2026-09-18-service-status-page-design.md §4.
+        # Cheap in-memory set check first: only required_permission values that
+        # are actually platform-grantable (currently just 'status.write') pay
+        # for the PlatformRoleAssignment DB query below — every other,
+        # tenant-scoped permission check across the whole app (the vast
+        # majority) skips it entirely.
+        if required_permission in PLATFORM_PERMISSION_KEYS and has_platform_permission(request.user, required_permission):
+            return True
 
         # Resolve foundation context
         foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)

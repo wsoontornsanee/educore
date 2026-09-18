@@ -9,7 +9,7 @@ Implements:
 """
 from typing import Optional, Set
 from django.db.models import Q
-from .models import RoleAssignment, User
+from .models import RoleAssignment, User, PlatformRoleAssignment
 
 # Canonical Roles (spec/02 §4.2)
 ROLE_FOUNDATION_ADMIN = RoleAssignment.ROLE_FOUNDATION_ADMIN
@@ -242,7 +242,7 @@ def has_permission(
 
 def is_foundation_admin(user: User, foundation_id: int) -> bool:
     """Evaluate whether the user has active Foundation Admin authority (or is superuser).
-    
+
     Required for approving threshold-gated actions like discounts, write-offs, and refunds
     (spec/03 §3 FND-007, FND-008, spec/06 §6 FIN-031, spec/06 §7 FIN-032).
     """
@@ -260,3 +260,56 @@ def is_foundation_admin(user: User, foundation_id: int) -> bool:
         scope_id=foundation_id,
         deleted_at__isnull=True,
     ).exists()
+
+
+# Platform-wide (non-tenant) roles and permissions — see
+# docs/superpowers/specs/2026-09-18-service-status-page-design.md §4.
+# Deliberately separate from ROLE_PERMISSIONS/RoleAssignment: a platform
+# permission never requires (or implies) a foundation_id.
+PLATFORM_ROLE_OPERATOR = PlatformRoleAssignment.ROLE_PLATFORM_OPERATOR
+
+PLATFORM_ROLE_PERMISSIONS: dict[str, set[str]] = {
+    PLATFORM_ROLE_OPERATOR: {'status.write'},
+}
+
+# All platform-grantable permission key strings, flattened for a cheap O(1)
+# membership check — lets HasRequiredPermission skip the
+# PlatformRoleAssignment DB query entirely for the overwhelming majority of
+# requests, whose required_permission is a tenant-scoped key that could
+# never be granted by a platform role.
+PLATFORM_PERMISSION_KEYS: frozenset[str] = frozenset().union(*PLATFORM_ROLE_PERMISSIONS.values())
+
+
+def get_platform_permissions(user) -> Set[str]:
+    """Calculate the cumulative set of platform-wide permission keys for a user."""
+    if not user or not user.is_authenticated or not user.is_active or user.is_locked:
+        return set()
+
+    if user.is_superuser:
+        all_perms: Set[str] = set()
+        for perms in PLATFORM_ROLE_PERMISSIONS.values():
+            all_perms.update(perms)
+        return all_perms
+
+    assignments = PlatformRoleAssignment.objects.filter(user=user)
+    permissions: Set[str] = set()
+    for assignment in assignments:
+        permissions.update(PLATFORM_ROLE_PERMISSIONS.get(assignment.role, set()))
+    return permissions
+
+
+def has_platform_permission(user, permission_key: str) -> bool:
+    """True if user holds permission_key via a platform-wide role (no tenant context needed).
+
+    Fast pre-check: `permission_key` values that no platform role could ever
+    grant (i.e. every tenant-scoped permission key — the overwhelming
+    majority of checks in the whole monolith) are rejected before touching
+    the database at all, via the PLATFORM_PERMISSION_KEYS set already
+    computed above. This makes has_platform_permission itself safe to call
+    from any call site (not just HasRequiredPermission, which has its own
+    equivalent short-circuit) without triggering a PlatformRoleAssignment
+    query per request.
+    """
+    if permission_key not in PLATFORM_PERMISSION_KEYS:
+        return False
+    return permission_key in get_platform_permissions(user)

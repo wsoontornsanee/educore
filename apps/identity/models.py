@@ -896,3 +896,34 @@ class MicrosoftTenantConfig(TenantModel):
 
     def __str__(self):
         return f"foundation={self.foundation_id} tenant={self.tenant_id}"
+
+
+class PlatformRoleAssignment(models.Model):
+    """Platform-wide (non-tenant) role assignment for EduCore operator staff.
+
+    Deliberately NOT a TenantModel: a platform role has no foundation_id and
+    must never be routed through TenantManager's fail-closed tenant scoping.
+    See docs/superpowers/specs/2026-09-18-service-status-page-design.md §4.
+    """
+    ROLE_PLATFORM_OPERATOR = 'platform_operator'
+    ROLE_CHOICES = [
+        (ROLE_PLATFORM_OPERATOR, 'Platform Operator'),
+    ]
+
+    # Forward access to .user on a freshly-loaded (not select_related'd) PlatformRoleAssignment
+    # requires an active tenant context, or use User.all_tenants.get(pk=assignment.user_id) instead.
+    # This model is deliberately used in situations with NO tenant context; see select_related docs.
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='platform_role_assignments')
+    role = models.CharField(max_length=32, choices=ROLE_CHOICES, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'platform_role_assignments'
+        verbose_name = 'Penugasan Peran Platform'
+        verbose_name_plural = 'Daftar Penugasan Peran Platform'
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'role'], name='unique_user_platform_role')
+        ]
+
+    def __str__(self):
+        return f"{self.user.phone_e164} -> {self.role} (PLATFORM)"

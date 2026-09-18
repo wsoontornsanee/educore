@@ -36,3 +36,4 @@
 25 2 25 * *    sleep 75; python /app/manage.py generate_invoices --next-period
 0 3 1 * *      sleep 78; python /app/manage.py close_metering_month
 0 4 * * 0      sleep 81; python /app/manage.py settle_merchants
+*/5 * * * *    sleep 8; python /app/manage.py check_service_health  # Service status page: DB probe + daily rollup
