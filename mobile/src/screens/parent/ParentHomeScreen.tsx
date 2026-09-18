@@ -6,14 +6,17 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View
 import { fetchAttendanceForChild } from '../../services/parentAttendance';
 import { fetchInvoicesForChild } from '../../services/invoices';
 import { fetchWallet, formatRupiah } from '../../services/wallet';
-import { cacheGet, cacheSet } from '../../services/storage';
+import { fetchStudentBroadcasts } from '../../services/broadcasts';
+import { cacheGet, cacheSet, getItem, setItem } from '../../services/storage';
 import { todayWib } from '../../services/localDate';
 import { attendanceStatusLabel } from '../../constants/attendance';
 import { StaleOfflineBanner } from '../../components/StaleOfflineBanner';
 import { useLocale } from '../../i18n/LocaleContext';
 import { colors, radius, spacing, typography } from '../../theme/tokens';
-import type { AttendanceDayItem, ChildSummary, InvoiceItem, WalletData } from '../../types';
+import type { AttendanceDayItem, BroadcastItem, ChildSummary, InvoiceItem, WalletData } from '../../types';
 import type { ParentTab } from './ParentShell';
+
+const LAST_VIEWED_BROADCAST_KEY = 'educore_last_viewed_broadcast';
 
 interface ParentHomeScreenProps {
   child: ChildSummary;
@@ -29,6 +32,8 @@ export const ParentHomeScreen: React.FC<ParentHomeScreenProps> = ({ child, onNav
   const [today, setToday] = useState<AttendanceDayItem | null>(null);
   const [outstandingInvoices, setOutstandingInvoices] = useState<InvoiceItem[]>([]);
   const [wallet, setWallet] = useState<WalletData | null>(null);
+  const [unreadAnnouncements, setUnreadAnnouncements] = useState<BroadcastItem[]>([]);
+  const [announcementsOffline, setAnnouncementsOffline] = useState(false);
 
   const cacheKey = `educore_parent_home_${child.student_id}`;
 
@@ -37,10 +42,11 @@ export const ParentHomeScreen: React.FC<ParentHomeScreenProps> = ({ child, onNav
     (async () => {
       setLoading(true);
       try {
-        const [attendance, invoices, walletRes] = await Promise.all([
+        const [attendance, invoices, walletRes, broadcastsRes] = await Promise.all([
           fetchAttendanceForChild(child.student_id),
           child.financial_responsible ? fetchInvoicesForChild(child.student_id) : Promise.resolve([]),
           fetchWallet(child.student_id).catch(() => null),
+          fetchStudentBroadcasts(child.student_id).catch(() => ({ broadcasts: [] as BroadcastItem[], isOfflineCached: false, lastUpdated: '' })),
         ]);
         if (cancelled) return;
         // Must be the WIB calendar date, not the UTC one (see services/localDate).
@@ -57,14 +63,26 @@ export const ParentHomeScreen: React.FC<ParentHomeScreenProps> = ({ child, onNav
         setWallet(walletData);
         setOffline(false);
         setCachedAt(null);
-        await cacheSet(cacheKey, { today: todayRow, outstanding, wallet: walletData });
+
+        // PAR-002: filter for unread announcements (sent_at > lastViewedAt)
+        const lastViewedRaw = await getItem(LAST_VIEWED_BROADCAST_KEY);
+        const lastViewed = lastViewedRaw ? new Date(lastViewedRaw).getTime() : 0;
+        const unread = (broadcastsRes.broadcasts || []).filter((b) => {
+          if (!b.sent_at) return false;
+          return new Date(b.sent_at).getTime() > lastViewed;
+        });
+        setUnreadAnnouncements(unread);
+        setAnnouncementsOffline(broadcastsRes.isOfflineCached);
+
+        await cacheSet(cacheKey, { today: todayRow, outstanding, wallet: walletData, unread });
       } catch {
         if (cancelled) return;
-        const cached = await cacheGet<{ today: AttendanceDayItem | null; outstanding: InvoiceItem[]; wallet?: WalletData | null }>(cacheKey);
+        const cached = await cacheGet<{ today: AttendanceDayItem | null; outstanding: InvoiceItem[]; wallet?: WalletData | null; unread?: BroadcastItem[] }>(cacheKey);
         if (cached) {
           setToday(cached.value.today);
           setOutstandingInvoices(cached.value.outstanding);
           setWallet(cached.value.wallet ?? null);
+          setUnreadAnnouncements(cached.value.unread ?? []);
           setCachedAt(cached.cachedAt);
         }
         setOffline(true);
@@ -74,6 +92,13 @@ export const ParentHomeScreen: React.FC<ParentHomeScreenProps> = ({ child, onNav
     })();
     return () => { cancelled = true; };
   }, [child.student_id, child.financial_responsible]);
+
+  const handleOpenAnnouncements = async () => {
+    // Mark all as read by recording current time
+    await setItem(LAST_VIEWED_BROADCAST_KEY, new Date().toISOString());
+    setUnreadAnnouncements([]);
+    onNavigateTab?.('MESSAGES');
+  };
 
   if (loading) {
     return (
@@ -134,6 +159,29 @@ export const ParentHomeScreen: React.FC<ParentHomeScreenProps> = ({ child, onNav
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Announcements Card (PAR-002: unread announcements) */}
+      {unreadAnnouncements.length > 0 && (
+        <TouchableOpacity
+          style={styles.announcementCard}
+          onPress={handleOpenAnnouncements}
+          accessibilityRole="button"
+          accessibilityLabel={`${unreadAnnouncements.length} pengumuman baru. Ketuk untuk membuka.`}
+        >
+          <View style={styles.announcementCardTop}>
+            <Text style={styles.announcementBadge}>{unreadAnnouncements.length}</Text>
+            <Text style={styles.announcementTitle}>
+              {unreadAnnouncements.length} {t('home.announcements_title')}
+            </Text>
+          </View>
+          <Text style={styles.announcementLatest} numberOfLines={1}>
+            {unreadAnnouncements[0].title}
+          </Text>
+          {announcementsOffline && (
+            <Text style={styles.announcementOfflineNote}>{t('home.announcements_offline')}</Text>
+          )}
+        </TouchableOpacity>
+      )}
 
       {child.financial_responsible && (
         <View style={styles.invoiceCard}>
@@ -200,6 +248,33 @@ const styles = StyleSheet.create({
   invoiceCard: {
     backgroundColor: colors.white, borderWidth: 1, borderColor: colors.border,
     borderRadius: radius.card, padding: spacing.lg,
+  },
+  announcementCard: {
+    backgroundColor: colors.primaryLight,
+    borderWidth: 1, borderColor: colors.primary,
+    borderRadius: radius.card, padding: spacing.lg, marginBottom: spacing.base,
+  },
+  announcementCardTop: {
+    flexDirection: 'row', alignItems: 'center', marginBottom: spacing.xs,
+  },
+  announcementBadge: {
+    backgroundColor: colors.primary,
+    color: colors.white,
+    fontSize: typography.fontSize.xs, fontWeight: typography.fontWeight.bold,
+    paddingHorizontal: 6, paddingVertical: 2,
+    borderRadius: radius.badge,
+    marginRight: spacing.sm, overflow: 'hidden',
+    minWidth: 22, textAlign: 'center',
+  },
+  announcementTitle: {
+    fontSize: typography.fontSize.base, fontWeight: typography.fontWeight.bold,
+    color: colors.primaryDark,
+  },
+  announcementLatest: {
+    fontSize: typography.fontSize.sm, color: colors.body, marginTop: spacing.xs,
+  },
+  announcementOfflineNote: {
+    fontSize: typography.fontSize.xs, color: colors.muted, fontStyle: 'italic', marginTop: spacing.xs,
   },
   cardTitle: { fontSize: typography.fontSize.base, fontWeight: typography.fontWeight.bold, color: colors.heading, marginBottom: spacing.xs },
   cardBody: { fontSize: typography.fontSize.sm, color: colors.body },

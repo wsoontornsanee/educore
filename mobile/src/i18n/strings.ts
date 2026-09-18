@@ -92,9 +92,11 @@ export const strings: StringMap = {
   'home.arrived':          { 'id-ID': 'Tiba:',                         'en-US': 'Arrived:' },
   'home.wallet_title':     { 'id-ID': 'Dompet Kantin Digital',         'en-US': 'Digital Canteen Wallet' },
   'home.open_wallet':      { 'id-ID': 'Buka Dompet Siswa \u2192',      'en-US': 'Open Student Wallet \u2192' },
-  'home.invoices_title':   { 'id-ID': 'Tagihan',                       'en-US': 'Invoices' },
-  'home.no_invoices':      { 'id-ID': 'Tidak ada tagihan tertunggak.', 'en-US': 'No outstanding invoices.' },
-  'home.invoices_due':     { 'id-ID': 'tagihan belum lunas \u2014 jatuh tempo terdekat', 'en-US': 'unpaid invoices \u2014 nearest due date' },
+  'home.invoices_title':       { 'id-ID': 'Tagihan',                       'en-US': 'Invoices' },
+  'home.no_invoices':          { 'id-ID': 'Tidak ada tagihan tertunggak.', 'en-US': 'No outstanding invoices.' },
+  'home.invoices_due':         { 'id-ID': 'tagihan belum lunas \u2014 jatuh tempo terdekat', 'en-US': 'unpaid invoices \u2014 nearest due date' },
+  'home.announcements_title':  { 'id-ID': 'pengumuman baru',               'en-US': 'new announcements' },
+  'home.announcements_offline': { 'id-ID': 'Data pengumuman dari cache',   'en-US': 'Announcements from cache' },
 
   // ── Messages Tab (Permission Slips) ───────────────────────────────
   'messages.title':           { 'id-ID': 'Pesan & Surat Izin',            'en-US': 'Messages & Permission Slips' },

@@ -9,7 +9,7 @@
  * 
  * Features 5 mandatory screen states: LOADING, EMPTY, STALE, OFFLINE, ERROR with retry CTA.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Linking,
@@ -26,6 +26,7 @@ import {
   fetchStudentReportCards,
   fetchStudentTimetable,
 } from '../../services/academic.ts';
+import { track } from '../../services/analytics.ts';
 import { colors, radius, spacing, typography } from '../../theme/tokens.ts';
 import { useLocale } from '../../i18n/LocaleContext.tsx';
 import type {
@@ -96,6 +97,21 @@ export const ParentAcademicScreen: React.FC<ParentAcademicScreenProps> = ({
   useEffect(() => {
     loadData();
   }, [child.student_id, activeTab]);
+
+  // Analytics: track grades_view and report_card_view per spec/08 §5.
+  // Skip the initial mount to avoid firing on default tab.
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    if (activeTab === 'GRADES') {
+      track('grades_view');
+    } else if (activeTab === 'REPORT_CARDS') {
+      track('report_card_view');
+    }
+  }, [activeTab]);
 
   const subTabs: Array<{ key: AcademicSubTab; label: string }> = [
     { key: 'GRADES', label: t('academic.tab_grades') },

@@ -15,7 +15,7 @@ export const colors = {
   heading: '#0F172A',
   body: '#334155',
   muted: '#64748B',
-  subtle: '#94A3B8',
+  subtle: '#6B7280',    // PAR-016: was #94A3B8 (2.56:1 on white → FAIL). Darkened to pass WCAG AA 4.5:1 (4.69:1).
   border: '#E2E8F0',
   borderDark: '#CBD5E1',
   surface: '#F8FAFC',
@@ -23,13 +23,13 @@ export const colors = {
   white: '#FFFFFF',
 
   // Attendance Status (Semantic Palette)
-  hadir: '#16A34A',      // Present / Success
+  hadir: '#15803D',      // PAR-016: was #16A34A (3.30:1 on white → FAIL for normal text). Darkened to pass WCAG AA 4.5:1.
   hadirLight: '#DCFCE7',
-  sakit: '#2563EB',      // Sick / Medical / Info
+  sakit: '#2563EB',      // Sick / Medical / Info — passes 5.17:1 on white
   sakitLight: '#DBEAFE',
-  izin: '#D97706',       // Excused / Warning
+  izin: '#B45309',       // PAR-016: was #D97706 (3.19:1 on white → FAIL for normal text). Darkened to pass WCAG AA 4.5:1.
   izinLight: '#FEF3C7',
-  alpa: '#DC2626',       // Absent / Unexcused / Danger
+  alpa: '#DC2626',       // Absent / Unexcused / Danger — passes 4.83:1 on white
   alpaLight: '#FEE2E2',
 
   // Special Indicators

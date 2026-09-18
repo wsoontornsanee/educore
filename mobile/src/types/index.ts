@@ -641,3 +641,35 @@ export interface BroadcastItem {
   class_group_name: string;
   class_group_id: number;
 }
+
+// ── Behaviour / Point System (spec/09 TCH-008/009) ────────────────────
+
+export interface BehaviourReason {
+  id: number;
+  name: string;
+  description?: string;
+  point_value: number;
+  is_positive: boolean;
+}
+
+export interface BehaviourRecordPayload {
+  student_id: number;
+  reason_id: number;
+  note?: string;
+  occurred_at: string;      // ISO 8601
+}
+
+export interface BehaviourRecord {
+  id: number;
+  student_id: number;
+  student_name?: string;
+  reason_id: number;
+  reason_name: string;
+  point_value: number;
+  note?: string;
+  occurred_at: string;
+  recorded_by_name: string;
+  created_at: string;
+}
+
+export type BehaviourStep = 'SELECT_STUDENT' | 'SELECT_REASON' | 'ADD_NOTE' | 'CONFIRM';

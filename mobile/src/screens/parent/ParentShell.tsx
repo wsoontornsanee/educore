@@ -148,31 +148,31 @@ export const ParentShell: React.FC<ParentShellProps> = ({ activeTab, onTabChange
 
       <View style={styles.content}>{invoicesBlocked ? null : children({ selectedChild, allChildren })}</View>
 
-      <View style={styles.tabBar}>
-        <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('HOME')}>
+      <View style={styles.tabBar} accessibilityRole="tabbar">
+        <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('HOME')} accessibilityRole="tab" accessibilityState={{ selected: activeTab === 'HOME' }} accessibilityLabel={t('tab.home', locale)}>
           <Text style={[styles.tabLabel, activeTab === 'HOME' && styles.tabLabelActive]}>{t('tab.home', locale)}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('ATTENDANCE')}>
+        <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('ATTENDANCE')} accessibilityRole="tab" accessibilityState={{ selected: activeTab === 'ATTENDANCE' }} accessibilityLabel={t('tab.attendance', locale)}>
           <Text style={[styles.tabLabel, activeTab === 'ATTENDANCE' && styles.tabLabelActive]}>{t('tab.attendance', locale)}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('ACADEMIC')}>
+        <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('ACADEMIC')} accessibilityRole="tab" accessibilityState={{ selected: activeTab === 'ACADEMIC' }} accessibilityLabel={t('tab.academic', locale)}>
           <Text style={[styles.tabLabel, activeTab === 'ACADEMIC' && styles.tabLabelActive]}>{t('tab.academic', locale)}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('MESSAGES')}>
+        <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('MESSAGES')} accessibilityRole="tab" accessibilityState={{ selected: activeTab === 'MESSAGES' }} accessibilityLabel={t('tab.messages', locale)}>
           <Text style={[styles.tabLabel, activeTab === 'MESSAGES' && styles.tabLabelActive]}>{t('tab.messages', locale)}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('WALLET')}>
+        <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('WALLET')} accessibilityRole="tab" accessibilityState={{ selected: activeTab === 'WALLET' }} accessibilityLabel={t('tab.wallet', locale)}>
           <Text style={[styles.tabLabel, activeTab === 'WALLET' && styles.tabLabelActive]}>{t('tab.wallet', locale)}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('NUTRITION')}>
+        <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('NUTRITION')} accessibilityRole="tab" accessibilityState={{ selected: activeTab === 'NUTRITION' }} accessibilityLabel={t('tab.nutrition', locale)}>
           <Text style={[styles.tabLabel, activeTab === 'NUTRITION' && styles.tabLabelActive]}>{t('tab.nutrition', locale)}</Text>
         </TouchableOpacity>
         {showInvoicesTab && (
-          <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('INVOICES')}>
+          <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('INVOICES')} accessibilityRole="tab" accessibilityState={{ selected: activeTab === 'INVOICES' }} accessibilityLabel={t('tab.invoices', locale)}>
             <Text style={[styles.tabLabel, activeTab === 'INVOICES' && styles.tabLabelActive]}>{t('tab.invoices', locale)}</Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('PROFILE')}>
+        <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('PROFILE')} accessibilityRole="tab" accessibilityState={{ selected: activeTab === 'PROFILE' }} accessibilityLabel={t('tab.profile', locale)}>
           <Text style={[styles.tabLabel, activeTab === 'PROFILE' && styles.tabLabelActive]}>{t('tab.profile', locale)}</Text>
         </TouchableOpacity>
       </View>
