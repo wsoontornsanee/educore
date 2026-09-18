@@ -1,7 +1,9 @@
 import datetime
 from decimal import Decimal
 
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
@@ -15,7 +17,7 @@ from apps.finance.models import (
     DiscountType, Invoice, InvoiceStatus, InvoiceWriteOffRequest, InvoiceWriteOffStatus,
 )
 from apps.finance.services.invoicing import create_discount_with_approval_check
-from apps.identity.inbox import ITEMS_PER_SECTION, get_inbox_for_user
+from apps.identity.inbox import ITEMS_PER_SECTION, get_inbox_count, get_inbox_for_user
 from apps.identity.models import Person, School, Staff, User
 from apps.identity.rbac import (
     ROLE_FOUNDATION_ADMIN, ROLE_SCHOOL_ADMIN, ROLE_TEACHER, SCOPE_FOUNDATION, SCOPE_SCHOOL, assign_role,
@@ -207,3 +209,46 @@ class ConsoleInboxEnglishTests(InboxTestBase):
         self.client.cookies['django_language'] = 'en'
         response = self.client.get(reverse('console-inbox'))
         self.assertContains(response, 'Nothing is waiting on you right now.')
+
+
+class InboxBadgeTests(InboxTestBase):
+    def _pending_absence(self, n=1):
+        for i in range(n):
+            AbsenceRequest.objects.create(
+                foundation_id=self.foundation.id, school=self.school, student=self.fx['student'],
+                requested_by=self.teacher, date_from=datetime.date(2026, 8, 3), date_to=datetime.date(2026, 8, 3),
+                type='SAKIT', reason=f'r{i}', status=AbsenceRequestStatus.PENDING,
+            )
+
+    def test_count_sums_every_source_including_beyond_the_row_cap(self):
+        self._pending_absence(ITEMS_PER_SECTION + 5)
+        ReportCard.objects.create(
+            foundation_id=self.foundation.id, student=self.fx['student'], term=self.fx['term'],
+            class_group=self.fx['class_group'], status=ReportCardStatus.PENDING_REVIEW, is_current=True,
+        )
+        self.assertEqual(get_inbox_count(self.admin, self.foundation.id), ITEMS_PER_SECTION + 6)
+        self.assertEqual(get_inbox_count(self.teacher, self.foundation.id), ITEMS_PER_SECTION + 5)
+
+    def test_nav_shows_badge_only_when_something_is_pending(self):
+        self.client.force_login(self.school_admin)
+        self.assertNotContains(self.client.get(reverse('console-inbox')), 'tugas menunggu')
+        self._pending_absence(2)
+        response = self.client.get(reverse('console-inbox'))
+        self.assertContains(response, '>2</span>')
+
+    def test_badge_is_capped(self):
+        self._pending_absence(100)
+        self.client.force_login(self.school_admin)
+        self.assertContains(self.client.get(reverse('console-inbox')), '>99+</span>')
+
+    def test_badge_query_is_lazy(self):
+        """A page whose template never reads inbox_badge must not pay for
+        the count queries."""
+        from django.test import RequestFactory
+        from apps.identity.context_processors import console_nav
+
+        request = RequestFactory().get('/')
+        request.user = self.school_admin
+        with CaptureQueriesContext(connection) as queries:
+            console_nav(request)
+        self.assertFalse([q for q in queries if 'absence_requests' in q['sql']])

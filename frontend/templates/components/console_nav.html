@@ -81,7 +81,7 @@
     <div style="display:flex;flex-direction:column;gap:3px">
       <span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:#A4998F;padding:4px 10px 6px">{{ group.label }}</span>
       {% for item in group.items %}
-      <a href="{% url item.url_name %}" style="display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:6px;color:#5A4F49;text-decoration:none;font-family:'IBM Plex Sans',sans-serif;font-size:13.5px;font-weight:500">{{ item.label }}</a>
+      <a href="{% url item.url_name %}" style="display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:6px;color:#5A4F49;text-decoration:none;font-family:'IBM Plex Sans',sans-serif;font-size:13.5px;font-weight:500">{{ item.label }}{% if item.id == 'inbox' and inbox_badge %}<span style="margin-left:auto;min-width:20px;padding:1px 6px;background:#C8102E;color:#fff;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;text-align:center;border-radius:10px" aria-label="{% blocktranslate %}{{ inbox_badge }} tugas menunggu{% endblocktranslate %}">{{ inbox_badge }}</span>{% endif %}</a>
       {% endfor %}
     </div>
     {% endfor %}

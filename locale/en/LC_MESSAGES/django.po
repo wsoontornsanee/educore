@@ -6710,3 +6710,8 @@ msgstr "Nothing is waiting on you right now."
 #, python-format
 msgid "Menampilkan %(shown)s dari %(total)s item."
 msgstr "Showing %(shown)s of %(total)s items."
+
+#: frontend/templates/components/console_nav.html
+#, python-format
+msgid "%(inbox_badge)s tugas menunggu"
+msgstr "%(inbox_badge)s tasks waiting"
