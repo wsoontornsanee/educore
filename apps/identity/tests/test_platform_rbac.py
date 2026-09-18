@@ -1,14 +1,29 @@
 from django.test import TestCase
-from apps.identity.models import PlatformRoleAssignment, User
+from apps.identity.models import PlatformRoleAssignment, User, Foundation
 from apps.identity.rbac import has_platform_permission, get_platform_permissions
 
 
 class PlatformRbacTests(TestCase):
     def setUp(self):
-        self.operator = User.objects.create(phone_e164='+6281200000002', full_name='Ops Two')
-        self.plain_user = User.objects.create(phone_e164='+6281200000003', full_name='Plain User')
+        self.foundation = Foundation.objects.create(
+            legal_name='Test Foundation',
+            brand_name='Test Foundation',
+        )
+        self.operator = User.objects.create(
+            phone_e164='+6281200000002',
+            full_name='Ops Two',
+            foundation_id=self.foundation.id,
+        )
+        self.plain_user = User.objects.create(
+            phone_e164='+6281200000003',
+            full_name='Plain User',
+            foundation_id=self.foundation.id,
+        )
         self.superuser = User.objects.create(
-            phone_e164='+6281200000004', full_name='Super User', is_superuser=True,
+            phone_e164='+6281200000004',
+            full_name='Super User',
+            is_superuser=True,
+            foundation_id=self.foundation.id,
         )
         PlatformRoleAssignment.objects.create(
             user=self.operator, role=PlatformRoleAssignment.ROLE_PLATFORM_OPERATOR,

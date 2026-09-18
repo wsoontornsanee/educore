@@ -242,7 +242,7 @@ def has_permission(
 
 def is_foundation_admin(user: User, foundation_id: int) -> bool:
     """Evaluate whether the user has active Foundation Admin authority (or is superuser).
-    
+
     Required for approving threshold-gated actions like discounts, write-offs, and refunds
     (spec/03 §3 FND-007, FND-008, spec/06 §6 FIN-031, spec/06 §7 FIN-032).
     """
@@ -260,3 +260,37 @@ def is_foundation_admin(user: User, foundation_id: int) -> bool:
         scope_id=foundation_id,
         deleted_at__isnull=True,
     ).exists()
+
+
+# Platform-wide (non-tenant) roles and permissions — see
+# docs/superpowers/specs/2026-09-18-service-status-page-design.md §4.
+# Deliberately separate from ROLE_PERMISSIONS/RoleAssignment: a platform
+# permission never requires (or implies) a foundation_id.
+PLATFORM_ROLE_OPERATOR = PlatformRoleAssignment.ROLE_PLATFORM_OPERATOR
+
+PLATFORM_ROLE_PERMISSIONS: dict[str, set[str]] = {
+    PLATFORM_ROLE_OPERATOR: {'status.write'},
+}
+
+
+def get_platform_permissions(user) -> Set[str]:
+    """Calculate the cumulative set of platform-wide permission keys for a user."""
+    if not user or not user.is_authenticated or not user.is_active or user.is_locked:
+        return set()
+
+    if user.is_superuser:
+        all_perms: Set[str] = set()
+        for perms in PLATFORM_ROLE_PERMISSIONS.values():
+            all_perms.update(perms)
+        return all_perms
+
+    assignments = PlatformRoleAssignment.objects.filter(user=user)
+    permissions: Set[str] = set()
+    for assignment in assignments:
+        permissions.update(PLATFORM_ROLE_PERMISSIONS.get(assignment.role, set()))
+    return permissions
+
+
+def has_platform_permission(user, permission_key: str) -> bool:
+    """True if user holds permission_key via a platform-wide role (no tenant context needed)."""
+    return permission_key in get_platform_permissions(user)
