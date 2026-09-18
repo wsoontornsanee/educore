@@ -1,16 +1,9 @@
-{% extends "base.html" %}
-{% comment %}
-TODO(Task 3): base_console.html does not exist yet (created in Task 3 of the
-web-console-nav-and-landing plan). Until then, this temporarily extends
-base.html and uses the "content" block instead of "console_content" so this
-task's own tests pass in isolation. Task 3 MUST change this back to extend
-base_console.html and use the console_content block.
-{% endcomment %}
+{% extends "base_console.html" %}
 {% load i18n %}
 
 {% block title %}{% translate "Modul belum tersedia" %}{% endblock %}
 
-{% block content %}
+{% block console_content %}
 <div style="max-width: 560px; margin: 64px auto; text-align: center;">
   <h1 class="font-display text-h2" style="margin-bottom: 12px;">
     {% translate "Modul ini belum tersedia" %}
