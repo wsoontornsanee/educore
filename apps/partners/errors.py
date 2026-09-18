@@ -1,8 +1,9 @@
 """RFC 9457 (problem+json) error handling for the partner API surface (§5).
 
-Scoped deliberately to apps.partners views only — the rest of the platform
-keeps its existing error shape, so this PR introduces no global DRF
-exception-handler override.
+Scoped deliberately to apps.partners views only for non-throttle errors —
+the rest of the platform keeps its existing error shape. `Throttled` is the
+one exception type this global handler treats platform-wide (see
+`_drf_problem_handler` below and apps/core/throttling.py).
 """
 import json
 import logging
@@ -39,13 +40,20 @@ def _drf_problem_handler(exc, context):
     """Global DRF EXCEPTION_HANDLER.
 
     Partner views (apps.partners): render RFC 9457 problem+json (§5).
-    Every other app: delegate to DRF's own default handler UNCHANGED —
-    this handler must be a strict no-op for the rest of the platform.
+    `Throttled` (any app): render the platform's standard 429 contract —
+    Indonesian detail + Retry-After + X-RateLimit-* (apps.core.throttling).
+    Every other app/exception: delegate to DRF's own default handler
+    UNCHANGED — this handler is a strict no-op for anything else.
     """
     request = context.get('request')
     view = context.get('view')
     if isinstance(exc, PartnerAPIError):
         return problem_response(request, exc)
+
+    from rest_framework.exceptions import Throttled
+    if isinstance(exc, Throttled):
+        from apps.core.throttling import build_throttled_response
+        return build_throttled_response(exc, context)
 
     from rest_framework.views import exception_handler as drf_default
     is_partner_view = view is not None and (

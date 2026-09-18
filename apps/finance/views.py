@@ -882,11 +882,15 @@ class PaymentViewSet(FinancialScopeMixin, viewsets.ModelViewSet):
 
 from rest_framework.views import APIView
 
+from apps.core.throttling import PaymentWebhookThrottle
+
 
 class PaymentWebhookView(APIView):
     """Public signature-verified payment gateway webhook (FIN-013)."""
     permission_classes = [permissions.AllowAny]
     authentication_classes = []
+    throttle_classes = [PaymentWebhookThrottle]
+    throttle_scope = 'payment_webhook'
 
     def post(self, request, provider):
         payload = request.data
