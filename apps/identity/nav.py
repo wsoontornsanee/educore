@@ -13,10 +13,19 @@ real backing feature yet either).
 Only 'permission_slips' has a real destination (permission-slip-console-page).
 Every other item routes to the 'console:coming_soon' placeholder — see
 docs/superpowers/specs/2026-09-18-web-console-nav-and-landing-design.md.
+
+An item may also declare requires_staff_profile=True: some real pages gate
+on more than the RBAC permission key (PermissionSlipConsolePageView also
+requires a linked Staff row — a guardian must never reach the school-side
+console even if a role mistake ever grants them grades.*, same reasoning as
+apps.academic.views.PermissionSlipWebAccessMixin). Without this check the
+nav would show an item that then 404s on click instead of just not showing
+it — reported as a real bug (2026-09-18) against a Teacher-role account
+with no Staff profile.
 """
 from django.utils.translation import gettext_lazy as _
 
-from .models import RoleAssignment
+from .models import RoleAssignment, Staff
 from .rbac import get_user_permissions, SCOPE_SCHOOL
 
 NAV_GROUPS = [
@@ -31,7 +40,7 @@ NAV_GROUPS = [
     ]},
     {"label": _("Operasional"), "items": [
         {"id": "attendance", "label": _("Kehadiran & gerbang"), "permission": "attendance.read", "url_name": "console:coming_soon"},
-        {"id": "permission_slips", "label": _("Izin digital"), "permission": "grades.read", "url_name": "permission-slip-console-page"},
+        {"id": "permission_slips", "label": _("Izin digital"), "permission": "grades.read", "url_name": "permission-slip-console-page", "requires_staff_profile": True},
         {"id": "canteen", "label": _("Kantin & dompet"), "permission": "wallet.topup.read", "url_name": "console:coming_soon"},
         {"id": "exam", "label": _("Mode ujian"), "permission": "grades.read", "url_name": "console:coming_soon"},
     ]},
@@ -70,19 +79,38 @@ def _cumulative_permissions(user, foundation_id):
     return permissions
 
 
+def _has_staff_profile(user, foundation_id):
+    """Explicit foundation_id filter via .all_tenants, not the thread-local-
+    dependent .objects — matches the same explicit-scoping convention used
+    throughout apps.identity.web_views (this runs inside a global context
+    processor, so it should not silently depend on TenancyMiddleware having
+    already set the thread-local for this exact request)."""
+    return Staff.all_tenants.filter(
+        user=user, foundation_id=foundation_id, deleted_at__isnull=True,
+    ).exists()
+
+
 def get_nav_for_user(user, foundation_id):
-    """NAV_GROUPS filtered to items `user` actually holds the permission for.
+    """NAV_GROUPS filtered to items `user` can actually reach: they must hold
+    the item's RBAC permission, and — for the handful of items that declare
+    requires_staff_profile — have a linked Staff row too.
 
     Groups whose every item was filtered out are omitted entirely (a group
     label alone, with no clickable items, is dead chrome for that user).
     """
     permissions = _cumulative_permissions(user, foundation_id)
+    needs_staff_check = any(
+        item.get("requires_staff_profile") for group in NAV_GROUPS for item in group["items"]
+    )
+    has_staff = _has_staff_profile(user, foundation_id) if needs_staff_check else None
+
     result = []
     for group in NAV_GROUPS:
         visible_items = [
             {"id": item["id"], "label": item["label"], "url_name": item["url_name"]}
             for item in group["items"]
-            if item["permission"] is None or item["permission"] in permissions
+            if (item["permission"] is None or item["permission"] in permissions)
+            and (not item.get("requires_staff_profile") or has_staff)
         ]
         if visible_items:
             result.append({"label": group["label"], "items": visible_items})

@@ -13,6 +13,18 @@
   .console-nav-open-btn { display: none; }
 
   @media (max-width: 719px) {
+    /* base.html's own header (logo/user name/language/logout) is shared by
+       every page, including marketing/login pages that never render this
+       component -- so this rule lives here, scoped to console pages only,
+       rather than in base.html itself. base.html's <header> sets padding
+       inline (higher specificity than a plain external rule), and on a
+       narrow viewport its two flex children wrap onto separate lines --
+       both need to clear the fixed hamburger button below, so !important
+       overrides the inline padding-left on the header itself rather than
+       chasing each child individually. */
+    body > header {
+      padding-left: 60px !important;
+    }
     .console-nav {
       position: fixed;
       inset: 0 auto 0 0;
