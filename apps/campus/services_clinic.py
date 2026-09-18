@@ -136,8 +136,10 @@ def record_clinic_visit(
             payload={'visit_id': visit.id, 'student_id': student.id, 'outcome': outcome},
         )
 
+        if outcome in (ClinicOutcome.SENT_HOME, ClinicOutcome.REFERRED):
+            _apply_sakit_override(visit)
+
     if outcome in (ClinicOutcome.SENT_HOME, ClinicOutcome.REFERRED):
-        _apply_sakit_override(visit)
         _dispatch_clinic_incident_notifications(visit)
 
     return visit
@@ -156,12 +158,15 @@ def _get_homeroom_teacher(student: Student):
 
 
 def _apply_sakit_override(visit: ClinicVisit) -> None:
-    """LIF-003: create/override today's AttendanceDay to SAKIT for the visit's student."""
+    """LIF-003: get-or-create today's AttendanceDay for the visit's student, then reuse the
+    shared day-level override service (design doc §6) so the mutation is audited the same
+    way as any other staff attendance override."""
     from apps.attendance.models import AttendanceDay, AttendanceSource, AttendanceStatus
+    from apps.attendance.services import override_attendance_day
 
-    actor_id = str(visit.handled_by.user_id) if visit.handled_by else ''
     note_text = f"Klinik: {visit.get_outcome_display()} (kunjungan #{visit.id})"
     visit_date = visit.occurred_at.date()
+    user = visit.handled_by.user if visit.handled_by else None
 
     att_day = AttendanceDay.all_tenants.filter(
         foundation_id=visit.foundation_id,
@@ -171,27 +176,25 @@ def _apply_sakit_override(visit: ClinicVisit) -> None:
         deleted_at__isnull=True,
     ).first()
 
-    if att_day:
-        if not att_day.is_override:
-            att_day.original_status = att_day.status
-        att_day.status = AttendanceStatus.SAKIT
-        att_day.source = AttendanceSource.MANUAL
-        att_day.is_override = True
-        att_day.note = note_text
-        att_day.updated_by = actor_id
-        att_day.save(update_fields=['status', 'original_status', 'source', 'is_override', 'note', 'updated_by', 'updated_at'])
-    else:
-        AttendanceDay.objects.create(
+    if not att_day:
+        att_day = AttendanceDay.objects.create(
             foundation_id=visit.foundation_id,
             school=visit.school,
             student=visit.student,
             date=visit_date,
-            status=AttendanceStatus.SAKIT,
             source=AttendanceSource.MANUAL,
-            is_override=True,
-            note=note_text,
-            created_by=actor_id,
         )
+    elif att_day.source != AttendanceSource.MANUAL:
+        att_day.source = AttendanceSource.MANUAL
+        att_day.save(update_fields=['source', 'updated_at'])
+
+    override_attendance_day(
+        foundation_id=visit.foundation_id,
+        attendance_day=att_day,
+        new_status=AttendanceStatus.SAKIT,
+        note=note_text,
+        user=user,
+    )
 
 
 def _dispatch_clinic_incident_notifications(visit: ClinicVisit) -> int:

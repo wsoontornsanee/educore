@@ -7,6 +7,7 @@ from rest_framework.test import APIClient
 from apps.academic.models import ClassEnrollment
 from apps.academic.tests.base import build_academic_fixture
 from apps.campus.models import ClinicOutcome, ClinicVisit, HealthProfile, MedicationStock
+from apps.core.models import AuditEvent
 from apps.identity.models import Person, RoleAssignment, School, Student
 from apps.identity.rbac import ROLE_CLINIC_OFFICER, ROLE_SCHOOL_ADMIN, ROLE_TEACHER
 from educore.middleware.tenancy import set_current_foundation_id
@@ -222,3 +223,84 @@ class ClinicCrossTenantIsolationTests(TestCase):
         resp = self.client.get(f"/api/v1/campus/schools/{self.fx_a['school'].id}/medication-stock/alerts/")
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(resp.data, [])
+
+
+class ClinicHealthPiiAuditTests(TestCase):
+    """Finding 3: health-PII mutation endpoints must write an audit event."""
+
+    def setUp(self):
+        self.fx = build_academic_fixture()
+        set_current_foundation_id(self.fx['foundation'].id)
+        assign(self.fx, self.fx['teacher_user'], ROLE_CLINIC_OFFICER)
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+
+    def test_clinic_policy_put_writes_audit_event(self):
+        resp = self.client.put(
+            f"/api/v1/campus/schools/{self.fx['school'].id}/clinic-policy/",
+            {'teacher_sees_allergies': False},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.content)
+        set_current_foundation_id(self.fx['foundation'].id)
+        self.assertTrue(
+            AuditEvent.objects.filter(
+                action='campus.clinic_policy.updated',
+                entity_type='ClinicPolicy',
+            ).exists()
+        )
+
+    def test_health_profile_put_writes_audit_event_without_pii_values(self):
+        resp = self.client.put(
+            f"/api/v1/campus/students/{self.fx['student'].id}/health-profile/",
+            {'allergies': ['Kacang', 'Debu']},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.content)
+        set_current_foundation_id(self.fx['foundation'].id)
+        event = AuditEvent.objects.filter(
+            action='campus.health_profile.updated',
+            entity_type='HealthProfile',
+        ).first()
+        self.assertIsNotNone(event)
+        self.assertIn('allergies', event.diff.get('changed_fields', []))
+        self.assertNotIn('Kacang', str(event.diff))
+        self.assertNotIn('Debu', str(event.diff))
+
+    def test_medication_stock_create_update_destroy_write_audit_events(self):
+        create_resp = self.client.post(
+            '/api/v1/campus/medication-stock/',
+            {
+                'school': self.fx['school'].id,
+                'name': 'Paracetamol',
+                'unit': 'tablet',
+                'quantity': 50,
+                'reorder_level': 10,
+                'expiry_date': '2030-01-01',
+            },
+            format='json',
+        )
+        self.assertEqual(create_resp.status_code, status.HTTP_201_CREATED, create_resp.content)
+        stock_id = create_resp.data['id']
+        set_current_foundation_id(self.fx['foundation'].id)
+        self.assertTrue(
+            AuditEvent.objects.filter(action='campus.medication_stock.created', entity_id=str(stock_id)).exists()
+        )
+
+        update_resp = self.client.patch(
+            f'/api/v1/campus/medication-stock/{stock_id}/',
+            {'quantity': 40},
+            format='json',
+        )
+        self.assertEqual(update_resp.status_code, status.HTTP_200_OK, update_resp.content)
+        set_current_foundation_id(self.fx['foundation'].id)
+        self.assertTrue(
+            AuditEvent.objects.filter(action='campus.medication_stock.updated', entity_id=str(stock_id)).exists()
+        )
+
+        destroy_resp = self.client.delete(f'/api/v1/campus/medication-stock/{stock_id}/')
+        self.assertEqual(destroy_resp.status_code, status.HTTP_204_NO_CONTENT, destroy_resp.content)
+        set_current_foundation_id(self.fx['foundation'].id)
+        self.assertTrue(
+            AuditEvent.objects.filter(action='campus.medication_stock.deleted', entity_id=str(stock_id)).exists()
+        )

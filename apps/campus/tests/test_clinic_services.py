@@ -312,6 +312,16 @@ class ClinicVisitAttendanceAndNotificationTests(TestCase):
         self.assertIn(self.guardian.user_id, recipient_users)
         self.assertIn(self.fx['teacher_user'].id, recipient_users)
 
+        # Finding 1: the SAKIT override must reuse override_attendance_day, which writes
+        # an audit event — the clinic's own hand-rolled override used to write none.
+        self.assertTrue(
+            AuditEvent.objects.filter(
+                action='attendance.day.overridden',
+                entity_type='AttendanceDay',
+                entity_id=str(att_day.id),
+            ).exists()
+        )
+
     def test_referred_also_creates_sakit_override(self):
         visit = record_clinic_visit(
             foundation_id=self.fx['foundation'].id, school=self.fx['school'], student=self.fx['student'],
@@ -354,3 +364,22 @@ class ClinicVisitAttendanceAndNotificationTests(TestCase):
         att_day = AttendanceDay.objects.get(student=self.fx['student'], date=timezone.now().date())
         self.assertEqual(att_day.status, AttendanceStatus.SAKIT)
         self.assertEqual(att_day.original_status, AttendanceStatus.HADIR)
+
+    def test_sent_home_rolls_back_visit_when_sakit_override_fails(self):
+        # Finding 2: the SAKIT override now runs INSIDE record_clinic_visit's atomic
+        # block, so a failure there must roll back the ClinicVisit (and any stock
+        # decrement) instead of leaving an orphaned visit committed.
+        from unittest.mock import patch
+
+        with self.assertRaises(RuntimeError):
+            with patch(
+                'apps.campus.services_clinic._apply_sakit_override',
+                side_effect=RuntimeError('boom'),
+            ):
+                record_clinic_visit(
+                    foundation_id=self.fx['foundation'].id, school=self.fx['school'], student=self.fx['student'],
+                    handled_by=self.fx['teacher'], complaint='Demam tinggi', outcome=ClinicOutcome.SENT_HOME,
+                )
+
+        self.assertFalse(ClinicVisit.objects.filter(student=self.fx['student']).exists())
+        self.assertFalse(AttendanceDay.objects.filter(student=self.fx['student']).exists())

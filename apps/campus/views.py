@@ -1,4 +1,4 @@
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError as DjangoValidationError
 from django.db.models import Q
 from rest_framework import exceptions, status, viewsets
 from rest_framework.decorators import action
@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.pagination import StandardCursorPagination
+from apps.core.services import audit
 from apps.identity.models import Guardian, School, Staff, Student
 from apps.identity.permissions import HasRequiredPermission
 from educore.middleware.tenancy import get_current_foundation_id
@@ -31,23 +32,21 @@ from .serializers import (
     BehaviourReasonSerializer,
     BehaviourRecordSerializer,
     CheckoutLoanInputSerializer,
+    ClinicPolicySerializer,
+    ClinicVisitSerializer,
     CounsellingSessionSerializer,
+    HealthProfileSerializer,
     LibraryItemSerializer,
     LoanSerializer,
     MarkLoanLostInputSerializer,
+    MedicationStockSerializer,
     RecordBehaviourInputSerializer,
+    RecordClinicVisitInputSerializer,
     RecordCounsellingSessionInputSerializer,
     ReturnLoanInputSerializer,
     StudentBehaviourSummarySerializer,
-    SupersedeRecordInputSerializer,
-)
-from .serializers import (
-    ClinicPolicySerializer,
-    ClinicVisitSerializer,
-    HealthProfileSerializer,
-    MedicationStockSerializer,
-    RecordClinicVisitInputSerializer,
     StudentMedicalAlertSerializer,
+    SupersedeRecordInputSerializer,
 )
 from .services import (
     access_counselling_session,
@@ -820,9 +819,25 @@ class ClinicPolicyView(APIView):
             raise exceptions.NotFound("Sekolah tidak ditemukan.")
 
         policy = get_or_create_clinic_policy(school)
+        old_teacher_sees_allergies = policy.teacher_sees_allergies
         serializer = ClinicPolicySerializer(policy, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+
+        audit(
+            action='campus.clinic_policy.updated',
+            entity_type='ClinicPolicy',
+            entity_id=str(policy.id),
+            actor_id=str(request.user.id) if request.user else None,
+            foundation_id=foundation_id,
+            school_id=school.id,
+            diff={
+                'teacher_sees_allergies': {
+                    'old': old_teacher_sees_allergies,
+                    'new': policy.teacher_sees_allergies,
+                },
+            },
+        )
         return Response(serializer.data)
 
 
@@ -852,7 +867,42 @@ class MedicationStockViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         foundation_id = get_current_foundation_id() or getattr(self.request.user, 'foundation_id', None)
-        serializer.save(foundation_id=foundation_id)
+        instance = serializer.save(foundation_id=foundation_id)
+        audit(
+            action='campus.medication_stock.created',
+            entity_type='MedicationStock',
+            entity_id=str(instance.id),
+            actor_id=str(self.request.user.id) if self.request.user else None,
+            foundation_id=foundation_id,
+            school_id=instance.school_id,
+            diff={'name': instance.name, 'quantity': instance.quantity},
+        )
+
+    def perform_update(self, serializer):
+        foundation_id = get_current_foundation_id() or getattr(self.request.user, 'foundation_id', None)
+        instance = serializer.save()
+        audit(
+            action='campus.medication_stock.updated',
+            entity_type='MedicationStock',
+            entity_id=str(instance.id),
+            actor_id=str(self.request.user.id) if self.request.user else None,
+            foundation_id=foundation_id,
+            school_id=instance.school_id,
+            diff={'name': instance.name, 'quantity': instance.quantity},
+        )
+
+    def perform_destroy(self, instance):
+        foundation_id = get_current_foundation_id() or getattr(self.request.user, 'foundation_id', None)
+        audit(
+            action='campus.medication_stock.deleted',
+            entity_type='MedicationStock',
+            entity_id=str(instance.id),
+            actor_id=str(self.request.user.id) if self.request.user else None,
+            foundation_id=foundation_id,
+            school_id=instance.school_id,
+            diff={'name': instance.name},
+        )
+        instance.delete()
 
 
 class MedicationStockAlertView(APIView):
@@ -911,7 +961,21 @@ class StudentHealthProfileView(APIView):
         profile = get_or_create_health_profile(student)
         serializer = HealthProfileSerializer(profile, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
+        changed_fields = sorted(serializer.validated_data.keys())
         serializer.save()
+
+        audit(
+            action='campus.health_profile.updated',
+            entity_type='HealthProfile',
+            entity_id=str(profile.id),
+            actor_id=str(request.user.id) if request.user else None,
+            foundation_id=foundation_id,
+            school_id=student.school_id,
+            diff={
+                'student_id': student.id,
+                'changed_fields': changed_fields,
+            },
+        )
         return Response(serializer.data)
 
 
@@ -980,7 +1044,7 @@ class ClinicVisitViewSet(viewsets.ModelViewSet):
                 staff_school_ids = set(RoleAssignment.all_tenants.filter(
                     foundation_id=foundation_id,
                     user=user,
-                    role__in=STAFF_ROLES | {RoleAssignment.ROLE_CLINIC_OFFICER},
+                    role__in=STAFF_ROLES,
                     scope_type=RoleAssignment.SCOPE_SCHOOL,
                     deleted_at__isnull=True,
                 ).values_list('scope_id', flat=True))
@@ -1042,8 +1106,8 @@ class ClinicVisitViewSet(viewsets.ModelViewSet):
                 guardian_consent_note=data.get('guardian_consent_note', ''),
                 occurred_at=data.get('occurred_at'),
             )
-        except Exception as exc:
-            raise exceptions.ValidationError(str(exc))
+        except DjangoValidationError as exc:
+            raise exceptions.ValidationError(exc.messages if hasattr(exc, 'messages') else str(exc))
 
         output_serializer = ClinicVisitSerializer(visit)
         return Response(output_serializer.data, status=status.HTTP_201_CREATED)
