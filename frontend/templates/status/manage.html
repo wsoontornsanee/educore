@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="id">
+<head><meta charset="utf-8"><title>Kelola Status Layanan</title></head>
+<body>
+  <h1>Kelola Status Layanan</h1>
+
+  <h2>Komponen</h2>
+  <table>
+    <tr><th>Nama</th><th>Status manual</th><th></th></tr>
+    {% for c in components %}
+    <tr>
+      <td>{{ c.name_id }}</td>
+      <td>{{ c.manual_status|default:"(otomatis)" }}</td>
+      <td>
+        <form method="post" action="{% url 'status_manage:component-update' c.id %}">
+          {% csrf_token %}
+          <select name="manual_status">
+            <option value="">(otomatis)</option>
+            <option value="OPERATIONAL">Operasional</option>
+            <option value="DEGRADED">Menurun</option>
+            <option value="DOWN">Gangguan</option>
+          </select>
+          <button type="submit">Simpan</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <h2>Insiden</h2>
+  <table>
+    <tr><th>Judul</th><th>Tingkat</th><th>Terbit</th></tr>
+    {% for i in incidents %}
+    <tr>
+      <td>{{ i.title_id }}</td>
+      <td>{{ i.severity }}</td>
+      <td>{{ i.published }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <h2>Buat insiden baru</h2>
+  <form method="post" action="{% url 'status_manage:incident-create' %}">
+    {% csrf_token %}
+    <label>Tingkat <select name="severity">
+      <option value="MINOR">Minor</option>
+      <option value="MAJOR">Mayor</option>
+      <option value="MAINTENANCE">Pemeliharaan</option>
+    </select></label>
+    <label>Judul (ID) <input type="text" name="title_id" required></label>
+    <label>Title (EN) <input type="text" name="title_en" required></label>
+    <label>Isi (ID) <textarea name="body_id" required></textarea></label>
+    <label>Body (EN) <textarea name="body_en" required></textarea></label>
+    <label>Durasi (menit) <input type="number" name="duration_minutes" required></label>
+    <label>Terbitkan <input type="checkbox" name="published" checked></label>
+    <button type="submit">Buat</button>
+  </form>
+</body>
+</html>

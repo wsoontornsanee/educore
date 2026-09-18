@@ -34,6 +34,7 @@ urlpatterns = [
     path('web/login/', WebLoginView.as_view(), name='login'),
     path('web/foundation/settings/microsoft-tenant/', FoundationMicrosoftTenantSettingsView.as_view(), name='web-foundation-ms-tenant-settings'),
     path('web/academic/', include('apps.academic.web_urls')),
+    path('web/status/', include('apps.status.web_urls')),
     # Language switch (django.views.i18n.set_language) — POST target for the
     # marketing site's ID/EN toggle. Not under /api/v1/: it's a browser-only,
     # session-cookie-setting form post, not a JSON API.
