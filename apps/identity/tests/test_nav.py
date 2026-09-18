@@ -64,8 +64,35 @@ class GetNavForUserTests(TestCase):
         item_ids = {item['id'] for group in nav for item in group['items']}
         self.assertIn('inbox', item_ids)
         self.assertNotIn('grading', item_ids)
-        self.assertNotIn('attendance', item_ids)
+        self.assertNotIn('roster', item_ids)
         self.assertIn('permission_slips', item_ids)
+
+    def test_operasional_pages_shown_only_with_a_linked_staff_profile(self):
+        """Kehadiran & gerbang / Mode ujian are real pages that 404 without a
+        Staff profile (a guardian holds attendance.read + grades.read too)."""
+        operasional = {'attendance', 'exam'}
+        nav = get_nav_for_user(self.teacher, self.foundation.id)
+        self.assertFalse(operasional & {item['id'] for group in nav for item in group['items']})
+
+        person = Person.objects.create(foundation_id=self.foundation.id, full_name='Teacher One')
+        Staff.objects.create(
+            foundation_id=self.foundation.id, person=person, user=self.teacher, school=self.school,
+            join_date=timezone.localdate(),
+        )
+        nav = get_nav_for_user(self.teacher, self.foundation.id)
+        items = {item['id']: item['url_name'] for group in nav for item in group['items']}
+        self.assertEqual(items['attendance'], 'attendance-gate-console-page')
+        self.assertEqual(items['exam'], 'exam-mode-console-page')
+
+    def test_canteen_page_shown_to_canteen_operator_with_staff_profile(self):
+        person = Person.objects.create(foundation_id=self.foundation.id, full_name='Canteen One')
+        Staff.objects.create(
+            foundation_id=self.foundation.id, person=person, user=self.canteen, school=self.school,
+            join_date=timezone.localdate(),
+        )
+        nav = get_nav_for_user(self.canteen, self.foundation.id)
+        items = {item['id']: item['url_name'] for group in nav for item in group['items']}
+        self.assertEqual(items['canteen'], 'canteen-console-page')
 
     def test_empty_groups_are_omitted(self):
         nav = get_nav_for_user(self.canteen, self.foundation.id)

@@ -10,11 +10,12 @@ otherwise). permission=None means "always shown to any authenticated
 staff user" (used only for the task inbox item: every source it lists
 applies its own permission/ownership check, see apps.identity.inbox).
 
-Only 'inbox', 'permission_slips' and the three Keuangan items have real
-destinations (console-inbox, permission-slip-console-page,
-finance-console-*). Every other item still routes to the
-'console:coming_soon' placeholder in this table (kept so a future task can
-flip one item's url_name the moment
+Only 'inbox', the four Operasional items (attendance, permission_slips, canteen,
+exam) and the three Keuangan items have real destinations (console-inbox,
+attendance-gate-console-page, permission-slip-console-page,
+canteen-console-page, exam-mode-console-page, finance-console-*). Every other
+item still routes to the 'console:coming_soon' placeholder in this table (kept
+so a future task can flip one item's url_name the moment
 its real page ships), but get_nav_for_user hides every coming_soon item
 from the rendered nav — reported as a bug (2026-09-19): a user with full
 permissions saw the whole menu, clicked into modules that only ever showed
@@ -23,11 +24,11 @@ than an unbuilt one. The corresponding dev work is tracked in Notion
 instead of being exposed as a dead menu item. See
 docs/superpowers/specs/2026-09-18-web-console-nav-and-landing-design.md.
 
-An item may also declare requires_staff_profile=True: some real pages gate
-on more than the RBAC permission key (PermissionSlipConsolePageView also
-requires a linked Staff row — a guardian must never reach the school-side
-console even if a role mistake ever grants them grades.*, same reasoning as
-apps.academic.views.PermissionSlipWebAccessMixin). Without this check the
+An item may also declare requires_staff_profile=True: the Operasional pages
+gate on more than the RBAC permission key (apps.identity.console_access
+.StaffConsoleMixin also requires a linked Staff row — ROLE_PARENT holds
+attendance.read / grades.read / wallet.topup.read, and a guardian must never
+reach a school-side console). Without this check the
 nav would show an item that then 404s on click instead of just not showing
 it — reported as a real bug (2026-09-18) against a Teacher-role account
 with no Staff profile.
@@ -50,10 +51,10 @@ NAV_GROUPS = [
         {"id": "reports", "label": _("Rapor"), "permission": "grades.read", "url_name": "console:coming_soon"},
     ]},
     {"label": _("Operasional"), "items": [
-        {"id": "attendance", "label": _("Kehadiran & gerbang"), "permission": "attendance.read", "url_name": "console:coming_soon"},
+        {"id": "attendance", "label": _("Kehadiran & gerbang"), "permission": "attendance.read", "url_name": "attendance-gate-console-page", "requires_staff_profile": True},
         {"id": "permission_slips", "label": _("Izin digital"), "permission": "grades.read", "url_name": "permission-slip-console-page", "requires_staff_profile": True},
-        {"id": "canteen", "label": _("Kantin & dompet"), "permission": "wallet.topup.read", "url_name": "console:coming_soon"},
-        {"id": "exam", "label": _("Mode ujian"), "permission": "grades.read", "url_name": "console:coming_soon"},
+        {"id": "canteen", "label": _("Kantin & dompet"), "permission": "wallet.topup.read", "url_name": "canteen-console-page", "requires_staff_profile": True},
+        {"id": "exam", "label": _("Mode ujian"), "permission": "grades.read", "url_name": "exam-mode-console-page", "requires_staff_profile": True},
     ]},
     {"label": _("Keuangan"), "items": [
         {"id": "billing", "label": _("Tagihan & pembayaran"), "permission": "finance.invoice.read", "url_name": "finance-console-billing", "requires_staff_profile": True},

@@ -1,0 +1,19 @@
+{% extends "base_console.html" %}
+{% load i18n %}
+
+{% comment %}
+Page: Konsol Pengawas Ujian (spec/04 §6 ACD-024, spec/17 §6.3).
+Wraps components/exam_proctor_console.html, which polls the JSON proctor
+endpoint after this first paint. Served by
+apps.academic.web_views.ExamProctorConsolePageView at /web/academic/exams/<id>/.
+{% endcomment %}
+
+{% block title %}{% translate "Konsol Pengawas Ujian — EduCore" %}{% endblock %}
+
+{% block console_content %}
+{% include "components/_console_ui.html" %}
+<main class="cn-page">
+  <a class="cn-link" href="{% url 'exam-mode-console-page' %}?school_id={{ exam.class_subject.class_group.school_id }}">← {% translate "Mode ujian" %}</a>
+  {% include "components/exam_proctor_console.html" with exam=exam proctor_data=proctor_data csrf_token=csrf_token %}
+</main>
+{% endblock %}

@@ -49,6 +49,8 @@ urlpatterns = [
     path('web/foundation/settings/microsoft-tenant/', FoundationMicrosoftTenantSettingsView.as_view(), name='web-foundation-ms-tenant-settings'),
     path('web/academic/', include('apps.academic.web_urls')),
     path('web/finance/', include('apps.finance.web_urls')),
+    path('web/attendance/', include('apps.attendance.web_urls')),
+    path('web/wallet/', include('apps.wallet.web_urls')),
     path('web/status/', include('apps.status.web_urls')),
     path('web/', include('apps.core.web_urls')),
     # Language switch (django.views.i18n.set_language) — POST target for the
