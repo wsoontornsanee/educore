@@ -7,6 +7,12 @@
       "runtimeArgs": ["manage.py", "runserver", "8000"],
       "port": 8000,
       "env": { "EDUCORE_USE_SQLITE": "1" }
+    },
+    {
+      "name": "educore-mysql",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["manage.py", "runserver", "8001"],
+      "port": 8001
     }
   ]
 }
