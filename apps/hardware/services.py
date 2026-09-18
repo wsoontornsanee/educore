@@ -12,6 +12,8 @@ from django.db.models import Q
 from django.utils import timezone
 
 from apps.core.services import audit
+from apps.hardware.crypto import encrypt_template
+from apps.hardware.models import BiometricTemplate, BiometricTemplateStatus, DeviceClass
 
 logger = logging.getLogger(__name__)
 
@@ -180,3 +182,84 @@ def check_device_health(timeout_minutes: int = 15) -> dict:
                 )
 
     return {'checked': checked, 'marked_offline': marked_offline, 'alerts_dispatched': alerts_dispatched}
+
+
+# --- Biometric enrollment & consent-linked deletion (spec/12 §6, spec/14 CMP-009/010/012) ---
+
+class BiometricConsentRequiredError(ValueError):
+    """Raised when enrollment is attempted without an active BIOMETRIC ConsentRecord.
+
+    CMP-009: "Consent is per-purpose, never bundled" — an enrollment call
+    MUST reference a specific, currently-active BIOMETRIC-purpose consent
+    row; enrolling against a withdrawn or wrong-purpose consent is refused.
+    """
+
+
+def enroll_biometric_template(subject_type: str, subject_id: int, foundation_id: int, raw_template: str,
+                               consent, device_class: str = DeviceClass.FACE_TERMINAL) -> BiometricTemplate:
+    """Encrypt and store a face-recognition template (HW-021/024, CMP-003).
+
+    `raw_template` is the plaintext template payload from the enrollment
+    device/SDK — never persisted as-is (HW-010). `consent` is the
+    `apps.compliance.ConsentRecord` this enrollment relies on; the actual
+    face-recognition capture/matching pipeline (spec/00 §6 P2 milestone) is
+    out of scope here — this is the storage + deletion-path slice only.
+    """
+    if consent.purpose != 'BIOMETRIC' or not consent.is_active:
+        raise BiometricConsentRequiredError(
+            f"Consent record #{consent.id} is not an active BIOMETRIC consent for "
+            f"{subject_type}#{subject_id}."
+        )
+
+    template = BiometricTemplate.objects.create(
+        foundation_id=foundation_id,
+        subject_type=subject_type,
+        subject_id=subject_id,
+        device_class=device_class,
+        consent_id=consent.id,
+        template_ciphertext=encrypt_template(raw_template),
+        status=BiometricTemplateStatus.ACTIVE,
+        enrolled_at=timezone.now(),
+    )
+
+    audit(
+        action='hardware.biometric.enroll',
+        entity_type='BiometricTemplate',
+        entity_id=str(template.id),
+        foundation_id=foundation_id,
+        diff={'subject_type': subject_type, 'subject_id': subject_id, 'consent_id': consent.id},
+    )
+    return template
+
+
+def delete_biometric_template(template: BiometricTemplate, reason_status: str, actor_id: str = None) -> None:
+    """Blank the ciphertext and flip status immediately (CMP-010: "within 24
+    hours"; done synchronously here so the clock is trivially met).
+    `reason_status` is BiometricTemplateStatus.WITHDRAWN or .PURGED."""
+    now = timezone.now()
+    template.template_ciphertext = ''
+    template.status = reason_status
+    if reason_status == BiometricTemplateStatus.WITHDRAWN:
+        template.withdrawn_at = now
+    else:
+        template.purged_at = now
+    template.save(update_fields=['template_ciphertext', 'status', 'withdrawn_at', 'purged_at', 'updated_at'])
+
+    audit(
+        action='hardware.biometric.delete',
+        entity_type='BiometricTemplate',
+        entity_id=str(template.id),
+        actor_id=actor_id,
+        foundation_id=template.foundation_id,
+        diff={'subject_type': template.subject_type, 'subject_id': template.subject_id, 'reason': reason_status},
+    )
+
+
+def active_biometric_templates_for_subject(subject_type: str, subject_id: int, foundation_id: int):
+    """all_tenants is deliberate: callers (compliance's withdrawal service,
+    identity's exit hooks) may run outside a thread-local tenant context,
+    and the queryset is already pinned to one (foundation, subject)."""
+    return BiometricTemplate.all_tenants.filter(
+        foundation_id=foundation_id, subject_type=subject_type, subject_id=subject_id,
+        status=BiometricTemplateStatus.ACTIVE,
+    )

@@ -122,6 +122,69 @@ class Device(TenantModel):
         return f"{self.name} ({self.device_code}) - {self.get_device_class_display()}"
 
 
+class BiometricSubjectType(models.TextChoices):
+    """Mirrors apps.compliance.DataSubjectRequestSubjectType — not imported
+    directly to avoid a hardware -> compliance model dependency; compliance
+    is the leaf that reads/writes these rows via apps.hardware.services."""
+    STUDENT = 'STUDENT', _('Siswa')
+    STAFF = 'STAFF', _('Staf')
+
+
+class BiometricTemplateStatus(models.TextChoices):
+    ACTIVE = 'ACTIVE', _('Aktif')
+    WITHDRAWN = 'WITHDRAWN', _('Ditarik (Consent Withdrawn)')
+    PURGED = 'PURGED', _('Dihapus (Purged)')
+
+
+class BiometricTemplate(TenantModel):
+    """Enrolled face-recognition template (spec/12 §6 HW-021/024, spec/14
+    CMP-009/010/012). `apps.hardware` owns this — enrollment is a
+    face-terminal-device concern, mirroring where `GateEvent.method=FACE`
+    already lives in `apps.attendance`.
+
+    `template_ciphertext` is the encrypted template payload
+    (`apps.hardware.crypto`); the raw biometric vector never touches
+    plaintext at rest (HW-010, CMP-003). Deletion (CMP-010/012) blanks
+    `template_ciphertext` and flips `status` immediately — it does not wait
+    for a retention sweeper, though `purge_biometric_templates` (cron)
+    exists as the "not by hope" (CMP-013) safety net for any template that
+    misses the immediate path (e.g. exit without going through the
+    withdrawal service call).
+    """
+    subject_type = models.CharField(max_length=16, choices=BiometricSubjectType.choices, db_index=True)
+    subject_id = models.BigIntegerField(help_text="Student.id or Staff.id")
+    device_class = models.CharField(
+        max_length=32,
+        choices=DeviceClass.choices,
+        default=DeviceClass.FACE_TERMINAL,
+        help_text=_("Enrollment device class — always FACE_TERMINAL today; kept general per spec/12 §2"),
+    )
+    consent_id = models.BigIntegerField(
+        help_text=_("apps.compliance.ConsentRecord.id this enrollment relies on (CMP-009: no bundling, no template without a purpose-matched consent)"),
+    )
+    template_ciphertext = models.TextField(
+        blank=True,
+        default='',
+        help_text=_("Fernet-encrypted template payload; blanked on withdrawal/purge"),
+    )
+    status = models.CharField(max_length=16, choices=BiometricTemplateStatus.choices, default=BiometricTemplateStatus.ACTIVE, db_index=True)
+    enrolled_at = models.DateTimeField()
+    withdrawn_at = models.DateTimeField(null=True, blank=True)
+    purged_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta(TenantModel.Meta):
+        db_table = 'biometric_templates'
+        verbose_name = _('Biometric Template')
+        verbose_name_plural = _('Biometric Templates')
+        indexes = [
+            models.Index(fields=['foundation_id', 'subject_type', 'subject_id', 'status'], name='idx_biotpl_fnd_subj_st'),
+            models.Index(fields=['foundation_id', 'status'], name='idx_biotpl_fnd_st'),
+        ]
+
+    def __str__(self):
+        return f"BiometricTemplate {self.subject_type}#{self.subject_id} ({self.status})"
+
+
 class DeviceEventStagingStatus(models.TextChoices):
     PENDING = 'PENDING', _('Pending')
     APPLIED = 'APPLIED', _('Applied')

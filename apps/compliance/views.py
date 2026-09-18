@@ -2,9 +2,15 @@
 from rest_framework import generics, status, views
 from rest_framework.response import Response
 
-from apps.compliance.models import DataSubjectRequest, PiiExportAccessLog, StatutorySystem
+from apps.compliance.models import ConsentRecord, DataSubjectRequest, PiiExportAccessLog, StatutorySystem
 from apps.compliance.serializers import PiiExportAccessLogSerializer
-from apps.compliance.services import PersonNotErasableError, erase_person, validate_statutory_export
+from apps.compliance.services import (
+    ConsentNotFoundError,
+    PersonNotErasableError,
+    erase_person,
+    validate_statutory_export,
+    withdraw_biometric_consent,
+)
 from apps.core.pagination import StandardCursorPagination
 from apps.identity.models import School
 from apps.identity.permissions import HasRequiredPermission
@@ -150,6 +156,54 @@ class ErasureRequestView(views.APIView):
             return Response({"detail": "Konteks Yayasan tidak ditemukan."}, status=status.HTTP_400_BAD_REQUEST)
         requests_qs = DataSubjectRequest.objects.filter(foundation_id=foundation_id).order_by('-id')[:100]
         return Response([_serialize_erasure_request(r) for r in requests_qs])
+
+
+class BiometricConsentWithdrawalView(views.APIView):
+    """POST /foundation/compliance/biometric-consent/withdraw — CMP-010:
+    withdraw a subject's biometric consent, deleting their face template(s)
+    within 24h (done synchronously). This is the admin-initiated equivalent
+    of the parent-app withdrawal action — no parent-facing client exists yet
+    in this repo (same precedent as every other parent-app-blocked item)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'school_config.write'
+
+    def post(self, request):
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        if not foundation_id:
+            return Response({"detail": "Konteks Yayasan tidak ditemukan."}, status=status.HTTP_400_BAD_REQUEST)
+
+        subject_type = request.data.get('subject_type')
+        subject_id = request.data.get('subject_id')
+        if subject_type not in ('STUDENT', 'STAFF') or not subject_id:
+            return Response(
+                {"detail": "subject_type (STUDENT/STAFF) dan subject_id wajib diisi."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        actor_id = str(request.user.id)
+        actor_name = getattr(request.user, 'full_name', '') or ''
+
+        try:
+            consent = withdraw_biometric_consent(
+                subject_type=subject_type, subject_id=subject_id, foundation_id=foundation_id,
+                actor_id=actor_id, actor_name=actor_name,
+            )
+        except ConsentNotFoundError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response(_serialize_consent_record(consent), status=status.HTTP_200_OK)
+
+
+def _serialize_consent_record(consent: ConsentRecord) -> dict:
+    return {
+        'id': consent.id,
+        'subject_type': consent.subject_type,
+        'subject_id': consent.subject_id,
+        'purpose': consent.purpose,
+        'version': consent.version,
+        'granted_at': consent.granted_at.isoformat() if consent.granted_at else None,
+        'withdrawn_at': consent.withdrawn_at.isoformat() if consent.withdrawn_at else None,
+    }
 
 
 def _serialize_erasure_request(dsar: DataSubjectRequest) -> dict:

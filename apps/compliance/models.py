@@ -177,6 +177,58 @@ class DataSubjectRequestStatus(models.TextChoices):
     REFUSED = 'REFUSED', _('Ditolak')
 
 
+class ConsentPurpose(models.TextChoices):
+    """Per-purpose consent categories (CMP-009): "Consent is per-purpose,
+    never bundled" — one purpose never implies another."""
+    BIOMETRIC = 'BIOMETRIC', _('Pendaftaran Biometrik')
+    PHOTO_MEDIA = 'PHOTO_MEDIA', _('Penggunaan Foto/Media')
+    HEALTH_DATA = 'HEALTH_DATA', _('Pemrosesan Data Kesehatan')
+    MARKETING = 'MARKETING', _('Komunikasi Pemasaran')
+
+
+class ConsentRecord(TenantModel):
+    """Versioned, timestamped per-purpose consent (CMP-009).
+
+    Append-only: a fresh grant creates a new row with `version` incremented
+    for that (subject, purpose) rather than mutating a prior grant, so the
+    consent history stays fully auditable. Withdrawal stamps `withdrawn_at`
+    on the current (highest-version, not-yet-withdrawn) row for that purpose
+    — see `apps.compliance.services.withdraw_biometric_consent`, which is the
+    CMP-010 "admin-initiated equivalent" of the (not-yet-built) parent-app
+    withdrawal action.
+    """
+    subject_type = models.CharField(max_length=16, choices=DataSubjectRequestSubjectType.choices, db_index=True)
+    subject_id = models.BigIntegerField(help_text="Student.id or Staff.id")
+    purpose = models.CharField(max_length=16, choices=ConsentPurpose.choices, db_index=True)
+    version = models.PositiveIntegerField(default=1)
+    granted_at = models.DateTimeField()
+    granted_by = models.CharField(max_length=64, blank=True, default='', help_text=_("User ID of the guardian/admin who recorded the grant"))
+    withdrawn_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    withdrawn_by = models.CharField(max_length=64, blank=True, default='')
+
+    class Meta:
+        db_table = 'consent_records'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'subject_type', 'subject_id', 'purpose', 'version'],
+                name='unique_consent_version_per_subject_purpose',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['foundation_id', 'subject_type', 'subject_id', 'purpose']),
+            models.Index(fields=['foundation_id', 'purpose', 'withdrawn_at']),
+        ]
+        ordering = ['-version']
+
+    @property
+    def is_active(self) -> bool:
+        return self.withdrawn_at is None
+
+    def __str__(self):
+        state = 'withdrawn' if self.withdrawn_at else 'active'
+        return f"{self.subject_type}#{self.subject_id} {self.purpose} v{self.version} ({state})"
+
+
 class DataSubjectRequest(TenantModel):
     """Right-to-erasure request audit trail (CMP-012): the "admin tool, not a
     manual SQL task" spec/14 §3 requires. Runs synchronously to a terminal

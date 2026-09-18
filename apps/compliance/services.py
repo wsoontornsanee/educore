@@ -2,8 +2,12 @@
 import re
 from abc import ABC, abstractmethod
 
+from django.utils import timezone
+
 from apps.academic.models import ClassEnrollment, ClassGroup
 from apps.compliance.models import (
+    ConsentPurpose,
+    ConsentRecord,
     DataSubjectRequest,
     DataSubjectRequestStatus,
     DataSubjectRequestSubjectType,
@@ -767,3 +771,92 @@ def erase_person(subject_type, subject_id, foundation_id, requested_by, requeste
         status=DataSubjectRequestStatus.COMPLETED, requested_by=requested_by,
         requested_by_name=requested_by_name,
     )
+
+
+# --- Per-purpose consent & biometric withdrawal (CMP-009/010) ---
+
+class ConsentNotFoundError(ValueError):
+    """Raised when a withdrawal is requested but no active consent for that
+    (subject, purpose) exists."""
+
+
+def record_consent(subject_type: str, subject_id: int, foundation_id: int, purpose: str,
+                    granted_by: str = '') -> ConsentRecord:
+    """Create the next version of a per-purpose consent grant (CMP-009).
+
+    Append-only: never mutates a prior grant. `version` is the next integer
+    after the highest existing version for this exact (subject, purpose) —
+    re-granting after a withdrawal starts a fresh, independently-withdrawable
+    version rather than reviving the old row.
+    """
+    if purpose not in ConsentPurpose.values:
+        raise ValueError(f"Unknown consent purpose: {purpose}")
+
+    last_version = (
+        ConsentRecord.objects.filter(
+            foundation_id=foundation_id, subject_type=subject_type, subject_id=subject_id, purpose=purpose,
+        )
+        .order_by('-version')
+        .values_list('version', flat=True)
+        .first()
+    ) or 0
+
+    record = ConsentRecord.objects.create(
+        foundation_id=foundation_id, subject_type=subject_type, subject_id=subject_id,
+        purpose=purpose, version=last_version + 1, granted_at=timezone.now(), granted_by=granted_by,
+    )
+
+    audit(
+        action='compliance.consent.grant',
+        entity_type='ConsentRecord',
+        entity_id=str(record.id),
+        actor_id=granted_by,
+        foundation_id=foundation_id,
+        diff={'subject_type': subject_type, 'subject_id': subject_id, 'purpose': purpose, 'version': record.version},
+    )
+    return record
+
+
+def withdraw_biometric_consent(subject_type: str, subject_id: int, foundation_id: int,
+                                actor_id: str = '', actor_name: str = '') -> ConsentRecord:
+    """CMP-010: withdraw biometric consent and delete the face template
+    within 24h — done synchronously so the SLA is trivially met. This is the
+    admin-initiated equivalent of the parent-app action (no parent-facing
+    client exists yet in this repo, per existing precedent for every other
+    parent-app-blocked item); the student reverts to card-only gate access
+    simply because there is no longer an active template for a FACE_TERMINAL
+    to match against.
+    """
+    from apps.hardware.models import BiometricTemplateStatus
+    from apps.hardware.services import active_biometric_templates_for_subject, delete_biometric_template
+
+    consent = (
+        ConsentRecord.objects.filter(
+            foundation_id=foundation_id, subject_type=subject_type, subject_id=subject_id,
+            purpose=ConsentPurpose.BIOMETRIC, withdrawn_at__isnull=True,
+        )
+        .order_by('-version')
+        .first()
+    )
+    if consent is None:
+        raise ConsentNotFoundError(
+            f"No active BIOMETRIC consent found for {subject_type}#{subject_id} in foundation {foundation_id}."
+        )
+
+    consent.withdrawn_at = timezone.now()
+    consent.withdrawn_by = actor_id
+    consent.save(update_fields=['withdrawn_at', 'withdrawn_by', 'updated_at'])
+
+    for template in active_biometric_templates_for_subject(subject_type, subject_id, foundation_id):
+        delete_biometric_template(template, BiometricTemplateStatus.WITHDRAWN, actor_id=actor_id)
+
+    audit(
+        action='compliance.consent.withdraw',
+        entity_type='ConsentRecord',
+        entity_id=str(consent.id),
+        actor_id=actor_id,
+        role=actor_name,
+        foundation_id=foundation_id,
+        diff={'subject_type': subject_type, 'subject_id': subject_id, 'purpose': ConsentPurpose.BIOMETRIC},
+    )
+    return consent
