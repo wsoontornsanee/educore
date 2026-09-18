@@ -35,6 +35,7 @@ class NotificationCategory(models.TextChoices):
     SUBSTITUTE_DECLINED = 'SUBSTITUTE_DECLINED', _('Penolakan Guru Pengganti (Substitute Declined)')
     EXPORT_READY = 'EXPORT_READY', _('Ekspor Laporan Siap (Export Ready)')
     ABSENCE = 'ABSENCE', _('Ketidakhadiran (Absence)')
+    DEVICE_OFFLINE = 'DEVICE_OFFLINE', _('Perangkat Offline (Device Offline)')
 
 
 class NotificationPriority(models.TextChoices):
@@ -181,6 +182,15 @@ CATEGORY_CONFIG = {
         'priority': NotificationPriority.HIGH,
         'quiet_hours_respected': False,
         'opt_out_allowed': True,
+    },
+    NotificationCategory.DEVICE_OFFLINE: {
+        # HW-013: alert the school admin when a critical gate goes offline
+        # during operational hours. Ops-critical, staff must not silently miss
+        # it, and it fires at most once per device per day (dedupe_key).
+        'default_channels': [ChannelType.WHATSAPP, ChannelType.PUSH],
+        'priority': NotificationPriority.CRITICAL,
+        'quiet_hours_respected': False,
+        'opt_out_allowed': False,
     },
 }
 
