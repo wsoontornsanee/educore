@@ -4,12 +4,13 @@ Gated by the platform-wide 'status.write' permission (Task 2), not the
 tenant-scoped RoleAssignment table.
 """
 from django.shortcuts import render, get_object_or_404
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseBadRequest, HttpResponseRedirect
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.views import APIView
 
 from apps.identity.permissions import HasRequiredPermission
+from .forms import IncidentCreateForm
 from .models import ServiceComponent, StatusIncident
 from .services import create_incident, update_incident
 
@@ -40,6 +41,8 @@ class StatusComponentUpdateView(StatusManageAccessMixin, APIView):
     def post(self, request, component_id):
         component = get_object_or_404(ServiceComponent, id=component_id)
         manual_status = request.POST.get('manual_status', '').strip()
+        if manual_status and manual_status not in dict(ServiceComponent.STATUS_CHOICES):
+            return HttpResponseBadRequest('manual_status tidak valid')
         component.manual_status = manual_status or None
         component.save(update_fields=['manual_status'])
         return HttpResponseRedirect(reverse('status_manage:page'))
@@ -49,15 +52,18 @@ class StatusIncidentCreateView(StatusManageAccessMixin, APIView):
     """POST /web/status/manage/incidents/create/ — create a new incident."""
 
     def post(self, request):
-        affected_ids = request.POST.getlist('affected_components')
+        form = IncidentCreateForm(request.POST)
+        if not form.is_valid():
+            return HttpResponseBadRequest('Data insiden tidak valid')
+        cleaned = form.cleaned_data
         create_incident(
-            severity=request.POST['severity'],
-            title_id=request.POST['title_id'], title_en=request.POST['title_en'],
-            body_id=request.POST['body_id'], body_en=request.POST['body_en'],
+            severity=cleaned['severity'],
+            title_id=cleaned['title_id'], title_en=cleaned['title_en'],
+            body_id=cleaned['body_id'], body_en=cleaned['body_en'],
             occurred_at=timezone.now(),
-            duration_minutes=int(request.POST['duration_minutes']),
-            affected_component_ids=[int(cid) for cid in affected_ids],
-            published=bool(request.POST.get('published')),
+            duration_minutes=cleaned['duration_minutes'],
+            affected_component_ids=[c.id for c in cleaned['affected_components']],
+            published=cleaned['published'],
             actor=request.user,
         )
         return HttpResponseRedirect(reverse('status_manage:page'))

@@ -63,6 +63,15 @@ class StatusComponentUpdateViewTests(TestCase):
         self.component.refresh_from_db()
         self.assertIsNone(self.component.manual_status)
 
+    def test_invalid_manual_status_rejected(self):
+        # Fix 3: a bogus staff typo must not be able to corrupt the row that
+        # later feeds BAR_COLORS[status] on the public page.
+        url = reverse('status_manage:component-update', args=[self.component.id])
+        response = self.client.post(url, {'manual_status': 'NOT_A_REAL_STATUS'})
+        self.assertEqual(response.status_code, 400)
+        self.component.refresh_from_db()
+        self.assertIsNone(self.component.manual_status)
+
 
 class StatusIncidentManageViewTests(TestCase):
     def setUp(self):
@@ -86,6 +95,84 @@ class StatusIncidentManageViewTests(TestCase):
         self.assertEqual(StatusIncident.objects.count(), 1)
         incident = StatusIncident.objects.first()
         self.assertEqual(incident.created_by, self.operator)
+
+    def test_missing_duration_minutes_rejected(self):
+        url = reverse('status_manage:incident-create')
+        response = self.client.post(url, {
+            'severity': StatusIncident.SEVERITY_MINOR,
+            'title_id': 'Judul', 'title_en': 'Title',
+            'body_id': 'Isi', 'body_en': 'Body',
+            'published': 'on',
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(StatusIncident.objects.count(), 0)
+
+    def test_invalid_duration_minutes_rejected(self):
+        url = reverse('status_manage:incident-create')
+        response = self.client.post(url, {
+            'severity': StatusIncident.SEVERITY_MINOR,
+            'title_id': 'Judul', 'title_en': 'Title',
+            'body_id': 'Isi', 'body_en': 'Body',
+            'duration_minutes': 'not-a-number',
+            'published': 'on',
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(StatusIncident.objects.count(), 0)
+
+    def test_invalid_severity_rejected(self):
+        url = reverse('status_manage:incident-create')
+        response = self.client.post(url, {
+            'severity': 'NOT_A_REAL_SEVERITY',
+            'title_id': 'Judul', 'title_en': 'Title',
+            'body_id': 'Isi', 'body_en': 'Body',
+            'duration_minutes': '15',
+            'published': 'on',
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(StatusIncident.objects.count(), 0)
+
+    def test_invalid_affected_component_id_rejected(self):
+        # IncidentCreateForm's ModelMultipleChoiceField must reject an id
+        # that doesn't correspond to a real ServiceComponent, rather than
+        # raising an unhandled ValueError/DoesNotExist further down.
+        url = reverse('status_manage:incident-create')
+        response = self.client.post(url, {
+            'severity': StatusIncident.SEVERITY_MINOR,
+            'title_id': 'Judul', 'title_en': 'Title',
+            'body_id': 'Isi', 'body_en': 'Body',
+            'duration_minutes': '15',
+            'affected_components': ['999999'],
+            'published': 'on',
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(StatusIncident.objects.count(), 0)
+
+    def test_create_incident_with_affected_components(self):
+        component = ServiceComponent.objects.create(key='c2', name_id='C2', name_en='C2')
+        url = reverse('status_manage:incident-create')
+        response = self.client.post(url, {
+            'severity': StatusIncident.SEVERITY_MINOR,
+            'title_id': 'Judul', 'title_en': 'Title',
+            'body_id': 'Isi', 'body_en': 'Body',
+            'duration_minutes': '15',
+            'affected_components': [str(component.id)],
+            'published': 'on',
+        })
+        self.assertEqual(response.status_code, 302)
+        incident = StatusIncident.objects.get()
+        self.assertIn(component, incident.affected_components.all())
+
+    def test_manage_page_incident_row_has_publish_toggle_form(self):
+        # Fix: the publish-toggle view existed but was unreachable from the
+        # UI — manage.html rendered incidents as a read-only table with no
+        # form pointing at status_manage:incident-update.
+        incident = StatusIncident.objects.create(
+            severity=StatusIncident.SEVERITY_MINOR, title_id='Judul', title_en='Title',
+            body_id='Isi', body_en='Body', occurred_at=timezone.now(),
+            duration_minutes=5, published=False,
+        )
+        response = self.client.get(reverse('status_manage:page'))
+        self.assertContains(response, reverse('status_manage:incident-update', args=[incident.id]))
 
     def test_toggle_publish(self):
         incident = StatusIncident.objects.create(

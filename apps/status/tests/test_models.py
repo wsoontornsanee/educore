@@ -22,3 +22,17 @@ class ServiceComponentTests(TestCase):
         c1 = ServiceComponent.objects.create(key='test_component_c1', name_id='C1', name_en='C1', display_order=1)
         ordered = list(ServiceComponent.objects.filter(key__in=['test_component_c1', 'test_component_c2']))
         self.assertEqual(ordered, [c1, c2])
+
+
+class NotificationsSeedNoteMigrationTests(TestCase):
+    def test_notifications_note_is_neutral_not_permanently_alarming(self):
+        # Migration 0006 fixes 0002's mockup copy, which described a
+        # degraded state ('queue currently delayed') as the PERMANENT
+        # default note for a component whose default manual_status is None
+        # (operational) — a production deploy would forever claim a delay
+        # while showing green.
+        notifications = ServiceComponent.objects.get(key='notifications')
+        self.assertEqual(notifications.note_id, 'Push, SMS, dan surel')
+        self.assertEqual(notifications.note_en, 'Push, SMS, and email')
+        self.assertNotIn('tertunda', notifications.note_id)
+        self.assertNotIn('delayed', notifications.note_en)

@@ -93,11 +93,16 @@ class ComponentStatusQueryTests(TestCase):
 
 
 class ComponentBarsTests(TestCase):
-    def test_returns_30_bars_defaulting_operational_color(self):
+    def test_returns_30_bars_defaulting_unknown_color_for_missing_days(self):
+        # No DailyComponentStatus rows exist for this component at all — a
+        # fresh deploy shouldn't render a fake green/operational history;
+        # it should use the distinct "unknown" color instead (Fix 5).
         component = ServiceComponent.objects.create(key='c1', name_id='C1', name_en='C1')
         bars = get_component_bars(component, days=30, as_of=timezone.localdate())
         self.assertEqual(len(bars), 30)
-        self.assertEqual(bars[-1]['color'], '#0E7A4F')
+        from apps.status.services import BAR_COLOR_UNKNOWN
+        self.assertEqual(bars[-1]['color'], BAR_COLOR_UNKNOWN)
+        self.assertNotEqual(bars[-1]['color'], '#0E7A4F')
 
     def test_reflects_recorded_daily_status(self):
         component = ServiceComponent.objects.create(key='c1', name_id='C1', name_en='C1')
@@ -105,6 +110,27 @@ class ComponentBarsTests(TestCase):
         DailyComponentStatus.objects.create(component=component, date=today, status=ServiceComponent.STATUS_DOWN)
         bars = get_component_bars(component, days=30, as_of=today)
         self.assertEqual(bars[-1]['color'], '#B3261E')
+
+    def test_recorded_operational_day_still_renders_green(self):
+        # A day WITH a DailyComponentStatus=OPERATIONAL row is real,
+        # confirmed uptime — still green, unlike a day with no row at all.
+        component = ServiceComponent.objects.create(key='c1', name_id='C1', name_en='C1')
+        today = timezone.localdate()
+        DailyComponentStatus.objects.create(component=component, date=today, status=ServiceComponent.STATUS_OPERATIONAL)
+        bars = get_component_bars(component, days=30, as_of=today)
+        self.assertEqual(bars[-1]['color'], '#0E7A4F')
+
+    def test_invalid_status_value_already_in_db_does_not_crash(self):
+        # Defense-in-depth: a bogus status value that ended up in the DB by
+        # some other route (e.g. Django admin's list_editable on
+        # ServiceComponent.manual_status, which bypasses choices validation
+        # on the list page) must not 500 the public status page via a bare
+        # BAR_COLORS[status] dict lookup.
+        component = ServiceComponent.objects.create(key='c1', name_id='C1', name_en='C1')
+        today = timezone.localdate()
+        DailyComponentStatus.objects.create(component=component, date=today, status='NOT_A_REAL_STATUS')
+        bars = get_component_bars(component, days=30, as_of=today)
+        self.assertEqual(bars[-1]['color'], '#0E7A4F')
 
 
 class MetricsTests(TestCase):

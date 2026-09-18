@@ -58,7 +58,7 @@ class ComponentHeartbeat(models.Model):
 
 class DailyComponentStatus(models.Model):
     component = models.ForeignKey(ServiceComponent, on_delete=models.CASCADE, related_name='daily_statuses')
-    date = models.DateField(db_index=True)
+    date = models.DateField()
     status = models.CharField(max_length=16, choices=ServiceComponent.STATUS_CHOICES)
 
     class Meta:

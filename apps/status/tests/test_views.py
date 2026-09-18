@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -55,6 +56,41 @@ class StatusPageViewTests(TestCase):
     def test_english_locale_query_param(self):
         response = self.client.get(reverse('status:page'), {'lang': 'EN'})
         self.assertContains(response, 'All systems operational')
+
+    def test_site_active_language_drives_status_page_without_query_param(self):
+        # Fix 6: the site's real active language must drive the page by
+        # default — not just an explicit ?lang= query param. LocaleMiddleware
+        # resolves the active language per-request from the django_language
+        # cookie (see educore/middleware/i18n.py) — the same mechanism the
+        # site-wide language switcher (django.views.i18n.set_language) uses —
+        # so setting that cookie on the test client, not
+        # translation.override() (which LocaleMiddleware would just
+        # overwrite again while processing the request), is what actually
+        # exercises this path end-to-end.
+        self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = 'en'
+        response = self.client.get(reverse('status:page'))
+        self.assertContains(response, 'All systems operational')
+
+    def test_explicit_lang_param_overrides_site_active_language(self):
+        # An explicit ?lang=EN must still work even when the site's active
+        # language is Indonesian (e.g. a status-page-specific link).
+        self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = 'id'
+        response = self.client.get(reverse('status:page'), {'lang': 'EN'})
+        self.assertContains(response, 'All systems operational')
+
+    def test_default_is_indonesian_when_site_language_is_indonesian(self):
+        self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = 'id'
+        response = self.client.get(reverse('status:page'))
+        self.assertContains(response, 'Semua sistem beroperasi normal')
+
+    def test_invalid_manual_status_already_in_db_does_not_crash_public_page(self):
+        # Defense-in-depth: a bogus manual_status that reached the DB by
+        # some other route (e.g. Django admin's list_editable, which
+        # bypasses choices validation on the list page) must not 500 the
+        # public status page via a bare status_label/status_dot dict lookup.
+        ServiceComponent.objects.filter(id=self.c1.id).update(manual_status='NOT_A_REAL_STATUS')
+        response = self.client.get(reverse('status:page'))
+        self.assertEqual(response.status_code, 200)
 
     def test_metrics_show_em_dash_when_no_data(self):
         # setUp creates no DailyComponentStatus/ComponentHeartbeat rows, so

@@ -20,3 +20,10 @@ class StatusStringsTests(TestCase):
 
     def test_indonesian_banner_copy(self):
         self.assertEqual(STATUS_STRINGS['ID']['st_banner'], 'Semua sistem beroperasi normal')
+
+    def test_st_m3_label_matches_the_metric_it_actually_reports(self):
+        # st_m3 is populated from get_open_component_count() — a count of
+        # non-operational COMPONENTS, not open incidents — so its copy must
+        # say so, not claim to be an incident count.
+        self.assertEqual(STATUS_STRINGS['ID']['st_m3'], 'Komponen terganggu')
+        self.assertEqual(STATUS_STRINGS['EN']['st_m3'], 'Affected components')

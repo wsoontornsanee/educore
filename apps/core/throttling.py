@@ -100,6 +100,14 @@ class OtpRequestIPThrottle(SecurityScopedThrottle):
     scope = 'otp_request_ip'
 
 
+class StatusSubscribeThrottle(SecurityScopedThrottle):
+    """Per-IP cap on the public, unauthenticated status-page subscribe
+    endpoint (apps.status.views.StatusSubscribeView) — a low-value target
+    (it only writes an email + no-op notification row), so a conservative
+    shared scope is enough; no per-identity cap exists for it otherwise."""
+    scope = 'status_subscribe'
+
+
 class PaymentWebhookThrottle(SecurityScopedThrottle):
     """Per (provider, IP) — a compromised or misbehaving gateway integration
     for one provider shouldn't be able to exhaust the budget for another."""

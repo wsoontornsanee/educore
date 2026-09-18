@@ -244,6 +244,7 @@ REST_FRAMEWORK = {
         'auth_login': '10/min',
         'otp_request_ip': '10/hour',
         'payment_webhook': '100/min',
+        'status_subscribe': '10/hour',
     },
 }
 

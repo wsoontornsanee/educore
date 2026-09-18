@@ -5,6 +5,7 @@ from apps.core.models import AuditEvent
 from apps.identity.models import Foundation, User
 from apps.status.models import ServiceComponent, StatusIncident
 from apps.status.services import create_incident, update_incident, list_published_incidents
+from educore.middleware.tenancy import tenant_context
 
 
 class IncidentServiceTests(TestCase):
@@ -33,6 +34,35 @@ class IncidentServiceTests(TestCase):
         event = AuditEvent.objects.get(action='status.incident.created', entity_id=str(incident.id))
         self.assertEqual(event.actor_id, str(self.actor.id))
 
+    def test_create_incident_audit_event_never_carries_actors_own_foundation_id(self):
+        # Simulate TenancyMiddleware having set the ambient thread-local
+        # foundation_id from the platform operator's own (unrelated) User
+        # record, exactly as it would for any authenticated request
+        # (Fix 1). The resulting AuditEvent must NOT inherit it — StatusIncident
+        # is platform-wide data and must never leak into a tenant's own
+        # foundation-scoped audit log.
+        self.assertIsNotNone(self.actor.foundation_id)
+        with tenant_context(self.actor.foundation_id):
+            incident = create_incident(
+                severity=StatusIncident.SEVERITY_MINOR, title_id='X', title_en='X',
+                body_id='X', body_en='X', occurred_at=timezone.now(), duration_minutes=5,
+                affected_component_ids=[], published=True, actor=self.actor,
+            )
+        event = AuditEvent.objects.get(action='status.incident.created', entity_id=str(incident.id))
+        self.assertIsNone(event.foundation_id)
+        self.assertNotEqual(event.foundation_id, self.actor.foundation_id)
+
+    def test_update_incident_audit_event_never_carries_actors_own_foundation_id(self):
+        incident = create_incident(
+            severity=StatusIncident.SEVERITY_MINOR, title_id='X', title_en='X',
+            body_id='X', body_en='X', occurred_at=timezone.now(), duration_minutes=5,
+            affected_component_ids=[], published=False, actor=self.actor,
+        )
+        with tenant_context(self.actor.foundation_id):
+            update_incident(incident, actor=self.actor, published=True)
+        event = AuditEvent.objects.get(action='status.incident.updated', entity_id=str(incident.id))
+        self.assertIsNone(event.foundation_id)
+
     def test_update_incident_writes_audit_event_and_sets_updated_by(self):
         incident = create_incident(
             severity=StatusIncident.SEVERITY_MINOR, title_id='A', title_en='A',
@@ -46,6 +76,22 @@ class IncidentServiceTests(TestCase):
         self.assertTrue(updated.published)
         self.assertEqual(updated.updated_by, other_actor)
         self.assertTrue(AuditEvent.objects.filter(action='status.incident.updated', entity_id=str(incident.id)).exists())
+
+    def test_update_incident_rejects_disallowed_fields(self):
+        # update_incident(**fields) must not let a caller set arbitrary
+        # model attributes (e.g. created_by, id) via an unbounded setattr.
+        incident = create_incident(
+            severity=StatusIncident.SEVERITY_MINOR, title_id='A', title_en='A',
+            body_id='A', body_en='A', occurred_at=timezone.now(), duration_minutes=10,
+            affected_component_ids=[], published=False, actor=self.actor,
+        )
+        other_actor = User.objects.create(
+            foundation_id=self.foundation.id, phone_e164='+6281200000099', full_name='Intruder',
+        )
+        with self.assertRaises(ValueError):
+            update_incident(incident, actor=self.actor, created_by=other_actor)
+        incident.refresh_from_db()
+        self.assertEqual(incident.created_by, self.actor)
 
     def test_list_published_incidents_excludes_unpublished_and_orders_newest_first(self):
         old = create_incident(
