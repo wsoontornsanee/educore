@@ -36,13 +36,12 @@ class ConsoleEnglishTranslationTests(TestCase):
         self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = 'en'
 
     def test_nav_labels_render_in_english(self):
-        """'permission_slips' is the only real nav item; every coming_soon
-        item (e.g. 'Antrean penilaian') is hidden regardless of permission —
-        see apps.identity.nav.COMING_SOON_URL_NAME."""
+        """Real nav items render their EN label; coming_soon items stay hidden
+        regardless of permission — see apps.identity.nav.COMING_SOON_URL_NAME."""
         response = self.client.get(reverse('console:coming_soon'))
         self.assertContains(response, 'Digital permission slips')
+        self.assertContains(response, 'Grading queue')
         self.assertNotContains(response, 'Antrean penilaian')
-        self.assertNotContains(response, 'Grading queue')
 
     def test_coming_soon_page_title_and_body_render_in_english(self):
         response = self.client.get(reverse('console:coming_soon'))
