@@ -1,5 +1,5 @@
 from django.urls import include, path
-from rest_framework.routers import DefaultRouter
+from apps.core.routers import EduCoreRouter
 
 from .views import (
     BehaviourCaseViewSet,
@@ -19,7 +19,7 @@ from .views import (
     StudentMedicalAlertView,
 )
 
-router = DefaultRouter()
+router = EduCoreRouter()
 router.register(r'behaviour-reasons', BehaviourReasonViewSet, basename='behaviour-reasons')
 router.register(r'behaviour-records', BehaviourRecordViewSet, basename='behaviour-records')
 router.register(r'behaviour-cases', BehaviourCaseViewSet, basename='behaviour-cases')

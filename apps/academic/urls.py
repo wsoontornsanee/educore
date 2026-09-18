@@ -1,5 +1,5 @@
 from django.urls import include, path
-from rest_framework.routers import DefaultRouter
+from apps.core.routers import EduCoreRouter
 
 from apps.academic.views import (
     AcademicCalendarEventViewSet,
@@ -44,7 +44,7 @@ from apps.academic.views import (
     TimetableSubstitutionViewSet,
 )
 
-router = DefaultRouter()
+router = EduCoreRouter()
 router.register(r'academic-years', AcademicYearViewSet, basename='academic-years')
 router.register(r'calendar-events', AcademicCalendarEventViewSet, basename='academic-calendar-events')
 router.register(r'calendar-sync-policies', CalendarAcademicSyncPolicyViewSet, basename='calendar-sync-policies')

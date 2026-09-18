@@ -1,5 +1,5 @@
 from django.urls import path
-from rest_framework.routers import DefaultRouter
+from apps.core.routers import EduCoreRouter
 
 from apps.attendance.views import (
     AbsenceRequestStaffViewSet,
@@ -15,7 +15,7 @@ from apps.attendance.views import (
     TeacherAgendaView,
 )
 
-router = DefaultRouter()
+router = EduCoreRouter()
 router.register('credentials', CredentialViewSet, basename='credential')
 router.register('gate/events', GateEventViewSet, basename='gate-event')
 router.register('attendance/daily', AttendanceDayViewSet, basename='attendance-daily')

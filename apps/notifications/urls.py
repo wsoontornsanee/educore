@@ -1,5 +1,5 @@
 from django.urls import include, path
-from rest_framework.routers import DefaultRouter
+from apps.core.routers import EduCoreRouter
 
 from apps.notifications.views import (
     DevicePushTokenView,
@@ -11,7 +11,7 @@ from apps.notifications.views import (
     whatsapp_webhook_status,
 )
 
-router = DefaultRouter()
+router = EduCoreRouter()
 router.register(r'notifications/templates', NotificationTemplateViewSet, basename='notification-templates')
 router.register(r'notifications/deliveries', NotificationDeliveryViewSet, basename='notification-deliveries')
 

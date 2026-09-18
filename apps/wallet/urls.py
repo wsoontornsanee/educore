@@ -1,5 +1,5 @@
 from django.urls import include, path
-from rest_framework.routers import DefaultRouter
+from apps.core.routers import EduCoreRouter
 
 from apps.wallet.views import (
     MerchantViewSet,
@@ -28,7 +28,7 @@ from apps.wallet.views import (
     StudentNutritionSummaryView,
 )
 
-router = DefaultRouter()
+router = EduCoreRouter()
 router.register(r'merchants', MerchantViewSet, basename='merchants')
 router.register(r'products', ProductViewSet, basename='products')
 router.register(r'pos/terminals', POSTerminalViewSet, basename='pos-terminals')

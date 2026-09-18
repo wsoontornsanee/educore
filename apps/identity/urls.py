@@ -1,6 +1,6 @@
 """URL routing for Identity, User Profile, and Entitlements (spec/02 §6, §7)."""
 from django.urls import path
-from rest_framework.routers import DefaultRouter
+from apps.core.routers import EduCoreRouter
 from .views import (
     CurrentUserView,
     EduCoreTokenObtainPairView,
@@ -17,7 +17,7 @@ from .views import (
     StudentViewSet,
 )
 
-router = DefaultRouter()
+router = EduCoreRouter()
 router.register('foundation/entitlements', FoundationEntitlementViewSet, basename='foundation-entitlement')
 router.register('staff', StaffViewSet, basename='staff')
 router.register('students', StudentViewSet, basename='student')

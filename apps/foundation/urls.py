@@ -1,6 +1,6 @@
 """URL routing for Foundation portal and School management (spec/02, spec/03)."""
 from django.urls import path
-from rest_framework.routers import DefaultRouter
+from apps.core.routers import EduCoreRouter
 from apps.compliance.views import (
     BiometricConsentWithdrawalView,
     ErasureRequestView,
@@ -21,7 +21,7 @@ from .views import (
     SchoolViewSet,
 )
 
-router = DefaultRouter()
+router = EduCoreRouter()
 router.register('schools', SchoolViewSet, basename='school')
 router.register('fx-rates', FxRateViewSet, basename='fx-rate')
 

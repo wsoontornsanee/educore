@@ -19,7 +19,7 @@ MODULES = [
 
 PRINCIPLES = [
     {'no': '01', 'title': _('Dibuat untuk ponsel 3G'), 'body': _('Setiap layar menyatakan kondisi memuat, data lama, dan offline secara eksplisit. Aplikasi guru dan POS bekerja penuh tanpa jaringan.')},
-    {'no': '02', 'title': _('Bahasa Indonesia lebih dulu'), 'body': _('Indonesia adalah bahasa sumber, Inggris adalah terjemahan. Tata letak menampung pemuaian teks 30% tanpa rusak.')},
+    {'no': '02', 'title': _('Dibangun untuk Indonesia'), 'body': _('Dari format rapor resmi hingga VA dan QRIS, dari NISN hingga Dapodik — dibangun dari nol untuk kebutuhan sekolah Indonesia, bukan ditempel belakangan.')},
     {'no': '03', 'title': _('Siap diaudit'), 'body': _('Setiap tindakan yang mengubah data menulis jejak audit dengan aktor, waktu, dan alasan. Tidak ada pengecualian untuk proses internal.')},
 ]
 
