@@ -93,7 +93,9 @@ def record_clinic_visit(
                     "Pemberian obat memerlukan persetujuan wali (consent standing atau konfirmasi per-insiden)."
                 )
 
-            stock = MedicationStock.objects.select_for_update().get(pk=medication.pk)
+            stock = MedicationStock.all_tenants.select_for_update().get(
+                pk=medication.pk, foundation_id=foundation_id
+            )
             if stock.quantity - medication_quantity < 0:
                 raise ValidationError(f"Stok obat '{stock.name}' tidak mencukupi.")
             stock.quantity = stock.quantity - medication_quantity

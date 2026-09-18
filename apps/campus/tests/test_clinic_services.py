@@ -174,3 +174,75 @@ class RecordClinicVisitTests(TestCase):
                 complaint='Demam',
                 outcome=ClinicOutcome.RETURNED_TO_CLASS,
             )
+
+    def test_record_visit_decrements_stock_when_thread_local_foundation_absent(self):
+        """Regression: the stock lock must scope by the explicit foundation_id
+        argument, not by TenantManager's thread-local context. Simulates a
+        cron/background-task call path where the thread-local is unset.
+
+        Uses per-incident guardian consent confirmation (rather than standing
+        consent) so the assertion is isolated to the stock select_for_update
+        lookup, not to has_active_health_consent's own tenancy behavior."""
+        from educore.middleware.tenancy import (
+            clear_current_foundation_id,
+            get_current_foundation_id,
+            set_current_foundation_id,
+        )
+
+        previous = get_current_foundation_id()
+        clear_current_foundation_id()
+        try:
+            visit = record_clinic_visit(
+                foundation_id=self.fx['foundation'].id,
+                school=self.fx['school'],
+                student=self.fx['student'],
+                handled_by=self.fx['teacher'],
+                complaint='Demam',
+                outcome=ClinicOutcome.RETURNED_TO_CLASS,
+                medication=self.stock,
+                medication_quantity=3,
+                guardian_consent_confirmed=True,
+            )
+        finally:
+            if previous is not None:
+                set_current_foundation_id(previous)
+            else:
+                clear_current_foundation_id()
+        self.stock.refresh_from_db()
+        self.assertEqual(self.stock.quantity, 47)
+        self.assertEqual(visit.medication_quantity_used, 3)
+
+    def test_record_visit_scopes_stock_lock_to_explicit_foundation_when_thread_local_mismatched(self):
+        """Regression: if the thread-local foundation context differs from the
+        explicit foundation_id argument, the stock lock must still resolve
+        using the explicit parameter (matching the wallet locking precedent),
+        not the thread-local tenant."""
+        from educore.middleware.tenancy import (
+            get_current_foundation_id,
+            set_current_foundation_id,
+        )
+
+        other_fx = build_academic_fixture(foundation_name="Yayasan Lain")
+        previous = get_current_foundation_id()
+        set_current_foundation_id(other_fx['foundation'].id)
+        try:
+            visit = record_clinic_visit(
+                foundation_id=self.fx['foundation'].id,
+                school=self.fx['school'],
+                student=self.fx['student'],
+                handled_by=self.fx['teacher'],
+                complaint='Demam',
+                outcome=ClinicOutcome.RETURNED_TO_CLASS,
+                medication=self.stock,
+                medication_quantity=1,
+                guardian_consent_confirmed=True,
+            )
+        finally:
+            if previous is not None:
+                set_current_foundation_id(previous)
+            else:
+                from educore.middleware.tenancy import clear_current_foundation_id
+                clear_current_foundation_id()
+        self.stock.refresh_from_db()
+        self.assertEqual(self.stock.quantity, 49)
+        self.assertEqual(visit.medication_quantity_used, 1)
