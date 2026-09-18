@@ -84,6 +84,43 @@ class CollectPersonDataBundleTests(TestCase):
         with self.assertRaises(PersonNotFoundError):
             collect_person_data_bundle('STUDENT', 999999, self.foundation.id)
 
+    def test_bundle_never_includes_clinic_visit_data(self):
+        """LIF-007: clinic notes are excluded from all general exports. This is a
+        regression guard, not proof of an enforcement mechanism — apps.compliance's
+        exports are hand-built fixed dicts (no reflection-based field sweep exists
+        anywhere in this codebase), so the real protection is that nobody has wired
+        clinic data into collect_person_data_bundle. This test fails loudly the
+        moment someone does, without also encrypting/registering it deliberately."""
+        from apps.campus.crypto import encrypt_note
+        from apps.campus.models import ClinicOutcome, ClinicVisit
+        from apps.identity.models import Person as _Person
+
+        clinic_officer_person = _Person.all_tenants.create(
+            foundation_id=self.foundation.id, nik="3171010101018888", full_name="Bu Perawat UKS",
+        )
+        clinic_officer_user = User.objects.create(
+            foundation_id=self.foundation.id, phone_e164="+62812000099", email="uks@uji.sch.id", full_name="Bu Perawat UKS",
+        )
+        clinic_officer = Staff.all_tenants.create(
+            foundation_id=self.foundation.id, person=clinic_officer_person, user=clinic_officer_user,
+            school=self.school, nip="199001012020012001", employment_type=Staff.TYPE_PERMANENT,
+            join_date=datetime.date(2020, 1, 1), status=Staff.STATUS_ACTIVE,
+        )
+        secret_complaint = "Sakit maag kronis, riwayat alergi obat tertentu"
+        ClinicVisit.objects.create(
+            foundation_id=self.foundation.id, school=self.school, student=self.student,
+            complaint_encrypted=encrypt_note(secret_complaint),
+            outcome=ClinicOutcome.RETURNED_TO_CLASS, handled_by=clinic_officer,
+        )
+
+        bundle = collect_person_data_bundle('STUDENT', self.student.id, self.foundation.id)
+
+        self.assertNotIn('clinic_visits', bundle)
+        self.assertNotIn('clinic', bundle)
+        bundle_text = str(bundle)
+        self.assertNotIn(secret_complaint, bundle_text)
+        self.assertNotIn('ClinicVisit', bundle_text)
+
 
 class DsarAccessExportRegistrationTests(TestCase):
     """CMP-016 wiring: dsar_access must be PII-registered so watermark +
