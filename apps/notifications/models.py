@@ -36,6 +36,7 @@ class NotificationCategory(models.TextChoices):
     EXPORT_READY = 'EXPORT_READY', _('Ekspor Laporan Siap (Export Ready)')
     ABSENCE = 'ABSENCE', _('Ketidakhadiran (Absence)')
     DEVICE_OFFLINE = 'DEVICE_OFFLINE', _('Perangkat Offline (Device Offline)')
+    DAILY_DIGEST = 'DAILY_DIGEST', _('Ringkasan Aktivitas Harian (Daily Digest)')
 
 
 class NotificationPriority(models.TextChoices):
@@ -51,6 +52,7 @@ class IntentStatus(models.TextChoices):
     DISPATCHED = 'DISPATCHED', _('Dispatched')
     CANCELLED = 'CANCELLED', _('Cancelled')
     FAILED = 'FAILED', _('Failed')
+    DIGESTED = 'DIGESTED', _('Digested')  # NTF-007: folded into a recipient's daily digest instead of sent individually
 
 
 class DeliveryStatus(models.TextChoices):
@@ -118,6 +120,8 @@ CATEGORY_CONFIG = {
         'priority': NotificationPriority.LOW,
         'quiet_hours_respected': True,
         'opt_out_allowed': True,
+        # NTF-007: held for the evening digest rather than sent individually (spec/13 §3).
+        'digest_only': True,
     },
     NotificationCategory.BEHAVIOUR_MAJOR: {
         'default_channels': [ChannelType.WHATSAPP, ChannelType.PUSH],
@@ -130,12 +134,16 @@ CATEGORY_CONFIG = {
         'priority': NotificationPriority.LOW,
         'quiet_hours_respected': True,
         'opt_out_allowed': True,
+        # NTF-007: held for the evening digest rather than sent individually (spec/13 §3).
+        'digest_only': True,
     },
     NotificationCategory.CANTEEN: {
         'default_channels': [ChannelType.PUSH],
         'priority': NotificationPriority.LOW,
         'quiet_hours_respected': True,
         'opt_out_allowed': True,
+        # NTF-007: held for the evening digest rather than sent individually (spec/13 §3).
+        'digest_only': True,
     },
     NotificationCategory.ANNOUNCEMENT: {
         'default_channels': [ChannelType.PUSH, ChannelType.IN_APP],
@@ -191,6 +199,16 @@ CATEGORY_CONFIG = {
         'priority': NotificationPriority.CRITICAL,
         'quiet_hours_respected': False,
         'opt_out_allowed': False,
+    },
+    NotificationCategory.DAILY_DIGEST: {
+        # NTF-007: the aggregated evening digest itself. Not quiet-hours-gated —
+        # the school-configured digest hour (default 17:00, deploy/crontab) IS
+        # the delivery time, not a candidate for further deferral. Opt-out reuses
+        # the existing per-category NotificationPreference.enabled toggle.
+        'default_channels': [ChannelType.WHATSAPP, ChannelType.EMAIL],
+        'priority': NotificationPriority.NORMAL,
+        'quiet_hours_respected': False,
+        'opt_out_allowed': True,
     },
 }
 
