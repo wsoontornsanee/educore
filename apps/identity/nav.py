@@ -54,7 +54,7 @@ NAV_GROUPS = [
         {"id": "roster", "label": _("Siswa & kelas"), "permission": "student_records.read", "url_name": "academic-class-list-page", "requires_staff_profile": True},
         {"id": "schedule", "label": _("Jadwal"), "permission": "student_records.read", "url_name": "academic-timetable-page", "requires_staff_profile": True},
         {"id": "grading", "label": _("Antrean penilaian"), "permission": "grades.read", "url_name": "academic-grading-queue-page", "requires_staff_profile": True},
-        {"id": "reports", "label": _("Rapor"), "permission": "grades.read", "url_name": "console:coming_soon"},
+        {"id": "reports", "label": _("Rapor"), "permission": "grades.read", "url_name": "academic-report-card-list-page", "requires_staff_profile": True},
     ]},
     {"label": _("Operasional"), "items": [
         {"id": "attendance", "label": _("Kehadiran & gerbang"), "permission": "attendance.read", "url_name": "attendance-gate-console-page", "requires_staff_profile": True},

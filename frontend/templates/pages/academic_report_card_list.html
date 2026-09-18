@@ -1,0 +1,92 @@
+{% extends "base_console.html" %}
+{% load i18n %}
+
+{% comment %}
+Page: Rapor — report card list (Web Console Akademik, PR 4).
+Served by apps.academic.console_views.ReportCardListPageView at /web/academic/report-cards/.
+Read-only. Parameters: terms, class_groups, selected_term_id, selected_class_group_id,
+status_counts ([{status, label, count}]), total_count, shown_count, report_cards.
+{% endcomment %}
+
+{% block title %}{% translate "Rapor — EduCore" %}{% endblock %}
+
+{% block console_content %}
+<main style="display:flex;flex-direction:column;gap:20px;max-width:1100px">
+  <header style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap">
+    <div>
+      <span class="text-label text-ink-500">{% translate "Akademik" %}</span>
+      <h1 class="font-display text-h2 text-ink-900" style="margin:4px 0 0 0">{% translate "Rapor" %}</h1>
+    </div>
+    <form method="get" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+      <label style="display:flex;flex-direction:column;gap:4px">
+        <span class="text-label text-ink-500">{% translate "Semester" %}</span>
+        <select name="term" class="text-body-sm" style="padding:8px 10px;border:1px solid var(--color-line);border-radius:0;background:var(--color-surface)">
+          <option value="">{% translate "Semua semester" %}</option>
+          {% for term in terms %}
+            <option value="{{ term.id }}"{% if term.id == selected_term_id %} selected{% endif %}>{{ term.academic_year.school.name }} — {{ term.academic_year.name }} {{ term.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label style="display:flex;flex-direction:column;gap:4px">
+        <span class="text-label text-ink-500">{% translate "Kelas" %}</span>
+        <select name="class_group" class="text-body-sm" style="padding:8px 10px;border:1px solid var(--color-line);border-radius:0;background:var(--color-surface)">
+          <option value="">{% translate "Semua kelas" %}</option>
+          {% for class_group in class_groups %}
+            <option value="{{ class_group.id }}"{% if class_group.id == selected_class_group_id %} selected{% endif %}>{{ class_group.name }} ({{ class_group.school.name }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button type="submit" class="btn btn-secondary text-body-sm">{% translate "Tampilkan" %}</button>
+    </form>
+  </header>
+
+  <div style="display:flex;gap:16px;flex-wrap:wrap">
+    {% for item in status_counts %}
+      <div class="card" style="padding:16px 20px;min-width:150px">
+        <span class="text-label text-ink-500">{{ item.label }}</span>
+        <div class="font-display text-ink-900" style="font-weight:800;font-size:26px">{{ item.count }}</div>
+      </div>
+    {% endfor %}
+  </div>
+
+  {% if report_cards %}
+    <div class="card" style="overflow-x:auto">
+      <table style="width:100%;min-width:720px;border-collapse:collapse;font-family:'IBM Plex Sans',sans-serif;font-size:0.8125rem">
+        <thead>
+          <tr style="border-bottom:2px solid var(--color-line);text-align:left">
+            <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Siswa" %}</th>
+            <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Kelas" %}</th>
+            <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Semester" %}</th>
+            <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Versi" %}</th>
+            <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Status" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for report_card in report_cards %}
+            <tr style="border-bottom:1px solid var(--color-line)">
+              <td class="text-body-sm" style="padding:10px 14px">
+                <a href="{% url 'academic-report-card-detail-page' report_card.id %}" class="text-ink-900" style="font-weight:600">{{ report_card.student.person.full_name }}</a>
+                <div class="font-mono text-ink-500" style="font-size:0.6875rem">{{ report_card.student.nis }}</div>
+              </td>
+              <td class="text-body-sm text-ink-700" style="padding:10px 14px">{{ report_card.class_group.name }}</td>
+              <td class="text-body-sm text-ink-700" style="padding:10px 14px">{{ report_card.term.name }}</td>
+              <td class="text-body-sm font-mono text-ink-700" style="padding:10px 14px">v{{ report_card.version }}</td>
+              <td class="text-body-sm font-mono" style="padding:10px 14px;font-weight:600;color:{% if report_card.status == 'PUBLISHED' %}var(--color-success){% elif report_card.status == 'DRAFT' %}var(--color-ink-500){% else %}var(--color-warning){% endif %}">{{ report_card.get_status_display }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if total_count > shown_count %}
+      <p class="text-body-sm text-ink-500" style="margin:0">
+        {% blocktranslate with shown=shown_count total=total_count %}Menampilkan {{ shown }} rapor dari {{ total }}.{% endblocktranslate %}
+      </p>
+    {% endif %}
+  {% else %}
+    <div class="card" style="padding:40px 24px;text-align:center">
+      <h2 class="font-display text-h3 text-ink-900" style="margin:0 0 8px 0">{% translate "Belum ada rapor" %}</h2>
+      <p class="text-body-sm text-ink-700" style="margin:0">{% translate "Tidak ada rapor untuk semester dan kelas yang dipilih." %}</p>
+    </div>
+  {% endif %}
+</main>
+{% endblock %}

@@ -5,7 +5,10 @@ Every view is gated by StaffConsoleMixin: the RBAC read permission for the
 page plus a linked Staff profile (a guardian holds student_records.read /
 grades.read too and must never reach the school-side console).
 """
+from decimal import Decimal
+
 from django.db.models import Count, Q
+from django.http import HttpResponse
 from django.shortcuts import render
 from django.utils.translation import gettext_lazy as _
 from rest_framework import status
@@ -19,9 +22,13 @@ from apps.academic.models import (
     ClassSubject,
     DayOfWeek,
     HomeworkSubmissionStatus,
+    ReportCard,
+    ReportCardStatus,
+    Term,
     TimetableSlot,
 )
-from apps.academic.services import get_homework_grading_queue
+from apps.academic.services import compute_descriptor, get_homework_grading_queue, render_report_card_html
+from apps.attendance.models import AttendanceStatus
 from apps.identity.console_access import StaffConsoleMixin
 from apps.identity.models import Staff
 from educore.middleware.tenancy import get_current_foundation_id
@@ -229,3 +236,125 @@ class GradingQueuePageView(StaffConsoleMixin, APIView):
             'class_subjects': class_subjects,
             'selected_class_subject_id': selected_class_subject_id,
         })
+
+
+REPORT_CARD_PAGE_SIZE = 200
+
+
+class ReportCardListPageView(StaffConsoleMixin, APIView):
+    """GET /web/academic/report-cards/?term=<id>&class_group=<id> — current
+    report cards with per-status counts. Default term: the most recent term of
+    an active academic year; an explicit empty `term=` means every term.
+    Read-only: generate/approve/publish stay on the JSON API."""
+
+    def get_required_permission(self):
+        return 'grades.read'
+
+    def get(self, request):
+        if self._resolve_staff(request) is None:
+            return Response({'error': NO_STAFF_PROFILE_MESSAGE}, status=status.HTTP_404_NOT_FOUND)
+
+        foundation_id = get_current_foundation_id()
+        terms = list(
+            Term.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True)
+            .select_related('academic_year__school').order_by('-start_date', 'academic_year__school__name')
+        )
+        class_groups = list(
+            ClassGroup.objects.filter(
+                foundation_id=foundation_id, deleted_at__isnull=True, academic_year__is_active=True,
+            ).select_related('school').order_by('school__name', 'grade_level', 'name')
+        )
+
+        raw_term = request.query_params.get('term')
+        if raw_term is None:
+            default_term = next((t for t in terms if t.academic_year.is_active), None)
+            selected_term_id = default_term.id if default_term else None
+        else:
+            selected_term_id = int(raw_term) if raw_term.isdigit() else None
+        raw_class = request.query_params.get('class_group', '')
+        selected_class_group_id = int(raw_class) if raw_class.isdigit() else None
+
+        cards = ReportCard.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True, is_current=True)
+        if selected_term_id:
+            cards = cards.filter(term_id=selected_term_id)
+        if selected_class_group_id:
+            cards = cards.filter(class_group_id=selected_class_group_id)
+
+        counts_by_status = dict(cards.values_list('status').annotate(n=Count('id')).order_by())
+        status_counts = [
+            {'status': value, 'label': label, 'count': counts_by_status.get(value, 0)}
+            for value, label in ReportCardStatus.choices
+        ]
+        total_count = sum(counts_by_status.values())
+        report_cards = list(
+            cards.select_related('student__person', 'class_group', 'term')
+            .order_by('class_group__name', 'student__person__full_name', 'id')[:REPORT_CARD_PAGE_SIZE]
+        )
+
+        return render(request, 'pages/academic_report_card_list.html', {
+            'terms': terms,
+            'class_groups': class_groups,
+            'selected_term_id': selected_term_id,
+            'selected_class_group_id': selected_class_group_id,
+            'status_counts': status_counts,
+            'total_count': total_count,
+            'shown_count': len(report_cards),
+            'report_cards': report_cards,
+        })
+
+
+class _ReportCardAccessMixin(StaffConsoleMixin):
+    def get_required_permission(self):
+        return 'grades.read'
+
+    def _get_report_card(self, request, report_card_id):
+        """The report card, or None for a missing Staff profile / unknown / cross-tenant id."""
+        if self._resolve_staff(request) is None:
+            return None
+        return ReportCard.objects.filter(
+            id=report_card_id, foundation_id=get_current_foundation_id(), deleted_at__isnull=True,
+        ).select_related(
+            'student__person', 'term', 'class_group__school', 'class_group__homeroom_teacher__person',
+        ).first()
+
+
+class ReportCardDetailPageView(_ReportCardAccessMixin, APIView):
+    """GET /web/academic/report-cards/<id>/ — the frozen rapor snapshot inside
+    the console chrome (grades, attendance, narrative), with a link to the
+    printable branded layout."""
+
+    def get(self, request, report_card_id):
+        report_card = self._get_report_card(request, report_card_id)
+        if report_card is None:
+            return Response({'error': _("Rapor tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+
+        grade_rows = []
+        for entry in report_card.grades_snapshot:
+            grade = entry.get('grade')
+            grade_rows.append({
+                'subject': entry.get('subject', ''),
+                'grade': f"{Decimal(str(grade)):.0f}" if grade is not None else None,
+                'descriptor': compute_descriptor(Decimal(str(grade)), Decimal('100')) if grade is not None else None,
+                'narrative': entry.get('objective_narrative', ''),
+            })
+        attendance_rows = [
+            {'label': AttendanceStatus(key).label if key in AttendanceStatus.values else key, 'days': days}
+            for key, days in sorted(report_card.attendance_summary.items())
+        ]
+
+        return render(request, 'pages/academic_report_card_detail.html', {
+            'report_card': report_card,
+            'grade_rows': grade_rows,
+            'attendance_rows': attendance_rows,
+        })
+
+
+class ReportCardPrintPageView(_ReportCardAccessMixin, APIView):
+    """GET /web/academic/report-cards/<id>/print/ — the branded printable
+    rapor layout (the same HTML the PDF is rendered from), opened in a new tab."""
+
+    def get(self, request, report_card_id):
+        report_card = self._get_report_card(request, report_card_id)
+        if report_card is None:
+            return Response({'error': _("Rapor tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        return HttpResponse(render_report_card_html(report_card))

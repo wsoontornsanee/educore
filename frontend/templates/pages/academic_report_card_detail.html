@@ -1,0 +1,87 @@
+{% extends "base_console.html" %}
+{% load i18n %}
+
+{% comment %}
+Page: Rapor — report card detail (Web Console Akademik, PR 4).
+Served by apps.academic.console_views.ReportCardDetailPageView at /web/academic/report-cards/<id>/.
+Shows the frozen snapshot only. Parameters: report_card, grade_rows
+([{subject, grade, descriptor, narrative}]), attendance_rows ([{label, days}]).
+{% endcomment %}
+
+{% block title %}{% translate "Rapor" %} {{ report_card.student.person.full_name }} — EduCore{% endblock %}
+
+{% block console_content %}
+<main style="display:flex;flex-direction:column;gap:20px;max-width:960px">
+  <header>
+    <a href="{% url 'academic-report-card-list-page' %}" class="text-body-sm text-ink-500">← {% translate "Rapor" %}</a>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-top:8px">
+      <div>
+        <h1 class="font-display text-h2 text-ink-900" style="margin:0 0 4px 0">{{ report_card.student.person.full_name }}</h1>
+        <p class="text-body-sm text-ink-700" style="margin:0">
+          <span class="font-mono">{{ report_card.student.nis }}</span> · {{ report_card.class_group.name }} · {{ report_card.term.name }} · v{{ report_card.version }}
+        </p>
+        <p class="text-body-sm font-mono text-ink-500" style="margin:6px 0 0 0">
+          {{ report_card.get_status_display }}
+          {% if report_card.published_at %}· {% translate "Diterbitkan" %} {{ report_card.published_at|date:"d M Y" }}{% elif report_card.approved_at %}· {% translate "Disetujui" %} {{ report_card.approved_at|date:"d M Y" }}{% endif %}
+        </p>
+      </div>
+      <a href="{% url 'academic-report-card-print-page' report_card.id %}" target="_blank" rel="noopener" class="btn btn-secondary text-body-sm">{% translate "Buka tampilan cetak" %}</a>
+    </div>
+  </header>
+
+  <section class="card" style="overflow-x:auto">
+    <h2 class="text-label text-ink-500" style="margin:0;padding:14px 14px 0 14px">{% translate "Nilai" %}</h2>
+    {% if grade_rows %}
+      <table style="width:100%;min-width:600px;border-collapse:collapse;font-family:'IBM Plex Sans',sans-serif;font-size:0.8125rem">
+        <thead>
+          <tr style="border-bottom:2px solid var(--color-line);text-align:left">
+            <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Mata pelajaran" %}</th>
+            <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Nilai" %}</th>
+            <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Capaian" %}</th>
+            <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Catatan" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in grade_rows %}
+            <tr style="border-bottom:1px solid var(--color-line);vertical-align:top">
+              <td class="text-body-sm text-ink-900" style="padding:10px 14px;font-weight:600">{{ row.subject }}</td>
+              <td class="text-body-sm font-mono text-ink-900" style="padding:10px 14px">{% if row.grade %}{{ row.grade }}{% else %}—{% endif %}</td>
+              <td class="text-body-sm text-ink-700" style="padding:10px 14px">{% if row.descriptor %}{{ row.descriptor }}{% else %}<span class="text-ink-500">{% translate "Belum lengkap" %}</span>{% endif %}</td>
+              <td class="text-body-sm text-ink-700" style="padding:10px 14px">{{ row.narrative|default:"—" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="text-body-sm text-ink-700" style="margin:0;padding:14px">{% translate "Belum ada nilai pada rapor ini." %}</p>
+    {% endif %}
+  </section>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px">
+    <section class="card" style="padding:14px">
+      <h2 class="text-label text-ink-500" style="margin:0 0 10px 0">{% translate "Kehadiran" %}</h2>
+      {% for row in attendance_rows %}
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--color-line)">
+          <span class="text-body-sm text-ink-700">{{ row.label }}</span>
+          <span class="text-body-sm font-mono text-ink-900">{{ row.days }} {% translate "hari" %}</span>
+        </div>
+      {% empty %}
+        <p class="text-body-sm text-ink-700" style="margin:0">{% translate "Belum ada data kehadiran." %}</p>
+      {% endfor %}
+    </section>
+    <section class="card" style="padding:14px">
+      <h2 class="text-label text-ink-500" style="margin:0 0 10px 0">{% translate "Catatan wali kelas" %}</h2>
+      <p class="text-body-sm text-ink-700" style="margin:0 0 10px 0">{{ report_card.narrative|default:"—" }}</p>
+      {% if report_card.promotion_decision %}
+        <p class="text-body-sm text-ink-900" style="margin:0;font-weight:600">{{ report_card.promotion_decision }}</p>
+      {% endif %}
+      {% if report_card.extracurricular_notes %}
+        <h3 class="text-label text-ink-500" style="margin:14px 0 6px 0">{% translate "Ekstrakurikuler" %}</h3>
+        {% for note in report_card.extracurricular_notes %}
+          <div class="text-body-sm text-ink-700">{{ note.name }} — {{ note.grade }}</div>
+        {% endfor %}
+      {% endif %}
+    </section>
+  </div>
+</main>
+{% endblock %}

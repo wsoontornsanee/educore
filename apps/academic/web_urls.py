@@ -10,6 +10,9 @@ from apps.academic.console_views import (
     ClassDetailPageView,
     ClassListPageView,
     GradingQueuePageView,
+    ReportCardDetailPageView,
+    ReportCardListPageView,
+    ReportCardPrintPageView,
     TimetablePageView,
 )
 from apps.academic.web_views import ExamModeConsolePageView, ExamProctorConsolePageView
@@ -21,6 +24,9 @@ from apps.academic.views import (
 )
 
 urlpatterns = [
+    path('report-cards/', ReportCardListPageView.as_view(), name='academic-report-card-list-page'),
+    path('report-cards/<int:report_card_id>/', ReportCardDetailPageView.as_view(), name='academic-report-card-detail-page'),
+    path('report-cards/<int:report_card_id>/print/', ReportCardPrintPageView.as_view(), name='academic-report-card-print-page'),
     path('grading-queue/', GradingQueuePageView.as_view(), name='academic-grading-queue-page'),
     path('timetable/', TimetablePageView.as_view(), name='academic-timetable-page'),
     path('classes/', ClassListPageView.as_view(), name='academic-class-list-page'),
