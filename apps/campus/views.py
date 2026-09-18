@@ -860,6 +860,40 @@ class MedicationStockViewSet(viewsets.ModelViewSet):
         if not foundation_id:
             return MedicationStock.objects.none()
         qs = MedicationStock.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True).order_by('name')
+
+        user = self.request.user
+        if not user or not user.is_authenticated:
+            return MedicationStock.objects.none()
+
+        if not user.is_superuser:
+            from apps.identity.models import RoleAssignment
+            from apps.identity.guardian_access import STAFF_ROLES
+
+            has_fnd_admin = RoleAssignment.all_tenants.filter(
+                foundation_id=foundation_id,
+                user=user,
+                role=RoleAssignment.ROLE_FOUNDATION_ADMIN,
+                scope_type=RoleAssignment.SCOPE_FOUNDATION,
+                deleted_at__isnull=True,
+            ).exists()
+
+            if not has_fnd_admin:
+                staff_school_ids = set(RoleAssignment.all_tenants.filter(
+                    foundation_id=foundation_id,
+                    user=user,
+                    role__in=STAFF_ROLES,
+                    scope_type=RoleAssignment.SCOPE_SCHOOL,
+                    deleted_at__isnull=True,
+                ).values_list('scope_id', flat=True))
+
+                if staff_school_ids:
+                    qs = qs.filter(school_id__in=staff_school_ids)
+                else:
+                    # Medication stock is operational inventory, not guardian-facing —
+                    # unlike ClinicVisitViewSet, there is no per-student data here for a
+                    # guardian to be scoped to, so a non-staff caller sees nothing.
+                    return MedicationStock.objects.none()
+
         school_id = self.request.query_params.get('school_id')
         if school_id:
             qs = qs.filter(school_id=school_id)
