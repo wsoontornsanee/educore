@@ -386,7 +386,8 @@ class ClinicVisitSerializer(serializers.ModelSerializer):
 
 
 class RecordClinicVisitInputSerializer(serializers.Serializer):
-    student_id = serializers.IntegerField(required=True)
+    student_id = serializers.IntegerField(required=False, allow_null=True)
+    card_uid = serializers.CharField(required=False, allow_blank=True, default='')
     complaint = serializers.CharField(required=True, min_length=1)
     treatment = serializers.CharField(required=False, allow_blank=True, default='')
     vitals = serializers.DictField(required=False, default=dict)
@@ -396,6 +397,19 @@ class RecordClinicVisitInputSerializer(serializers.Serializer):
     guardian_consent_confirmed = serializers.BooleanField(required=False, default=False)
     guardian_consent_note = serializers.CharField(required=False, allow_blank=True, default='')
     occurred_at = serializers.DateTimeField(required=False, allow_null=True)
+
+    def validate(self, attrs):
+        has_student_id = bool(attrs.get('student_id'))
+        has_card_uid = bool(attrs.get('card_uid'))
+        if has_student_id and has_card_uid:
+            raise serializers.ValidationError(
+                "Isi salah satu saja: student_id atau card_uid, tidak keduanya."
+            )
+        if not has_student_id and not has_card_uid:
+            raise serializers.ValidationError(
+                "Wajib isi student_id atau card_uid untuk mengidentifikasi siswa."
+            )
+        return attrs
 
 
 class StudentMedicalAlertSerializer(serializers.Serializer):

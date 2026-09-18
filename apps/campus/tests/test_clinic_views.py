@@ -1,14 +1,16 @@
 import datetime as _dt
 
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
 from apps.academic.models import ClassEnrollment
 from apps.academic.tests.base import build_academic_fixture
+from apps.attendance.models import Credential, CredentialStatus, CredentialType
 from apps.campus.models import ClinicOutcome, ClinicVisit, HealthProfile, MedicationStock
 from apps.core.models import AuditEvent
-from apps.identity.models import Person, RoleAssignment, School, Student
+from apps.identity.models import Person, RoleAssignment, School, Staff, Student, User
 from apps.identity.rbac import ROLE_CLINIC_OFFICER, ROLE_SCHOOL_ADMIN, ROLE_TEACHER
 from educore.middleware.tenancy import set_current_foundation_id
 
@@ -304,3 +306,90 @@ class ClinicHealthPiiAuditTests(TestCase):
         self.assertTrue(
             AuditEvent.objects.filter(action='campus.medication_stock.deleted', entity_id=str(stock_id)).exists()
         )
+
+
+class ClinicVisitCardTapLookupTests(TestCase):
+    """LIF-001: card-tap student lookup at clinic intake (Notion follow-up to PR #147)."""
+
+    def setUp(self):
+        self.fx = build_academic_fixture()
+        set_current_foundation_id(self.fx['foundation'].id)
+        assign(self.fx, self.fx['teacher_user'], ROLE_CLINIC_OFFICER)
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+
+        self.card = Credential.objects.create(
+            foundation_id=self.fx['foundation'].id,
+            student=self.fx['student'],
+            type=CredentialType.RFID,
+            uid='AA11BB22',
+            status=CredentialStatus.ACTIVE,
+        )
+
+    def test_create_clinic_visit_via_card_uid(self):
+        resp = self.client.post('/api/v1/campus/clinic-visits/', {
+            'card_uid': 'aa11bb22',
+            'complaint': 'Pusing',
+            'outcome': ClinicOutcome.RETURNED_TO_CLASS,
+        }, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.content)
+        self.assertEqual(resp.data['student'], self.fx['student'].id)
+        set_current_foundation_id(self.fx['foundation'].id)
+        self.assertTrue(ClinicVisit.objects.filter(student=self.fx['student']).exists())
+
+    def test_create_clinic_visit_rejects_unknown_card_uid(self):
+        resp = self.client.post('/api/v1/campus/clinic-visits/', {
+            'card_uid': 'DOES-NOT-EXIST',
+            'complaint': 'Pusing',
+            'outcome': ClinicOutcome.RETURNED_TO_CLASS,
+        }, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_clinic_visit_rejects_revoked_card_uid(self):
+        self.card.status = CredentialStatus.REVOKED
+        self.card.revoked_reason = 'Hilang'
+        self.card.save(update_fields=['status', 'revoked_reason'])
+        resp = self.client.post('/api/v1/campus/clinic-visits/', {
+            'card_uid': 'AA11BB22',
+            'complaint': 'Pusing',
+            'outcome': ClinicOutcome.RETURNED_TO_CLASS,
+        }, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_clinic_visit_rejects_staff_only_card_uid(self):
+        staff_person = Person.all_tenants.create(
+            foundation_id=self.fx['foundation'].id, nik='3471010101019876', full_name='Pak Guru Piket',
+        )
+        staff_user = User.objects.create(
+            foundation_id=self.fx['foundation'].id, phone_e164='+62811999999', email='piket@sch.id', full_name='Pak Guru Piket',
+        )
+        staff = Staff.all_tenants.create(
+            foundation_id=self.fx['foundation'].id, person=staff_person, user=staff_user, school=self.fx['school'],
+            nip='199001012020011001', employment_type=Staff.TYPE_PERMANENT, join_date=_dt.date(2020, 1, 1), status=Staff.STATUS_ACTIVE,
+        )
+        Credential.objects.create(
+            foundation_id=self.fx['foundation'].id, staff=staff, type=CredentialType.RFID,
+            uid='STAFFCARD01', status=CredentialStatus.ACTIVE,
+        )
+        resp = self.client.post('/api/v1/campus/clinic-visits/', {
+            'card_uid': 'STAFFCARD01',
+            'complaint': 'Pusing',
+            'outcome': ClinicOutcome.RETURNED_TO_CLASS,
+        }, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_clinic_visit_rejects_both_student_id_and_card_uid(self):
+        resp = self.client.post('/api/v1/campus/clinic-visits/', {
+            'student_id': self.fx['student'].id,
+            'card_uid': 'AA11BB22',
+            'complaint': 'Pusing',
+            'outcome': ClinicOutcome.RETURNED_TO_CLASS,
+        }, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_clinic_visit_rejects_neither_student_id_nor_card_uid(self):
+        resp = self.client.post('/api/v1/campus/clinic-visits/', {
+            'complaint': 'Pusing',
+            'outcome': ClinicOutcome.RETURNED_TO_CLASS,
+        }, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
