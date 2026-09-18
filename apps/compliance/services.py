@@ -48,6 +48,7 @@ def get_default_field_map() -> dict:
             'person.birth_city': 'tempat_lahir',
             'person.religion': 'agama',
             'person.birth_certificate_number': 'nomor_akta_kelahiran',
+            'person.mother_name': 'nama_ibu_kandung',
             'person.citizenship': 'kewarganegaraan',
             'person.address': 'alamat_jalan',
             'person.rt': 'rt',
@@ -58,6 +59,8 @@ def get_default_field_map() -> dict:
             'person.kabupaten_kota': 'kabupaten_kota',
             'person.provinsi': 'provinsi',
             'person.postal_code': 'kode_pos',
+            'person.home_latitude': 'lintang',
+            'person.home_longitude': 'bujur',
             'status': 'status',
             'rombel': 'rombel',
         },
@@ -70,6 +73,8 @@ def get_default_field_map() -> dict:
             'person.dob': 'tanggal_lahir',
             'person.birth_city': 'tempat_lahir',
             'person.religion': 'agama',
+            'person.home_latitude': 'lintang',
+            'person.home_longitude': 'bujur',
             'employment_type': 'jenis_ptk',
             'appointment_type': 'kepegawaian',
             'certification_status': 'status_sertifikasi',
@@ -88,11 +93,33 @@ def get_default_field_map() -> dict:
 
 # --- Pre-export validation (CMP-018) ---
 
+MANDATORY_FIELD_LABELS = {
+    'person.mother_name': 'Nama ibu kandung kosong (wajib per skema ekspor)',
+    'person.home_latitude': 'Koordinat lintang tempat tinggal kosong (wajib per skema ekspor)',
+    'person.home_longitude': 'Koordinat bujur tempat tinggal kosong (wajib per skema ekspor)',
+    'person.birth_city': 'Tempat lahir kosong (wajib per skema ekspor)',
+    'person.birth_certificate_number': 'Nomor akta kelahiran kosong (wajib per skema ekspor)',
+    'person.citizenship': 'Kewarganegaraan kosong (wajib per skema ekspor)',
+    'person.address': 'Alamat jalan kosong (wajib per skema ekspor)',
+    'person.rt': 'RT kosong (wajib per skema ekspor)',
+    'person.rw': 'RW kosong (wajib per skema ekspor)',
+    'person.kelurahan': 'Kelurahan kosong (wajib per skema ekspor)',
+    'person.kecamatan': 'Kecamatan kosong (wajib per skema ekspor)',
+    'person.kabupaten_kota': 'Kabupaten/Kota kosong (wajib per skema ekspor)',
+    'person.provinsi': 'Provinsi kosong (wajib per skema ekspor)',
+    'person.postal_code': 'Kode pos kosong (wajib per skema ekspor)',
+}
+
+
 def _is_set(value) -> bool:
     return value not in (None, '')
 
 
-def validate_statutory_export(school: School, system: str) -> dict:
+def validate_statutory_export(
+    school: School,
+    system: str,
+    schema: StatutoryExportSchema = None,
+) -> dict:
     """
     Pre-export validation report (CMP-018).
 
@@ -147,6 +174,26 @@ def validate_statutory_export(school: School, system: str) -> dict:
             'field': 'address',
             'problem': f'Alamat sekolah belum lengkap: {", ".join(missing_address)}',
         })
+
+    # --- Active schema resolution & configurable mandatory fields (CMP-020) ---
+    if schema is None:
+        schema = get_active_schema(school.foundation_id, system)
+
+    mandatory_cfg = {}
+    if schema:
+        if getattr(schema, 'mandatory_fields', None) and isinstance(schema.mandatory_fields, dict):
+            mandatory_cfg.update(schema.mandatory_fields)
+        if isinstance(getattr(schema, 'field_map', None), dict) and 'mandatory_fields' in schema.field_map:
+            mandatory_cfg.update(schema.field_map['mandatory_fields'])
+
+    mandatory_student_fields = [
+        f for f in mandatory_cfg.get('students', [])
+        if f not in ('nisn', 'person.nik', 'person.religion', 'rombel')
+    ]
+    mandatory_staff_fields = [
+        f for f in mandatory_cfg.get('staff', [])
+        if f not in ('nuptk', 'person.nik', 'appointment_type')
+    ]
 
     # --- Students: missing NISN, malformed NISN/NIK, no active rombel ---
     enrollments = {}
@@ -207,6 +254,20 @@ def validate_statutory_export(school: School, system: str) -> dict:
                 'problem': 'Agama kosong',
             })
 
+        for field_path in mandatory_student_fields:
+            val = _resolve(student, field_path)
+            if not _is_set(val):
+                problem = MANDATORY_FIELD_LABELS.get(
+                    field_path,
+                    f'{field_path} kosong (wajib per skema ekspor)',
+                )
+                issues['students'].append({
+                    'record': person.full_name,
+                    'rombel': rombel,
+                    'field': field_path,
+                    'problem': problem,
+                })
+
         if rombel is None:
             issues['students'].append({
                 'record': person.full_name,
@@ -262,6 +323,19 @@ def validate_statutory_export(school: School, system: str) -> dict:
                 'problem': 'Jenis pengangkatan (CPNS/PNS/PPPK/GTY/PTT) kosong',
             })
 
+        for field_path in mandatory_staff_fields:
+            val = _resolve(staff, field_path)
+            if not _is_set(val):
+                problem = MANDATORY_FIELD_LABELS.get(
+                    field_path,
+                    f'{field_path} kosong (wajib per skema ekspor)',
+                )
+                issues['staff'].append({
+                    'record': person.full_name,
+                    'field': field_path,
+                    'problem': problem,
+                })
+
     # --- Rombel: must have a homeroom teacher ---
     rombels = ClassGroup.objects.filter(
         foundation_id=school.foundation_id,
@@ -316,7 +390,7 @@ class StatutoryExporter(ABC):
 
     def validate(self) -> dict:
         """Pre-export validation report (CMP-018). Delegates to the service."""
-        return validate_statutory_export(self.school, self.system)
+        return validate_statutory_export(self.school, self.system, schema=self.schema)
 
 
 def _resolve(obj, path: str):

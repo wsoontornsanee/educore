@@ -40,6 +40,40 @@ class MoneyField(models.DecimalField):
         return super().get_prep_value(value)
 
 
+class CoordinateField(models.DecimalField):
+    """Custom DecimalField for geographic coordinates (lat/long) strictly rejecting float.
+
+    Defaults to max_digits=9 and decimal_places=6 (~0.11m precision, standard for GIS/DAPODIK).
+    Float values are strictly forbidden to enforce precision consistency.
+    """
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('max_digits', 9)
+        kwargs.setdefault('decimal_places', 6)
+        super().__init__(*args, **kwargs)
+
+    def to_python(self, value):
+        if value is None:
+            return value
+        if isinstance(value, float):
+            raise ValidationError(
+                f"Float value {value!r} is forbidden for CoordinateField. "
+                "Use Python Decimal or string representation."
+            )
+        return super().to_python(value)
+
+    def get_prep_value(self, value):
+        if value is not None:
+            if isinstance(value, float):
+                raise ValueError(
+                    f"Float value {value!r} cannot be saved to CoordinateField. "
+                    "Use Python Decimal or string."
+                )
+            if not isinstance(value, Decimal):
+                value = Decimal(str(value))
+        return super().get_prep_value(value)
+
+
 def soft_delete_uniqueness_marker(extra_condition=None):
     """GeneratedField emulating a conditional UniqueConstraint on MySQL.
 

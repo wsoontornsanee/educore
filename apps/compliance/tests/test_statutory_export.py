@@ -23,6 +23,7 @@ from apps.compliance.services import (
     EmisFileExporter,
     StatutoryExportError,
     get_active_schema,
+    get_default_field_map,
     get_exporter,
     validate_statutory_export,
 )
@@ -480,3 +481,169 @@ class StatutoryExportRendererRegistrationTests(StatutoryExportFixtures):
         )
         with self.assertRaises(StatutoryExportError):
             renderer(job)
+
+
+class DapodikMotherNameAndCoordinatesTests(StatutoryExportFixtures):
+    """Tests for mother_name and home coordinates (lat/long) statutory export & validation."""
+
+    def test_default_field_map_includes_mother_name_and_coordinates(self):
+        field_map = get_default_field_map()
+
+        # Student sheet mappings
+        self.assertIn('person.mother_name', field_map['students'])
+        self.assertEqual(field_map['students']['person.mother_name'], 'nama_ibu_kandung')
+        self.assertIn('person.home_latitude', field_map['students'])
+        self.assertEqual(field_map['students']['person.home_latitude'], 'lintang')
+        self.assertIn('person.home_longitude', field_map['students'])
+        self.assertEqual(field_map['students']['person.home_longitude'], 'bujur')
+
+        # Staff sheet mappings
+        self.assertIn('person.home_latitude', field_map['staff'])
+        self.assertEqual(field_map['staff']['person.home_latitude'], 'lintang')
+        self.assertIn('person.home_longitude', field_map['staff'])
+        self.assertEqual(field_map['staff']['person.home_longitude'], 'bujur')
+
+    def test_dapodik_bundle_exports_mother_name_and_coordinates(self):
+        self.student_person.mother_name = 'Siti Aminah'
+        self.student_person.home_latitude = Decimal('-6.208800')
+        self.student_person.home_longitude = Decimal('106.845600')
+        self.student_person.save()
+
+        self.teacher_person.home_latitude = Decimal('-6.175392')
+        self.teacher_person.home_longitude = Decimal('106.827153')
+        self.teacher_person.save()
+
+        exporter = DapodikFileExporter(school=self.school)
+        bundle = exporter.build_bundle()
+
+        student_row = bundle['sheets']['students'][0]
+        self.assertEqual(student_row['nama_ibu_kandung'], 'Siti Aminah')
+        self.assertEqual(student_row['lintang'], '-6.208800')
+        self.assertEqual(student_row['bujur'], '106.845600')
+
+        staff_row = bundle['sheets']['staff'][0]
+        self.assertEqual(staff_row['lintang'], '-6.175392')
+        self.assertEqual(staff_row['bujur'], '106.827153')
+
+    def test_validate_statutory_export_unconfigured_schema_ignores_optional_fields(self):
+        """When schema does not configure mandatory fields, blank mother_name/coordinates do not trigger issues."""
+        # Ensure student and staff have blank mother_name and coordinates
+        self.student_person.mother_name = ''
+        self.student_person.home_latitude = None
+        self.student_person.home_longitude = None
+        self.student_person.save()
+
+        self.teacher_person.home_latitude = None
+        self.teacher_person.home_longitude = None
+        self.teacher_person.save()
+
+        issues = validate_statutory_export(self.school, StatutorySystem.DAPODIK)
+        # Standard fixtures have valid student and staff data; no mother_name/geo issues should exist
+        student_fields_with_issues = [i['field'] for i in issues['students']]
+        self.assertNotIn('person.mother_name', student_fields_with_issues)
+        self.assertNotIn('person.home_latitude', student_fields_with_issues)
+        self.assertNotIn('person.home_longitude', student_fields_with_issues)
+
+        staff_fields_with_issues = [i['field'] for i in issues['staff']]
+        self.assertNotIn('person.home_latitude', staff_fields_with_issues)
+        self.assertNotIn('person.home_longitude', staff_fields_with_issues)
+
+    def test_validate_statutory_export_mandatory_fields_reports_missing(self):
+        """When schema configures mandatory fields, missing values are reported with name and rombel."""
+        schema = StatutoryExportSchema.all_tenants.create(
+            foundation_id=self.foundation.id,
+            system=StatutorySystem.DAPODIK,
+            version='2026.mandatory',
+            is_active=True,
+            mandatory_fields={
+                'students': ['person.mother_name', 'person.home_latitude', 'person.home_longitude'],
+                'staff': ['person.home_latitude', 'person.home_longitude'],
+            },
+        )
+
+        self.student_person.mother_name = ''
+        self.student_person.home_latitude = None
+        self.student_person.home_longitude = None
+        self.student_person.save()
+
+        self.teacher_person.home_latitude = None
+        self.teacher_person.home_longitude = None
+        self.teacher_person.save()
+
+        issues = validate_statutory_export(self.school, StatutorySystem.DAPODIK)
+
+        # Check student issues
+        student_issue_map = {i['field']: i for i in issues['students']}
+        self.assertIn('person.mother_name', student_issue_map)
+        self.assertEqual(student_issue_map['person.mother_name']['record'], 'Andi Wijaya')
+        self.assertEqual(student_issue_map['person.mother_name']['rombel'], 'X IPA 1')
+        self.assertIn('Nama ibu kandung kosong', student_issue_map['person.mother_name']['problem'])
+
+        self.assertIn('person.home_latitude', student_issue_map)
+        self.assertEqual(student_issue_map['person.home_latitude']['record'], 'Andi Wijaya')
+        self.assertEqual(student_issue_map['person.home_latitude']['rombel'], 'X IPA 1')
+
+        self.assertIn('person.home_longitude', student_issue_map)
+        self.assertEqual(student_issue_map['person.home_longitude']['record'], 'Andi Wijaya')
+        self.assertEqual(student_issue_map['person.home_longitude']['rombel'], 'X IPA 1')
+
+        # Check staff issues
+        staff_issue_map = {i['field']: i for i in issues['staff']}
+        self.assertIn('person.home_latitude', staff_issue_map)
+        self.assertEqual(staff_issue_map['person.home_latitude']['record'], 'Pak Guru Wali')
+        self.assertIn('person.home_longitude', staff_issue_map)
+        self.assertEqual(staff_issue_map['person.home_longitude']['record'], 'Pak Guru Wali')
+
+    def test_validate_statutory_export_mandatory_fields_passes_when_filled(self):
+        """When mandatory fields are populated, validation passes without reporting them."""
+        StatutoryExportSchema.all_tenants.create(
+            foundation_id=self.foundation.id,
+            system=StatutorySystem.DAPODIK,
+            version='2026.mandatory',
+            is_active=True,
+            mandatory_fields={
+                'students': ['person.mother_name', 'person.home_latitude', 'person.home_longitude'],
+                'staff': ['person.home_latitude', 'person.home_longitude'],
+            },
+        )
+
+        self.student_person.mother_name = 'Siti Rahayu'
+        self.student_person.home_latitude = Decimal('-6.208800')
+        self.student_person.home_longitude = Decimal('106.845600')
+        self.student_person.save()
+
+        self.teacher_person.home_latitude = Decimal('-6.175392')
+        self.teacher_person.home_longitude = Decimal('106.827153')
+        self.teacher_person.save()
+
+        issues = validate_statutory_export(self.school, StatutorySystem.DAPODIK)
+        student_fields_with_issues = [i['field'] for i in issues['students']]
+        self.assertNotIn('person.mother_name', student_fields_with_issues)
+        self.assertNotIn('person.home_latitude', student_fields_with_issues)
+        self.assertNotIn('person.home_longitude', student_fields_with_issues)
+
+        staff_fields_with_issues = [i['field'] for i in issues['staff']]
+        self.assertNotIn('person.home_latitude', staff_fields_with_issues)
+        self.assertNotIn('person.home_longitude', staff_fields_with_issues)
+
+    def test_validate_statutory_export_reads_mandatory_from_field_map(self):
+        """Verify fallback reading from field_map['mandatory_fields']."""
+        StatutoryExportSchema.all_tenants.create(
+            foundation_id=self.foundation.id,
+            system=StatutorySystem.DAPODIK,
+            version='2026.embedded',
+            is_active=True,
+            field_map={
+                'mandatory_fields': {
+                    'students': ['person.mother_name'],
+                }
+            },
+        )
+
+        self.student_person.mother_name = ''
+        self.student_person.save()
+
+        issues = validate_statutory_export(self.school, StatutorySystem.DAPODIK)
+        student_fields_with_issues = [i['field'] for i in issues['students']]
+        self.assertIn('person.mother_name', student_fields_with_issues)
+

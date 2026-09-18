@@ -51,6 +51,14 @@ class StatutoryExportSchema(TenantModel):
             "Entity sheets: students, staff, rombel."
         ),
     )
+    mandatory_fields = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_(
+            "Optional mandatory field paths per entity sheet for pre-export validation (CMP-018, CMP-020). "
+            "E.g., {'students': ['person.mother_name', 'person.home_latitude', 'person.home_longitude']}"
+        ),
+    )
     notes = models.TextField(blank=True)
 
     class Meta:
