@@ -221,7 +221,7 @@ class RBACTests(TestCase):
         perm = IsFoundationAdmin()
 
         request = factory.get('/api/foundation/manage/')
-        
+
         with tenant_context(self.foundation.id):
             request.user = self.user_foundation_admin
             self.assertTrue(perm.has_permission(request, None))
@@ -231,3 +231,15 @@ class RBACTests(TestCase):
 
             request.user = self.user_teacher
             self.assertFalse(perm.has_permission(request, None))
+
+    def test_clinic_officer_role_permissions(self):
+        from apps.identity.rbac import ROLE_CLINIC_OFFICER, ROLE_PERMISSIONS
+        perms = ROLE_PERMISSIONS[ROLE_CLINIC_OFFICER]
+        self.assertIn('clinic.read', perms)
+        self.assertIn('clinic.write', perms)
+        self.assertIn('student_records.read', perms)
+
+    def test_school_admin_and_foundation_admin_have_clinic_write(self):
+        from apps.identity.rbac import ROLE_FOUNDATION_ADMIN, ROLE_SCHOOL_ADMIN, ROLE_PERMISSIONS
+        self.assertIn('clinic.write', ROLE_PERMISSIONS[ROLE_FOUNDATION_ADMIN])
+        self.assertIn('clinic.write', ROLE_PERMISSIONS[ROLE_SCHOOL_ADMIN])
