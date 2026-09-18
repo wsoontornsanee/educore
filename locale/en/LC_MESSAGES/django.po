@@ -4424,3 +4424,120 @@ msgstr ""
 #: frontend/templates/rest_framework/base.html:177
 msgid "response info"
 msgstr ""
+
+
+#: apps/marketing/views.py:169
+msgid "Portal web"
+msgstr "Web portal"
+
+#: frontend/templates/marketing/changelog.html:4
+msgid "Changelog — EduCore"
+msgstr "Changelog — EduCore"
+
+#: frontend/templates/marketing/changelog.html:9
+msgid "Apa yang berubah, dan apa yang perlu Anda lakukan."
+msgstr "What changed, and what you need to do."
+
+#: frontend/templates/marketing/changelog.html:10
+msgid "Setiap rilis mencantumkan tindakan yang dibutuhkan integrator. Perubahan yang memutus kontrak selalu diumumkan minimal 90 hari sebelumnya."
+msgstr "Every release lists the action integrators need to take. Breaking changes are always announced at least 90 days in advance."
+
+#: apps/marketing/views.py:178
+msgid "Semua"
+msgstr "All"
+
+#: apps/marketing/views.py:180
+msgid "Aplikasi seluler"
+msgstr "Mobile apps"
+
+#: apps/marketing/views.py:191
+msgid "Endpoint staf kini memaparkan riwayat jabatan, dan aliran kejadian menerima filter per sekolah."
+msgstr "The staff endpoint now exposes position history, and the event stream accepts a per-school filter."
+
+#: apps/marketing/views.py:193
+msgid "riwayat jabatan dan status kepegawaian"
+msgstr "position history and employment status"
+
+#: apps/marketing/views.py:194
+msgid "Filter baru pada /partner/events"
+msgstr "New filter on /partner/events"
+
+#: apps/marketing/views.py:195
+msgid "Kursor paginasi tidak lagi kedaluwarsa lebih cepat dari 24 jam"
+msgstr "Pagination cursors no longer expire sooner than 24 hours"
+
+#: apps/marketing/views.py:203
+msgid "Perbaikan sinkronisasi untuk perangkat dengan jaringan tidak stabil."
+msgstr "Sync fix for devices on unstable networks."
+
+#: apps/marketing/views.py:205
+msgid "Saldo kantin tidak lagi tampil basi setelah pembayaran offline"
+msgstr "Canteen balance no longer shows stale after an offline payment"
+
+#: apps/marketing/views.py:206
+msgid "Ukuran unduhan turun 3 MB"
+msgstr "Download size down 3 MB"
+
+#: apps/marketing/views.py:214
+msgid "Kontrak error diselaraskan ke RFC 9457 di seluruh endpoint mitra."
+msgstr "Error contract aligned to RFC 9457 across every partner endpoint."
+
+#: apps/marketing/views.py:216
+msgid "Semua error kini application/problem+json dengan field code"
+msgstr "All errors are now application/problem+json with a code field"
+
+#: apps/marketing/views.py:217
+msgid "Header baru pada seluruh respons 429"
+msgstr "New header on every 429 response"
+
+#: apps/marketing/views.py:219
+msgid "Parser yang membaca field message pada error harus beralih ke code sebelum 20 November 2026."
+msgstr "Parsers that read the error's message field must switch to code before 20 November 2026."
+
+#: apps/marketing/views.py:227
+msgid "Antrean penilaian dan rekonsiliasi dompet masuk ke portal utama."
+msgstr "Grading queue and wallet reconciliation landed in the main portal."
+
+#: apps/marketing/views.py:229
+msgid "Antrean penilaian dengan penyimpanan otomatis per sel"
+msgstr "Grading queue with autosave per cell"
+
+#: apps/marketing/views.py:230
+msgid "Rekonsiliasi dompet dengan penandaan selisih"
+msgstr "Wallet reconciliation with discrepancy flagging"
+
+#: apps/marketing/views.py:231
+msgid "Rapor cetak tidak lagi memotong nama panjang"
+msgstr "Printed report cards no longer truncate long names"
+
+#: apps/marketing/views.py:187
+msgid "12 Sep 2026"
+msgstr "12 Sep 2026"
+
+#: apps/marketing/views.py:199
+msgid "5 Sep 2026"
+msgstr "5 Sep 2026"
+
+#: apps/marketing/views.py:210
+msgid "22 Agu 2026"
+msgstr "22 Aug 2026"
+
+#: apps/marketing/views.py:223
+msgid "14 Agu 2026"
+msgstr "14 Aug 2026"
+
+#: frontend/templates/marketing/changelog.html:29
+msgid "BARU"
+msgstr "NEW"
+
+#: frontend/templates/marketing/changelog.html:29
+msgid "PERBAIKAN"
+msgstr "FIX"
+
+#: frontend/templates/marketing/changelog.html:29
+msgid "PERUBAHAN"
+msgstr "CHANGED"
+
+#: frontend/templates/marketing/changelog.html:35
+msgid "TINDAKAN"
+msgstr "ACTION NEEDED"

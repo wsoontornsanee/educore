@@ -49,16 +49,48 @@ class MarketingPagesTests(TestCase):
         self.assertContains(response, 'Retensi Data')
         self.assertContains(response, '90 hari')
 
+    def test_changelog_page_renders(self):
+        response = self.client.get(reverse('marketing:changelog'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'v1.9')
+        self.assertContains(response, 'v3.4.1')
+        self.assertContains(response, 'v1.8')
+        self.assertContains(response, 'v4.2')
+        self.assertContains(response, 'GET /partner/staff/:id/positions')
+        self.assertContains(response, '20 November 2026')
+
+    def test_changelog_page_translates_to_english(self):
+        self.client.cookies['django_language'] = 'en'
+        response = self.client.get(reverse('marketing:changelog'))
+        self.assertEqual(response.headers.get('Content-Language'), 'en')
+        self.assertContains(response, 'What changed, and what you need to do.')
+        self.assertContains(response, 'ACTION NEEDED')
+        self.assertContains(response, 'NEW')
+        self.assertContains(response, 'FIX')
+        self.assertContains(response, 'CHANGED')
+        self.assertNotContains(response, 'Apa yang berubah')
+
+    def test_changelog_entries_carry_their_category_for_filtering(self):
+        response = self.client.get(reverse('marketing:changelog'))
+        self.assertContains(response, 'data-changelog-category="partner-api"')
+        self.assertContains(response, 'data-changelog-category="portal-web"')
+        self.assertContains(response, 'data-changelog-category="aplikasi-seluler"')
+
     def test_footer_no_longer_mailtos_compliance_pages(self):
         response = self.client.get(reverse('marketing:home'))
         self.assertContains(response, reverse('marketing:privacy-policy'))
         self.assertContains(response, reverse('marketing:dpa'))
         self.assertContains(response, reverse('marketing:data-retention'))
 
+    def test_footer_links_changelog_to_the_real_page(self):
+        response = self.client.get(reverse('marketing:home'))
+        self.assertContains(response, reverse('marketing:changelog'))
+
     def test_pages_require_no_authentication(self):
         for name in (
             'marketing:home', 'marketing:downloads', 'marketing:partner-api',
             'marketing:privacy-policy', 'marketing:dpa', 'marketing:data-retention',
+            'marketing:changelog',
         ):
             response = self.client.get(reverse(name))
             self.assertNotIn(response.status_code, (301, 302, 401, 403))

@@ -205,3 +205,83 @@ class DataRetentionView(TemplateView):
         ctx = super().get_context_data(**kwargs)
         ctx['active_page'] = 'data-retention'
         return ctx
+
+
+CHANGELOG_CATEGORIES = [
+    {'key': 'all', 'label': _('Semua')},
+    {'key': 'partner-api', 'label': _('Partner API')},
+    {'key': 'portal-web', 'label': _('Portal web')},
+    {'key': 'aplikasi-seluler', 'label': _('Aplikasi seluler')},
+]
+
+# 'type' drives the template's tag color (new=success, fix=info, change=warning)
+# and is never translated — only 'text' and 'summary' are. 'code' is a literal
+# endpoint/identifier, also never translated. Dates match downloads.html's
+# RELEASES (v3.4.1 orang tua / v2.9.0 guru / v1.8.2 POS) — same illustrative
+# marketing copy, not live release data.
+CHANGELOG_ENTRIES = [
+    {
+        'version': 'v1.9',
+        'category': 'partner-api',
+        'category_label': _('Partner API'),
+        'date': _('12 Sep 2026'),
+        'summary': _('Endpoint staf kini memaparkan riwayat jabatan, dan aliran kejadian menerima filter per sekolah.'),
+        'changes': [
+            {'type': 'new', 'code': 'GET /partner/staff/:id/positions', 'text': _('riwayat jabatan dan status kepegawaian')},
+            {'type': 'new', 'code': 'school_id', 'text': _('Filter baru pada /partner/events')},
+            {'type': 'fix', 'code': None, 'text': _('Kursor paginasi tidak lagi kedaluwarsa lebih cepat dari 24 jam')},
+        ],
+        'action': None,
+    },
+    {
+        'version': 'v3.4.1',
+        'category': 'aplikasi-seluler',
+        'category_label': _('Aplikasi orang tua'),
+        'date': _('5 Sep 2026'),
+        'summary': _('Perbaikan sinkronisasi untuk perangkat dengan jaringan tidak stabil.'),
+        'changes': [
+            {'type': 'fix', 'code': None, 'text': _('Saldo kantin tidak lagi tampil basi setelah pembayaran offline')},
+            {'type': 'change', 'code': None, 'text': _('Ukuran unduhan turun 3 MB')},
+        ],
+        'action': None,
+    },
+    {
+        'version': 'v1.8',
+        'category': 'partner-api',
+        'category_label': _('Partner API'),
+        'date': _('22 Agu 2026'),
+        'summary': _('Kontrak error diselaraskan ke RFC 9457 di seluruh endpoint mitra.'),
+        'changes': [
+            {'type': 'change', 'code': None, 'text': _('Semua error kini application/problem+json dengan field code')},
+            {'type': 'new', 'code': 'Retry-After', 'text': _('Header baru pada seluruh respons 429')},
+        ],
+        'action': _('Parser yang membaca field message pada error harus beralih ke code sebelum 20 November 2026.'),
+    },
+    {
+        'version': 'v4.2',
+        'category': 'portal-web',
+        'category_label': _('Portal web'),
+        'date': _('14 Agu 2026'),
+        'summary': _('Antrean penilaian dan rekonsiliasi dompet masuk ke portal utama.'),
+        'changes': [
+            {'type': 'new', 'code': None, 'text': _('Antrean penilaian dengan penyimpanan otomatis per sel')},
+            {'type': 'new', 'code': None, 'text': _('Rekonsiliasi dompet dengan penandaan selisih')},
+            {'type': 'fix', 'code': None, 'text': _('Rapor cetak tidak lagi memotong nama panjang')},
+        ],
+        'action': None,
+    },
+]
+
+
+class ChangelogView(TemplateView):
+    """Public API/app/portal changelog (static illustrative copy, matching the
+    approved design mockup — same convention as APPS/RELEASES above, not a
+    live feed of real releases)."""
+    template_name = 'marketing/changelog.html'
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['active_page'] = 'changelog'
+        ctx['categories'] = CHANGELOG_CATEGORIES
+        ctx['entries'] = CHANGELOG_ENTRIES
+        return ctx
