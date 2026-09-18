@@ -42,9 +42,15 @@ from apps.finance.models import (
 )
 from apps.finance.scope import staff_school_scope
 from apps.finance.services.ar_aging import AGING_BUCKETS, get_ar_aging_report
+from apps.finance.services.invoicing import (
+    approve_discount,
+    approve_invoice_write_off,
+    reject_discount,
+    reject_invoice_write_off,
+)
 from apps.finance.services.reconciliation import resolve_discrepancy
 from apps.identity.nav import has_staff_profile
-from apps.identity.rbac import has_permission_in_any_scope
+from apps.identity.rbac import has_permission_in_any_scope, is_foundation_admin
 from educore.middleware.tenancy import get_current_foundation_id, tenant_context
 
 PAGE_SIZE = 25
@@ -312,4 +318,42 @@ class ReceivablesConsoleView(FinanceConsoleView):
             'debtors': debtors,
             'pending_discounts': list(pending_discounts),
             'pending_write_offs': list(pending_write_offs),
+            'can_decide': is_foundation_admin(self.request.user, self.foundation_id),
         }
+
+
+class _DecisionView(FinanceActionView):
+    """Approve/reject pair. `decision` is fixed per URL via as_view(decision=...).
+    Approval and rejection authority (foundation admin) is enforced by the
+    services; the buttons are only *shown* to foundation admins."""
+    required_permission = 'finance.invoice.write'
+    decision = None  # 'approve' | 'reject'
+
+    def redirect_url(self, obj):
+        return reverse('finance-console-receivables')
+
+
+class DiscountDecisionView(_DecisionView):
+    def get_object(self, pk):
+        return get_object_or_404(self.scoped(Discount, 'student__school_id'), pk=pk)
+
+    def perform(self, discount):
+        reason = self.request.POST.get('reason', '').strip()
+        if self.decision == 'approve':
+            approve_discount(discount, self.request.user, reason=reason)
+            return _('Keringanan disetujui.')
+        reject_discount(discount, self.request.user, reason=reason)
+        return _('Keringanan ditolak.')
+
+
+class WriteOffDecisionView(_DecisionView):
+    def get_object(self, pk):
+        return get_object_or_404(self.scoped(InvoiceWriteOffRequest), pk=pk)
+
+    def perform(self, write_off):
+        notes = self.request.POST.get('notes', '').strip()
+        if self.decision == 'approve':
+            approve_invoice_write_off(request_obj=write_off, user=self.request.user, notes=notes)
+            return _('Penghapusbukuan disetujui.')
+        reject_invoice_write_off(request_obj=write_off, user=self.request.user, notes=notes)
+        return _('Penghapusbukuan ditolak.')
