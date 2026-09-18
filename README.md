@@ -1,6 +1,6 @@
 # EduCore
 
-EduCore is a multi-tenant school operating system for Indonesian private schools (sekolah swasta, madrasah, pesantren modern, National-Plus/SPK).
+EduCore is a multi-tenant school operating system for Indonesian schools of all types (sekolah negeri, sekolah swasta, madrasah, pesantren modern, National-Plus/SPK).
 
 ## Specifications
 

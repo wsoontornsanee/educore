@@ -3170,8 +3170,8 @@ msgid "Parameter 'from' tidak boleh melebihi 'to'."
 msgstr ""
 
 #: frontend/templates/marketing/base.html:7
-msgid "EduCore — Sistem Operasi Sekolah Swasta"
-msgstr "EduCore — Private School Operating System"
+msgid "EduCore — Sistem Operasi Sekolah"
+msgstr "EduCore — School Operating System"
 
 #: frontend/templates/marketing/base.html:8
 msgid ""
