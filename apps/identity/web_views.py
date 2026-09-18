@@ -12,6 +12,8 @@ from django.utils.translation import gettext as _
 from django.views import View
 
 from educore.middleware.tenancy import set_current_foundation_id
+from .models import RoleAssignment
+from .rbac import has_permission, SCOPE_SCHOOL
 from .social_auth import (
     AccountNotLinkedError,
     SocialAuthError,
@@ -22,6 +24,39 @@ from .social_auth import (
 logger = logging.getLogger(__name__)
 
 DEFAULT_REDIRECT_URL = '/web/academic/permission-slips/'
+# Fallback for roles with no dedicated web console page yet (e.g. Finance
+# Officer, Canteen Operator, Clinic Officer) — DEFAULT_REDIRECT_URL requires
+# grades.read, which those roles don't hold, so sending them there is a 403
+# dead end instead of a landing page.
+NO_CONSOLE_PAGE_URL = '/web/home/'
+
+
+def _default_landing_url(user, foundation_id):
+    """Best default landing page for a just-logged-in user.
+
+    Only one web console page exists today (the permission-slip console,
+    gated on grades.read); everyone else gets a minimal holding page rather
+    than hitting that page's 403. Mirrors HasRequiredPermission's own
+    foundation-then-any-assigned-school fallback (apps/identity/permissions.py)
+    since a login has no request-scoped school_id to check against.
+    """
+    if not foundation_id:
+        return NO_CONSOLE_PAGE_URL
+
+    if has_permission(user, 'grades.read', foundation_id, school_id=None):
+        return DEFAULT_REDIRECT_URL
+
+    assigned_schools = RoleAssignment.all_tenants.filter(
+        foundation_id=foundation_id,
+        user=user,
+        scope_type=SCOPE_SCHOOL,
+        deleted_at__isnull=True,
+    ).values_list('scope_id', flat=True)
+    for school_id in assigned_schools:
+        if has_permission(user, 'grades.read', foundation_id, school_id=school_id):
+            return DEFAULT_REDIRECT_URL
+
+    return NO_CONSOLE_PAGE_URL
 
 
 class WebLoginView(View):
@@ -31,7 +66,9 @@ class WebLoginView(View):
 
     def get(self, request):
         if request.user.is_authenticated:
-            next_url = request.GET.get('next') or DEFAULT_REDIRECT_URL
+            next_url = request.GET.get('next') or _default_landing_url(
+                request.user, getattr(request.user, 'foundation_id', None),
+            )
             return redirect(next_url)
 
         next_url = request.GET.get('next', '')
@@ -123,6 +160,9 @@ class WebLoginView(View):
         if getattr(user, 'foundation_id', None):
             set_current_foundation_id(user.foundation_id)
 
+        if not request.POST.get('next'):
+            next_url = _default_landing_url(user, user.foundation_id)
+
         return redirect(next_url)
 
 
@@ -140,7 +180,7 @@ class WebSSOLoginView(View):
 
         provider = body.get('provider')
         id_token = body.get('id_token')
-        next_url = body.get('next') or request.GET.get('next') or DEFAULT_REDIRECT_URL
+        requested_next = body.get('next') or request.GET.get('next')
 
         if not provider or not id_token:
             return JsonResponse({
@@ -182,13 +222,28 @@ class WebSSOLoginView(View):
 
         return JsonResponse({
             'success': True,
-            'redirect_url': next_url,
+            'redirect_url': requested_next or _default_landing_url(user, user.foundation_id),
             'user': {
                 'id': user.id,
                 'full_name': user.full_name,
                 'email': user.email,
             },
         }, status=200)
+
+
+class WebConsoleHomeView(View):
+    """GET /web/home/ — default landing for roles with no dedicated web console page yet.
+
+    Only the permission-slip console (grades.read) exists as a real page today
+    (see backlog: "Web Console: Build Global Navigation Menu & Role-Aware
+    Post-Login Landing"). Roles without that permission — Finance Officer,
+    Canteen Operator, Clinic Officer — land here instead of hitting a 403.
+    """
+
+    def get(self, request):
+        if not request.user.is_authenticated:
+            return redirect(f"/web/login/?next={request.path}")
+        return render(request, 'pages/console_home.html', {})
 
 
 class WebLogoutView(View):
