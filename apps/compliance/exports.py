@@ -17,6 +17,7 @@ from apps.compliance.services import (
     validate_statutory_export,
 )
 from apps.core.models import ExportJob
+from apps.core.pii import PIIType
 from apps.core.services import (
     register_export_formats,
     register_export_permission,
@@ -123,8 +124,14 @@ def render_emis_export(job: ExportJob):
 
 register_export_formats(REPORT_KEY_DAPODIK, {ExportJob.FORMAT_XLSX, ExportJob.FORMAT_CSV})
 register_export_formats(REPORT_KEY_EMIS, {ExportJob.FORMAT_XLSX, ExportJob.FORMAT_CSV})
-register_export_pii(REPORT_KEY_DAPODIK)
-register_export_pii(REPORT_KEY_EMIS)
+# get_default_field_map() exports 'nisn'/'person.nik' for both schemas (no phone
+# field). A foundation-specific StatutoryExportSchema.field_map (CMP-020) can add/
+# drop fields per foundation, so this is a startup-time approximation of what the
+# report_key TYPICALLY contains, not a per-job guarantee — matches register_export_pii's
+# own registry-level (not per-invocation) granularity; is_export_pii's watermarking/
+# audit trigger, unaffected by pii_types, still guards every actual job regardless.
+register_export_pii(REPORT_KEY_DAPODIK, {PIIType.NIK, PIIType.NISN})
+register_export_pii(REPORT_KEY_EMIS, {PIIType.NIK, PIIType.NISN})
 
 
 REPORT_KEY_DSAR_ACCESS = 'dsar_access'
@@ -185,7 +192,10 @@ def render_dsar_access_export(job: ExportJob):
 
 register_export_formats(REPORT_KEY_DSAR_ACCESS, {ExportJob.FORMAT_XLSX})
 register_export_permission(REPORT_KEY_DSAR_ACCESS, 'school_config.write')
-register_export_pii(REPORT_KEY_DSAR_ACCESS)
+# collect_person_data_bundle()'s identity dict carries 'nik' (student+staff)
+# and 'nisn' (student subject_type) — registration is per-report-key, so both
+# are declared even though a STAFF-subject DSAR export has no nisn value.
+register_export_pii(REPORT_KEY_DSAR_ACCESS, {PIIType.NIK, PIIType.NISN})
 
 
 @register_pii_export_logger
