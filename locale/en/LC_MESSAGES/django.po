@@ -7707,6 +7707,15 @@ msgstr "Offboard"
 msgid "Akun staf akan ditangguhkan, sesi aktif dicabut, dan semua peran akses dihapus. Tindakan ini tercatat di jejak audit."
 msgstr "The staff account will be suspended, active sessions revoked and all access roles removed. This action is recorded in the audit trail."
 
+
+#: apps/identity/views.py
+msgid "Hanya pemegang wewenang tingkat yayasan yang dapat menambah staf tingkat yayasan."
+msgstr "Only foundation-level authority holders can add foundation-level staff."
+
+#: apps/identity/views.py
+msgid "Staf tidak dapat dipindahkan ke luar sekolah yang Anda kelola."
+msgstr "Staff cannot be moved outside the schools you manage."
+
 msgid "Siswa dengan NIS tersebut tidak ditemukan di sekolah ini."
 msgstr "No student with that NIS was found at this school."
 
@@ -7763,3 +7772,4 @@ msgstr "Publish this exam? Students will be able to see it."
 
 msgid "Terbitkan"
 msgstr "Publish"
+

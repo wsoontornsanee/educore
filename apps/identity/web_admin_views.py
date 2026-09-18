@@ -20,7 +20,7 @@ from django.shortcuts import redirect
 from django.utils.translation import gettext as _
 from django.views.generic import FormView, TemplateView
 
-from .console_access import ConsolePermissionMixin, accessible_school_ids, paginate_queryset
+from .console_access import ConsolePermissionMixin, accessible_school_ids, can_manage_staff, paginate_queryset
 from .models import RoleAssignment, School, Staff
 from .services import create_staff_member, offboard_staff
 from .web_admin_forms import StaffCreateForm, StaffOffboardForm
@@ -38,19 +38,6 @@ def _writable_schools(user, foundation_id):
     if ceiling is not None:
         schools = schools.filter(id__in=ceiling)
     return list(schools.order_by('name')), ceiling is None, ceiling
-
-
-def _may_manage(staff, user, ceiling, holds_foundation_role):
-    """Whether `user` may offboard `staff`: an active staff member, not
-    themselves, inside the write ceiling — and, unless they hold a
-    foundation-wide grant, not someone who themselves holds a foundation-scope
-    role (offboarding revokes every role, so a school administrator must not be
-    able to strip a foundation administrator)."""
-    if staff.status == Staff.STATUS_OFFBOARDED or staff.user_id == user.id:
-        return False
-    if ceiling is None:
-        return True
-    return staff.school_id in ceiling and not holds_foundation_role
 
 
 class StaffDirectoryView(ConsolePermissionMixin, TemplateView):
@@ -83,21 +70,21 @@ class StaffDirectoryView(ConsolePermissionMixin, TemplateView):
             staff_qs = staff_qs.filter(Q(person__full_name__icontains=query) | Q(nip__icontains=query))
 
         page_obj, query_string = paginate_queryset(
-            self.request, staff_qs.select_related('person', 'school').order_by('person__full_name', 'id'),
+            self.request, staff_qs.select_related('person', 'school', 'user').order_by('person__full_name', 'id'),
         )
         rows = list(page_obj)
 
         school_names = {school.id: school.name for school in schools}
         role_labels = dict(RoleAssignment.ROLE_CHOICES)
         roles_by_user = {}
-        foundation_role_users = set()
+        assignments_by_user = {}
         assignments = RoleAssignment.all_tenants.filter(
             foundation_id=foundation_id, user_id__in=[row.user_id for row in rows], deleted_at__isnull=True,
         ).order_by('role')
         for assignment in assignments:
+            assignments_by_user.setdefault(assignment.user_id, []).append(assignment)
             if assignment.scope_type == RoleAssignment.SCOPE_FOUNDATION:
                 scope_label = None
-                foundation_role_users.add(assignment.user_id)
             else:
                 scope_label = school_names.get(assignment.scope_id)
             roles_by_user.setdefault(assignment.user_id, []).append({
@@ -107,8 +94,8 @@ class StaffDirectoryView(ConsolePermissionMixin, TemplateView):
         write_ceiling = accessible_school_ids(self.request.user, foundation_id, WRITE_PERMISSION)
         for row in rows:
             row.role_list = roles_by_user.get(row.user_id, [])
-            row.can_manage = _may_manage(
-                row, self.request.user, write_ceiling, row.user_id in foundation_role_users,
+            row.can_manage = row.status != Staff.STATUS_OFFBOARDED and can_manage_staff(
+                self.request.user, row, write_ceiling, assignments_by_user.get(row.user_id, []),
             )
 
         ctx.update({
@@ -157,17 +144,19 @@ class StaffOffboardView(ConsolePermissionMixin, FormView):
         ceiling = accessible_school_ids(self.request.user, self.foundation_id, WRITE_PERMISSION)
         qs = Staff.all_tenants.filter(
             id=self.kwargs['staff_id'], foundation_id=self.foundation_id, deleted_at__isnull=True,
-        ).select_related('person', 'school')
+        ).select_related('person', 'school', 'user')
         if ceiling is not None:
             qs = qs.filter(school_id__in=ceiling)
         staff = qs.first()
         if staff is None:
             raise Http404
-        holds_foundation_role = RoleAssignment.all_tenants.filter(
-            foundation_id=self.foundation_id, user_id=staff.user_id,
-            scope_type=RoleAssignment.SCOPE_FOUNDATION, deleted_at__isnull=True,
-        ).exists()
-        return staff, _may_manage(staff, self.request.user, ceiling, holds_foundation_role)
+        assignments = list(RoleAssignment.all_tenants.filter(
+            foundation_id=self.foundation_id, user_id=staff.user_id, deleted_at__isnull=True,
+        ))
+        allowed = staff.status != Staff.STATUS_OFFBOARDED and can_manage_staff(
+            self.request.user, staff, ceiling, assignments,
+        )
+        return staff, allowed
 
     def get(self, request, *args, **kwargs):
         self.staff, allowed = self._load()
