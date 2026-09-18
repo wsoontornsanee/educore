@@ -1,0 +1,64 @@
+{% extends "base_console.html" %}
+{% load i18n %}
+
+{% comment %}
+Page: Mode ujian (spec/04 §6). School-side exam overview; each row opens the
+proctor console. Served by apps.academic.web_views.ExamModeConsolePageView
+at /web/academic/exams/.
+{% endcomment %}
+
+{% block title %}{% translate "Mode ujian — EduCore" %}{% endblock %}
+
+{% block console_content %}
+{% include "components/_console_ui.html" %}
+<main class="cn-page">
+  <div class="cn-head">
+    <div>
+      <span class="cn-eyebrow">{% translate "Operasional" %}</span>
+      <h1 class="cn-title">{% translate "Mode ujian" %}</h1>
+    </div>
+    {% include "components/_console_school_select.html" with schools=schools school=school %}
+  </div>
+
+  {% if school %}
+    <section class="cn-section" aria-labelledby="exam-list-h">
+      <h2 id="exam-list-h">{% translate "Daftar ujian" %}</h2>
+      {% if rows %}
+        <div class="cn-table-wrap">
+          <table class="cn-table">
+            <thead><tr>
+              <th>{% translate "Ujian" %}</th><th>{% translate "Kelas" %}</th><th>{% translate "Jendela waktu" %}</th><th>{% translate "Status" %}</th>
+              <th class="cn-num">{% translate "Mengerjakan" %}</th><th class="cn-num">{% translate "Terkumpul" %}</th><th></th>
+            </tr></thead>
+            <tbody>
+              {% for r in rows %}
+                <tr>
+                  <td>
+                    {{ r.exam.title }}
+                    <div class="cn-muted" style="font-size:12px">{{ r.exam.class_subject.subject.name }} · {{ r.exam.get_mode_display }} · {{ r.exam.duration_min }} {% translate "menit" %}</div>
+                  </td>
+                  <td>{{ r.exam.class_subject.class_group.name }}</td>
+                  <td class="cn-muted">{{ r.exam.window_start|date:"d M H:i" }} – {{ r.exam.window_end|date:"d M H:i" }}</td>
+                  <td>
+                    {% if r.state == 'LIVE' %}<span class="cn-badge is-ok">{% translate "Berlangsung" %}</span>
+                    {% elif r.state == 'UPCOMING' %}<span class="cn-badge is-warn">{% translate "Akan datang" %}</span>
+                    {% elif r.state == 'ENDED' %}<span class="cn-badge">{% translate "Selesai" %}</span>
+                    {% else %}<span class="cn-badge">{% translate "Konsep" %}</span>{% endif %}
+                  </td>
+                  <td class="cn-num">{{ r.in_progress }}</td>
+                  <td class="cn-num">{{ r.submitted }}</td>
+                  <td class="cn-num"><a class="cn-link" href="{% url 'exam-proctor-console-page' exam_id=r.exam.id %}">{% translate "Pantau" %}</a></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="cn-empty">{% translate "Belum ada ujian untuk sekolah ini." %}</div>
+      {% endif %}
+    </section>
+  {% else %}
+    <div class="cn-section"><div class="cn-empty">{% translate "Belum ada sekolah yang dapat Anda akses." %}</div></div>
+  {% endif %}
+</main>
+{% endblock %}

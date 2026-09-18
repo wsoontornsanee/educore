@@ -1,0 +1,18 @@
+{% load i18n %}
+{% comment %}
+School switcher shared by the console pages. GET form so the chosen school is a
+plain, bookmarkable ?school_id= URL. Renders a fixed label when only one school
+is visible to the user.
+{% endcomment %}
+{% if schools|length > 1 %}
+  <form method="get" style="display:flex;align-items:center;gap:8px">
+    <label for="cn-school" class="cn-eyebrow">{% translate "Sekolah" %}</label>
+    <select id="cn-school" name="school_id" class="cn-select" onchange="this.form.submit()">
+      {% for s in schools %}
+        <option value="{{ s.id }}"{% if s.id == school.id %} selected{% endif %}>{{ s.name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+{% elif school %}
+  <span class="cn-eyebrow">{{ school.name }}</span>
+{% endif %}

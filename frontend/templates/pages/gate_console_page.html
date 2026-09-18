@@ -1,0 +1,34 @@
+{% extends "base_console.html" %}
+{% load i18n %}
+
+{% comment %}
+Page: Kehadiran & gerbang (spec/05 §4 ATT-013, spec/17 §7.2).
+Read-only live wall monitor for school staff. Served by
+apps.attendance.web_views.GateConsolePageView at /web/attendance/gate/.
+{% endcomment %}
+
+{% block title %}{% translate "Kehadiran & gerbang — EduCore" %}{% endblock %}
+
+{% block console_content %}
+{% include "components/_console_ui.html" %}
+<main class="cn-page">
+  <div class="cn-head">
+    <div>
+      <span class="cn-eyebrow">{% translate "Operasional" %}</span>
+      <h1 class="cn-title">{% translate "Kehadiran & gerbang" %}</h1>
+    </div>
+    {% include "components/_console_school_select.html" with schools=schools school=school %}
+  </div>
+
+  {% if school %}
+    <div id="gate-live-feed"
+         hx-get="{% url 'attendance-gate-console-feed' %}?school_id={{ school.id }}"
+         hx-trigger="load, every 3s"
+         hx-swap="innerHTML">
+      <div class="cn-empty">{% translate "Memuat data gerbang…" %}</div>
+    </div>
+  {% else %}
+    <div class="cn-section"><div class="cn-empty">{% translate "Belum ada sekolah yang dapat Anda akses." %}</div></div>
+  {% endif %}
+</main>
+{% endblock %}

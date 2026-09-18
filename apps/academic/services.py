@@ -2234,3 +2234,127 @@ def get_slip_consent_tally(slip):
         'pending': len(pending_students),
         'pending_student_ids': pending_students,
     }
+
+
+def build_proctor_snapshot(exam: Exam) -> dict:
+    """Live proctoring view of one exam: the enrolled roster merged with each
+    student's attempt state (ACD-024). Auto-submits any expired in-progress
+    attempt it encounters, so the numbers never show a stale "in progress".
+
+    Shared by the JSON endpoint the proctor console polls and the web page
+    that renders the console's first paint."""
+    now = timezone.now()
+
+    # Questions
+    questions = exam.questions.filter(deleted_at__isnull=True)
+    total_questions = questions.count()
+
+    # Roster: Active enrollments in exam's class group
+    enrollments = ClassEnrollment.objects.filter(
+        class_group=exam.class_subject.class_group,
+        is_active=True,
+        deleted_at__isnull=True,
+    ).select_related('student', 'student__person')
+
+    enrolled_students = {e.student_id: e.student for e in enrollments}
+
+    # Attempts for this exam
+    attempts = ExamAttempt.objects.filter(
+        exam=exam,
+        deleted_at__isnull=True,
+    ).select_related('student', 'student__person').prefetch_related('answers')
+
+    attempts_by_student = {att.student_id: att for att in attempts}
+
+    # Combine enrolled students and any students who attempted
+    all_student_ids = set(enrolled_students.keys()) | set(attempts_by_student.keys())
+    all_students = []
+    for sid in all_student_ids:
+        student = enrolled_students.get(sid) or (attempts_by_student[sid].student if sid in attempts_by_student else None)
+        if student:
+            all_students.append(student)
+
+    # Sort students by full_name, nis
+    all_students.sort(key=lambda s: (getattr(getattr(s, 'person', None), 'full_name', '') or '', s.nis))
+
+    student_rows = []
+    in_progress_count = 0
+    submitted_count = 0
+    not_started_count = 0
+    flagged_count = 0
+
+    for student in all_students:
+        attempt = attempts_by_student.get(student.id)
+        if attempt:
+            attempt = auto_submit_if_expired(attempt)
+            status_val = attempt.status
+            active_answers = [a for a in attempt.answers.all() if a.deleted_at is None]
+            answered_count = len(active_answers)
+
+            if active_answers:
+                latest_ans = max(active_answers, key=lambda a: a.answered_at)
+                last_saved_at = latest_ans.answered_at
+            else:
+                last_saved_at = attempt.started_at
+
+            if status_val == ExamAttemptStatus.IN_PROGRESS:
+                rem_sec = compute_remaining_seconds(attempt)
+                in_progress_count += 1
+            else:
+                rem_sec = 0
+                submitted_count += 1
+
+            focus_losses = attempt.focus_loss_count
+            attempt_id = attempt.id
+        else:
+            status_val = 'NOT_STARTED'
+            answered_count = 0
+            last_saved_at = None
+            rem_sec = None
+            focus_losses = 0
+            attempt_id = None
+            not_started_count += 1
+
+        progress_pct = int(round((answered_count / total_questions) * 100)) if total_questions > 0 else 0
+        needs_attention = (focus_losses >= 3)
+        if needs_attention:
+            flagged_count += 1
+
+        student_name = student.person.full_name if hasattr(student, 'person') and student.person else student.nis
+
+        student_rows.append({
+            'student_id': student.id,
+            'student_name': student_name,
+            'nis': student.nis,
+            'attempt_id': attempt_id,
+            'status': status_val,
+            'answered_count': answered_count,
+            'total_questions': total_questions,
+            'progress_pct': progress_pct,
+            'focus_loss_count': focus_losses,
+            'last_saved_at': last_saved_at,
+            'remaining_seconds': rem_sec,
+            'needs_attention': needs_attention,
+        })
+
+    is_active = (exam.window_start <= now <= exam.window_end)
+
+    return {
+        'exam': {
+            'id': exam.id,
+            'title': exam.title,
+            'duration_min': exam.duration_min,
+            'window_start': exam.window_start,
+            'window_end': exam.window_end,
+            'total_questions': total_questions,
+            'is_active': is_active,
+        },
+        'summary': {
+            'total_students': len(student_rows),
+            'in_progress': in_progress_count,
+            'submitted': submitted_count,
+            'not_started': not_started_count,
+            'flagged_focus_loss': flagged_count,
+        },
+        'students': student_rows,
+    }

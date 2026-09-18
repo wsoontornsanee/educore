@@ -188,7 +188,7 @@ class GateConsoleAndSyncTests(TestCase):
 
     def test_live_gate_feed_cursor_polling(self):
         """ATT-013, ARC-015: 3-second cursor polling fetches new scans incrementally with next_cursor."""
-        today = timezone.now().date()
+        today = timezone.localdate()
         time_1 = timezone.make_aware(datetime.datetime.combine(today, datetime.time(6, 55, 0)))
         time_2 = timezone.make_aware(datetime.datetime.combine(today, datetime.time(6, 56, 0)))
 
@@ -273,7 +273,7 @@ class GateConsoleAndSyncTests(TestCase):
 
     def test_manual_checkin_flow(self):
         """ATT-013: Staff manual check-in for a student without card in <=3 taps."""
-        today = timezone.now().date()
+        today = timezone.localdate()
         checkin_time = timezone.make_aware(datetime.datetime.combine(today, datetime.time(7, 5, 0)))
 
         result = manual_gate_checkin(

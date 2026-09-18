@@ -1,0 +1,79 @@
+{% load i18n %}
+{% comment %}
+Fragment: today's attendance strip, gate device health and the live scan feed.
+Polled every 3s by pages/gate_console_page.html (ARC-015).
+{% endcomment %}
+{% if school %}
+<div style="display:flex;flex-direction:column;gap:20px">
+  <div class="cn-kpis">
+    <div class="cn-card"><span class="cn-eyebrow">{% translate "Hadir" %}</span><span class="cn-kpi-value">{{ attendance_counts.HADIR }}</span></div>
+    <div class="cn-card"><span class="cn-eyebrow">{% translate "Terlambat" %}</span><span class="cn-kpi-value">{{ attendance_counts.TERLAMBAT }}</span></div>
+    <div class="cn-card"><span class="cn-eyebrow">{% translate "Sakit" %}</span><span class="cn-kpi-value">{{ attendance_counts.SAKIT }}</span></div>
+    <div class="cn-card"><span class="cn-eyebrow">{% translate "Izin" %}</span><span class="cn-kpi-value">{{ attendance_counts.IZIN }}</span></div>
+    <div class="cn-card"><span class="cn-eyebrow">{% translate "Alpa" %}</span><span class="cn-kpi-value{% if attendance_counts.ALPA %} is-danger{% endif %}">{{ attendance_counts.ALPA }}</span></div>
+    <div class="cn-card"><span class="cn-eyebrow">{% translate "Pindai ditolak" %}</span><span class="cn-kpi-value{% if rejected_count %} is-danger{% endif %}">{{ rejected_count }}</span></div>
+  </div>
+
+  <section class="cn-section" aria-labelledby="gate-devices-h">
+    <h2 id="gate-devices-h">{% translate "Perangkat gerbang" %}</h2>
+    {% if devices %}
+      <div class="cn-table-wrap">
+        <table class="cn-table">
+          <thead><tr>
+            <th>{% translate "Perangkat" %}</th><th>{% translate "Arah" %}</th><th>{% translate "Status" %}</th><th>{% translate "Detak terakhir" %}</th>
+          </tr></thead>
+          <tbody>
+            {% for d in devices %}
+              <tr>
+                <td>{{ d.name }} <span class="cn-muted" style="font-family:'IBM Plex Mono',monospace;font-size:12px">{{ d.device_code }}</span></td>
+                <td>{{ d.direction }}</td>
+                <td><span class="cn-badge {% if d.is_online %}is-ok{% else %}is-danger{% endif %}">{{ d.status }}</span></td>
+                <td class="cn-muted">{% if d.last_heartbeat_at %}{{ d.last_heartbeat_at|date:"d M H:i:s" }}{% else %}—{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="cn-empty">{% translate "Belum ada perangkat gerbang terdaftar untuk sekolah ini." %}</div>
+    {% endif %}
+  </section>
+
+  <section class="cn-section" aria-labelledby="gate-feed-h">
+    <h2 id="gate-feed-h">{% translate "Pindai hari ini" %}</h2>
+    {% if events %}
+      <div class="cn-table-wrap">
+        <table class="cn-table">
+          <thead><tr>
+            <th>{% translate "Waktu" %}</th><th>{% translate "Nama" %}</th><th>{% translate "Arah" %}</th><th>{% translate "Metode" %}</th><th>{% translate "Status" %}</th>
+          </tr></thead>
+          <tbody>
+            {% for e in events %}
+              <tr>
+                <td class="cn-num">{{ e.occurred_at_dt|date:"H:i:s" }}</td>
+                <td>
+                  {% if e.student %}{{ e.student.full_name|default:e.student.nis }}{% elif e.staff %}{{ e.staff.full_name|default:e.staff.nip }}{% else %}<span class="cn-muted">{% translate "Tidak dikenali" %}</span>{% endif %}
+                  {% if e.student.derived_status %}<span class="cn-badge">{{ e.student.derived_status }}</span>{% endif %}
+                </td>
+                <td>{{ e.direction }}</td>
+                <td>{{ e.method }}</td>
+                <td>
+                  {% if e.status == 'REJECTED' %}
+                    <span class="cn-badge is-danger">{% translate "Ditolak" %}</span>{% if e.reject_reason %} <span class="cn-muted">{{ e.reject_reason }}</span>{% endif %}
+                  {% elif e.is_duplicate_scan %}
+                    <span class="cn-badge is-warn">{% translate "Pindai ganda" %}</span>
+                  {% else %}
+                    <span class="cn-badge is-ok">{% translate "Diterima" %}</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="cn-empty">{% translate "Belum ada pindai gerbang hari ini." %}</div>
+    {% endif %}
+  </section>
+</div>
+{% endif %}

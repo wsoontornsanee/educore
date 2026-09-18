@@ -6,6 +6,7 @@ permission keys.
 """
 from django.urls import path
 
+from apps.academic.web_views import ExamModeConsolePageView, ExamProctorConsolePageView
 from apps.academic.views import (
     PermissionSlipConsoleCreateView,
     PermissionSlipConsolePageView,
@@ -18,4 +19,6 @@ urlpatterns = [
     path('permission-slips/create/', PermissionSlipConsoleCreateView.as_view(), name='permission-slip-console-create'),
     path('permission-slips/<int:slip_id>/', PermissionSlipConsoleTallyView.as_view(), name='permission-slip-console-tally'),
     path('permission-slips/<int:slip_id>/roster/', PermissionSlipConsoleRosterView.as_view(), name='permission-slip-console-roster'),
+    path('exams/', ExamModeConsolePageView.as_view(), name='exam-mode-console-page'),
+    path('exams/<int:exam_id>/', ExamProctorConsolePageView.as_view(), name='exam-proctor-console-page'),
 ]

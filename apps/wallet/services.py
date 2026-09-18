@@ -1722,3 +1722,83 @@ def mark_refund_donated(refund_request: WalletRefundRequest, actor, donation_con
         diff={'amount': str(refund_request.amount)},
     )
     return refund_request
+
+
+RECENT_POS_TRANSACTION_LIMIT = 15
+
+
+def get_canteen_console_snapshot(foundation_id, school, now=None) -> Dict[str, Any]:
+    """Read-only figures for the web Kantin & dompet console (spec/07 §5, §6).
+
+    "Today" is the school's own local day, so a canteen closing at 15:00 WIB
+    and a WIT school both roll over at their own midnight. Every money total
+    is summed here in Decimal (clients never sum money, CUR-026) and only the
+    school's base currency is totalled — a wallet held in another currency
+    is counted but never added to an IDR figure.
+    """
+    from django.db.models import Count, Q
+    from django.utils import timezone as dj_timezone
+
+    from apps.attendance.services import get_school_timezone
+    from apps.wallet.models import POSTerminal, POSTerminalStatus
+
+    now = now or dj_timezone.now()
+    school_tz = get_school_timezone(school)
+    local_now = now.astimezone(school_tz)
+    day_start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_end = day_start + timedelta(days=1)
+
+    merchants = list(Merchant.objects.filter(
+        foundation_id=foundation_id, school=school, deleted_at__isnull=True,
+    ).order_by('name'))
+
+    completed_today = POSTransaction.objects.filter(
+        foundation_id=foundation_id, merchant__in=merchants, deleted_at__isnull=True,
+        status=POSTransactionStatus.COMPLETED, occurred_at__gte=day_start, occurred_at__lt=day_end,
+    )
+    sales_by_merchant = {
+        row['merchant_id']: row for row in completed_today.values('merchant_id').annotate(
+            total=Sum('total'), count=Count('id'),
+        )
+    }
+    terminals_by_merchant = {
+        row['merchant_id']: row['count'] for row in POSTerminal.objects.filter(
+            foundation_id=foundation_id, merchant__in=merchants, deleted_at__isnull=True,
+            status=POSTerminalStatus.ACTIVE,
+        ).values('merchant_id').annotate(count=Count('id'))
+    }
+    zero = Decimal('0.00')
+    merchant_rows = [{
+        'id': m.id,
+        'name': m.name,
+        'type_label': m.get_type_display(),
+        'is_active': m.is_active,
+        'active_terminals': terminals_by_merchant.get(m.id, 0),
+        'sales_total': sales_by_merchant.get(m.id, {}).get('total') or zero,
+        'sales_count': sales_by_merchant.get(m.id, {}).get('count') or 0,
+    } for m in merchants]
+
+    wallets = Wallet.objects.filter(
+        foundation_id=foundation_id, student__school=school, deleted_at__isnull=True,
+    )
+    wallet_counts = wallets.aggregate(
+        active=Count('id', filter=Q(status=WalletStatus.ACTIVE)),
+        frozen=Count('id', filter=Q(status=WalletStatus.FROZEN)),
+        balance=Sum('balance', filter=Q(status=WalletStatus.ACTIVE, currency=school.base_currency)),
+    )
+
+    recent = list(POSTransaction.objects.filter(
+        foundation_id=foundation_id, merchant__in=merchants, deleted_at__isnull=True,
+    ).select_related('merchant', 'student__person').order_by('-occurred_at')[:RECENT_POS_TRANSACTION_LIMIT])
+
+    return {
+        'currency': school.base_currency,
+        'merchants': merchant_rows,
+        'sales_total': sum((row['sales_total'] for row in merchant_rows), zero),
+        'sales_count': sum(row['sales_count'] for row in merchant_rows),
+        'offline_count': completed_today.filter(offline_created=True).count(),
+        'wallets_active': wallet_counts['active'],
+        'wallets_frozen': wallet_counts['frozen'],
+        'wallets_balance': wallet_counts['balance'] or zero,
+        'recent_transactions': recent,
+    }
