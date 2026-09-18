@@ -1,0 +1,38 @@
+{% extends "base_console.html" %}
+{% load i18n %}
+
+{% comment %}
+Page: Administrasi > Staf & jabatan > Tambah staf. Served by
+apps.identity.web_admin_views.StaffCreateView at /web/admin/staff/new/.
+{% endcomment %}
+
+{% block title %}{% translate "Tambah staf — EduCore" %}{% endblock %}
+
+{% block console_content %}
+<main style="display:flex;flex-direction:column;gap:20px;max-width:720px">
+  <header>
+    <div class="text-label text-ink-500" style="margin-bottom:2px">{% translate "Administrasi" %}</div>
+    <h1 class="text-h2 font-display text-ink-900" style="margin:0">{% translate "Tambah staf" %}</h1>
+  </header>
+
+  <form method="post" class="card" style="padding:20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px" novalidate>
+    {% csrf_token %}
+    {% for error in form.non_field_errors %}<p role="alert" style="grid-column:1/-1;margin:0;color:#B91C1C">{{ error }}</p>{% endfor %}
+    {% include "components/_form_field.html" with field=form.full_name %}
+    {% include "components/_form_field.html" with field=form.phone_e164 %}
+    {% include "components/_form_field.html" with field=form.email %}
+    {% include "components/_form_field.html" with field=form.school %}
+    {% include "components/_form_field.html" with field=form.nip %}
+    {% include "components/_form_field.html" with field=form.employment_type %}
+    {% include "components/_form_field.html" with field=form.join_date %}
+    {% include "components/_form_field.html" with field=form.nik %}
+    {% include "components/_form_field.html" with field=form.gender %}
+    {% include "components/_form_field.html" with field=form.dob %}
+    {% include "components/_form_field.html" with field=form.password %}
+    <div style="grid-column:1/-1;display:flex;gap:10px">
+      <button type="submit" class="btn btn-primary">{% translate "Simpan staf" %}</button>
+      <a class="btn btn-secondary" href="{% url 'admin-staff' %}">{% translate "Batal" %}</a>
+    </div>
+  </form>
+</main>
+{% endblock %}

@@ -1,0 +1,7 @@
+{% comment %}One Django form field, styled with the console's form classes. Usage: {% include "components/_form_field.html" with field=form.name %}{% endcomment %}
+<div class="form-group">
+  <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} *{% endif %}</label>
+  {{ field }}
+  {% if field.help_text %}<span class="text-body-sm text-ink-500">{{ field.help_text }}</span>{% endif %}
+  {% for error in field.errors %}<span class="text-body-sm" role="alert" style="color:#B91C1C">{{ error }}</span>{% endfor %}
+</div>

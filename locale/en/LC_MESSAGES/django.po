@@ -7586,3 +7586,123 @@ msgstr "Learning results"
 #: frontend/templates/pages/academic_report_card_detail.html
 msgid "Nilai akhir"
 msgstr "Final grade"
+
+#: apps/identity/web_admin_forms.py
+msgid "Nama lengkap"
+msgstr "Full name"
+
+#: apps/identity/web_admin_forms.py
+msgid "Nomor HP"
+msgstr "Phone number"
+
+#: apps/identity/web_admin_forms.py
+msgid "Format 08… atau +62…"
+msgstr "Format 08… or +62…"
+
+#: apps/identity/web_admin_forms.py
+msgid "NIK"
+msgstr "National ID (NIK)"
+
+#: apps/identity/web_admin_forms.py
+msgid "Jenis kelamin"
+msgstr "Gender"
+
+#: apps/identity/web_admin_forms.py
+msgid "Laki-laki"
+msgstr "Male"
+
+#: apps/identity/web_admin_forms.py
+msgid "Perempuan"
+msgstr "Female"
+
+#: apps/identity/web_admin_forms.py
+msgid "Tanggal lahir"
+msgstr "Date of birth"
+
+#: apps/identity/web_admin_forms.py
+msgid "Status kepegawaian"
+msgstr "Employment type"
+
+#: apps/identity/web_admin_forms.py
+msgid "Tanggal bergabung"
+msgstr "Join date"
+
+#: apps/identity/web_admin_forms.py
+msgid "Kata sandi awal"
+msgstr "Initial password"
+
+#: apps/identity/web_admin_forms.py
+msgid "Opsional. Tanpa kata sandi, staf belum dapat masuk sampai kata sandi diatur."
+msgstr "Optional. Without a password the staff member cannot sign in until one is set."
+
+#: apps/identity/web_admin_forms.py
+msgid "Yayasan (tanpa sekolah)"
+msgstr "Foundation (no school)"
+
+#: apps/identity/web_admin_forms.py
+msgid "Nomor HP ini sudah terdaftar."
+msgstr "This phone number is already registered."
+
+#: apps/identity/web_admin_forms.py
+msgid "Email ini sudah terdaftar."
+msgstr "This email is already registered."
+
+#: apps/identity/web_admin_forms.py
+msgid "NIK harus 16 digit angka."
+msgstr "NIK must be 16 digits."
+
+#: apps/identity/web_admin_forms.py
+msgid "Tanggal berhenti"
+msgstr "Resignation date"
+
+#: apps/identity/web_admin_forms.py
+msgid "Alihkan tugas kelas ke"
+msgstr "Reassign class duties to"
+
+#: apps/identity/web_admin_forms.py
+msgid "— Tidak dialihkan —"
+msgstr "— Not reassigned —"
+
+#: apps/identity/web_admin_forms.py
+msgid "Staf %(name)s ditambahkan."
+msgstr "Staff %(name)s added."
+
+#: apps/identity/web_admin_forms.py
+msgid "Staf %(name)s telah di-offboard."
+msgstr "Staff %(name)s has been offboarded."
+
+#: apps/identity/web_admin_forms.py
+msgid "Staf ini tidak dapat di-offboard oleh Anda."
+msgstr "You cannot offboard this staff member."
+
+#: apps/identity/web_admin_forms.py
+msgid "Tambah staf — EduCore"
+msgstr "Add staff — EduCore"
+
+#: apps/identity/web_admin_forms.py
+msgid "Tambah staf"
+msgstr "Add staff"
+
+#: apps/identity/web_admin_forms.py
+msgid "Simpan staf"
+msgstr "Save staff"
+
+#: apps/identity/web_admin_forms.py
+msgid "Offboard staf — EduCore"
+msgstr "Offboard staff — EduCore"
+
+#: apps/identity/web_admin_forms.py
+msgid "Offboard %(name)s"
+msgstr "Offboard %(name)s"
+
+#: apps/identity/web_admin_forms.py
+msgid "Offboard staf"
+msgstr "Offboard staff"
+
+#: apps/identity/web_admin_forms.py
+msgid "Offboard"
+msgstr "Offboard"
+
+#: apps/identity/web_admin_forms.py
+msgid "Akun staf akan ditangguhkan, sesi aktif dicabut, dan semua peran akses dihapus. Tindakan ini tercatat di jejak audit."
+msgstr "The staff account will be suspended, active sessions revoked and all access roles removed. This action is recorded in the audit trail."

@@ -1,0 +1,35 @@
+{% extends "base_console.html" %}
+{% load i18n %}
+
+{% comment %}
+Page: Administrasi > Staf & jabatan > Offboard staf (IAM-021). Confirmation
+form; served by apps.identity.web_admin_views.StaffOffboardView at
+/web/admin/staff/<id>/offboard/.
+{% endcomment %}
+
+{% block title %}{% translate "Offboard staf — EduCore" %}{% endblock %}
+
+{% block console_content %}
+<main style="display:flex;flex-direction:column;gap:20px;max-width:640px">
+  <header>
+    <div class="text-label text-ink-500" style="margin-bottom:2px">{% translate "Administrasi" %}</div>
+    <h1 class="text-h2 font-display text-ink-900" style="margin:0">{% blocktranslate with name=staff.person.full_name %}Offboard {{ name }}{% endblocktranslate %}</h1>
+  </header>
+
+  <p class="card" role="alert" style="margin:0;padding:12px 14px;border-color:#FDE68A;background:#FFFBEB;color:#92400E;font-size:13.5px">
+    {% translate "Akun staf akan ditangguhkan, sesi aktif dicabut, dan semua peran akses dihapus. Tindakan ini tercatat di jejak audit." %}
+  </p>
+
+  <form method="post" class="card" style="padding:20px;display:flex;flex-direction:column;gap:14px" novalidate>
+    {% csrf_token %}
+    {% for error in form.non_field_errors %}<p role="alert" style="margin:0;color:#B91C1C">{{ error }}</p>{% endfor %}
+    {% include "components/_form_field.html" with field=form.resignation_date %}
+    {% include "components/_form_field.html" with field=form.reason %}
+    {% include "components/_form_field.html" with field=form.reassign_to %}
+    <div style="display:flex;gap:10px">
+      <button type="submit" class="btn btn-primary">{% translate "Offboard staf" %}</button>
+      <a class="btn btn-secondary" href="{% url 'admin-staff' %}">{% translate "Batal" %}</a>
+    </div>
+  </form>
+</main>
+{% endblock %}
