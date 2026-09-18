@@ -7577,3 +7577,94 @@ msgstr "No homework is waiting to be graded."
 msgid "Menampilkan %(shown)s pengumpulan tertua dari %(total)s."
 msgstr "Showing the %(shown)s oldest submissions of %(total)s."
 
+
+
+#: frontend/templates/pages/academic_report_card_list.html
+msgid "Rapor — EduCore"
+msgstr "Report cards — EduCore"
+
+#: frontend/templates/pages/academic_report_card_list.html
+msgid "Semester"
+msgstr "Term"
+
+#: frontend/templates/pages/academic_report_card_list.html
+msgid "Semua semester"
+msgstr "All terms"
+
+#: frontend/templates/pages/academic_report_card_list.html
+msgid "Semua kelas"
+msgstr "All classes"
+
+#: frontend/templates/pages/academic_report_card_list.html
+msgid "Versi"
+msgstr "Version"
+
+#: frontend/templates/pages/academic_report_card_list.html
+msgid "Belum ada rapor"
+msgstr "No report cards yet"
+
+#: frontend/templates/pages/academic_report_card_list.html
+msgid "Tidak ada rapor untuk semester dan kelas yang dipilih."
+msgstr "There are no report cards for the selected term and class."
+
+#: frontend/templates/pages/academic_report_card_list.html
+msgid "Buka tampilan cetak"
+msgstr "Open print view"
+
+#: frontend/templates/pages/academic_report_card_list.html
+msgid "Mata pelajaran"
+msgstr "Subject"
+
+#: frontend/templates/pages/academic_report_card_list.html
+msgid "Capaian"
+msgstr "Achievement"
+
+#: frontend/templates/pages/academic_report_card_list.html
+msgid "Catatan"
+msgstr "Notes"
+
+#: frontend/templates/pages/academic_report_card_list.html
+msgid "Belum lengkap"
+msgstr "Incomplete"
+
+#: frontend/templates/pages/academic_report_card_list.html
+msgid "Belum ada nilai pada rapor ini."
+msgstr "This report card has no grades yet."
+
+#: frontend/templates/pages/academic_report_card_list.html
+msgid "hari"
+msgstr "days"
+
+#: frontend/templates/pages/academic_report_card_list.html
+msgid "Belum ada data kehadiran."
+msgstr "No attendance data yet."
+
+#: frontend/templates/pages/academic_report_card_list.html
+msgid "Catatan wali kelas"
+msgstr "Homeroom teacher's notes"
+
+#: frontend/templates/pages/academic_report_card_list.html
+msgid "Ekstrakurikuler"
+msgstr "Extracurricular"
+
+#: frontend/templates/pages/academic_report_card_list.html
+#, python-format
+msgid "Menampilkan %(shown)s rapor dari %(total)s."
+msgstr "Showing %(shown)s of %(total)s report cards."
+
+#: apps/academic/console_views.py
+msgid "Tanpa keterangan"
+msgstr "Unexcused"
+
+#: apps/academic/console_views.py
+msgid "Dispensasi"
+msgstr "Dispensation"
+
+#: frontend/templates/pages/academic_report_card_detail.html
+msgid "Hasil belajar"
+msgstr "Learning results"
+
+#: frontend/templates/pages/academic_report_card_detail.html
+msgid "Nilai akhir"
+msgstr "Final grade"
+
