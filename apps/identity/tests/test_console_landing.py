@@ -30,7 +30,7 @@ class ConsoleLandingPagesTests(TestCase):
     def test_foundation_overview_shows_real_student_count(self):
         response = self.client.get(reverse('console-home-overview'))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '1')  # student_count
+        self.assertEqual(response.context['stats']['student_count'], 1)
 
     def test_finance_billing_shows_overdue_invoice_count(self):
         Invoice.objects.create(
@@ -42,7 +42,7 @@ class ConsoleLandingPagesTests(TestCase):
         )
         response = self.client.get(reverse('console-home-billing'))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Tagihan &amp; pembayaran')  # Django autoescapes '&' in {{ page_title }}
+        self.assertEqual(response.context['stats']['overdue_invoice_count'], 1)
 
     def test_teacher_agenda_page_renders(self):
         response = self.client.get(reverse('console-home-agenda'))
@@ -55,4 +55,42 @@ class ConsoleLandingPagesTests(TestCase):
         )
         response = self.client.get(reverse('console-home-today'))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '1')  # alpa_today_count
+        self.assertEqual(response.context['stats']['alpa_today_count'], 1)
+
+
+class ConsoleLandingPagesRbacTests(TestCase):
+    """A user without the permission a landing page requires must not see
+    that page's aggregate stats by typing the URL directly — they should be
+    redirected to web-console-home instead (never a raw 403, per this
+    feature's "never leave a user at a dead end" design principle)."""
+
+    def setUp(self):
+        self.foundation = Foundation.objects.create(legal_name='F', brand_name='F')
+        self.school = School.objects.create(foundation_id=self.foundation.id, name='S', npsn='12345678', level=School.LEVEL_SMA)
+        # canteen_operator holds neither grades.read nor finance.invoice.read.
+        self.user = User.objects.create(
+            phone_e164='+6281300000021', full_name='Canteen', foundation_id=self.foundation.id,
+        )
+        self.user.set_password('pw12345')
+        self.user.save()
+        RoleAssignment.objects.create(
+            foundation_id=self.foundation.id, user=self.user, role=RoleAssignment.ROLE_CANTEEN_OPERATOR,
+            scope_type=RoleAssignment.SCOPE_SCHOOL, scope_id=self.school.id,
+        )
+        self.client.force_login(self.user)
+
+    def _assert_redirects_to_console_home(self, url_name):
+        response = self.client.get(reverse(url_name))
+        self.assertRedirects(response, reverse('web-console-home'))
+
+    def test_foundation_overview_denies_user_without_grades_read(self):
+        self._assert_redirects_to_console_home('console-home-overview')
+
+    def test_school_admin_today_denies_user_without_grades_read(self):
+        self._assert_redirects_to_console_home('console-home-today')
+
+    def test_teacher_agenda_denies_user_without_grades_read(self):
+        self._assert_redirects_to_console_home('console-home-agenda')
+
+    def test_finance_billing_denies_user_without_finance_invoice_read(self):
+        self._assert_redirects_to_console_home('console-home-billing')

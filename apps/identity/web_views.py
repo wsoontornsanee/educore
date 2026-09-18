@@ -11,12 +11,13 @@ from django.shortcuts import redirect, render
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils import timezone
 from django.utils.translation import gettext as _
+from django.utils.translation import gettext_lazy as _lazy
 from django.views import View
 from django.views.generic import TemplateView
 
 from apps.attendance.models import AttendanceDay, AttendanceStatus
 from apps.finance.models import Invoice, InvoiceStatus
-from educore.middleware.tenancy import get_current_foundation_id, set_current_foundation_id
+from educore.middleware.tenancy import get_current_foundation_id, set_current_foundation_id, tenant_context
 from .landing import resolve_post_login_redirect
 from .models import RoleAssignment, Student
 from .nav import get_nav_for_user
@@ -445,23 +446,54 @@ def get_landing_stats(foundation_id):
     """Three simple, single-model aggregate counts shared by every real-data
     landing page. Deliberately minimal (see design spec's Non-goals: no new
     cross-module aggregate services in this slice) — each is one filtered
-    .count() call, safe to run on every login-redirect landing hit."""
-    return {
-        'student_count': Student.objects.filter(status=Student.STATUS_ACTIVE).count(),
-        'overdue_invoice_count': Invoice.objects.filter(
-            status__in=[InvoiceStatus.ISSUED, InvoiceStatus.PARTIALLY_PAID],
-            due_date__lt=timezone.localdate(),
-        ).count(),
-        'alpa_today_count': AttendanceDay.objects.filter(
-            date=timezone.localdate(), status=AttendanceStatus.ALPA,
-        ).count(),
-    }
+    .count() call, safe to run on every login-redirect landing hit.
+
+    Wrapped in tenant_context(foundation_id) so this function is correctly
+    scoped by its own parameter — not just coincidentally correct via the
+    ambient tenancy thread-local a request happens to have already set."""
+    with tenant_context(foundation_id):
+        return {
+            'student_count': Student.objects.filter(status=Student.STATUS_ACTIVE).count(),
+            'overdue_invoice_count': Invoice.objects.filter(
+                status__in=[InvoiceStatus.ISSUED, InvoiceStatus.PARTIALLY_PAID],
+                due_date__lt=timezone.localdate(),
+            ).count(),
+            'alpa_today_count': AttendanceDay.objects.filter(
+                date=timezone.localdate(), status=AttendanceStatus.ALPA,
+            ).count(),
+        }
 
 
 class _ConsoleLandingView(LoginRequiredMixin, TemplateView):
+    """Base for the per-role landing pages. Each subclass declares
+    `required_permission` — the same permission its corresponding nav
+    item/role needs (see apps.identity.nav.NAV_GROUPS) — so a user without
+    it can't view another role's aggregate stats by typing the URL
+    directly. Failing the check redirects to web-console-home rather than
+    raising PermissionDenied, consistent with this feature's "never leave
+    a user at a dead end" design principle."""
     template_name = 'pages/console_landing.html'
     page_title = ''
-    greeting_key = ''
+    required_permission = None
+
+    def get(self, request, *args, **kwargs):
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        if not self._user_has_required_permission(request.user, foundation_id):
+            return redirect('web-console-home')
+        return super().get(request, *args, **kwargs)
+
+    def _user_has_required_permission(self, user, foundation_id):
+        if self.required_permission is None or not foundation_id:
+            return True
+        if has_permission(user, self.required_permission, foundation_id, school_id=None):
+            return True
+        assigned_schools = RoleAssignment.all_tenants.filter(
+            foundation_id=foundation_id, user=user, scope_type=SCOPE_SCHOOL, deleted_at__isnull=True,
+        ).values_list('scope_id', flat=True)
+        return any(
+            has_permission(user, self.required_permission, foundation_id, school_id=school_id)
+            for school_id in assigned_schools
+        )
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -474,16 +506,20 @@ class _ConsoleLandingView(LoginRequiredMixin, TemplateView):
 
 
 class FoundationOverviewLandingView(_ConsoleLandingView):
-    page_title = 'Ikhtisar yayasan'
+    page_title = _lazy('Ikhtisar yayasan')
+    required_permission = 'grades.read'
 
 
 class SchoolAdminTodayLandingView(_ConsoleLandingView):
-    page_title = 'Hari ini'
+    page_title = _lazy('Hari ini')
+    required_permission = 'grades.read'
 
 
 class TeacherAgendaLandingView(_ConsoleLandingView):
-    page_title = 'Agenda hari ini'
+    page_title = _lazy('Agenda hari ini')
+    required_permission = 'grades.read'
 
 
 class FinanceBillingLandingView(_ConsoleLandingView):
-    page_title = 'Tagihan & pembayaran'
+    page_title = _lazy('Tagihan & pembayaran')
+    required_permission = 'finance.invoice.read'
