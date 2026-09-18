@@ -1548,6 +1548,19 @@ def send_absence_alert(
     return dispatched_count
 
 
+def get_school_timezone(school: Any):
+    """Resolves `school.timezone` (default 'Asia/Jakarta') to a zoneinfo.ZoneInfo, falling
+    back to Asia/Jakarta on a missing/invalid value. Shared by every caller that needs the
+    school's local wall-clock time (the daily absence sweep, clinic SAKIT overrides)."""
+    import zoneinfo
+
+    school_tz_str = getattr(school, 'timezone', None) or 'Asia/Jakarta'
+    try:
+        return zoneinfo.ZoneInfo(school_tz_str)
+    except Exception:
+        return zoneinfo.ZoneInfo('Asia/Jakarta')
+
+
 def mark_absent_students_for_school(
     school: Any,
     target_date: Optional[Any] = None,
@@ -1567,7 +1580,6 @@ def mark_absent_students_for_school(
     - Idempotent: Multiple runs on the same date will not re-mark or re-notify students.
     """
     import datetime
-    import zoneinfo
     from apps.attendance.models import (
         AttendanceDay, AttendanceRule, AttendanceSource, AttendanceStatus,
         AbsenceRequest, AbsenceRequestStatus, GateEvent, GateEventStatus,
@@ -1578,11 +1590,7 @@ def mark_absent_students_for_school(
     foundation_id = school.foundation_id
 
     # 1. Determine school local datetime
-    school_tz_str = getattr(school, 'timezone', None) or 'Asia/Jakarta'
-    try:
-        school_tz = zoneinfo.ZoneInfo(school_tz_str)
-    except Exception:
-        school_tz = zoneinfo.ZoneInfo('Asia/Jakarta')
+    school_tz = get_school_timezone(school)
 
     now_local = timezone.now().astimezone(school_tz)
     today_local = now_local.date()

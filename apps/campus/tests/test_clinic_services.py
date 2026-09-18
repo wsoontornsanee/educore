@@ -383,3 +383,165 @@ class ClinicVisitAttendanceAndNotificationTests(TestCase):
 
         self.assertFalse(ClinicVisit.objects.filter(student=self.fx['student']).exists())
         self.assertFalse(AttendanceDay.objects.filter(student=self.fx['student']).exists())
+
+
+from apps.academic.models import DayOfWeek, TimetableSlot
+from apps.attendance.models import PeriodAttendance, PeriodAttendanceSource
+
+
+def add_slot(fx, period_no, start_time, end_time, weekday):
+    return TimetableSlot.objects.create(
+        foundation_id=fx['foundation'].id,
+        class_subject=fx['class_subject'],
+        day_of_week=weekday,
+        period_no=period_no,
+        start_time=start_time,
+        end_time=end_time,
+    )
+
+
+class ClinicVisitRemainingPeriodsSakitTests(TestCase):
+    """LIF-003: a SENT_HOME/REFERRED outcome must also mark PeriodAttendance SAKIT for
+    the student's remaining (not-yet-started) scheduled periods that day, not just the
+    day-level AttendanceDay override — the DSAR export and teacher agenda both read
+    PeriodAttendance directly and would otherwise show those periods as blank."""
+
+    def setUp(self):
+        self.fx = build_academic_fixture()
+        enroll_student_in_class(self.fx)
+        self.visit_date = _dt.date(2026, 9, 21)  # a Monday
+        self.weekday = self.visit_date.isoweekday()
+        self.assertEqual(self.weekday, DayOfWeek.MONDAY)
+
+        self.slot_past = add_slot(self.fx, 1, _dt.time(7, 0), _dt.time(7, 40), self.weekday)
+        self.slot_current = add_slot(self.fx, 2, _dt.time(7, 40), _dt.time(8, 20), self.weekday)
+        self.slot_future_1 = add_slot(self.fx, 3, _dt.time(8, 20), _dt.time(9, 0), self.weekday)
+        self.slot_future_2 = add_slot(self.fx, 4, _dt.time(9, 0), _dt.time(9, 40), self.weekday)
+
+        # Period 1 already taught and submitted for real before the clinic visit.
+        PeriodAttendance.objects.create(
+            foundation_id=self.fx['foundation'].id,
+            student=self.fx['student'],
+            slot=self.slot_past,
+            date=self.visit_date,
+            status=AttendanceStatus.HADIR,
+            source=PeriodAttendanceSource.TEACHER,
+        )
+
+        self.occurred_at = timezone.make_aware(datetime.datetime.combine(self.visit_date, datetime.time(7, 50)))
+
+    def test_sent_home_marks_only_future_periods_sakit(self):
+        record_clinic_visit(
+            foundation_id=self.fx['foundation'].id, school=self.fx['school'], student=self.fx['student'],
+            handled_by=self.fx['teacher'], complaint='Demam tinggi', outcome=ClinicOutcome.SENT_HOME,
+            occurred_at=self.occurred_at,
+        )
+
+        future_1 = PeriodAttendance.objects.get(student=self.fx['student'], slot=self.slot_future_1, date=self.visit_date)
+        self.assertEqual(future_1.status, AttendanceStatus.SAKIT)
+        self.assertEqual(future_1.source, PeriodAttendanceSource.MANUAL)
+
+        future_2 = PeriodAttendance.objects.get(student=self.fx['student'], slot=self.slot_future_2, date=self.visit_date)
+        self.assertEqual(future_2.status, AttendanceStatus.SAKIT)
+
+    def test_does_not_overwrite_already_taught_earlier_period(self):
+        record_clinic_visit(
+            foundation_id=self.fx['foundation'].id, school=self.fx['school'], student=self.fx['student'],
+            handled_by=self.fx['teacher'], complaint='Demam tinggi', outcome=ClinicOutcome.SENT_HOME,
+            occurred_at=self.occurred_at,
+        )
+        past = PeriodAttendance.objects.get(student=self.fx['student'], slot=self.slot_past, date=self.visit_date)
+        self.assertEqual(past.status, AttendanceStatus.HADIR)
+        self.assertEqual(past.source, PeriodAttendanceSource.TEACHER)
+
+    def test_does_not_create_period_attendance_for_in_progress_period(self):
+        record_clinic_visit(
+            foundation_id=self.fx['foundation'].id, school=self.fx['school'], student=self.fx['student'],
+            handled_by=self.fx['teacher'], complaint='Demam tinggi', outcome=ClinicOutcome.SENT_HOME,
+            occurred_at=self.occurred_at,
+        )
+        self.assertFalse(
+            PeriodAttendance.objects.filter(
+                student=self.fx['student'], slot=self.slot_current, date=self.visit_date,
+            ).exists()
+        )
+
+    def test_returned_to_class_does_not_touch_period_attendance(self):
+        record_clinic_visit(
+            foundation_id=self.fx['foundation'].id, school=self.fx['school'], student=self.fx['student'],
+            handled_by=self.fx['teacher'], complaint='Pusing ringan', outcome=ClinicOutcome.RETURNED_TO_CLASS,
+            occurred_at=self.occurred_at,
+        )
+        self.assertFalse(
+            PeriodAttendance.objects.filter(
+                student=self.fx['student'], slot=self.slot_future_1, date=self.visit_date,
+            ).exists()
+        )
+
+    def test_idempotent_on_rerun_does_not_duplicate_or_error(self):
+        from apps.campus.services_clinic import _apply_sakit_override_to_remaining_periods
+
+        visit = record_clinic_visit(
+            foundation_id=self.fx['foundation'].id, school=self.fx['school'], student=self.fx['student'],
+            handled_by=self.fx['teacher'], complaint='Demam tinggi', outcome=ClinicOutcome.SENT_HOME,
+            occurred_at=self.occurred_at,
+        )
+        _apply_sakit_override_to_remaining_periods(visit)
+        self.assertEqual(
+            PeriodAttendance.objects.filter(
+                student=self.fx['student'], slot=self.slot_future_1, date=self.visit_date,
+            ).count(),
+            1,
+        )
+
+    def test_writes_audit_event_for_periods_overridden(self):
+        visit = record_clinic_visit(
+            foundation_id=self.fx['foundation'].id, school=self.fx['school'], student=self.fx['student'],
+            handled_by=self.fx['teacher'], complaint='Demam tinggi', outcome=ClinicOutcome.SENT_HOME,
+            occurred_at=self.occurred_at,
+        )
+        event = AuditEvent.objects.get(
+            action='campus.clinic_visit.periods_overridden', entity_type='ClinicVisit', entity_id=str(visit.id),
+        )
+        self.assertCountEqual(event.diff['slot_ids'], [self.slot_future_1.id, self.slot_future_2.id])
+
+    def test_no_audit_event_when_no_remaining_periods(self):
+        # Visit occurs after every scheduled period that day has already started/ended.
+        late_occurred_at = timezone.make_aware(datetime.datetime.combine(self.visit_date, datetime.time(23, 0)))
+        visit = record_clinic_visit(
+            foundation_id=self.fx['foundation'].id, school=self.fx['school'], student=self.fx['student'],
+            handled_by=self.fx['teacher'], complaint='Demam tinggi', outcome=ClinicOutcome.SENT_HOME,
+            occurred_at=late_occurred_at,
+        )
+        self.assertFalse(
+            AuditEvent.objects.filter(
+                action='campus.clinic_visit.periods_overridden', entity_id=str(visit.id),
+            ).exists()
+        )
+
+    def test_sent_home_rolls_back_visit_when_remaining_periods_override_fails(self):
+        from unittest.mock import patch
+
+        with self.assertRaises(RuntimeError):
+            with patch(
+                'apps.campus.services_clinic._apply_sakit_override_to_remaining_periods',
+                side_effect=RuntimeError('boom'),
+            ):
+                record_clinic_visit(
+                    foundation_id=self.fx['foundation'].id, school=self.fx['school'], student=self.fx['student'],
+                    handled_by=self.fx['teacher'], complaint='Demam tinggi', outcome=ClinicOutcome.SENT_HOME,
+                    occurred_at=self.occurred_at,
+                )
+
+        self.assertFalse(ClinicVisit.objects.filter(student=self.fx['student']).exists())
+        self.assertFalse(AttendanceDay.objects.filter(student=self.fx['student']).exists())
+        # setUp's own pre-existing (real, pre-visit) PeriodAttendance row for slot_past
+        # must survive untouched; no new SAKIT rows for the future slots may exist.
+        self.assertFalse(
+            PeriodAttendance.objects.filter(student=self.fx['student'], slot=self.slot_future_1).exists()
+        )
+        self.assertTrue(
+            PeriodAttendance.objects.filter(
+                student=self.fx['student'], slot=self.slot_past, status=AttendanceStatus.HADIR,
+            ).exists()
+        )
