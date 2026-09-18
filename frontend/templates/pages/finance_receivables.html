@@ -1,0 +1,97 @@
+{% extends "base_console.html" %}
+{% load i18n finance_extras %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block console_content %}
+{% include "components/_finance_console_styles.html" %}
+<div class="fin-page">
+  <h1 class="fin-title">{{ page_title }}</h1>
+
+  <section>
+    <h2 class="fin-h2">{% blocktranslate with date=report.as_of %}Umur piutang per {{ date }}{% endblocktranslate %}</h2>
+    <div class="fin-tiles">
+      <div class="fin-tile"><span class="fin-label">{% translate "Total piutang" %}</span><span class="fin-value">{{ report.summary.total_outstanding|money:report.currency }}</span></div>
+      {% for label, amount in bucket_rows %}
+      <div class="fin-tile"><span class="fin-label">{{ label }}</span><span class="fin-value">{{ amount|money:report.currency }}</span></div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section>
+    <h2 class="fin-h2">{% translate "Piutang terbesar per siswa" %}</h2>
+    {% if debtors %}
+    <div class="fin-scroll">
+      <table class="fin-table">
+        <thead><tr>
+          <th>{% translate "Siswa" %}</th><th>{% translate "Kelas" %}</th><th class="num">{% translate "Tagihan" %}</th><th class="num">{% translate "Total piutang" %}</th>
+        </tr></thead>
+        <tbody>
+        {% for s in debtors %}
+          <tr>
+            <td>{{ s.student_name }}<br><span class="fin-note">{{ s.nis }}</span></td>
+            <td>{{ s.class_group_name }}</td>
+            <td class="num">{{ s.invoices_count }}</td>
+            <td class="num">{{ s.total_outstanding|money:report.currency }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="fin-empty">{% translate "Tidak ada piutang berjalan." %}</p>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2 class="fin-h2">{% translate "Keringanan menunggu persetujuan" %}</h2>
+    {% if pending_discounts %}
+    <div class="fin-scroll">
+      <table class="fin-table">
+        <thead><tr>
+          <th>{% translate "Siswa" %}</th><th>{% translate "Jenis biaya" %}</th><th>{% translate "Alasan" %}</th><th class="num">{% translate "Nilai" %}</th><th>{% translate "Berlaku" %}</th>
+        </tr></thead>
+        <tbody>
+        {% for d in pending_discounts %}
+          <tr>
+            <td>{{ d.student.person.full_name }}</td>
+            <td>{{ d.fee_type.name|default:"—" }}</td>
+            <td>{{ d.reason }}</td>
+            <td class="num">{% if d.type == "PERCENT" %}{{ d.value|floatformat:"-2" }}%{% else %}{{ d.value|money }}{% endif %}</td>
+            <td>{{ d.valid_from|date:"d M Y" }}{% if d.valid_to %} – {{ d.valid_to|date:"d M Y" }}{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="fin-empty">{% translate "Tidak ada keringanan yang menunggu persetujuan." %}</p>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2 class="fin-h2">{% translate "Penghapusbukuan menunggu persetujuan" %}</h2>
+    {% if pending_write_offs %}
+    <div class="fin-scroll">
+      <table class="fin-table">
+        <thead><tr>
+          <th>{% translate "No. tagihan" %}</th><th>{% translate "Siswa" %}</th><th>{% translate "Alasan" %}</th><th class="num">{% translate "Nominal" %}</th>
+        </tr></thead>
+        <tbody>
+        {% for w in pending_write_offs %}
+          <tr>
+            <td>{{ w.invoice.number }}</td>
+            <td>{{ w.invoice.student.person.full_name }}</td>
+            <td>{{ w.reason|truncatechars:120 }}</td>
+            <td class="num">{{ w.amount|money:w.currency }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="fin-empty">{% translate "Tidak ada penghapusbukuan yang menunggu persetujuan." %}</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

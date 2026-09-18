@@ -6715,3 +6715,168 @@ msgstr "Showing %(shown)s of %(total)s items."
 #, python-format
 msgid "%(inbox_badge)s tugas menunggu"
 msgstr "%(inbox_badge)s tasks waiting"
+
+msgid "Total tagihan"
+msgstr "Total billed"
+
+msgid "Terbayar"
+msgstr "Paid"
+
+msgid "Sisa tagihan"
+msgstr "Outstanding balance"
+
+msgid "Cari"
+msgstr "Search"
+
+msgid "No. tagihan, nama, atau NIS"
+msgstr "Invoice no., name, or NIS"
+
+msgid "Periode"
+msgstr "Period"
+
+msgid "Terapkan"
+msgstr "Apply"
+
+msgid "Tagihan"
+msgstr "Invoices"
+
+msgid "No. tagihan"
+msgstr "Invoice no."
+
+msgid "Jatuh tempo"
+msgstr "Due date"
+
+msgid "Total"
+msgstr "Total"
+
+msgid "Belum ada tagihan yang cocok dengan filter ini."
+msgstr "No invoices match these filters."
+
+msgid "Pembayaran terbaru"
+msgstr "Latest payments"
+
+msgid "Metode"
+msgstr "Method"
+
+msgid "Belum ada pembayaran."
+msgstr "No payments yet."
+
+msgid "Batch penyelesaian gateway pembayaran per hari. Penyelesaian selisih dilakukan melalui API keuangan."
+msgstr "Payment gateway settlement batches per day. Discrepancies are resolved through the finance API."
+
+msgid "Batch penyelesaian"
+msgstr "Settlement batches"
+
+msgid "Tanggal"
+msgstr "Date"
+
+msgid "Penyedia"
+msgstr "Provider"
+
+msgid "Cocok"
+msgstr "Matched"
+
+msgid "Selisih"
+msgstr "Discrepancies"
+
+msgid "Lihat selisih"
+msgstr "View discrepancies"
+
+msgid "Belum ada batch penyelesaian gateway."
+msgstr "No gateway settlement batches yet."
+
+msgid "ID gateway"
+msgstr "Gateway ID"
+
+msgid "Jenis"
+msgstr "Type"
+
+msgid "Gateway"
+msgstr "Gateway"
+
+msgid "Sistem"
+msgstr "System"
+
+msgid "Tindak lanjut"
+msgstr "Follow-up"
+
+msgid "Tidak ada selisih pada batch ini."
+msgstr "No discrepancies in this batch."
+
+#, python-format
+msgid "Selisih %(provider)s — %(date)s"
+msgstr "%(provider)s discrepancies — %(date)s"
+
+msgid "Total piutang"
+msgstr "Total receivables"
+
+msgid "Piutang terbesar per siswa"
+msgstr "Largest receivables by student"
+
+msgid "Tidak ada piutang berjalan."
+msgstr "No outstanding receivables."
+
+msgid "Keringanan menunggu persetujuan"
+msgstr "Discounts awaiting approval"
+
+msgid "Jenis biaya"
+msgstr "Fee type"
+
+msgid "Alasan"
+msgstr "Reason"
+
+msgid "Berlaku"
+msgstr "Valid"
+
+msgid "Tidak ada keringanan yang menunggu persetujuan."
+msgstr "No discounts awaiting approval."
+
+msgid "Penghapusbukuan menunggu persetujuan"
+msgstr "Write-offs awaiting approval"
+
+msgid "Nominal"
+msgstr "Amount"
+
+msgid "Tidak ada penghapusbukuan yang menunggu persetujuan."
+msgstr "No write-offs awaiting approval."
+
+#, python-format
+msgid "Umur piutang per %(date)s"
+msgstr "Receivables aging as of %(date)s"
+
+msgid "Halaman"
+msgstr "Page"
+
+#, python-format
+msgid "Halaman %(n)s dari %(total)s"
+msgstr "Page %(n)s of %(total)s"
+
+msgid "Belum jatuh tempo"
+msgstr "Not yet due"
+
+msgid "0–30 hari"
+msgstr "0–30 days"
+
+msgid "31–60 hari"
+msgstr "31–60 days"
+
+msgid "61–90 hari"
+msgstr "61–90 days"
+
+msgid "Lebih dari 90 hari"
+msgstr "Over 90 days"
+
+msgid "Terbit"
+msgstr "Issued"
+
+msgid "Sebagian"
+msgstr "Partial"
+
+msgid "Lunas"
+msgstr "Paid in full"
+
+msgid "Menunggu verifikasi"
+msgstr "Awaiting verification"
+
+msgid "Berhasil"
+msgstr "Successful"

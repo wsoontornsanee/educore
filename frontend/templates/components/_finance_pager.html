@@ -1,0 +1,11 @@
+{% load i18n %}
+{% comment %}
+Prev/next links for a Django Page. Parameters: page (Page), extra_query (already-encoded filters, no leading &).
+{% endcomment %}
+{% if page.paginator.num_pages > 1 %}
+<nav class="fin-pager" aria-label="{% translate 'Halaman' %}">
+  {% if page.has_previous %}<a href="?{% if extra_query %}{{ extra_query }}&{% endif %}page={{ page.previous_page_number }}">{% translate "Sebelumnya" %}</a>{% endif %}
+  <span>{% blocktranslate with n=page.number total=page.paginator.num_pages %}Halaman {{ n }} dari {{ total }}{% endblocktranslate %}</span>
+  {% if page.has_next %}<a href="?{% if extra_query %}{{ extra_query }}&{% endif %}page={{ page.next_page_number }}">{% translate "Berikutnya" %}</a>{% endif %}
+</nav>
+{% endif %}
