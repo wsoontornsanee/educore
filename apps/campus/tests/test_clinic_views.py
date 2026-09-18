@@ -162,3 +162,27 @@ class StudentHealthProfileViewCrossSchoolTests(TestCase):
             format='json',
         )
         self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_clinic_officer_at_same_school_can_get_and_put_health_profile(self):
+        # Regression test: a ROLE_CLINIC_OFFICER user scoped to the student's own school
+        # must be able to GET and PUT that student's health profile. can_guardian_access_student
+        # previously 404'd this legitimate same-school clinic.write/clinic.read use case because
+        # STAFF_ROLES (apps/identity/guardian_access.py) did not include ROLE_CLINIC_OFFICER.
+        HealthProfile.objects.create(
+            foundation_id=self.fx['foundation'].id, student=self.fx['student'],
+            allergies=['Debu'],
+        )
+
+        get_resp = self.client.get(
+            f"/api/v1/campus/students/{self.fx['student'].id}/health-profile/"
+        )
+        self.assertEqual(get_resp.status_code, status.HTTP_200_OK, get_resp.content)
+        self.assertEqual(get_resp.data['allergies'], ['Debu'])
+
+        put_resp = self.client.put(
+            f"/api/v1/campus/students/{self.fx['student'].id}/health-profile/",
+            {'allergies': ['Debu', 'Kacang']},
+            format='json',
+        )
+        self.assertEqual(put_resp.status_code, status.HTTP_200_OK, put_resp.content)
+        self.assertEqual(put_resp.data['allergies'], ['Debu', 'Kacang'])
