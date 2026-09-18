@@ -37,6 +37,7 @@ class NotificationCategory(models.TextChoices):
     ABSENCE = 'ABSENCE', _('Ketidakhadiran (Absence)')
     DEVICE_OFFLINE = 'DEVICE_OFFLINE', _('Perangkat Offline (Device Offline)')
     DAILY_DIGEST = 'DAILY_DIGEST', _('Ringkasan Aktivitas Harian (Daily Digest)')
+    LIBRARY_LOAN_DUE = 'LIBRARY_LOAN_DUE', _('Peminjaman Perpustakaan Jatuh Tempo (Library Loan Due)')
 
 
 class NotificationPriority(models.TextChoices):
@@ -138,6 +139,14 @@ CATEGORY_CONFIG = {
         'digest_only': True,
     },
     NotificationCategory.CANTEEN: {
+        'default_channels': [ChannelType.PUSH],
+        'priority': NotificationPriority.LOW,
+        'quiet_hours_respected': True,
+        'opt_out_allowed': True,
+        # NTF-007: held for the evening digest rather than sent individually (spec/13 §3).
+        'digest_only': True,
+    },
+    NotificationCategory.LIBRARY_LOAN_DUE: {
         'default_channels': [ChannelType.PUSH],
         'priority': NotificationPriority.LOW,
         'quiet_hours_respected': True,
