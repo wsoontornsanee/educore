@@ -36,3 +36,25 @@ class MarketingPagesTests(TestCase):
         for name in ('marketing:home', 'marketing:downloads', 'marketing:partner-api'):
             response = self.client.get(reverse(name))
             self.assertNotIn(response.status_code, (301, 302, 401, 403))
+
+    def test_defaults_to_indonesian_regardless_of_browser_language(self):
+        # A first-time visitor with no django_language cookie must see id-ID
+        # (spec/appendix §2.10) even if their browser prefers English —
+        # ForceDefaultLanguageMiddleware strips Accept-Language ahead of
+        # LocaleMiddleware precisely to stop the browser header from
+        # outranking the site's actual default.
+        response = self.client.get(
+            reverse('marketing:home'), HTTP_ACCEPT_LANGUAGE='en-US,en;q=0.9'
+        )
+        self.assertEqual(response.headers.get('Content-Language'), 'id')
+        self.assertContains(response, 'Satu sistem untuk seluruh yayasan Anda.')
+
+    def test_explicit_language_choice_overrides_browser_language(self):
+        # Once a visitor has picked a language (set_language sets this
+        # cookie), that choice must win over both Accept-Language and the
+        # id-ID default on every later request.
+        self.client.cookies['django_language'] = 'en'
+        response = self.client.get(
+            reverse('marketing:home'), HTTP_ACCEPT_LANGUAGE='id-ID'
+        )
+        self.assertEqual(response.headers.get('Content-Language'), 'en')
