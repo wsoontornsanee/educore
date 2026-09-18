@@ -131,3 +131,105 @@ class ErasePersonTests(TestCase):
                 subject_type='STUDENT', subject_id=999999, foundation_id=self.foundation.id,
                 requested_by='7', requested_by_name='Ketua Yayasan',
             )
+
+
+from rest_framework import status as http_status
+from rest_framework.test import APITestCase
+
+from apps.identity.models import User
+from apps.identity.rbac import ROLE_FOUNDATION_ADMIN, ROLE_TEACHER, SCOPE_FOUNDATION, assign_role
+from educore.middleware.tenancy import tenant_context
+
+
+class ErasureRequestEndpointTests(APITestCase):
+    def setUp(self):
+        clear_current_foundation_id()
+        self.foundation = Foundation.objects.create(
+            legal_name="Yayasan Uji", brand_name="Uji", npwp="01.000.000.0-005.000",
+        )
+        self.school = School.all_tenants.create(
+            foundation_id=self.foundation.id, name="SMA Uji Endpoint", npsn="40100096", level=School.LEVEL_SMA,
+        )
+        self.person = Person.all_tenants.create(
+            foundation_id=self.foundation.id, full_name="Citra Dewi", nik="3171010101015555",
+        )
+        self.student = Student.all_tenants.create(
+            foundation_id=self.foundation.id, school=self.school, person=self.person,
+            nis="2026095", status=Student.STATUS_GRADUATED,
+        )
+        self.admin = User.all_tenants.create_user(
+            phone_e164="+6281999999991", foundation_id=self.foundation.id, full_name="Ketua Yayasan",
+        )
+        assign_role(
+            user=self.admin, role=ROLE_FOUNDATION_ADMIN, scope_type=SCOPE_FOUNDATION,
+            scope_id=self.foundation.id, foundation_id=self.foundation.id,
+        )
+        self.teacher = User.all_tenants.create_user(
+            phone_e164="+6281999999992", foundation_id=self.foundation.id, full_name="Guru",
+        )
+        assign_role(
+            user=self.teacher, role=ROLE_TEACHER, scope_type=SCOPE_FOUNDATION,
+            scope_id=self.foundation.id, foundation_id=self.foundation.id,
+        )
+
+    def tearDown(self):
+        clear_current_foundation_id()
+
+    def test_admin_erases_graduated_student(self):
+        self.client.force_authenticate(user=self.admin)
+        with tenant_context(self.foundation.id):
+            response = self.client.post('/api/v1/foundation/compliance/erasure-requests', {
+                'subject_type': 'STUDENT', 'subject_id': self.student.id,
+            }, format='json')
+        self.assertEqual(response.status_code, http_status.HTTP_201_CREATED)
+        self.assertEqual(response.json()['status'], 'COMPLETED')
+
+    def test_teacher_forbidden(self):
+        self.client.force_authenticate(user=self.teacher)
+        with tenant_context(self.foundation.id):
+            response = self.client.post('/api/v1/foundation/compliance/erasure-requests', {
+                'subject_type': 'STUDENT', 'subject_id': self.student.id,
+            }, format='json')
+        self.assertEqual(response.status_code, http_status.HTTP_403_FORBIDDEN)
+
+    def test_refused_when_active_returns_200_with_reason(self):
+        active_person = Person.all_tenants.create(
+            foundation_id=self.foundation.id, full_name="Masih Aktif", nik="3171010101014444",
+        )
+        active_student = Student.all_tenants.create(
+            foundation_id=self.foundation.id, school=self.school, person=active_person,
+            nis="2026094", status=Student.STATUS_ACTIVE,
+        )
+        self.client.force_authenticate(user=self.admin)
+        with tenant_context(self.foundation.id):
+            response = self.client.post('/api/v1/foundation/compliance/erasure-requests', {
+                'subject_type': 'STUDENT', 'subject_id': active_student.id,
+            }, format='json')
+        self.assertEqual(response.status_code, http_status.HTTP_200_OK)
+        self.assertEqual(response.json()['status'], 'REFUSED')
+        self.assertTrue(response.json()['refusal_reason'])
+
+    def test_cross_tenant_list_is_scoped(self):
+        other_foundation = Foundation.objects.create(
+            legal_name="Yayasan Lain", brand_name="Lain", npwp="02.000.000.0-005.000",
+        )
+        with tenant_context(other_foundation.id):
+            other_admin = User.all_tenants.create_user(
+                phone_e164="+6281999999993", foundation_id=other_foundation.id, full_name="Admin Lain",
+            )
+            assign_role(
+                user=other_admin, role=ROLE_FOUNDATION_ADMIN, scope_type=SCOPE_FOUNDATION,
+                scope_id=other_foundation.id, foundation_id=other_foundation.id,
+            )
+
+        self.client.force_authenticate(user=self.admin)
+        with tenant_context(self.foundation.id):
+            self.client.post('/api/v1/foundation/compliance/erasure-requests', {
+                'subject_type': 'STUDENT', 'subject_id': self.student.id,
+            }, format='json')
+
+        self.client.force_authenticate(user=other_admin)
+        with tenant_context(other_foundation.id):
+            response = self.client.get('/api/v1/foundation/compliance/erasure-requests')
+        self.assertEqual(response.status_code, http_status.HTTP_200_OK)
+        self.assertEqual(response.json(), [])

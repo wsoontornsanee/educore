@@ -1,7 +1,7 @@
 """URL routing for Foundation portal and School management (spec/02, spec/03)."""
 from django.urls import path
 from rest_framework.routers import DefaultRouter
-from apps.compliance.views import PiiExportAccessLogView, StatutoryValidationView
+from apps.compliance.views import ErasureRequestView, PiiExportAccessLogView, StatutoryValidationView
 from .views import (
     CampusComparisonView,
     FoundationApprovalDecideView,
@@ -30,6 +30,7 @@ urlpatterns = [
     path('foundation/exports/<int:job_id>', FoundationExportStatusView.as_view(), name='foundation-export-status'),
     path('foundation/statutory-validation', StatutoryValidationView.as_view(), name='foundation-statutory-validation'),
     path('foundation/compliance/pii-exports', PiiExportAccessLogView.as_view(), name='foundation-compliance-pii-exports'),
+    path('foundation/compliance/erasure-requests', ErasureRequestView.as_view(), name='foundation-compliance-erasure-requests'),
     path('foundation/approvals', FoundationApprovalsInboxView.as_view(), name='foundation-approvals'),
     path('foundation/approvals/<str:approval_id>/decide', FoundationApprovalDecideView.as_view(), name='foundation-approval-decide'),
 ] + router.urls

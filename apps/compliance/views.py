@@ -2,9 +2,9 @@
 from rest_framework import generics, status, views
 from rest_framework.response import Response
 
-from apps.compliance.models import PiiExportAccessLog, StatutorySystem
+from apps.compliance.models import DataSubjectRequest, PiiExportAccessLog, StatutorySystem
 from apps.compliance.serializers import PiiExportAccessLogSerializer
-from apps.compliance.services import validate_statutory_export
+from apps.compliance.services import PersonNotErasableError, erase_person, validate_statutory_export
 from apps.core.pagination import StandardCursorPagination
 from apps.identity.models import School
 from apps.identity.permissions import HasRequiredPermission
@@ -96,4 +96,62 @@ class PiiExportAccessLogView(generics.ListAPIView):
             qs = qs.filter(created_at__date__lte=to_date)
 
         return qs.order_by('-created_at')
+
+
+class ErasureRequestView(views.APIView):
+    """POST /foundation/compliance/erasure-requests — run a CMP-012 right-to-
+    erasure request synchronously. GET — list past requests for this
+    foundation."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'school_config.write'
+
+    def post(self, request):
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        if not foundation_id:
+            return Response({"detail": "Konteks Yayasan tidak ditemukan."}, status=status.HTTP_400_BAD_REQUEST)
+
+        subject_type = request.data.get('subject_type')
+        subject_id = request.data.get('subject_id')
+        if subject_type not in ('STUDENT', 'STAFF') or not subject_id:
+            return Response(
+                {"detail": "subject_type (STUDENT/STAFF) dan subject_id wajib diisi."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        requested_by = str(request.user.id)
+        requested_by_name = getattr(request.user, 'full_name', '') or ''
+
+        try:
+            dsar = erase_person(
+                subject_type=subject_type, subject_id=subject_id, foundation_id=foundation_id,
+                requested_by=requested_by, requested_by_name=requested_by_name,
+            )
+            return Response(_serialize_erasure_request(dsar), status=status.HTTP_201_CREATED)
+        except PersonNotErasableError:
+            dsar = (
+                DataSubjectRequest.objects.filter(
+                    foundation_id=foundation_id, subject_type=subject_type, subject_id=subject_id,
+                )
+                .order_by('-id')
+                .first()
+            )
+            return Response(_serialize_erasure_request(dsar), status=status.HTTP_200_OK)
+
+    def get(self, request):
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        if not foundation_id:
+            return Response({"detail": "Konteks Yayasan tidak ditemukan."}, status=status.HTTP_400_BAD_REQUEST)
+        requests_qs = DataSubjectRequest.objects.filter(foundation_id=foundation_id).order_by('-id')[:100]
+        return Response([_serialize_erasure_request(r) for r in requests_qs])
+
+
+def _serialize_erasure_request(dsar: DataSubjectRequest) -> dict:
+    return {
+        'id': dsar.id,
+        'subject_type': dsar.subject_type,
+        'subject_id': dsar.subject_id,
+        'status': dsar.status,
+        'requested_by_name': dsar.requested_by_name,
+        'refusal_reason': dsar.refusal_reason,
+    }
 
