@@ -19,6 +19,7 @@ from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 
+from apps.core.services import audit
 from apps.finance.models import (
     DiscrepancyResolution,
     DiscrepancyType,
@@ -387,6 +388,16 @@ def resolve_discrepancy(
 
         if resolution == DiscrepancyResolution.MANUAL_SETTLED and discrepancy.payment:
             _settle_payment_manually(discrepancy, resolved_by)
+
+        audit(
+            action='finance.reconciliation.discrepancy_resolved',
+            entity_type='PaymentDiscrepancy',
+            entity_id=discrepancy.id,
+            actor_id=str(resolved_by.id) if resolved_by else None,
+            foundation_id=foundation_id,
+            school_id=discrepancy.payment.school_id if discrepancy.payment else None,
+            diff={'resolution': str(resolution), 'notes': notes},
+        )
 
     return discrepancy
 
