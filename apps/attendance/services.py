@@ -1477,3 +1477,392 @@ def reject_absence_request(
     return absence_request
 
 
+def send_absence_alert(
+    student: Student,
+    school: Any,
+    target_date: Any,
+    cutoff_time: Any,
+    foundation_id: str,
+) -> int:
+    """
+    Dispatches high-priority absence notification to linked guardians of an unexcused absent student (spec/05 ATT-006, spec/13).
+    Uses NotificationCategory.ABSENCE and template 'attendance.absent'.
+    Returns count of notification intents dispatched.
+    """
+    from apps.identity.models import GuardianLink
+    from apps.notifications.models import NotificationCategory, NotificationPriority
+    from apps.notifications.services import dispatch_intent
+
+    guardian_links = GuardianLink.objects.filter(
+        foundation_id=foundation_id,
+        student=student,
+        deleted_at__isnull=True,
+    ).select_related('guardian__person', 'guardian__user')
+
+    if not guardian_links.exists():
+        return 0
+
+    school_name = school.name if school else 'Sekolah'
+    student_name = student.person.full_name if (student.person and student.person.full_name) else (student.nis or 'Siswa')
+    date_str = target_date.strftime('%Y-%m-%d')
+    cutoff_str = cutoff_time.strftime('%H:%M')
+
+    dispatched_count = 0
+    for link in guardian_links:
+        guardian = link.guardian
+        user = guardian.user
+        phone = (getattr(user, 'phone_e164', None) or getattr(user, 'phone', '')) if user else ''
+        email = getattr(user, 'email', '') if user else ''
+        guardian_name = guardian.person.full_name if (guardian.person and guardian.person.full_name) else 'Wali Murid'
+
+        if not phone and not user:
+            continue
+
+        dedupe_key = f"absence:{student.id}:{date_str}:{guardian.id}"
+        payload = {
+            'type': NotificationCategory.ABSENCE,
+            'student_id': student.id,
+            'student_name': student_name,
+            'guardian_name': guardian_name,
+            'school_name': school_name,
+            'cutoff_time': cutoff_str,
+            'date': date_str,
+        }
+
+        dispatch_intent(
+            foundation_id=foundation_id,
+            school_id=school.id,
+            recipient_user=user,
+            recipient_phone=phone,
+            recipient_email=email,
+            recipient_name=guardian_name,
+            category=NotificationCategory.ABSENCE,
+            template_key='attendance.absent',
+            payload=payload,
+            priority=NotificationPriority.HIGH,
+            dedupe_key=dedupe_key,
+            immediate=True,
+        )
+        dispatched_count += 1
+
+    return dispatched_count
+
+
+def mark_absent_students_for_school(
+    school: Any,
+    target_date: Optional[Any] = None,
+    dry_run: bool = False,
+    user: Optional[Any] = None,
+    force_cutoff: bool = False,
+) -> Dict[str, Any]:
+    """
+    Automated daily absence sweep for a school (spec/05 §3 ATT-001..005, deploy/crontab:19).
+    
+    Invariants:
+    - ATT-001: Daily status must derive automatically: no scan by absent_cutoff and no approved request -> ALPA.
+    - ATT-002: Approved absence request overrides daily status to SAKIT or IZIN.
+    - ATT-003: Staff manual override (is_override=True) or existing attendance is preserved.
+    - ATT-005: Non-school days (weekends, national holidays, school holidays from academic calendar)
+      MUST NOT generate ALPA.
+    - Idempotent: Multiple runs on the same date will not re-mark or re-notify students.
+    """
+    import datetime
+    import zoneinfo
+    from apps.attendance.models import (
+        AttendanceDay, AttendanceRule, AttendanceSource, AttendanceStatus,
+        AbsenceRequest, AbsenceRequestStatus, GateEvent, GateEventStatus,
+    )
+    from apps.identity.models import Student
+    from apps.academic.models import AcademicCalendarEvent, AcademicCalendarEventType, ClassEnrollment
+
+    foundation_id = school.foundation_id
+
+    # 1. Determine school local datetime
+    school_tz_str = getattr(school, 'timezone', None) or 'Asia/Jakarta'
+    try:
+        school_tz = zoneinfo.ZoneInfo(school_tz_str)
+    except Exception:
+        school_tz = zoneinfo.ZoneInfo('Asia/Jakarta')
+
+    now_local = timezone.now().astimezone(school_tz)
+    today_local = now_local.date()
+
+    if target_date is None:
+        target_date = today_local
+
+    # 2. Check future date
+    if target_date > today_local:
+        return {
+            'school_id': str(school.id),
+            'school_name': school.name,
+            'date': target_date.isoformat(),
+            'status': 'SKIPPED_FUTURE_DATE',
+            'reason': 'Tanggal target berada di masa depan.',
+            'total_students': 0,
+            'already_recorded': 0,
+            'excused_from_requests': 0,
+            'marked_alpa': 0,
+            'notifications_dispatched': 0,
+        }
+
+    # 3. Retrieve AttendanceRule & evaluate cutoff time
+    rule = AttendanceRule.objects.filter(
+        foundation_id=foundation_id,
+        school=school,
+        deleted_at__isnull=True,
+    ).first()
+
+    absent_cutoff_time = rule.absent_cutoff_time if rule else datetime.time(9, 0, 0)
+
+    # If target_date is today, verify cutoff time has elapsed (unless force_cutoff=True)
+    if target_date == today_local and not force_cutoff:
+        current_time = now_local.time()
+        if current_time < absent_cutoff_time:
+            return {
+                'school_id': str(school.id),
+                'school_name': school.name,
+                'date': target_date.isoformat(),
+                'status': 'SKIPPED_BEFORE_CUTOFF',
+                'reason': f"Waktu sekarang ({current_time.strftime('%H:%M')}) belum melewati batas waktu cutoff ({absent_cutoff_time.strftime('%H:%M')}).",
+                'cutoff_time': absent_cutoff_time.strftime('%H:%M'),
+                'total_students': 0,
+                'already_recorded': 0,
+                'excused_from_requests': 0,
+                'marked_alpa': 0,
+                'notifications_dispatched': 0,
+            }
+
+    # 4. ATT-005: Weekend and Holiday checks
+    # Sunday is non-school day (weekday == 6 in Python)
+    if target_date.weekday() == 6:
+        return {
+            'school_id': str(school.id),
+            'school_name': school.name,
+            'date': target_date.isoformat(),
+            'status': 'SKIPPED_NON_SCHOOL_DAY',
+            'reason': 'Hari Minggu adalah hari libur (ATT-005).',
+            'total_students': 0,
+            'already_recorded': 0,
+            'excused_from_requests': 0,
+            'marked_alpa': 0,
+            'notifications_dispatched': 0,
+        }
+
+    # Check academic calendar holidays affecting attendance
+    target_start_dt = datetime.datetime.combine(target_date, datetime.time.min, tzinfo=school_tz)
+    target_end_dt = datetime.datetime.combine(target_date, datetime.time.max, tzinfo=school_tz)
+
+    holiday_events = list(AcademicCalendarEvent.objects.filter(
+        foundation_id=foundation_id,
+        school=school,
+        deleted_at__isnull=True,
+        affects_attendance=True,
+        event_type=AcademicCalendarEventType.HOLIDAY,
+        start_at__lte=target_end_dt,
+        end_at__gte=target_start_dt,
+    ).prefetch_related('class_groups'))
+
+    # Check for school-wide holiday (no specific class groups specified)
+    school_wide_holiday = next((h for h in holiday_events if not h.class_groups.exists()), None)
+    if school_wide_holiday:
+        return {
+            'school_id': str(school.id),
+            'school_name': school.name,
+            'date': target_date.isoformat(),
+            'status': 'SKIPPED_HOLIDAY',
+            'reason': f"Hari libur kalender akademik sekolah: {school_wide_holiday.title} (ATT-005).",
+            'total_students': 0,
+            'already_recorded': 0,
+            'excused_from_requests': 0,
+            'marked_alpa': 0,
+            'notifications_dispatched': 0,
+        }
+
+    # Identify class groups that have holidays on this date
+    holiday_class_group_ids = set()
+    for h in holiday_events:
+        for cg in h.class_groups.all():
+            holiday_class_group_ids.add(cg.id)
+
+    # 5. Query active enrolled students in this school
+    active_students = list(
+        Student.objects.filter(
+            foundation_id=foundation_id,
+            school=school,
+            status=Student.STATUS_ACTIVE,
+            deleted_at__isnull=True,
+        ).select_related('person')
+    )
+
+    if not active_students:
+        return {
+            'school_id': str(school.id),
+            'school_name': school.name,
+            'date': target_date.isoformat(),
+            'status': 'NO_ACTIVE_STUDENTS',
+            'total_students': 0,
+            'already_recorded': 0,
+            'excused_from_requests': 0,
+            'marked_alpa': 0,
+            'notifications_dispatched': 0,
+        }
+
+    # 6. Fetch existing attendance records for the date
+    existing_attendance_days = {
+        att.student_id: att
+        for att in AttendanceDay.objects.filter(
+            foundation_id=foundation_id,
+            school=school,
+            date=target_date,
+            deleted_at__isnull=True,
+        )
+    }
+
+    # Fetch accepted gate events for the date
+    gate_event_student_ids = set(
+        GateEvent.objects.filter(
+            foundation_id=foundation_id,
+            school=school,
+            occurred_at__gte=target_start_dt,
+            occurred_at__lte=target_end_dt,
+            status=GateEventStatus.ACCEPTED,
+            student__isnull=False,
+            deleted_at__isnull=True,
+        ).values_list('student_id', flat=True)
+    )
+
+    # Fetch approved absence requests covering target_date
+    approved_requests = {
+        req.student_id: req
+        for req in AbsenceRequest.objects.filter(
+            foundation_id=foundation_id,
+            school=school,
+            status=AbsenceRequestStatus.APPROVED,
+            date_from__lte=target_date,
+            date_to__gte=target_date,
+            deleted_at__isnull=True,
+        )
+    }
+
+    # Map student active class enrollment if class-specific holidays exist
+    student_class_map = {}
+    if holiday_class_group_ids:
+        for enr in ClassEnrollment.objects.filter(
+            foundation_id=foundation_id,
+            student__in=active_students,
+            is_active=True,
+            deleted_at__isnull=True,
+        ):
+            student_class_map[enr.student_id] = enr.class_group_id
+
+    actor_id = str(user.id) if user and getattr(user, 'id', None) else ''
+
+    already_recorded_count = 0
+    excused_count = 0
+    holiday_exempt_count = 0
+    alpa_count = 0
+    notifications_count = 0
+
+    with transaction.atomic():
+        for student in active_students:
+            # Check if student already has AttendanceDay record
+            if student.id in existing_attendance_days:
+                already_recorded_count += 1
+                continue
+
+            # Check if student scanned at gate
+            if student.id in gate_event_student_ids:
+                already_recorded_count += 1
+                continue
+
+            # Check if student belongs to a class group with holiday exemption (ATT-005)
+            if holiday_class_group_ids:
+                cg_id = student_class_map.get(student.id)
+                if cg_id in holiday_class_group_ids:
+                    holiday_exempt_count += 1
+                    continue
+
+            # Check if student has approved absence request (ATT-002)
+            if student.id in approved_requests:
+                req = approved_requests[student.id]
+                note_text = f"Disetujui: {req.reason}"
+                if not dry_run:
+                    AttendanceDay.objects.create(
+                        foundation_id=foundation_id,
+                        school=school,
+                        student=student,
+                        date=target_date,
+                        status=req.type,  # SAKIT or IZIN
+                        source=AttendanceSource.MANUAL,
+                        is_override=True,
+                        note=note_text,
+                        created_by=actor_id,
+                    )
+                excused_count += 1
+                continue
+
+            # Unrecorded and unexcused -> mark ALPA (ATT-001)
+            alpa_count += 1
+            if not dry_run:
+                att_day = AttendanceDay.objects.create(
+                    foundation_id=foundation_id,
+                    school=school,
+                    student=student,
+                    date=target_date,
+                    status=AttendanceStatus.ALPA,
+                    source=AttendanceSource.SYSTEM,
+                    note=f"Tidak hadir tanpa keterangan hingga batas cutoff {absent_cutoff_time.strftime('%H:%M')} WIB (ATT-001)",
+                    created_by=actor_id,
+                )
+
+                audit(
+                    action='attendance.day.auto_marked_alpa',
+                    entity_type='AttendanceDay',
+                    entity_id=att_day.id,
+                    actor_id=actor_id,
+                    foundation_id=foundation_id,
+                    school_id=school.id,
+                    diff={
+                        'student_id': str(student.id),
+                        'date': target_date.isoformat(),
+                        'status': AttendanceStatus.ALPA,
+                        'source': AttendanceSource.SYSTEM,
+                        'cutoff_time': absent_cutoff_time.strftime('%H:%M:%S'),
+                    }
+                )
+
+                record_domain_event(
+                    name='attendance.day.auto_marked_alpa',
+                    foundation_id=foundation_id,
+                    payload={
+                        'attendance_day_id': str(att_day.id),
+                        'school_id': str(school.id),
+                        'student_id': str(student.id),
+                        'date': target_date.isoformat(),
+                        'cutoff_time': absent_cutoff_time.strftime('%H:%M:%S'),
+                    }
+                )
+
+                dispatched = send_absence_alert(
+                    student=student,
+                    school=school,
+                    target_date=target_date,
+                    cutoff_time=absent_cutoff_time,
+                    foundation_id=foundation_id,
+                )
+                notifications_count += dispatched
+
+    return {
+        'school_id': str(school.id),
+        'school_name': school.name,
+        'date': target_date.isoformat(),
+        'status': 'COMPLETED' if not dry_run else 'DRY_RUN',
+        'total_students': len(active_students),
+        'already_recorded': already_recorded_count,
+        'excused_from_requests': excused_count,
+        'holiday_exempt': holiday_exempt_count,
+        'marked_alpa': alpa_count,
+        'notifications_dispatched': notifications_count,
+    }
+
+

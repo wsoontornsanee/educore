@@ -270,6 +270,9 @@ def render_template_message(
         elif template_key == 'academic.permission_slip.new':
             body_fmt = "Permintaan izin baru: {message}"
             subj_fmt = "Permintaan Izin Baru"
+        elif template_key == 'attendance.absent':
+            body_fmt = "Pemberitahuan: Ananda {student_name} belum tercatat hadir di {school_name} hingga batas waktu {cutoff_time} WIB pada {date}. Mohon konfirmasi kehadiran siswa."
+            subj_fmt = "Pemberitahuan Ketidakhadiran Siswa"
         else:
             body_fmt = "Pemberitahuan sekolah: {message}"
             subj_fmt = "Pemberitahuan EduCore"
