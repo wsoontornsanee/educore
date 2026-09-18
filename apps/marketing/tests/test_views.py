@@ -76,6 +76,25 @@ class MarketingPagesTests(TestCase):
         self.assertContains(response, 'data-changelog-category="portal-web"')
         self.assertContains(response, 'data-changelog-category="aplikasi-seluler"')
 
+    def test_status_page_renders(self):
+        response = self.client.get(reverse('marketing:status'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Semua sistem beroperasi normal.')
+        self.assertContains(response, 'Portal web')
+        self.assertContains(response, 'Partner API')
+        self.assertContains(response, 'Keterlambatan notifikasi WhatsApp kedatangan')
+
+    def test_status_page_translates_to_english(self):
+        self.client.cookies['django_language'] = 'en'
+        response = self.client.get(reverse('marketing:status'))
+        self.assertEqual(response.headers.get('Content-Language'), 'en')
+        self.assertContains(response, 'All systems operational.')
+        self.assertNotContains(response, 'Semua sistem')
+
+    def test_footer_links_status_to_the_real_page(self):
+        response = self.client.get(reverse('marketing:home'))
+        self.assertContains(response, reverse('marketing:status'))
+
     def test_footer_no_longer_mailtos_compliance_pages(self):
         response = self.client.get(reverse('marketing:home'))
         self.assertContains(response, reverse('marketing:privacy-policy'))
@@ -90,7 +109,7 @@ class MarketingPagesTests(TestCase):
         for name in (
             'marketing:home', 'marketing:downloads', 'marketing:partner-api',
             'marketing:privacy-policy', 'marketing:dpa', 'marketing:data-retention',
-            'marketing:changelog',
+            'marketing:changelog', 'marketing:status',
         ):
             response = self.client.get(reverse(name))
             self.assertNotIn(response.status_code, (301, 302, 401, 403))

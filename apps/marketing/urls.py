@@ -13,4 +13,5 @@ urlpatterns = [
     path('perjanjian-data/', views.DataProcessingAgreementView.as_view(), name='dpa'),
     path('retensi-data/', views.DataRetentionView.as_view(), name='data-retention'),
     path('changelog/', views.ChangelogView.as_view(), name='changelog'),
+    path('status/', views.StatusView.as_view(), name='status'),
 ]
