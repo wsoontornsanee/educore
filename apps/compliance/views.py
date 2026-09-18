@@ -1,12 +1,15 @@
-"""API views for statutory export validation (spec/14 §4, CMP-018)."""
-from rest_framework import status, views
+"""API views for statutory export validation and PII export access audit (spec/14 §3/§4)."""
+from rest_framework import generics, status, views
 from rest_framework.response import Response
 
-from apps.compliance.models import StatutorySystem
+from apps.compliance.models import PiiExportAccessLog, StatutorySystem
+from apps.compliance.serializers import PiiExportAccessLogSerializer
 from apps.compliance.services import validate_statutory_export
+from apps.core.pagination import StandardCursorPagination
 from apps.identity.models import School
 from apps.identity.permissions import HasRequiredPermission
 from educore.middleware.tenancy import get_current_foundation_id
+
 
 
 class StatutoryValidationView(views.APIView):
@@ -47,3 +50,50 @@ class StatutoryValidationView(views.APIView):
             'total_issues': total,
             'issues': issues,
         })
+
+
+class PiiExportAccessLogView(generics.ListAPIView):
+    """
+    GET /foundation/compliance/pii-exports — Audit trail of all PII-bearing exports (CMP-016, RPT-004).
+
+    Filters:
+        - report_key: e.g. 'statutory_dapodik', 'statutory_emis'
+        - exported_by_id: actor ID
+        - school_id: integer school ID
+        - from: YYYY-MM-DD
+        - to: YYYY-MM-DD
+    """
+    serializer_class = PiiExportAccessLogSerializer
+    pagination_class = StandardCursorPagination
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'audit_log.read'
+
+    def get_queryset(self):
+        foundation_id = get_current_foundation_id() or getattr(self.request.user, 'foundation_id', None)
+        if not foundation_id:
+            return PiiExportAccessLog.objects.none()
+
+        qs = PiiExportAccessLog.objects.filter(foundation_id=foundation_id)
+
+        report_key = self.request.query_params.get('report_key')
+        if report_key:
+            qs = qs.filter(report_key=report_key)
+
+        exported_by_id = self.request.query_params.get('exported_by_id')
+        if exported_by_id:
+            qs = qs.filter(exported_by_id=exported_by_id)
+
+        school_id = self.request.query_params.get('school_id')
+        if school_id:
+            qs = qs.filter(school_id=school_id)
+
+        from_date = self.request.query_params.get('from') or self.request.query_params.get('from_date')
+        if from_date:
+            qs = qs.filter(created_at__date__gte=from_date)
+
+        to_date = self.request.query_params.get('to') or self.request.query_params.get('to_date')
+        if to_date:
+            qs = qs.filter(created_at__date__lte=to_date)
+
+        return qs.order_by('-created_at')
+
