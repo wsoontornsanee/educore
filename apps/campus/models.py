@@ -443,3 +443,127 @@ class LibraryPolicy(TenantModel):
 
     def __str__(self):
         return f"LibraryPolicy(school_id={self.school_id}, {self.borrower_type})"
+
+
+class ClinicOutcome(models.TextChoices):
+    RETURNED_TO_CLASS = 'RETURNED_TO_CLASS', _('Kembali ke Kelas')
+    SENT_HOME = 'SENT_HOME', _('Dipulangkan')
+    REFERRED = 'REFERRED', _('Dirujuk')
+
+
+class ClinicPolicy(TenantModel):
+    """Per-school clinic configuration (spec/10 §3 LIF-006)."""
+    school = models.OneToOneField(
+        'identity.School',
+        on_delete=models.CASCADE,
+        related_name='clinic_policy',
+    )
+    teacher_sees_allergies = models.BooleanField(
+        default=True,
+        help_text=_('LIF-006: guru dapat melihat daftar alergi siswa pada ringkasan non-klinis (default aktif karena keselamatan).'),
+    )
+
+    class Meta:
+        db_table = 'campus_clinic_policies'
+        verbose_name = _('Kebijakan Klinik Sekolah')
+        verbose_name_plural = _('Kebijakan Klinik Sekolah')
+
+    def __str__(self):
+        return f"ClinicPolicy(school_id={self.school_id}, teacher_sees_allergies={self.teacher_sees_allergies})"
+
+
+class HealthProfile(TenantModel):
+    """Student medical profile, surfaced above the fold on every clinic visit (LIF-002)."""
+    student = models.OneToOneField(
+        'identity.Student',
+        on_delete=models.CASCADE,
+        related_name='health_profile',
+    )
+    blood_type = models.CharField(max_length=8, blank=True, default='')
+    allergies = models.JSONField(default=list, blank=True)
+    chronic_conditions = models.JSONField(default=list, blank=True)
+    medications = models.JSONField(default=list, blank=True)
+    emergency_contacts = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = 'campus_health_profiles'
+        verbose_name = _('Profil Kesehatan Siswa')
+        verbose_name_plural = _('Profil Kesehatan Siswa')
+
+    @property
+    def has_medical_alert(self) -> bool:
+        return bool(self.allergies or self.chronic_conditions or self.medications)
+
+    def __str__(self):
+        return f"HealthProfile(student_id={self.student_id})"
+
+
+class MedicationStock(TenantModel):
+    """UKS medication/first-aid inventory (spec/10 §2, LIF-004, LIF-005)."""
+    school = models.ForeignKey(
+        'identity.School',
+        on_delete=models.CASCADE,
+        related_name='medication_stocks',
+    )
+    name = models.CharField(max_length=255)
+    unit = models.CharField(max_length=32)
+    quantity = models.IntegerField(default=0)
+    expiry_date = models.DateField()
+    reorder_level = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = 'campus_medication_stock'
+        ordering = ['name']
+
+    def __str__(self):
+        return f"MedicationStock({self.name}, qty={self.quantity})"
+
+
+class ClinicVisit(TenantModel):
+    """A single UKS clinic visit encounter (spec/10 §2, §3, LIF-001..007)."""
+    school = models.ForeignKey(
+        'identity.School',
+        on_delete=models.CASCADE,
+        related_name='clinic_visits',
+    )
+    student = models.ForeignKey(
+        'identity.Student',
+        on_delete=models.CASCADE,
+        related_name='clinic_visits',
+    )
+    occurred_at = models.DateTimeField(default=timezone.now)
+    complaint_encrypted = models.TextField(
+        help_text=_('LIF-007: keluhan terenkripsi Fernet, lihat apps.campus.crypto.'),
+    )
+    treatment_encrypted = models.TextField(
+        blank=True, default='',
+        help_text=_('LIF-007: penanganan terenkripsi Fernet, lihat apps.campus.crypto.'),
+    )
+    vitals = models.JSONField(default=dict, blank=True)
+    medication_given = models.ForeignKey(
+        MedicationStock,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name='clinic_visits',
+    )
+    medication_quantity_used = models.IntegerField(null=True, blank=True)
+    outcome = models.CharField(max_length=20, choices=ClinicOutcome.choices)
+    handled_by = models.ForeignKey(
+        'identity.Staff',
+        on_delete=models.PROTECT,
+        related_name='handled_clinic_visits',
+    )
+    guardian_consent_confirmed = models.BooleanField(default=False)
+    guardian_consent_note = models.CharField(max_length=255, blank=True, default='')
+    guardian_notified_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'campus_clinic_visits'
+        ordering = ['-occurred_at', '-id']
+        indexes = [
+            models.Index(fields=['foundation_id', 'school_id', 'occurred_at']),
+            models.Index(fields=['foundation_id', 'student_id', 'occurred_at']),
+        ]
+
+    def __str__(self):
+        return f"ClinicVisit(student_id={self.student_id}, outcome={self.outcome})"
