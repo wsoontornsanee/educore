@@ -1366,6 +1366,7 @@ def approve_absence_request(
 
     # ATT-002: Override daily status for each date in the window
     note_text = f"Disetujui: {absence_request.reason}" if not note else f"Disetujui: {note}"
+    periods_created_by_date = {}
     current_date = absence_request.date_from
     while current_date <= absence_request.date_to:
         att_day = AttendanceDay.all_tenants.filter(
@@ -1397,7 +1398,37 @@ def approve_absence_request(
                 note=note_text,
                 created_by=actor_id,
             )
+
+        # LIF-003's own gap: a day-level SAKIT/IZIN override, like the clinic one, must
+        # also excuse the day's PeriodAttendance rows, or the DSAR export and teacher
+        # agenda still show it as unrecorded. Unlike the clinic override (a same-day
+        # partial excuse from a specific moment on), an approved absence request excuses
+        # the WHOLE day — no after_time cutoff.
+        created_slot_ids = mark_period_attendance_for_day(
+            foundation_id=absence_request.foundation_id,
+            school=absence_request.school,
+            student=absence_request.student,
+            date=current_date,
+            status=absence_request.type,
+            source=PeriodAttendanceSource.MANUAL,
+            note=note_text,
+            user=decided_by,
+        )
+        if created_slot_ids:
+            periods_created_by_date[current_date.isoformat()] = created_slot_ids
+
         current_date += _dt.timedelta(days=1)
+
+    if periods_created_by_date:
+        audit(
+            action='attendance.absence_request.periods_overridden',
+            entity_type='AbsenceRequest',
+            entity_id=absence_request.id,
+            actor_id=actor_id,
+            foundation_id=absence_request.foundation_id,
+            school_id=absence_request.school_id,
+            diff={'student_id': str(absence_request.student_id), 'slot_ids_by_date': periods_created_by_date},
+        )
 
     audit(
         action='attendance.absence_request.approved',
@@ -1559,6 +1590,72 @@ def get_school_timezone(school: Any):
         return zoneinfo.ZoneInfo(school_tz_str)
     except Exception:
         return zoneinfo.ZoneInfo('Asia/Jakarta')
+
+
+def mark_period_attendance_for_day(
+    *,
+    foundation_id: str,
+    school: Any,
+    student: Any,
+    date: Any,
+    status: str,
+    source: str,
+    note: str,
+    user: Optional[Any] = None,
+    after_time: Optional[Any] = None,
+) -> list:
+    """Writes a PeriodAttendance row for every one of the student's scheduled TimetableSlots
+    on `date` (or, if `after_time` is given, only those whose `start_time` is after it — a
+    same-day partial excuse from a specific moment on, as opposed to the whole day). Uses
+    get_or_create so an already-recorded period (a teacher's real earlier-in-the-day
+    attendance, or a previous call for the same date) is never overwritten.
+
+    Generalizes the day-level-override-to-remaining-periods cascade originally built for
+    clinic visits (LIF-003) so `approve_absence_request` can reuse it for a whole excused
+    day, rather than each caller re-deriving the same TimetableSlot lookup. Deliberately NOT
+    folded into `override_attendance_day` itself: that function's other caller (the manual
+    staff attendance-correction endpoint) retroactively fixes an already-elapsed day's
+    status, where cascading to "remaining periods" would be semantically wrong — this stays
+    an explicit opt-in helper, not automatic behavior for every day-level override.
+
+    Queries use the unscoped `all_tenants` manager with an explicit `foundation_id` filter
+    (not the ambient-thread-local-dependent default manager), so this works correctly even
+    called outside an HTTP request's tenancy context. Returns the list of newly-created
+    TimetableSlot ids — callers decide whether/how to audit that.
+    """
+    from apps.academic.models import ClassEnrollment, TimetableSlot
+    from apps.attendance.models import PeriodAttendance
+
+    class_group_ids = ClassEnrollment.all_tenants.filter(
+        foundation_id=foundation_id, student=student, is_active=True, deleted_at__isnull=True,
+    ).values_list('class_group_id', flat=True)
+
+    # Scoped by class_subject__class_group__school too, not just foundation_id: a stale
+    # duplicate active ClassEnrollment in a different school within the same foundation
+    # must never pull in that other school's timetable slots.
+    slots = TimetableSlot.all_tenants.filter(
+        foundation_id=foundation_id,
+        class_subject__class_group_id__in=class_group_ids,
+        class_subject__class_group__school=school,
+        day_of_week=date.isoweekday(),
+        deleted_at__isnull=True,
+    )
+    if after_time is not None:
+        slots = slots.filter(start_time__gt=after_time)
+
+    created_slot_ids = []
+    for slot in slots:
+        _record, created = PeriodAttendance.all_tenants.get_or_create(
+            foundation_id=foundation_id,
+            student=student,
+            slot=slot,
+            date=date,
+            defaults={'status': status, 'source': source, 'note': note, 'recorded_by': user},
+        )
+        if created:
+            created_slot_ids.append(slot.id)
+
+    return created_slot_ids
 
 
 def mark_absent_students_for_school(
