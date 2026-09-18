@@ -10,9 +10,11 @@ otherwise). permission=None means "always shown to any authenticated
 staff user" (used only for the task inbox item: every source it lists
 applies its own permission/ownership check, see apps.identity.inbox).
 
-Only 'inbox' and 'permission_slips' have real destinations (console-inbox,
-permission-slip-console-page). Every other item still routes to the
-'console:coming_soon' placeholder in this table (kept so a future task can flip one item's url_name the moment
+Only 'inbox', 'permission_slips' and the three Keuangan items have real
+destinations (console-inbox, permission-slip-console-page,
+finance-console-*). Every other item still routes to the
+'console:coming_soon' placeholder in this table (kept so a future task can
+flip one item's url_name the moment
 its real page ships), but get_nav_for_user hides every coming_soon item
 from the rendered nav — reported as a bug (2026-09-19): a user with full
 permissions saw the whole menu, clicked into modules that only ever showed
@@ -54,9 +56,9 @@ NAV_GROUPS = [
         {"id": "exam", "label": _("Mode ujian"), "permission": "grades.read", "url_name": "console:coming_soon"},
     ]},
     {"label": _("Keuangan"), "items": [
-        {"id": "billing", "label": _("Tagihan & pembayaran"), "permission": "finance.invoice.read", "url_name": "console:coming_soon"},
-        {"id": "recon", "label": _("Rekonsiliasi"), "permission": "finance.payment.read", "url_name": "console:coming_soon"},
-        {"id": "ar", "label": _("Piutang & keringanan"), "permission": "finance.invoice.read", "url_name": "console:coming_soon"},
+        {"id": "billing", "label": _("Tagihan & pembayaran"), "permission": "finance.invoice.read", "url_name": "finance-console-billing", "requires_staff_profile": True},
+        {"id": "recon", "label": _("Rekonsiliasi"), "permission": "finance.payment.read", "url_name": "finance-console-reconciliation", "requires_staff_profile": True},
+        {"id": "ar", "label": _("Piutang & keringanan"), "permission": "finance.invoice.read", "url_name": "finance-console-receivables", "requires_staff_profile": True},
     ]},
     {"label": _("Administrasi"), "items": [
         {"id": "staff", "label": _("Staf & jabatan"), "permission": "school_config.read", "url_name": "console:coming_soon"},
@@ -88,7 +90,7 @@ def _cumulative_permissions(user, foundation_id):
     return permissions
 
 
-def _has_staff_profile(user, foundation_id):
+def has_staff_profile(user, foundation_id):
     """Explicit foundation_id filter via .all_tenants, not the thread-local-
     dependent .objects — matches the same explicit-scoping convention used
     throughout apps.identity.web_views (this runs inside a global context
@@ -112,7 +114,7 @@ def get_nav_for_user(user, foundation_id):
     needs_staff_check = any(
         item.get("requires_staff_profile") for group in NAV_GROUPS for item in group["items"]
     )
-    has_staff = _has_staff_profile(user, foundation_id) if needs_staff_check else None
+    has_staff = has_staff_profile(user, foundation_id) if needs_staff_check else None
 
     result = []
     for group in NAV_GROUPS:

@@ -6,7 +6,7 @@ Implements Accounts Receivable (AR) aging calculation across:
 """
 import datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 from django.utils import timezone
 
 from apps.academic.models import ClassEnrollment
@@ -39,8 +39,12 @@ def get_ar_aging_report(
     school: Optional[School] = None,
     class_group_id: Optional[int] = None,
     student_id: Optional[int] = None,
+    school_ids: Optional[Iterable[int]] = None,
 ) -> Dict[str, Any]:
     """Generates AR aging report across 0-30, 31-60, 61-90, 90+ buckets (FIN-029).
+
+    `school_ids` restricts the report to those schools (school-scoped staff);
+    None means no restriction.
 
     Rolls up outstanding tuition and fees by:
     1. Overall summary across aging buckets.
@@ -58,6 +62,8 @@ def get_ar_aging_report(
 
     if school:
         invoices_qs = invoices_qs.filter(school=school)
+    if school_ids is not None:
+        invoices_qs = invoices_qs.filter(school_id__in=school_ids)
 
     if student_id:
         invoices_qs = invoices_qs.filter(student_id=student_id)
@@ -70,6 +76,8 @@ def get_ar_aging_report(
     ).select_related('class_group')
     if school:
         enrollments_qs = enrollments_qs.filter(student__school=school)
+    if school_ids is not None:
+        enrollments_qs = enrollments_qs.filter(student__school_id__in=school_ids)
 
     enrollments = {e.student_id: e.class_group for e in enrollments_qs}
 

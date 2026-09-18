@@ -22,7 +22,7 @@ from .inbox import get_inbox_for_user
 from .landing import resolve_post_login_redirect
 from .models import RoleAssignment, Student
 from .nav import get_nav_for_user
-from .rbac import has_permission, SCOPE_SCHOOL
+from .rbac import has_permission, has_permission_in_any_scope, SCOPE_SCHOOL
 from .social_auth import (
     AccountNotLinkedError,
     SocialAuthError,
@@ -486,15 +486,7 @@ class _ConsoleLandingView(LoginRequiredMixin, TemplateView):
     def _user_has_required_permission(self, user, foundation_id):
         if self.required_permission is None or not foundation_id:
             return True
-        if has_permission(user, self.required_permission, foundation_id, school_id=None):
-            return True
-        assigned_schools = RoleAssignment.all_tenants.filter(
-            foundation_id=foundation_id, user=user, scope_type=SCOPE_SCHOOL, deleted_at__isnull=True,
-        ).values_list('scope_id', flat=True)
-        return any(
-            has_permission(user, self.required_permission, foundation_id, school_id=school_id)
-            for school_id in assigned_schools
-        )
+        return has_permission_in_any_scope(user, self.required_permission, foundation_id)
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)

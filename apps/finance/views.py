@@ -589,38 +589,13 @@ class FinancialScopeMixin:
         """Returns (unrestricted, staff_school_ids, financial_student_ids) where
         unrestricted=True means foundation-wide finance/admin staff.
         """
-        from apps.identity.models import RoleAssignment
+        from apps.finance.scope import staff_school_scope
         from apps.identity.guardian_access import get_guardian_student_ids
 
-        user = self.request.user
-        if user.is_superuser:
+        staff_school_ids = staff_school_scope(self.request.user, foundation_id)
+        if staff_school_ids is None:
             return True, set(), set()
-
-        has_fnd_admin = RoleAssignment.all_tenants.filter(
-            foundation_id=foundation_id,
-            user=user,
-            role__in=[
-                RoleAssignment.ROLE_FOUNDATION_ADMIN,
-                RoleAssignment.ROLE_FINANCE_OFFICER,
-            ],
-            scope_type=RoleAssignment.SCOPE_FOUNDATION,
-            deleted_at__isnull=True,
-        ).exists()
-        if has_fnd_admin:
-            return True, set(), set()
-
-        staff_school_ids = set(RoleAssignment.all_tenants.filter(
-            foundation_id=foundation_id,
-            user=user,
-            role__in=[
-                RoleAssignment.ROLE_SCHOOL_ADMIN,
-                RoleAssignment.ROLE_FINANCE_OFFICER,
-            ],
-            scope_type=RoleAssignment.SCOPE_SCHOOL,
-            deleted_at__isnull=True,
-        ).values_list('scope_id', flat=True))
-
-        financial_student_ids = get_guardian_student_ids(user, foundation_id, financial_only=True)
+        financial_student_ids = get_guardian_student_ids(self.request.user, foundation_id, financial_only=True)
         return False, staff_school_ids, financial_student_ids
 
 
