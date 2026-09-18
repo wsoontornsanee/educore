@@ -50,6 +50,28 @@ class GetNavForUserTests(TestCase):
         item_ids = {item['id'] for group in nav for item in group['items']}
         self.assertIn('permission_slips', item_ids)
 
+    def test_akademik_items_require_staff_profile_and_permission(self):
+        """Siswa & kelas resolves to a real page that 404s without a Staff
+        profile (a guardian holds student_records.read too), so the nav must
+        hide it for a permission-holding user with no Staff row."""
+        nav = get_nav_for_user(self.teacher, self.foundation.id)
+        ids = {item['id'] for group in nav for item in group['items']}
+        self.assertFalse({'roster', 'schedule', 'grading'} & ids)
+
+        person = Person.objects.create(foundation_id=self.foundation.id, full_name='Teacher One')
+        Staff.objects.create(
+            foundation_id=self.foundation.id, person=person, user=self.teacher, school=self.school,
+            join_date=timezone.localdate(),
+        )
+        nav = get_nav_for_user(self.teacher, self.foundation.id)
+        akademik = next(group for group in nav if str(group['label']) == 'Akademik')
+        roster = next(item for item in akademik['items'] if item['id'] == 'roster')
+        self.assertEqual(roster['url_name'], 'academic-class-list-page')
+        schedule = next(item for item in akademik['items'] if item['id'] == 'schedule')
+        self.assertEqual(schedule['url_name'], 'academic-timetable-page')
+        grading = next(item for item in akademik['items'] if item['id'] == 'grading')
+        self.assertEqual(grading['url_name'], 'academic-grading-queue-page')
+
     def test_coming_soon_items_are_hidden_even_with_permission(self):
         """Regression test (2026-09-19): a coming_soon item must never
         render, even for a user who holds its RBAC permission -- clicking
@@ -63,8 +85,6 @@ class GetNavForUserTests(TestCase):
         nav = get_nav_for_user(self.teacher, self.foundation.id)
         item_ids = {item['id'] for group in nav for item in group['items']}
         self.assertIn('inbox', item_ids)
-        self.assertNotIn('grading', item_ids)
-        self.assertNotIn('roster', item_ids)
         self.assertIn('permission_slips', item_ids)
 
     def test_operasional_pages_shown_only_with_a_linked_staff_profile(self):

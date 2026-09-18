@@ -6,14 +6,18 @@ Page: Administrasi > Pengaturan sekolah > edit one school's profile. Served by
 apps.foundation.web_views.SchoolSettingsUpdateView.
 {% endcomment %}
 
-{% block title %}{% blocktranslate with name=school.name %}Pengaturan {{ name }} — EduCore{% endblocktranslate %}{% endblock %}
+{% block title %}{% if school %}{% blocktranslate with name=school.name %}Pengaturan {{ name }} — EduCore{% endblocktranslate %}{% else %}{% translate "Tambah sekolah — EduCore" %}{% endif %}{% endblock %}
 
 {% block console_content %}
 <main style="display:flex;flex-direction:column;gap:20px;max-width:1080px">
   <header>
     <a class="text-body-sm text-ink-500" href="{% url 'admin-settings' %}">← {% translate "Pengaturan sekolah" %}</a>
+    {% if school %}
     <h1 class="text-h2 font-display text-ink-900" style="margin:6px 0 0">{{ school.name }}</h1>
     <p class="text-body-sm text-ink-500" style="margin:6px 0 0">{% blocktranslate with npsn=school.npsn %}NPSN {{ npsn }} (tidak dapat diubah dari halaman ini).{% endblocktranslate %}</p>
+    {% else %}
+    <h1 class="text-h2 font-display text-ink-900" style="margin:6px 0 0">{% translate "Tambah sekolah" %}</h1>
+    {% endif %}
   </header>
 
   <section class="card" style="padding:24px">

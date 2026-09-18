@@ -7373,6 +7373,7 @@ msgid "Sedang diproses"
 msgstr "Processing"
 
 
+
 #: apps/identity/web_admin_views.py
 #, python-format
 msgid "Staf %(name)s ditambahkan."
@@ -7450,3 +7451,129 @@ msgstr "Resignation date"
 #: apps/identity/web_admin_views.py
 msgid "Alihkan kelas ke"
 msgstr "Reassign classes to"
+
+
+msgid "Tambah sekolah — EduCore"
+msgstr "Add school — EduCore"
+
+msgid "Tambah sekolah"
+msgstr "Add school"
+
+msgid "Sekolah ditambahkan."
+msgstr "School added."
+
+msgid "Sekolah diaktifkan."
+msgstr "School activated."
+
+msgid "Sekolah dinonaktifkan."
+msgstr "School deactivated."
+
+msgid "NPSN harus terdiri dari 8 digit angka."
+msgstr "NPSN must be exactly 8 digits."
+
+msgid "NPSN ini sudah terdaftar."
+msgstr "This NPSN is already registered."
+
+msgid "Nonaktifkan sekolah ini? Sekolah tidak lagi diproses oleh tugas terjadwal dan konsol operasional."
+msgstr "Deactivate this school? It will no longer be processed by scheduled jobs or the operational consoles."
+
+msgid "Nonaktifkan"
+msgstr "Deactivate"
+
+msgid "Aktifkan"
+msgstr "Activate"
+
+
+#: frontend/templates/pages/academic_class_list.html:12
+msgid "Siswa & kelas — EduCore"
+msgstr "Students & classes — EduCore"
+
+#: frontend/templates/pages/academic_class_list.html
+msgid "Tahun ajaran"
+msgstr "Academic year"
+
+#: frontend/templates/pages/academic_class_list.html
+msgid "Semua tahun ajaran aktif"
+msgstr "All active academic years"
+
+#: frontend/templates/pages/academic_class_list.html
+msgid "Tampilkan"
+msgstr "Show"
+
+#: frontend/templates/pages/academic_class_list.html
+msgid "Tingkat"
+msgstr "Grade level"
+
+#: frontend/templates/pages/academic_class_detail.html
+msgid "Wali kelas"
+msgstr "Homeroom teacher"
+
+#: frontend/templates/pages/academic_class_list.html
+msgid "Belum ada kelas"
+msgstr "No classes yet"
+
+#: frontend/templates/pages/academic_class_list.html
+msgid "Tidak ada kelas untuk tahun ajaran yang dipilih."
+msgstr "There are no classes for the selected academic year."
+
+#: frontend/templates/pages/academic_class_detail.html
+msgid "Belum ada siswa"
+msgstr "No students yet"
+
+#: frontend/templates/pages/academic_class_detail.html
+msgid "Kelas ini belum memiliki siswa aktif."
+msgstr "This class has no active students yet."
+
+#: frontend/templates/pages/academic_timetable.html
+msgid "Jadwal — EduCore"
+msgstr "Timetable — EduCore"
+
+#: frontend/templates/pages/academic_timetable.html
+msgid "Lihat jadwal"
+msgstr "View timetable"
+
+#: frontend/templates/pages/academic_timetable.html
+msgid "Jam ke"
+msgstr "Period"
+
+#: frontend/templates/pages/academic_timetable.html
+msgid "Belum ada jadwal"
+msgstr "No timetable yet"
+
+#: frontend/templates/pages/academic_timetable.html
+msgid "Belum ada jam pelajaran yang dijadwalkan untuk pilihan ini."
+msgstr "No periods have been scheduled for this selection."
+
+#: apps/academic/console_views.py
+msgid "Jadwal tidak ditemukan."
+msgstr "Timetable not found."
+
+#: frontend/templates/pages/academic_grading_queue.html
+msgid "Antrean penilaian — EduCore"
+msgstr "Grading queue — EduCore"
+
+#: frontend/templates/pages/academic_grading_queue.html
+msgid "Mata pelajaran & kelas"
+msgstr "Subject & class"
+
+#: frontend/templates/pages/academic_grading_queue.html
+msgid "Menunggu dinilai"
+msgstr "Awaiting grading"
+
+#: frontend/templates/pages/academic_grading_queue.html
+msgid "Dikumpulkan"
+msgstr "Submitted"
+
+#: frontend/templates/pages/academic_grading_queue.html
+msgid "Antrean kosong"
+msgstr "Queue is empty"
+
+#: frontend/templates/pages/academic_grading_queue.html
+msgid "Tidak ada tugas yang menunggu dinilai."
+msgstr "No homework is waiting to be graded."
+
+#: frontend/templates/pages/academic_grading_queue.html
+#, python-format
+msgid "Menampilkan %(shown)s pengumpulan tertua dari %(total)s."
+msgstr "Showing the %(shown)s oldest submissions of %(total)s."
+

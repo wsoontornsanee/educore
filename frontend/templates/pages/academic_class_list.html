@@ -1,0 +1,72 @@
+{% extends "base_console.html" %}
+{% load i18n %}
+
+{% comment %}
+Page: Siswa & kelas — class list (Web Console Akademik, PR 1).
+Served by apps.academic.console_views.ClassListPageView at /web/academic/classes/.
+Parameters: academic_years, selected_year_id (None = every active year), class_groups
+(annotated with active_student_count).
+{% endcomment %}
+
+{% block title %}{% translate "Siswa & kelas — EduCore" %}{% endblock %}
+
+{% block console_content %}
+<main style="display:flex;flex-direction:column;gap:20px;max-width:1040px">
+  <header style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap">
+    <div>
+      <span class="text-label text-ink-500">{% translate "Akademik" %}</span>
+      <h1 class="font-display text-h2 text-ink-900" style="margin:4px 0 0 0">{% translate "Siswa & kelas" %}</h1>
+    </div>
+    <form method="get" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+      <label style="display:flex;flex-direction:column;gap:4px">
+        <span class="text-label text-ink-500">{% translate "Tahun ajaran" %}</span>
+        <select name="academic_year" class="text-body-sm" style="padding:8px 10px;border:1px solid var(--color-line);border-radius:0;background:var(--color-surface)">
+          <option value="">{% translate "Semua tahun ajaran aktif" %}</option>
+          {% for year in academic_years %}
+            <option value="{{ year.id }}"{% if year.id == selected_year_id %} selected{% endif %}>{{ year.school.name }} — {{ year.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button type="submit" class="btn btn-secondary text-body-sm">{% translate "Tampilkan" %}</button>
+    </form>
+  </header>
+
+  {% if class_groups %}
+    <div class="card" style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-family:'IBM Plex Sans',sans-serif;font-size:0.8125rem">
+        <thead>
+          <tr style="border-bottom:2px solid var(--color-line);text-align:left">
+            <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Kelas" %}</th>
+            <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Tingkat" %}</th>
+            <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Sekolah" %}</th>
+            <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Tahun ajaran" %}</th>
+            <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Wali kelas" %}</th>
+            <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Siswa aktif" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for class_group in class_groups %}
+            <tr style="border-bottom:1px solid var(--color-line)">
+              <td class="text-body-sm" style="padding:10px 14px">
+                <a href="{% url 'academic-class-detail-page' class_group.id %}" class="text-ink-900" style="font-weight:600">{{ class_group.name }}</a>
+              </td>
+              <td class="text-body-sm font-mono text-ink-700" style="padding:10px 14px">{{ class_group.grade_level }}</td>
+              <td class="text-body-sm text-ink-700" style="padding:10px 14px">{{ class_group.school.name }}</td>
+              <td class="text-body-sm text-ink-700" style="padding:10px 14px">{{ class_group.academic_year.name }}</td>
+              <td class="text-body-sm text-ink-700" style="padding:10px 14px">
+                {% if class_group.homeroom_teacher %}{{ class_group.homeroom_teacher.person.full_name }}{% else %}—{% endif %}
+              </td>
+              <td class="text-body-sm font-mono text-ink-900" style="padding:10px 14px">{{ class_group.active_student_count }} / {{ class_group.capacity }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="card" style="padding:40px 24px;text-align:center">
+      <h2 class="font-display text-h3 text-ink-900" style="margin:0 0 8px 0">{% translate "Belum ada kelas" %}</h2>
+      <p class="text-body-sm text-ink-700" style="margin:0">{% translate "Tidak ada kelas untuk tahun ajaran yang dipilih." %}</p>
+    </div>
+  {% endif %}
+</main>
+{% endblock %}

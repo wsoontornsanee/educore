@@ -119,6 +119,7 @@ from apps.academic.services import (
     generate_report_cards,
     preview_bulk_score_import,
     get_homework_completion,
+    get_homework_grading_queue,
     get_homework_remind_status,
     get_expected_periods_for_school,
     get_or_create_broadcast_policy,
@@ -515,22 +516,12 @@ class HomeworkViewSet(TenantScopedModelViewSet):
     @action(detail=False, methods=['get'], url_path='grading-queue')
     def grading_queue(self, request):
         """TCH-014: Aggregated cross-homework grading queue."""
-        class_subject_id = request.query_params.get('class_subject_id')
-        homework_id = request.query_params.get('homework_id')
-        include_graded = request.query_params.get('include_graded', '').lower() in ('1', 'true')
-
-        qs = HomeworkSubmission.objects.filter(deleted_at__isnull=True)
-        if class_subject_id:
-            qs = qs.filter(homework__class_subject_id=class_subject_id)
-        if homework_id:
-            qs = qs.filter(homework_id=homework_id)
-        if not include_graded:
-            qs = qs.filter(status__in=[HomeworkSubmissionStatus.SUBMITTED, HomeworkSubmissionStatus.LATE])
-
-        qs = qs.select_related(
-            'homework', 'homework__class_subject', 'homework__class_subject__subject',
-            'homework__class_subject__class_group', 'student', 'student__person', 'graded_by'
-        ).order_by('submitted_at')
+        qs = get_homework_grading_queue(
+            get_current_foundation_id(),
+            homework_id=request.query_params.get('homework_id'),
+            class_subject_id=request.query_params.get('class_subject_id'),
+            include_graded=request.query_params.get('include_graded', '').lower() in ('1', 'true'),
+        )
 
         serializer = HomeworkGradingQueueItemSerializer(qs, many=True)
         return Response(serializer.data)
@@ -539,16 +530,11 @@ class HomeworkViewSet(TenantScopedModelViewSet):
     def homework_grading_queue(self, request, pk=None):
         """TCH-014: Grading queue for a specific homework assignment."""
         homework = self.get_object()
-        include_graded = request.query_params.get('include_graded', '').lower() in ('1', 'true')
-
-        qs = HomeworkSubmission.objects.filter(homework=homework, deleted_at__isnull=True)
-        if not include_graded:
-            qs = qs.filter(status__in=[HomeworkSubmissionStatus.SUBMITTED, HomeworkSubmissionStatus.LATE])
-
-        qs = qs.select_related(
-            'homework', 'homework__class_subject', 'homework__class_subject__subject',
-            'homework__class_subject__class_group', 'student', 'student__person', 'graded_by'
-        ).order_by('submitted_at')
+        qs = get_homework_grading_queue(
+            homework.foundation_id,
+            homework_id=homework.id,
+            include_graded=request.query_params.get('include_graded', '').lower() in ('1', 'true'),
+        )
 
         serializer = HomeworkGradingQueueItemSerializer(qs, many=True)
         return Response(serializer.data)
