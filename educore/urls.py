@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.urls import include, path
 
 from apps.calendar_sync.views import CalendarOAuthCallbackView
-from apps.identity.web_views import FoundationMicrosoftTenantSettingsView, WebLoginView
+from apps.identity.web_views import FoundationMicrosoftTenantSettingsView, WebConsoleHomeView, WebLoginView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -32,6 +32,7 @@ urlpatterns = [
     # Session-auth web (HTMX) pages — HTML responses, distinct from /api/v1/ JSON
     path('web/auth/', include('apps.identity.web_urls')),
     path('web/login/', WebLoginView.as_view(), name='login'),
+    path('web/home/', WebConsoleHomeView.as_view(), name='web-console-home'),
     path('web/foundation/settings/microsoft-tenant/', FoundationMicrosoftTenantSettingsView.as_view(), name='web-foundation-ms-tenant-settings'),
     path('web/academic/', include('apps.academic.web_urls')),
     path('web/status/', include('apps.status.web_urls')),
