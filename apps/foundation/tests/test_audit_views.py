@@ -124,7 +124,7 @@ class FoundationAuditEventViewTests(APITestCase):
 
     def test_filter_by_date_range_excludes_out_of_range(self):
         self.client.force_authenticate(user=self.admin)
-        future = (timezone.now() + timezone.timedelta(days=1)).date().isoformat()
+        future = (timezone.localdate() + timezone.timedelta(days=1)).isoformat()
         with tenant_context(self.foundation.id):
             response = self.client.get(f'/api/v1/foundation/audit?from={future}')
             self.assertEqual(response.data['results'], [])
