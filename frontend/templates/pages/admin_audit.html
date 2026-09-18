@@ -16,6 +16,8 @@ Served by apps.foundation.web_views.AuditLogView at /web/admin/audit/.
     <p class="text-body-sm text-ink-500" style="margin:6px 0 0">{% translate "Catatan permanen setiap perubahan data. Data tidak dapat diubah atau dihapus." %}</p>
   </header>
 
+  {% include "components/_console_flash.html" %}
+
   {% if invalid_dates %}
   <div class="card" role="alert" style="border-left:4px solid var(--color-danger);padding:12px 16px">
     <p class="text-body text-ink-900">{% translate "Format tanggal tidak valid (gunakan YYYY-MM-DD); filter tanggal tersebut diabaikan." %}</p>
@@ -48,6 +50,27 @@ Served by apps.foundation.web_views.AuditLogView at /web/admin/audit/.
     </div>
     <div><button type="submit" class="btn btn-primary">{% translate "Terapkan" %}</button></div>
   </form>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+    <form method="post" action="{% url 'admin-audit-export' %}{% if query_string %}?{{ query_string }}{% endif %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-secondary text-body-sm">{% translate "Ekspor CSV (sesuai filter)" %}</button>
+    </form>
+  </div>
+
+  {% if recent_exports %}
+  <section class="card" style="padding:16px 20px" aria-label="{% translate 'Ekspor terbaru' %}">
+    <h2 class="text-h3 text-ink-900" style="margin:0 0 8px">{% translate "Ekspor terbaru" %}</h2>
+    {% for export in recent_exports %}
+    <div class="text-body-sm" style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-top:1px solid var(--color-line)">
+      <span class="font-mono text-ink-700">{{ export.created_at|date:"d M Y H:i" }}</span>
+      {% if export.download_url %}<a href="{{ export.download_url }}" download>{% translate "Unduh CSV" %}</a>
+      {% elif export.status == "FAILED" %}<span class="text-danger">{% translate "Gagal" %}</span>
+      {% else %}<span class="text-ink-500">{% translate "Sedang diproses" %}</span>{% endif %}
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
 
   {% if events %}
   <div class="card" style="padding:0;overflow-x:auto">
