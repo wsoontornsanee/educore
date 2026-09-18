@@ -7403,3 +7403,44 @@ msgstr "Deactivate"
 
 msgid "Aktifkan"
 msgstr "Activate"
+
+
+#: frontend/templates/pages/academic_class_list.html:12
+msgid "Siswa & kelas — EduCore"
+msgstr "Students & classes — EduCore"
+
+#: frontend/templates/pages/academic_class_list.html
+msgid "Tahun ajaran"
+msgstr "Academic year"
+
+#: frontend/templates/pages/academic_class_list.html
+msgid "Semua tahun ajaran aktif"
+msgstr "All active academic years"
+
+#: frontend/templates/pages/academic_class_list.html
+msgid "Tampilkan"
+msgstr "Show"
+
+#: frontend/templates/pages/academic_class_list.html
+msgid "Tingkat"
+msgstr "Grade level"
+
+#: frontend/templates/pages/academic_class_detail.html
+msgid "Wali kelas"
+msgstr "Homeroom teacher"
+
+#: frontend/templates/pages/academic_class_list.html
+msgid "Belum ada kelas"
+msgstr "No classes yet"
+
+#: frontend/templates/pages/academic_class_list.html
+msgid "Tidak ada kelas untuk tahun ajaran yang dipilih."
+msgstr "There are no classes for the selected academic year."
+
+#: frontend/templates/pages/academic_class_detail.html
+msgid "Belum ada siswa"
+msgstr "No students yet"
+
+#: frontend/templates/pages/academic_class_detail.html
+msgid "Kelas ini belum memiliki siswa aktif."
+msgstr "This class has no active students yet."

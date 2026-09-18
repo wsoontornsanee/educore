@@ -1,0 +1,53 @@
+{% extends "base_console.html" %}
+{% load i18n %}
+
+{% comment %}
+Page: Siswa & kelas — class roster (Web Console Akademik, PR 1).
+Served by apps.academic.console_views.ClassDetailPageView at /web/academic/classes/<id>/.
+Shows name + NIS only (never NISN/NIK/contact data).
+Parameters: class_group, enrollments (active ClassEnrollment rows with student.person).
+{% endcomment %}
+
+{% block title %}{{ class_group.name }} — {% translate "Siswa & kelas" %} — EduCore{% endblock %}
+
+{% block console_content %}
+<main style="display:flex;flex-direction:column;gap:20px;max-width:960px">
+  <header>
+    <a href="{% url 'academic-class-list-page' %}" class="text-body-sm text-ink-500">← {% translate "Siswa & kelas" %}</a>
+    <h1 class="font-display text-h2 text-ink-900" style="margin:8px 0 4px 0">{{ class_group.name }}</h1>
+    <p class="text-body-sm text-ink-700" style="margin:0">
+      {{ class_group.school.name }} · {{ class_group.academic_year.name }} ·
+      {% translate "Wali kelas" %}:
+      {% if class_group.homeroom_teacher %}{{ class_group.homeroom_teacher.person.full_name }}{% else %}—{% endif %}
+    </p>
+  </header>
+
+  {% if enrollments %}
+    <div class="card" style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-family:'IBM Plex Sans',sans-serif;font-size:0.8125rem">
+        <thead>
+          <tr style="border-bottom:2px solid var(--color-line);text-align:left">
+            <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Siswa" %}</th>
+            <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "NIS" %}</th>
+            <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Status" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for enrollment in enrollments %}
+            <tr style="border-bottom:1px solid var(--color-line)">
+              <td class="text-body-sm text-ink-900" style="padding:10px 14px">{{ enrollment.student.person.full_name }}</td>
+              <td class="text-body-sm font-mono text-ink-700" style="padding:10px 14px">{{ enrollment.student.nis }}</td>
+              <td class="text-body-sm text-ink-700" style="padding:10px 14px">{{ enrollment.student.get_status_display }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="card" style="padding:40px 24px;text-align:center">
+      <h2 class="font-display text-h3 text-ink-900" style="margin:0 0 8px 0">{% translate "Belum ada siswa" %}</h2>
+      <p class="text-body-sm text-ink-700" style="margin:0">{% translate "Kelas ini belum memiliki siswa aktif." %}</p>
+    </div>
+  {% endif %}
+</main>
+{% endblock %}
