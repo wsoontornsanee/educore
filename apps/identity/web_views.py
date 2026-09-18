@@ -19,6 +19,7 @@ from apps.finance.models import Invoice, InvoiceStatus
 from educore.middleware.tenancy import get_current_foundation_id, set_current_foundation_id
 from .landing import resolve_post_login_redirect
 from .models import RoleAssignment, Student
+from .nav import get_nav_for_user
 from .rbac import has_permission, SCOPE_SCHOOL
 from .social_auth import (
     AccountNotLinkedError,
@@ -244,12 +245,19 @@ class WebConsoleHomeView(View):
     (see backlog: "Web Console: Build Global Navigation Menu & Role-Aware
     Post-Login Landing"). Roles without that permission — Finance Officer,
     Canteen Operator, Clinic Officer — land here instead of hitting a 403.
+
+    Extended (Task 6, web-console-nav-and-landing) to also list the user's
+    own permission-gated nav items as a simple link grid, instead of just
+    the static "no page for your role" message — this is the generic
+    landing for counsellor/canteen_operator/clinic_officer.
     """
 
     def get(self, request):
         if not request.user.is_authenticated:
             return redirect(f"/web/login/?next={request.path}")
-        return render(request, 'pages/console_home.html', {})
+        foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+        nav_groups = get_nav_for_user(request.user, foundation_id) if foundation_id else []
+        return render(request, 'pages/console_home.html', {'nav_groups': nav_groups})
 
 
 class WebLogoutView(View):
