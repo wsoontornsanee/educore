@@ -11,7 +11,9 @@ Covers:
 from decimal import Decimal
 from datetime import date
 
+from django.db import IntegrityError
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -252,6 +254,39 @@ class StatutorySchemaTests(StatutoryExportFixtures):
 
     def test_no_schema_returns_none(self):
         self.assertIsNone(get_active_schema(self.foundation.id, StatutorySystem.DAPODIK))
+
+    def test_duplicate_active_schema_rejected(self):
+        """The unique constraint still blocks two ACTIVE rows for the same
+        (foundation, system, version) — this is what the marker must keep enforcing."""
+        StatutoryExportSchema.all_tenants.create(
+            foundation_id=self.foundation.id,
+            system=StatutorySystem.DAPODIK, version='2026.1', is_active=True,
+        )
+        with self.assertRaises(IntegrityError):
+            StatutoryExportSchema.all_tenants.create(
+                foundation_id=self.foundation.id,
+                system=StatutorySystem.DAPODIK, version='2026.1', is_active=True,
+            )
+
+    def test_recreate_after_soft_delete_does_not_collide(self):
+        """Regression for models.W036: MySQL silently drops a conditional
+        UniqueConstraint, so soft-deleting a schema and recreating the same
+        (foundation, system, version) used to crash with IntegrityError 1062
+        on MySQL even though the constraint was meant to scope to active rows
+        only. The active_uniq_marker GeneratedField fixes this on every backend."""
+        original = StatutoryExportSchema.all_tenants.create(
+            foundation_id=self.foundation.id,
+            system=StatutorySystem.DAPODIK, version='2026.1', is_active=True,
+        )
+        original.deleted_at = timezone.now()
+        original.save(update_fields=['deleted_at'])
+
+        recreated = StatutoryExportSchema.all_tenants.create(
+            foundation_id=self.foundation.id,
+            system=StatutorySystem.DAPODIK, version='2026.1', is_active=True,
+        )
+        self.assertIsNotNone(recreated.id)
+        self.assertNotEqual(original.id, recreated.id)
 
     def test_custom_field_map_drives_export_columns(self):
         """CMP-020: schema is data — a custom field_map renames columns

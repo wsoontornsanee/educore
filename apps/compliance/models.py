@@ -2,6 +2,7 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
+from apps.core.fields import soft_delete_uniqueness_marker
 from apps.core.models import TenantModel
 
 
@@ -60,13 +61,13 @@ class StatutoryExportSchema(TenantModel):
         ),
     )
     notes = models.TextField(blank=True)
+    active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:
         db_table = 'statutory_export_schemas'
         constraints = [
             models.UniqueConstraint(
-                fields=['foundation_id', 'system', 'version'],
-                condition=models.Q(deleted_at__isnull=True),
+                fields=['foundation_id', 'system', 'version', 'active_uniq_marker'],
                 name='unique_active_statutory_schema_per_foundation_system_version',
             ),
         ]
