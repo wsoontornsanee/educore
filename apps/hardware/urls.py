@@ -1,9 +1,9 @@
 from django.urls import path
-from rest_framework.routers import DefaultRouter
+from apps.core.routers import EduCoreRouter
 
 from apps.hardware.views import DeviceEventIngestView, DeviceSyncView, DeviceViewSet
 
-router = DefaultRouter()
+router = EduCoreRouter()
 router.register('devices', DeviceViewSet, basename='device')
 
 urlpatterns = [

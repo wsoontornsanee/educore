@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: EduCore 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-16 11:00+0700\n"
+"POT-Creation-Date: 2026-09-18 16:49+0700\n"
 "PO-Revision-Date: 2026-09-16 11:00+0700\n"
 "Last-Translator: EduCore Team\n"
 "Language-Team: Indonesian\n"
@@ -14,32 +14,4221 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-msgid "Hadir"
-msgstr "Hadir"
+#: apps/academic/models.py:13 apps/finance/models.py:75
+msgid "e.g. 2026/2027"
+msgstr ""
 
+#: apps/academic/models.py:38
+msgid "e.g. Semester 1 (Ganjil)"
+msgstr ""
+
+#: apps/academic/models.py:39
+msgid "1 or 2"
+msgstr ""
+
+#: apps/academic/models.py:66
+msgid "School level this subject applies to, e.g. SMA"
+msgstr ""
+
+#: apps/academic/models.py:72
+msgid "Ministry subject code for DAPODIK/EMIS export (CMP-017)"
+msgstr ""
+
+#: apps/academic/models.py:96
+msgid "Numeric grade level, e.g. 10"
+msgstr ""
+
+#: apps/academic/models.py:97
+msgid "e.g. X IPA 1"
+msgstr ""
+
+#: apps/academic/models.py:196
+msgid "Formatif"
+msgstr ""
+
+#: apps/academic/models.py:197
+msgid "Sumatif"
+msgstr ""
+
+#: apps/academic/models.py:198
+msgid "Proyek"
+msgstr ""
+
+#: apps/academic/models.py:199
+msgid "Praktik"
+msgstr ""
+
+#: apps/academic/models.py:200
+msgid "Ujian"
+msgstr ""
+
+#: apps/academic/models.py:208
+msgid "Sangat Baik"
+msgstr ""
+
+#: apps/academic/models.py:209
+msgid "Baik"
+msgstr ""
+
+#: apps/academic/models.py:210
+msgid "Cukup"
+msgstr ""
+
+#: apps/academic/models.py:211
+msgid "Perlu Bimbingan"
+msgstr ""
+
+#: apps/academic/models.py:224
+msgid "Percentage weight toward the final term grade, for weighted types only"
+msgstr ""
+
+#: apps/academic/models.py:253
+msgid "Bumped on every update; TCH-007 optimistic concurrency token"
+msgstr ""
+
+#: apps/academic/models.py:275
+msgid "Senin"
+msgstr ""
+
+#: apps/academic/models.py:276
+msgid "Selasa"
+msgstr ""
+
+#: apps/academic/models.py:277
+msgid "Rabu"
+msgstr ""
+
+#: apps/academic/models.py:278
+msgid "Kamis"
+msgstr ""
+
+#: apps/academic/models.py:279
+msgid "Jumat"
+msgstr ""
+
+#: apps/academic/models.py:280
+msgid "Sabtu"
+msgstr ""
+
+#: apps/academic/models.py:281
+msgid "Minggu"
+msgstr ""
+
+#: apps/academic/models.py:309
+msgid "Menunggu Konfirmasi"
+msgstr ""
+
+#: apps/academic/models.py:310
+msgid "Diterima"
+msgstr ""
+
+#: apps/academic/models.py:311 apps/compliance/models.py:178
+#: apps/wallet/models.py:48 apps/wallet/models.py:177
+msgid "Ditolak"
+msgstr ""
+
+#: apps/academic/models.py:375 apps/academic/models.py:513
+msgid "Terkumpul"
+msgstr ""
+
+#: apps/academic/models.py:376 apps/campus/models.py:216
 msgid "Terlambat"
 msgstr "Terlambat"
 
-msgid "Sakit"
-msgstr "Sakit"
+#: apps/academic/models.py:377
+#, fuzzy
+#| msgid "Nilai"
+msgid "Dinilai"
+msgstr "Nilai"
 
-msgid "Izin"
-msgstr "Izin"
+#: apps/academic/models.py:378 apps/campus/models.py:215
+msgid "Dikembalikan"
+msgstr ""
 
-msgid "Alpa"
-msgstr "Alpa"
+#: apps/academic/models.py:414 apps/academic/models.py:654
+msgid "List of {key, filename, size, content_type}"
+msgstr ""
 
-msgid "Lunas"
-msgstr "Lunas"
+#: apps/academic/models.py:441
+msgid "Daring"
+msgstr ""
 
-msgid "Jatuh Tempo"
-msgstr "Jatuh Tempo"
+#: apps/academic/models.py:442
+msgid "Kertas"
+msgstr ""
 
-msgid "Tagihan"
+#: apps/academic/models.py:454
+msgid "one_question_at_a_time, block_back_navigation, full_screen_lock, etc."
+msgstr ""
+
+#: apps/academic/models.py:468
+msgid "Pilihan Ganda"
+msgstr ""
+
+#: apps/academic/models.py:469
+msgid "Pilihan Ganda Kompleks"
+msgstr ""
+
+#: apps/academic/models.py:470
+msgid "Benar/Salah"
+msgstr ""
+
+#: apps/academic/models.py:471
+msgid "Jawaban Singkat"
+msgstr ""
+
+#: apps/academic/models.py:472
+msgid "Esai"
+msgstr ""
+
+#: apps/academic/models.py:473
+msgid "Menjodohkan"
+msgstr ""
+
+#: apps/academic/models.py:490
+msgid "Choice list for MCQ/MULTI/MATCHING, e.g. [{key, text}]"
+msgstr ""
+
+#: apps/academic/models.py:492
+msgid "Grading key; shape depends on type"
+msgstr ""
+
+#: apps/academic/models.py:512
+msgid "Sedang Berjalan"
+msgstr ""
+
+#: apps/academic/models.py:514
+msgid "Terkumpul Otomatis"
+msgstr ""
+
+#: apps/academic/models.py:527
+msgid "Per-attempt shuffled question id order (ACD-024)"
+msgstr ""
+
+#: apps/academic/models.py:576
+msgid "Konsep"
+msgstr ""
+
+#: apps/academic/models.py:577
+msgid "Menunggu Tinjauan"
+msgstr ""
+
+#: apps/academic/models.py:578
+msgid "Disetujui"
+msgstr ""
+
+#: apps/academic/models.py:579
+msgid "Diterbitkan"
+msgstr ""
+
+#: apps/academic/models.py:589
+msgid ""
+"Per-subject final grade/descriptor/status, frozen at generation. Each item "
+"may also carry an 'objective_narrative' string (ACD-011), set via "
+"set_report_card_content."
+msgstr ""
+
+#: apps/academic/models.py:592
+msgid "Counts by AttendanceStatus for the term"
+msgstr ""
+
+#: apps/academic/models.py:595
+msgid "ACD-011 extracurricular notes: list of {'name': str, 'grade': str}"
+msgstr ""
+
+#: apps/academic/models.py:598
+msgid "e.g. 'NAIK KE KELAS VIII', set manually via set_report_card_content"
+msgstr ""
+
+#: apps/academic/models.py:651
+msgid "Monday of the ISO week this plan covers"
+msgstr ""
+
+#: apps/academic/models.py:780
+msgid "Hari Libur / Cuti"
+msgstr ""
+
+#: apps/academic/models.py:781
+msgid "Jadwal Ujian"
+msgstr ""
+
+#: apps/academic/models.py:782
+msgid "Pengecualian Jadwal / Pembatalan Sesi"
+msgstr ""
+
+#: apps/academic/models.py:783
+msgid "Rapat Staf / Guru"
+msgstr ""
+
+#: apps/academic/models.py:784
+msgid "Kegiatan Sekolah / Upacara"
+msgstr ""
+
+#: apps/academic/models.py:785 apps/campus/models.py:324
+#: apps/wallet/models.py:106
+msgid "Lainnya"
+msgstr ""
+
+#: apps/academic/models.py:805
+msgid "Kosong berarti berlaku untuk seluruh sekolah"
+msgstr ""
+
+#: apps/academic/models.py:806
+msgid ""
+"Jika True, sesi jadwal pada rentang ini dikecualikan/diliburkan dari absensi"
+msgstr ""
+
+#: apps/academic/models.py:811
+msgid "Manual"
+msgstr ""
+
+#: apps/academic/models.py:812
+msgid "Synced Calendar"
+msgstr ""
+
+#: apps/academic/models.py:821
+msgid "Tautan ke acara kalender eksternal sumber sinkronisasi"
+msgstr ""
+
+#: apps/academic/models.py:829
+msgid "Tautan ke jadwal ujian jika acara ini dipetakan sebagai ujian"
+msgstr ""
+
+#: apps/academic/models.py:835
+msgid "Acara Kalender Akademik"
+msgstr ""
+
+#: apps/academic/models.py:836
+msgid "Daftar Acara Kalender Akademik"
+msgstr ""
+
+#: apps/academic/models.py:859
+msgid "Null berarti kebijakan bawaan tingkat yayasan"
+msgstr ""
+
+#: apps/academic/models.py:863
+msgid ""
+"Opt-in: izinkan sinkronisasi otomatis dari kalender eksternal ke kalender "
+"akademik"
+msgstr ""
+
+#: apps/academic/models.py:867
+msgid "Opt-in: otomatis buat entri Exam draf jika acara kalender bertipe UJIAN"
+msgstr ""
+
+#: apps/academic/models.py:873
+msgid "Prefix penanda eksplisit pada judul kalender (opsional)"
+msgstr ""
+
+#: apps/academic/models.py:878
+msgid "Konfigurasi kata kunci kustom per tipe acara"
+msgstr ""
+
+#: apps/academic/models.py:884
+msgid "Kebijakan Sinkronisasi Kalender Akademik"
+msgstr ""
+
+#: apps/academic/models.py:885
+msgid "Daftar Kebijakan Sinkronisasi Kalender Akademik"
+msgstr ""
+
+#: apps/academic/services.py:1226
+msgid "Alasan penolakan wajib diisi."
+msgstr ""
+
+#: apps/academic/views.py:286
+#, python-format
+msgid "Siswa tidak ditemukan: %(id)s"
+msgstr ""
+
+#: apps/academic/views.py:368
+msgid ""
+"Hanya guru pengampu, guru pengganti, atau admin yang dapat melihat rincian "
+"slot jadwal ini."
+msgstr ""
+
+#: apps/academic/views.py:408
+msgid "Slot jadwal tidak ditemukan."
+msgstr ""
+
+#: apps/academic/views.py:414
+msgid "Guru pengganti tidak ditemukan."
+msgstr ""
+
+#: apps/academic/views.py:434 apps/academic/views.py:452
+msgid ""
+"Hanya guru pengganti terkait atau admin yang dapat merespons penugasan ini."
+msgstr ""
+
+#: apps/academic/views.py:480 apps/academic/views.py:490
+msgid ""
+"Hanya guru pengganti terkait, guru utama, atau admin yang dapat melihat "
+"rincian penugasan ini."
+msgstr ""
+
+#: apps/academic/views.py:589 apps/academic/views.py:688
+#: apps/academic/views.py:1057 apps/academic/views.py:1061
+#: apps/academic/views.py:1272 apps/academic/views.py:1276
+#: apps/academic/views.py:1370 apps/academic/views.py:1374
+#: apps/academic/views.py:1456 apps/academic/views.py:1460
+#: apps/academic/views.py:1516 apps/academic/views.py:1520
+#: apps/academic/views.py:1742 apps/academic/views.py:1746
+#: apps/academic/views.py:1793 apps/academic/views.py:1797
+#: apps/academic/views.py:1835 apps/academic/views.py:1843
+#: apps/finance/views.py:772 apps/finance/views.py:800
+#: apps/finance/views.py:830 apps/finance/views.py:950 apps/wallet/views.py:115
+#: apps/wallet/views.py:130 apps/wallet/views.py:152 apps/wallet/views.py:181
+#: apps/wallet/views.py:210 apps/wallet/views.py:239 apps/wallet/views.py:254
+#: apps/wallet/views.py:302 apps/wallet/views.py:310 apps/wallet/views.py:483
+#: apps/wallet/views.py:723
+msgid "Siswa tidak ditemukan."
+msgstr ""
+
+#: apps/academic/views.py:869
+msgid "Soal tidak ditemukan."
+msgstr ""
+
+#: apps/academic/views.py:898
+msgid "Jawaban tidak ditemukan."
+msgstr ""
+
+#: apps/academic/views.py:944
+msgid "Kelas atau semester tidak ditemukan."
+msgstr ""
+
+#: apps/academic/views.py:1002
+msgid "Belum ada dokumen rapor untuk diunduh."
+msgstr ""
+
+#: apps/academic/views.py:1034 apps/academic/views.py:1042
+#: apps/academic/views.py:1200 apps/academic/views.py:1208
+#: apps/academic/views.py:1309 apps/academic/views.py:1322
+#: apps/academic/views.py:1344 apps/finance/views.py:500
+#: apps/finance/views.py:981 apps/finance/views.py:992
+#: apps/finance/views.py:1024 apps/finance/views.py:1036
+#: apps/finance/views.py:1066 apps/finance/views.py:1075
+#: apps/finance/views.py:1104 apps/finance/views.py:1113
+#: apps/finance/views.py:1253 apps/finance/views.py:1543
+#: apps/finance/views.py:1602 apps/reporting/views.py:63
+#: apps/reporting/views.py:88 apps/reporting/views.py:117
+#: apps/reporting/views.py:146 apps/reporting/views.py:171
+#: apps/wallet/views.py:556 apps/wallet/views.py:656
+msgid "Sekolah tidak ditemukan."
+msgstr ""
+
+#: apps/academic/views.py:1104
+msgid "Rapor tidak ditemukan."
+msgstr ""
+
+#: apps/academic/views.py:1168 apps/academic/views.py:1633
+#: apps/academic/views.py:1900 apps/academic/views.py:1941
+msgid "Akun ini tidak terhubung ke profil staf."
+msgstr ""
+
+#: apps/academic/views.py:1175 apps/academic/views.py:1638
+#: apps/academic/views.py:1948
+msgid "Kelas tidak ditemukan."
+msgstr ""
+
+#: apps/academic/views.py:1223
+msgid "Parameter class_subject_id wajib diisi."
+msgstr ""
+
+#: apps/academic/views.py:1227 apps/academic/views.py:1281
+msgid "Kelas/mapel tidak ditemukan."
+msgstr ""
+
+#: apps/academic/views.py:1313 apps/academic/views.py:1326
+msgid "Parameter day_of_week wajib diisi."
+msgstr ""
+
+#: apps/academic/views.py:1348
+msgid "Parameter date wajib diisi."
+msgstr ""
+
+#: apps/academic/views.py:1354
+msgid "Format date tidak valid (YYYY-MM-DD)."
+msgstr ""
+
+#: apps/academic/views.py:1642 apps/academic/views.py:1952
+msgid "Judul izin wajib diisi."
+msgstr ""
+
+#: apps/academic/views.py:1653 apps/academic/views.py:1960
+msgid "Format tanggal acara tidak valid (YYYY-MM-DD)."
+msgstr ""
+
+#: apps/academic/views.py:1659
+msgid "Format batas waktu tidak valid (ISO 8601)."
+msgstr ""
+
+#: apps/academic/views.py:1688 apps/academic/views.py:1825
+#: apps/academic/views.py:2013 apps/academic/views.py:2030
+msgid "Izin tidak ditemukan."
+msgstr ""
+
+#: apps/academic/views.py:1830
+msgid "Akun ini tidak terhubung ke profil wali murid."
+msgstr ""
+
+#: apps/academic/views.py:1966
+msgid "Format batas waktu tidak valid."
+msgstr ""
+
+#: apps/academic/views.py:2114
+msgid "Yayasan tidak valid."
+msgstr ""
+
+#: apps/attendance/models.py:11
+msgid "RFID (MIFARE DESFire)"
+msgstr ""
+
+#: apps/attendance/models.py:12
+msgid "NFC"
+msgstr ""
+
+#: apps/attendance/models.py:13
+msgid "QR Code Fallback"
+msgstr ""
+
+#: apps/attendance/models.py:17
+msgid "Active"
+msgstr ""
+
+#: apps/attendance/models.py:18
+msgid "Revoked"
+msgstr ""
+
+#: apps/attendance/models.py:19
+msgid "Expired"
+msgstr ""
+
+#: apps/attendance/models.py:33
+msgid "Linked student (if issued to a student)"
+msgstr ""
+
+#: apps/attendance/models.py:41
+msgid "Linked staff member (if issued to a staff member)"
+msgstr ""
+
+#: apps/attendance/models.py:52
+msgid "Card UID hex string or QR cryptographic payload token"
+msgstr ""
+
+#: apps/attendance/models.py:58
+msgid "Human-readable printed card identifier"
+msgstr ""
+
+#: apps/attendance/models.py:81
+msgid "Expiry timestamp for temporary credentials (HW-020: <=15 min QR)"
+msgstr ""
+
+#: apps/attendance/models.py:85
+msgid "Single-use flag for temporary QR fallback credentials"
+msgstr ""
+
+#: apps/attendance/models.py:89
+msgid "Flag indicating replacement fee was posted to invoice (HW-018)"
+msgstr ""
+
+#: apps/attendance/models.py:94
+msgid "Credential"
+msgstr ""
+
+#: apps/attendance/models.py:95
+msgid "Credentials"
+msgstr ""
+
+#: apps/attendance/models.py:106
+msgid "Credential must be bound to either a student or a staff member."
+msgstr ""
+
+#: apps/attendance/models.py:108
+msgid "Credential cannot be simultaneously bound to both student and staff."
+msgstr ""
+
+#: apps/attendance/models.py:142
+msgid "Hadir (Present)"
+msgstr ""
+
+#: apps/attendance/models.py:143
+#, fuzzy
+#| msgid "Terlambat"
+msgid "Terlambat (Late)"
+msgstr "Terlambat"
+
+#: apps/attendance/models.py:144
+msgid "Sakit (Excused)"
+msgstr ""
+
+#: apps/attendance/models.py:145 apps/attendance/models.py:439
+msgid "Izin (Permitted)"
+msgstr ""
+
+#: apps/attendance/models.py:146
+msgid "Alpa (Unexcused Absence)"
+msgstr ""
+
+#: apps/attendance/models.py:147
+msgid "Dispensasi (Sanctioned)"
+msgstr ""
+
+#: apps/attendance/models.py:151
+msgid "Gate Scan"
+msgstr ""
+
+#: apps/attendance/models.py:152
+msgid "Teacher / Class Attendance"
+msgstr ""
+
+#: apps/attendance/models.py:153
+msgid "System Default (Cutoff)"
+msgstr ""
+
+#: apps/attendance/models.py:154
+msgid "Manual Staff Override"
+msgstr ""
+
+#: apps/attendance/models.py:158 apps/hardware/models.py:18
+msgid "Masuk (In)"
+msgstr ""
+
+#: apps/attendance/models.py:159 apps/hardware/models.py:19
+msgid "Keluar (Out)"
+msgstr ""
+
+#: apps/attendance/models.py:163
+msgid "RFID / Smart Card"
+msgstr ""
+
+#: apps/attendance/models.py:164
+msgid "Face Recognition"
+msgstr ""
+
+#: apps/attendance/models.py:165
+msgid "Manual Check-in"
+msgstr ""
+
+#: apps/attendance/models.py:166 apps/hardware/models.py:12
+msgid "Kiosk"
+msgstr ""
+
+#: apps/attendance/models.py:170
+msgid "Accepted"
+msgstr ""
+
+#: apps/attendance/models.py:171 apps/notifications/models.py:73
+msgid "Rejected"
+msgstr ""
+
+#: apps/attendance/models.py:182
+msgid "School where this rule applies"
+msgstr ""
+
+#: apps/attendance/models.py:186
+msgid "Time after which an IN scan is marked TERLAMBAT instead of HADIR"
+msgstr ""
+
+#: apps/attendance/models.py:190
+msgid "Cutoff time after which students with no scan are marked ALPA"
+msgstr ""
+
+#: apps/attendance/models.py:194
+msgid ""
+"Seconds within which duplicate scans are ignored for notification (ATT-007)"
+msgstr ""
+
+#: apps/attendance/models.py:200
+msgid "Attendance Rule"
+msgstr ""
+
+#: apps/attendance/models.py:201
+msgid "Attendance Rules"
+msgstr ""
+
+#: apps/attendance/models.py:256
+msgid "Whether this record was manually overridden by staff (ATT-003)"
+msgstr ""
+
+#: apps/attendance/models.py:262
+msgid "Original derived status before staff override"
+msgstr ""
+
+#: apps/attendance/models.py:267
+msgid "Daily Attendance"
+msgstr ""
+
+#: apps/attendance/models.py:268
+msgid "Daily Attendances"
+msgstr ""
+
+#: apps/attendance/models.py:292 apps/hardware/models.py:220
+msgid "Client-generated idempotent UUID from edge gateway (HW-005)"
+msgstr ""
+
+#: apps/attendance/models.py:329
+msgid "Scanned card UID or QR string from reader"
+msgstr ""
+
+#: apps/attendance/models.py:349
+msgid "Match confidence score for face recognition terminals (ATT-010)"
+msgstr ""
+
+#: apps/attendance/models.py:369
+msgid "Marked True if scanned within debounce window (ATT-007)"
+msgstr ""
+
+#: apps/attendance/models.py:373
+msgid "Marked True if buffered offline and replayed on reconnect (ATT-012)"
+msgstr ""
+
+#: apps/attendance/models.py:378
+msgid "Gate Event"
+msgstr ""
+
+#: apps/attendance/models.py:379
+msgid "Gate Events"
+msgstr ""
+
+#: apps/attendance/models.py:392
+msgid "Guru (Teacher)"
+msgstr ""
+
+#: apps/attendance/models.py:393
+msgid "Pra-isi dari Gerbang (Gate Pre-fill)"
+msgstr ""
+
+#: apps/attendance/models.py:394
+msgid "Override Manual (mis. Klinik/UKS)"
+msgstr ""
+
+#: apps/attendance/models.py:420 apps/attendance/models.py:421
+msgid "Absensi Per Jam Pelajaran"
+msgstr ""
+
+#: apps/attendance/models.py:438
+msgid "Sakit (Sick / Medical)"
+msgstr ""
+
+#: apps/attendance/models.py:443
+msgid "Menunggu (Pending)"
+msgstr ""
+
+#: apps/attendance/models.py:444 apps/finance/models.py:37
+#: apps/finance/models.py:779 apps/finance/models.py:1026
+msgid "Disetujui (Approved)"
+msgstr ""
+
+#: apps/attendance/models.py:445 apps/finance/models.py:38
+#: apps/finance/models.py:317 apps/finance/models.py:780
+#: apps/finance/models.py:1027
+msgid "Ditolak (Rejected)"
+msgstr ""
+
+#: apps/attendance/models.py:458
+msgid "Sekolah tempat siswa terdaftar"
+msgstr ""
+
+#: apps/attendance/models.py:464
+msgid "Siswa yang dimohonkan izin/sakit"
+msgstr ""
+
+#: apps/attendance/models.py:470
+msgid "Orang tua / wali yang mengajukan permohonan"
+msgstr ""
+
+#: apps/attendance/models.py:474
+msgid "Tanggal mulai ketidakhadiran"
+msgstr ""
+
+#: apps/attendance/models.py:478
+msgid "Tanggal akhir ketidakhadiran (inklusif)"
+msgstr ""
+
+#: apps/attendance/models.py:487
+msgid "Alasan pengajuan izin atau keterangan sakit"
+msgstr ""
+
+#: apps/attendance/models.py:493
+msgid "Kunci StoredFile untuk berkas lampiran foto surat dokter/izin"
+msgstr ""
+
+#: apps/attendance/models.py:507
+msgid "Staf yang memproses persetujuan atau penolakan"
+msgstr ""
+
+#: apps/attendance/models.py:512
+msgid "Waktu keputusan diproses"
+msgstr ""
+
+#: apps/attendance/models.py:517
+msgid "Catatan keputusan dari staf"
+msgstr ""
+
+#: apps/attendance/models.py:522 apps/attendance/models.py:523
+msgid "Permohonan Izin / Sakit"
+msgstr ""
+
+#: apps/attendance/services.py:56
+msgid "Credential must be assigned to either a student or a staff member."
+msgstr ""
+
+#: apps/attendance/services.py:58
+msgid "Credential cannot be simultaneously assigned to both student and staff."
+msgstr ""
+
+#: apps/attendance/services.py:63
+msgid "Holder does not belong to the active foundation."
+msgstr ""
+
+#: apps/attendance/services.py:79
+msgid "Card UID is required for RFID and NFC credentials."
+msgstr ""
+
+#: apps/attendance/services.py:84
+#, python-format
+msgid "Card UID '%(uid)s' is already actively assigned to another holder."
+msgstr ""
+
+#: apps/attendance/services.py:97
+msgid "Otomatis dicabut: penggantian kartu fisik baru (HW-019)"
+msgstr ""
+
+#: apps/attendance/services.py:170
+msgid "Kartu hilang/rusak atau dicabut oleh admin."
+msgstr ""
+
+#: apps/attendance/services.py:237
+msgid "Kredensial tidak ditemukan / tidak terdaftar."
+msgstr ""
+
+#: apps/attendance/services.py:245
+msgid "Kredensial telah dicabut (revoked)."
+msgstr ""
+
+#: apps/attendance/services.py:255
+msgid "Kode QR sekali pakai telah digunakan sebelumnya."
+msgstr ""
+
+#: apps/attendance/services.py:265
+msgid "Kode QR telah kedaluwarsa (>15 menit)."
+msgstr ""
+
+#: apps/attendance/services.py:272
+msgid "Kredensial tidak aktif."
+msgstr ""
+
+#: apps/attendance/services.py:284
+msgid "Kredensial valid dan aktif."
+msgstr ""
+
+#: apps/attendance/services.py:382
+msgid "Kredensial tidak valid"
+msgstr ""
+
+#: apps/attendance/services.py:393
+msgid "Siswa tidak ditemukan"
+msgstr ""
+
+#: apps/attendance/services.py:400
+msgid "Staf tidak ditemukan"
+msgstr ""
+
+#: apps/attendance/services.py:591
+msgid "Catatan alasan wajib diisi saat melakukan override kehadiran staf."
+msgstr ""
+
+#: apps/attendance/services.py:829
+msgid "Alasan check-in manual wajib diisi (misal: kartu tertinggal)."
+msgstr ""
+
+#: apps/attendance/services.py:839
+msgid "Siswa tidak ditemukan pada sekolah ini."
+msgstr ""
+
+#: apps/attendance/services.py:1287
+msgid "Ukuran berkas lampiran tidak boleh melebihi 1MB (PAR-011)."
+msgstr ""
+
+#: apps/attendance/services.py:1292
+msgid ""
+"Format berkas lampiran tidak didukung. Harap gunakan JPG, PNG, WebP, atau "
+"PDF."
+msgstr ""
+
+#: apps/attendance/services.py:1322
+msgid "Tanggal mulai tidak boleh melebihi tanggal akhir."
+msgstr ""
+
+#: apps/attendance/services.py:1328
+msgid "Alasan izin atau keterangan sakit wajib diisi."
+msgstr ""
+
+#: apps/attendance/services.py:1404
+msgid ""
+"Permohonan ini telah diproses sebelumnya dan tidak dapat disetujui lagi."
+msgstr ""
+
+#: apps/attendance/services.py:1512
+msgid "Permohonan ini telah diproses sebelumnya dan tidak dapat ditolak lagi."
+msgstr ""
+
+#: apps/calendar_sync/models.py:46
+msgid "Fernet-encrypted OAuth access token"
+msgstr ""
+
+#: apps/calendar_sync/models.py:49
+msgid ""
+"Fernet-encrypted OAuth refresh token; blank when the provider did not issue "
+"one"
+msgstr ""
+
+#: apps/calendar_sync/models.py:52
+msgid "Expiry of the stored access token (tz-aware)"
+msgstr ""
+
+#: apps/calendar_sync/models.py:60
+msgid "Provider calendar identifier being synced"
+msgstr ""
+
+#: apps/calendar_sync/models.py:64
+msgid ""
+"Provider incremental-sync cursor (Google syncToken / Graph deltaLink); "
+"reserved — the current pull uses a plain time window"
+msgstr ""
+
+#: apps/calendar_sync/models.py:73
+msgid "Koneksi Kalender Eksternal"
+msgstr ""
+
+#: apps/calendar_sync/models.py:74
+msgid "Daftar Koneksi Kalender Eksternal"
+msgstr ""
+
+#: apps/calendar_sync/models.py:109
+msgid "Video-conference link (Google hangoutLink / Microsoft Teams joinUrl)"
+msgstr ""
+
+#: apps/calendar_sync/models.py:117
+msgid "Acara Kalender Eksternal"
+msgstr ""
+
+#: apps/calendar_sync/models.py:118
+msgid "Daftar Acara Kalender Eksternal"
+msgstr ""
+
+#: apps/campus/apps.py:8
+msgid "Kehidupan Kampus & Perilaku (Campus Life)"
+msgstr ""
+
+#: apps/campus/models.py:14
+msgid "Positif"
+msgstr ""
+
+#: apps/campus/models.py:15
+msgid "Pelanggaran Ringan"
+msgstr ""
+
+#: apps/campus/models.py:16
+msgid "Pelanggaran Berat"
+msgstr ""
+
+#: apps/campus/models.py:20 apps/finance/models.py:555
+#: apps/wallet/models.py:258
+msgid "Terbuka"
+msgstr ""
+
+#: apps/campus/models.py:21
+msgid "Dalam Penanganan"
+msgstr ""
+
+#: apps/campus/models.py:22
+msgid "Terselesaikan"
+msgstr ""
+
+#: apps/campus/models.py:23 apps/finance/models.py:556 apps/wallet/models.py:14
+msgid "Ditutup"
+msgstr ""
+
+#: apps/campus/models.py:35
+msgid ""
+"Ambang batas akumulasi poin negatif per semester untuk auto-buka behaviour "
+"case (LIF-009)."
+msgstr ""
+
+#: apps/campus/models.py:43
+msgid "Konselor BK default yang ditugaskan saat threshold terlampaui."
+msgstr ""
+
+#: apps/campus/models.py:47
+msgid "Apakah ringkasan poin perilaku dicantumkan di buku rapor (LIF-014)."
+msgstr ""
+
+#: apps/campus/models.py:52 apps/campus/models.py:53
+msgid "Kebijakan Perilaku Sekolah"
+msgstr ""
+
+#: apps/campus/models.py:69
+msgid "Nilai poin (positif untuk kebaikan, negatif untuk pelanggaran)."
+msgstr ""
+
+#: apps/campus/models.py:110
+msgid "Semester akademik saat kejadian (LIF-008)."
+msgstr ""
+
+#: apps/campus/models.py:118
+msgid "Snapshot nilai poin yang diterapkan."
+msgstr ""
+
+#: apps/campus/models.py:141
+msgid "Rekaman pengganti jika catatan ini dikoreksi (LIF-013)."
+msgstr ""
+
+#: apps/campus/models.py:203
+msgid "Buku"
+msgstr ""
+
+#: apps/campus/models.py:204
+msgid "E-Buku"
+msgstr ""
+
+#: apps/campus/models.py:205
+msgid "Peralatan"
+msgstr ""
+
+#: apps/campus/models.py:209 apps/compliance/models.py:172
+#: apps/hardware/models.py:129
+msgid "Siswa"
+msgstr ""
+
+#: apps/campus/models.py:210 apps/compliance/models.py:173
+#: apps/hardware/models.py:130
+msgid "Staf"
+msgstr ""
+
+#: apps/campus/models.py:214
+msgid "Dipinjam"
+msgstr ""
+
+#: apps/campus/models.py:217
+msgid "Hilang"
+msgstr ""
+
+#: apps/campus/models.py:242
+msgid "Biaya penggantian jika hilang (LIF-021)."
+msgstr ""
+
+#: apps/campus/models.py:247 apps/campus/models.py:248
+msgid "Item Perpustakaan"
+msgstr ""
+
+#: apps/campus/models.py:270
+msgid "Student.id or Staff.id"
+msgstr ""
+
+#: apps/campus/models.py:276
+msgid "Denda keterlambatan, dihitung saat pengembalian (LIF-020)."
+msgstr ""
+
+#: apps/campus/models.py:284
+msgid "Kondisi barang saat dipinjamkan, wajib untuk EQUIPMENT (LIF-022)."
+msgstr ""
+
+#: apps/campus/models.py:290
+msgid "Kondisi barang saat dikembalikan, wajib untuk EQUIPMENT (LIF-022)."
+msgstr ""
+
+#: apps/campus/models.py:302 apps/campus/models.py:303
+msgid "Peminjaman Perpustakaan"
+msgstr ""
+
+#: apps/campus/models.py:315 apps/notifications/models.py:49
+msgid "Normal"
+msgstr ""
+
+#: apps/campus/models.py:316
+msgid "Terbatas (Restricted)"
+msgstr ""
+
+#: apps/campus/models.py:320
+msgid "Sesi Awal"
+msgstr ""
+
+#: apps/campus/models.py:321
+msgid "Sesi Lanjutan"
+msgstr ""
+
+#: apps/campus/models.py:322
+msgid "Mediasi"
+msgstr ""
+
+#: apps/campus/models.py:323
+msgid "Pertemuan Orang Tua"
+msgstr ""
+
+#: apps/campus/models.py:346
+msgid "Kasus perilaku terkait (opsional) — sesi BK dapat berdiri sendiri."
+msgstr ""
+
+#: apps/campus/models.py:367
+msgid "Catatan sesi, terenkripsi at-rest (LIF-015)."
+msgstr ""
+
+#: apps/campus/models.py:372
+msgid "Tanggal tindak lanjut; memicu pengingat tugas konselor (LIF-018)."
+msgstr ""
+
+#: apps/campus/models.py:378
+msgid ""
+"RESTRICTED hanya terlihat oleh konselor penulis dan kepala sekolah (LIF-015)."
+msgstr ""
+
+#: apps/campus/models.py:382
+msgid ""
+"Eskalasi perlindungan anak (safeguarding) — memberitahu kepala sekolah "
+"langsung (LIF-017)."
+msgstr ""
+
+#: apps/campus/models.py:388
+msgid "Kapan pengingat tugas tindak lanjut dikirim ke konselor (LIF-018)."
+msgstr ""
+
+#: apps/campus/models.py:420
+msgid "Lama masa pinjam dalam hari (LIF-019)."
+msgstr ""
+
+#: apps/campus/models.py:424
+msgid "Jumlah maksimum pinjaman aktif bersamaan (LIF-019)."
+msgstr ""
+
+#: apps/campus/models.py:428
+msgid "Denda keterlambatan per hari (LIF-020)."
+msgstr ""
+
+#: apps/campus/models.py:432
+msgid "Batas maksimum denda keterlambatan (LIF-020)."
+msgstr ""
+
+#: apps/campus/models.py:449
+msgid "Kembali ke Kelas"
+msgstr ""
+
+#: apps/campus/models.py:450
+msgid "Dipulangkan"
+msgstr ""
+
+#: apps/campus/models.py:451
+msgid "Dirujuk"
+msgstr ""
+
+#: apps/campus/models.py:463
+msgid ""
+"LIF-006: guru dapat melihat daftar alergi siswa pada ringkasan non-klinis "
+"(default aktif karena keselamatan)."
+msgstr ""
+
+#: apps/campus/models.py:468 apps/campus/models.py:469
+msgid "Kebijakan Klinik Sekolah"
+msgstr ""
+
+#: apps/campus/models.py:490 apps/campus/models.py:491
+msgid "Profil Kesehatan Siswa"
+msgstr ""
+
+#: apps/campus/models.py:536
+msgid "LIF-007: keluhan terenkripsi Fernet, lihat apps.campus.crypto."
+msgstr ""
+
+#: apps/campus/models.py:540
+msgid "LIF-007: penanganan terenkripsi Fernet, lihat apps.campus.crypto."
+msgstr ""
+
+#: apps/compliance/models.py:11
+msgid "DAPODIK (Kemendikbudristek)"
+msgstr ""
+
+#: apps/compliance/models.py:12
+msgid "EMIS (Kemenag Madrasah)"
+msgstr ""
+
+#: apps/compliance/models.py:38
+msgid "Which ministry reporting system this schema targets"
+msgstr ""
+
+#: apps/compliance/models.py:42
+msgid ""
+"Statutory schema version label, e.g. '2026.1' — data, not code (CMP-020)"
+msgstr ""
+
+#: apps/compliance/models.py:46
+msgid "Only the active schema version is used for new exports"
+msgstr ""
+
+#: apps/compliance/models.py:51
+msgid ""
+"Entity sheet -> {EduCore field path -> statutory column name}. Entity "
+"sheets: students, staff, rombel."
+msgstr ""
+
+#: apps/compliance/models.py:59
+msgid ""
+"Optional mandatory field paths per entity sheet for pre-export validation "
+"(CMP-018, CMP-020). E.g., {'students': ['person.mother_name', "
+"'person.home_latitude', 'person.home_longitude']}"
+msgstr ""
+
+#: apps/compliance/models.py:95
+msgid "Associated async export job if generated via ExportJob pipeline"
+msgstr ""
+
+#: apps/compliance/models.py:100
+msgid "Registered report key, e.g. 'statutory_dapodik', 'statutory_emis'"
+msgstr ""
+
+#: apps/compliance/models.py:104
+msgid "Export format (e.g. XLSX, CSV)"
+msgstr ""
+
+#: apps/compliance/models.py:109
+msgid "User ID of the requesting actor"
+msgstr ""
+
+#: apps/compliance/models.py:115
+msgid "Full name of the requesting actor"
+msgstr ""
+
+#: apps/compliance/models.py:121
+msgid "Target school ID if the export was school-scoped"
+msgstr ""
+
+#: apps/compliance/models.py:126
+msgid "Filters applied to the export query"
+msgstr ""
+
+#: apps/compliance/models.py:130
+msgid "Number of records/rows exported"
+msgstr ""
+
+#: apps/compliance/models.py:135
+msgid "Visible watermark text stamped on the document"
+msgstr ""
+
+#: apps/compliance/models.py:141
+msgid "Generated filename"
+msgstr ""
+
+#: apps/compliance/models.py:145
+msgid "File size in bytes"
+msgstr ""
+
+#: apps/compliance/models.py:149
+msgid "Number of times download link was accessed"
+msgstr ""
+
+#: apps/compliance/models.py:154
+msgid "Last time the download link was retrieved"
+msgstr ""
+
+#: apps/compliance/models.py:177 apps/wallet/models.py:47
+#: apps/wallet/models.py:176 apps/wallet/models.py:343
+msgid "Selesai"
+msgstr ""
+
+#: apps/compliance/models.py:184
+msgid "Pendaftaran Biometrik"
+msgstr ""
+
+#: apps/compliance/models.py:185
+msgid "Penggunaan Foto/Media"
+msgstr ""
+
+#: apps/compliance/models.py:186
+msgid "Pemrosesan Data Kesehatan"
+msgstr ""
+
+#: apps/compliance/models.py:187
+msgid "Komunikasi Pemasaran"
+msgstr ""
+
+#: apps/compliance/models.py:206
+msgid "User ID of the guardian/admin who recorded the grant"
+msgstr ""
+
+#: apps/finance/models.py:13
+msgid "SPP (Monthly Tuition)"
+msgstr ""
+
+#: apps/finance/models.py:14
+msgid "Uang Pangkal (Entry Fee)"
+msgstr ""
+
+#: apps/finance/models.py:15
+msgid "Uang Kegiatan (Activity Fee)"
+msgstr ""
+
+#: apps/finance/models.py:16
+msgid "Uang Ujian (Exam Fee)"
+msgstr ""
+
+#: apps/finance/models.py:17
+msgid "Seragam (Uniform)"
+msgstr ""
+
+#: apps/finance/models.py:18
+msgid "Buku Paket (Book)"
+msgstr ""
+
+#: apps/finance/models.py:19
+msgid "Lainnya (Other)"
+msgstr ""
+
+#: apps/finance/models.py:23
+msgid "Bulanan (Monthly)"
+msgstr ""
+
+#: apps/finance/models.py:24
+msgid "Per Semester (Term)"
+msgstr ""
+
+#: apps/finance/models.py:25
+msgid "Tahunan (Annual)"
+msgstr ""
+
+#: apps/finance/models.py:26
+msgid "Sekali Bayar (One-off)"
+msgstr ""
+
+#: apps/finance/models.py:30
+msgid "Persentase (Percent)"
+msgstr ""
+
+#: apps/finance/models.py:31 apps/finance/models.py:660
+msgid "Nominal Tetap (Fixed Amount)"
+msgstr ""
+
+#: apps/finance/models.py:35 apps/finance/models.py:155
+msgid "Konsep (Draft)"
+msgstr ""
+
+#: apps/finance/models.py:36 apps/finance/models.py:778
+#: apps/finance/models.py:1025
+msgid "Menunggu Persetujuan (Pending Approval)"
+msgstr ""
+
+#: apps/finance/models.py:42
+msgid "Siswa Individu (Individual Student)"
+msgstr ""
+
+#: apps/finance/models.py:43
+msgid "Rombel Kelas (Class Group)"
+msgstr ""
+
+#: apps/finance/models.py:44
+msgid "Tingkat Kelas (Grade Level)"
+msgstr ""
+
+#: apps/finance/models.py:50
+msgid "e.g. SPP_REGULER, UANG_GEDUNG"
+msgstr ""
+
+#: apps/finance/models.py:51
+msgid "Display label, e.g. SPP Bulanan"
+msgstr ""
+
+#: apps/finance/models.py:54
+msgid "Default fee amount in standard currency"
+msgstr ""
+
+#: apps/finance/models.py:76
+msgid "e.g. Paket SPP & Kegiatan Kelas 7"
+msgstr ""
+
+#: apps/finance/models.py:77
+msgid "List of grade level strings e.g. ['7', '8', '9']"
+msgstr ""
+
+#: apps/finance/models.py:78
+msgid "List of fee line items [{fee_type_id, amount, currency}]"
+msgstr ""
+
+#: apps/finance/models.py:97
+msgid "Effective start period YYYY-MM"
+msgstr ""
+
+#: apps/finance/models.py:98
+msgid "Optional end period YYYY-MM"
+msgstr ""
+
+#: apps/finance/models.py:117
+msgid "Percentage (e.g. 10.00) or fixed amount in currency"
+msgstr ""
+
+#: apps/finance/models.py:118
+msgid "Alasan diskon/keringanan, e.g. Beasiswa Tahfidz, Prestasi"
+msgstr ""
+
+#: apps/finance/models.py:139
+msgid "Child order (2 for 2nd child, 3 for 3rd child, etc.)"
+msgstr ""
+
+#: apps/finance/models.py:140
+msgid "Discount percentage (e.g. 10.00 for 10%)"
+msgstr ""
+
+#: apps/finance/models.py:156
+msgid "Diterbitkan (Issued)"
+msgstr ""
+
+#: apps/finance/models.py:157 apps/finance/models.py:253
+msgid "Dibayar Sebagian (Partially Paid)"
+msgstr ""
+
+#: apps/finance/models.py:158 apps/finance/models.py:254
+msgid "Lunas (Paid)"
+msgstr ""
+
+#: apps/finance/models.py:159 apps/finance/models.py:255
+#: apps/finance/models.py:315 apps/finance/models.py:324
+#: apps/finance/models.py:1029
+msgid "Dibatalkan (Cancelled)"
+msgstr ""
+
+#: apps/finance/models.py:160
+msgid "Dihapusbukukan (Written Off)"
+msgstr ""
+
+#: apps/finance/models.py:166
+msgid "Calendar year (e.g. 2026)"
+msgstr ""
+
+#: apps/finance/models.py:167
+msgid "Latest allocated sequence number"
+msgstr ""
+
+#: apps/finance/models.py:183
+#, python-brace-format
+msgid "Format: INV/{school_code}/{YYYY}/{NNNNNN}"
+msgstr ""
+
+#: apps/finance/models.py:184
+msgid "Billing period format YYYY-MM (e.g. 2026-10)"
+msgstr ""
+
+#: apps/finance/models.py:186
+msgid "Payment due date"
+msgstr ""
+
+#: apps/finance/models.py:188
+msgid "Sum of lines before discounts"
+msgstr ""
+
+#: apps/finance/models.py:189
+msgid "Total discounts applied"
+msgstr ""
+
+#: apps/finance/models.py:190
+msgid "PEMBULATAN line adjustment (FIN-008c, CUR-019)"
+msgstr ""
+
+#: apps/finance/models.py:191
+msgid "Final amount payable (subtotal - discount + rounding)"
+msgstr ""
+
+#: apps/finance/models.py:192
+msgid "Cumulative settled payments"
+msgstr ""
+
+#: apps/finance/models.py:194
+msgid "Invoice currency (CUR-002, CUR-008)"
+msgstr ""
+
+#: apps/finance/models.py:233
+msgid "Line code, e.g. SPP_REGULER or PEMBULATAN"
+msgstr ""
+
+#: apps/finance/models.py:234
+msgid "Display item description"
+msgstr ""
+
+#: apps/finance/models.py:235
+msgid "Base line item amount"
+msgstr ""
+
+#: apps/finance/models.py:236
+msgid "Discount deduction on this line"
+msgstr ""
+
+#: apps/finance/models.py:237
+msgid "Net line total (amount - discount)"
+msgstr ""
+
+#: apps/finance/models.py:239
+msgid ""
+"Set when a FIXED-type discount (waiver) is approved against this line (spec/"
+"03 FND-007 AC#2, spec/06 §2)"
+msgstr ""
+
+#: apps/finance/models.py:252 apps/finance/models.py:312
+#: apps/finance/models.py:321
+msgid "Menunggu Pembayaran (Pending)"
+msgstr ""
+
+#: apps/finance/models.py:261
+msgid "Installment index starting from 1"
+msgstr ""
+
+#: apps/finance/models.py:262
+msgid "Due date for this installment"
+msgstr ""
+
+#: apps/finance/models.py:263
+msgid "Scheduled installment amount (CUR-018)"
+msgstr ""
+
+#: apps/finance/models.py:264
+msgid "Cumulative settled payments on this installment"
+msgstr ""
+
+#: apps/finance/models.py:305 apps/wallet/models.py:55
+msgid "Virtual Account"
+msgstr ""
+
+#: apps/finance/models.py:306 apps/wallet/models.py:56
+msgid "QRIS"
+msgstr ""
+
+#: apps/finance/models.py:307
+msgid "Transfer Manual (Manual Transfer)"
+msgstr ""
+
+#: apps/finance/models.py:308
+msgid "Tunai di Sekolah (Cash at School)"
+msgstr ""
+
+#: apps/finance/models.py:313
+msgid "Berhasil/Lunas (Settled)"
+msgstr ""
+
+#: apps/finance/models.py:314 apps/finance/models.py:837
+msgid "Gagal (Failed)"
+msgstr ""
+
+#: apps/finance/models.py:316
+msgid "Menunggu Verifikasi (Pending Verification)"
+msgstr ""
+
+#: apps/finance/models.py:322 apps/finance/models.py:836
+msgid "Selesai (Completed)"
+msgstr ""
+
+#: apps/finance/models.py:323
+msgid "Kedaluwarsa (Expired)"
+msgstr ""
+
+#: apps/finance/models.py:328
+msgid "Kas / Bank"
+msgstr ""
+
+#: apps/finance/models.py:329
+msgid "Piutang SPP & Biaya"
+msgstr ""
+
+#: apps/finance/models.py:330
+msgid "Pendapatan Diterima di Muka"
+msgstr ""
+
+#: apps/finance/models.py:331
+msgid "Saldo Deposit Siswa"
+msgstr ""
+
+#: apps/finance/models.py:332
+msgid "Pendapatan SPP"
+msgstr ""
+
+#: apps/finance/models.py:333
+msgid "Pendapatan Lain-lain"
+msgstr ""
+
+#: apps/finance/models.py:334
+msgid "Beban Transaksi & Gateway"
+msgstr ""
+
+#: apps/finance/models.py:335
+msgid "Beban Potongan & Keringanan"
+msgstr ""
+
+#: apps/finance/models.py:336
+msgid "Beban / Pendapatan Pembulatan"
+msgstr ""
+
+#: apps/finance/models.py:337
+msgid "Beban Piutang Tak Tertagih (Bad Debt)"
+msgstr ""
+
+#: apps/finance/models.py:343
+msgid "e.g. BCA, MANDIRI, BRI, BNI, PERMATA"
+msgstr ""
+
+#: apps/finance/models.py:370
+msgid "MIDTRANS, XENDIT, MOCK, MANUAL"
+msgstr ""
+
+#: apps/finance/models.py:371
+msgid "Bank code for VA, e.g. BCA, MANDIRI"
+msgstr ""
+
+#: apps/finance/models.py:396
+msgid "PAYMENT, RECEIPT, JOURNAL"
+msgstr ""
+
+#: apps/finance/models.py:397
+msgid "Calendar year e.g. 2026"
+msgstr ""
+
+#: apps/finance/models.py:423
+msgid "e.g. BCA_VA, QRIS_GOPAY, CASHIER, MANDIRI_TRANSFER"
+msgstr ""
+
+#: apps/finance/models.py:424
+msgid "Unique payment reference e.g. PAY/SDIT01/2026/000001"
+msgstr ""
+
+#: apps/finance/models.py:425
+msgid "Gateway order_id or transaction ID"
+msgstr ""
+
+#: apps/finance/models.py:431
+msgid "Gateway or transaction fee"
+msgstr ""
+
+#: apps/finance/models.py:432
+msgid "Net amount received by school (amount - fee)"
+msgstr ""
+
+#: apps/finance/models.py:434
+msgid "Receipt number e.g. RCP/SDIT01/2026/000001"
+msgstr ""
+
+#: apps/finance/models.py:435
+msgid "GCS object key for rendered receipt document (PAR-009, FIN-019)"
+msgstr ""
+
+#: apps/finance/models.py:437
+msgid "Proof upload file path"
+msgstr ""
+
+#: apps/finance/models.py:511
+#, python-brace-format
+msgid "Format: JRN/{school_code}/{YYYY}/{NNNNNN}"
+msgstr ""
+
+#: apps/finance/models.py:513
+msgid "e.g. INVOICE, PAYMENT, REVENUE_RECOGNITION, REFUND"
+msgstr ""
+
+#: apps/finance/models.py:514
+msgid "Primary identifier of the triggering entity"
+msgstr ""
+
+#: apps/finance/models.py:533
+msgid "e.g. 1100, 1200, 2100, 4100"
+msgstr ""
+
+#: apps/finance/models.py:562
+msgid "Format YYYY-MM, e.g. 2026-08"
+msgstr ""
+
+#: apps/finance/models.py:592
+msgid "CPSSoft Accurate Online"
+msgstr ""
+
+#: apps/finance/models.py:593
+msgid "Mekari Jurnal.id"
+msgstr ""
+
+#: apps/finance/models.py:603
+msgid "Kode akun internal EduCore (Chart of Accounts)"
+msgstr ""
+
+#: apps/finance/models.py:607
+msgid "Kode akun pada sistem buku besar eksternal (Accurate / Jurnal)"
+msgstr ""
+
+#: apps/finance/models.py:613
+msgid "Nama akun pada sistem buku besar eksternal (opsional)"
+msgstr ""
+
+#: apps/finance/models.py:643
+msgid "MEDIA_ROOT-relative key of the uploaded static QRIS image"
+msgstr ""
+
+#: apps/finance/models.py:644
+msgid ""
+"Raw QRIS string, if the school has it in addition to/instead of an image"
+msgstr ""
+
+#: apps/finance/models.py:655
+msgid "Ditanggung Sekolah (Absorbed by School)"
+msgstr ""
+
+#: apps/finance/models.py:656
+msgid "Dibebankan ke Orang Tua (Passed to Parent)"
+msgstr ""
+
+#: apps/finance/models.py:661
+msgid "Persentase (Percentage)"
+msgstr ""
+
+#: apps/finance/models.py:689
+msgid ""
+"Fixed amount (in the invoice's currency) or percentage (e.g. 1.50 for 1.5%), "
+"per fee_type"
+msgstr ""
+
+#: apps/finance/models.py:701
+msgid "SWIFT MT940"
+msgstr ""
+
+#: apps/finance/models.py:702
+msgid "ISO 20022 CAMT.053"
+msgstr ""
+
+#: apps/finance/models.py:717
+msgid "e.g. BCA, MANDIRI, BRI"
+msgstr ""
+
+#: apps/finance/models.py:721
+msgid "Remote directory to list/pull statement files from"
+msgstr ""
+
+#: apps/finance/models.py:752
+msgid "Offsets in days relative to due date, e.g. [-3, 0, 3, 7, 14, 30]"
+msgstr ""
+
+#: apps/finance/models.py:758
+msgid "Base URL or template for payment link in reminders (FIN-028)"
+msgstr ""
+
+#: apps/finance/models.py:787
+msgid "Nominal piutang yang dihapusbukukan"
+msgstr ""
+
+#: apps/finance/models.py:789
+msgid "Alasan penghapusbukuan piutang tak tertagih"
+msgstr ""
+
+#: apps/finance/models.py:834
+msgid "Menunggu Proses (Pending)"
+msgstr ""
+
+#: apps/finance/models.py:835
+msgid "Sedang Diproses (Processing)"
+msgstr ""
+
+#: apps/finance/models.py:838
+msgid "Sebagian Berhasil (Partial)"
+msgstr ""
+
+#: apps/finance/models.py:851
+msgid "Payment provider: MIDTRANS, XENDIT, MOCK"
+msgstr ""
+
+#: apps/finance/models.py:855
+msgid "The settlement calendar date this batch covers (YYYY-MM-DD)"
+msgstr ""
+
+#: apps/finance/models.py:866
+msgid "Timestamp when gateway data was successfully fetched"
+msgstr ""
+
+#: apps/finance/models.py:870
+msgid "Total settlement records returned by the gateway"
+msgstr ""
+
+#: apps/finance/models.py:874
+msgid "Records matched to an existing Payment and auto-settled"
+msgstr ""
+
+#: apps/finance/models.py:878
+msgid "Gateway records with no matching Payment in EduCore"
+msgstr ""
+
+#: apps/finance/models.py:882
+msgid "Records where gateway amount differs from Payment amount"
+msgstr ""
+
+#: apps/finance/models.py:887
+msgid "Error traceback or message if the batch run failed"
+msgstr ""
+
+#: apps/finance/models.py:892
+msgid "Provider-specific aggregate totals from gateway response"
+msgstr ""
+
+#: apps/finance/models.py:917
+msgid "Ada di Gateway, Tidak Ada di Sistem (Missing in System)"
+msgstr ""
+
+#: apps/finance/models.py:918
+msgid "Jumlah Tidak Sesuai (Amount Mismatch)"
+msgstr ""
+
+#: apps/finance/models.py:919
+msgid "Duplikat (Duplicate Entry)"
+msgstr ""
+
+#: apps/finance/models.py:920
+msgid "Ada di Sistem, Tidak Ada di Gateway (Extra in System)"
+msgstr ""
+
+#: apps/finance/models.py:924
+msgid "Menunggu Tindak Lanjut (Pending Review)"
+msgstr ""
+
+#: apps/finance/models.py:925
+msgid "Diselesaikan Otomatis (Auto-settled)"
+msgstr ""
+
+#: apps/finance/models.py:926
+msgid "Diselesaikan Manual (Manually Settled)"
+msgstr ""
+
+#: apps/finance/models.py:927
+msgid "Diabaikan (Waived)"
+msgstr ""
+
+#: apps/finance/models.py:928
+msgid "Diteruskan ke Tim Keuangan (Escalated)"
+msgstr ""
+
+#: apps/finance/models.py:943
+msgid "Parent batch this discrepancy belongs to"
+msgstr ""
+
+#: apps/finance/models.py:951
+msgid "Matched Payment record, if found (null for MISSING_IN_SYSTEM)"
+msgstr ""
+
+#: apps/finance/models.py:956
+msgid "Gateway transaction or reference ID"
+msgstr ""
+
+#: apps/finance/models.py:965
+msgid "Gross amount reported by the gateway"
+msgstr ""
+
+#: apps/finance/models.py:969
+msgid "Fee reported by the gateway"
+msgstr ""
+
+#: apps/finance/models.py:973
+msgid "Net amount reported by the gateway (amount - fee)"
+msgstr ""
+
+#: apps/finance/models.py:978
+msgid "Amount recorded in the EduCore Payment record (if matched)"
+msgstr ""
+
+#: apps/finance/models.py:986
+msgid "Timestamp of settlement according to the gateway"
+msgstr ""
+
+#: apps/finance/models.py:1006
+msgid "Unmodified gateway settlement record for audit trail"
+msgstr ""
+
+#: apps/finance/models.py:1028
+msgid "Berhasil Dikirim (Executed)"
+msgstr ""
+
+#: apps/finance/models.py:1038
+msgid "The settled payment being refunded"
+msgstr ""
+
+#: apps/finance/models.py:1050
+msgid "Nominal pengembalian dana"
+msgstr ""
+
+#: apps/finance/models.py:1052
+msgid "Alasan pengembalian dana"
+msgstr ""
+
+#: apps/finance/models.py:1054
+msgid "Nama bank penerima (e.g. BCA, MANDIRI)"
+msgstr ""
+
+#: apps/finance/models.py:1055
+msgid "Nomor rekening tujuan"
+msgstr ""
+
+#: apps/finance/models.py:1056
+msgid "Nama pemilik rekening tujuan"
+msgstr ""
+
+#: apps/finance/models.py:1083
+msgid "Gateway payout ID atau referensi transfer bank"
+msgstr ""
+
+#: apps/finance/models.py:1089
+msgid "File path bukti transfer pengembalian dana"
+msgstr ""
+
+#: apps/finance/models.py:1106
+msgid "Compensating double-entry ledger journal (FIN-020)"
+msgstr ""
+
+#: apps/finance/services/accounting_export.py:97
+#, python-format
+msgid ""
+"Jurnal %(number)s tidak seimbang: Total Debit (%(debit)s) != Total Kredit "
+"(%(credit)s)"
+msgstr ""
+
+#: apps/finance/services/installments.py:46
+#: apps/finance/services/installments.py:162
+msgid "Jumlah cicilan minimal 1."
+msgstr ""
+
+#: apps/finance/services/installments.py:49
+msgid "Total tagihan yang dicicil harus lebih besar dari 0."
+msgstr ""
+
+#: apps/finance/services/installments.py:105
+msgid ""
+"Rencana cicilan hanya dapat dibuat untuk tagihan berstatus Diterbitkan atau "
+"Dibayar Sebagian."
+msgstr ""
+
+#: apps/finance/services/installments.py:115
+msgid ""
+"Tagihan sudah memiliki rencana cicilan aktif. Batalkan terlebih dahulu "
+"sebelum membuat yang baru."
+msgstr ""
+
+#: apps/finance/services/installments.py:120
+msgid "Sisa tagihan (balance due) adalah 0."
+msgstr ""
+
+#: apps/finance/services/installments.py:126
+msgid "Jadwal cicilan tidak boleh kosong."
+msgstr ""
+
+#: apps/finance/services/installments.py:177
+msgid "Harap tentukan jumlah cicilan (count) atau daftar jadwal (schedule)."
+msgstr ""
+
+#: apps/finance/services/installments.py:242
+msgid "Tidak ada rencana cicilan aktif untuk tagihan ini."
+msgstr ""
+
+#: apps/finance/services/invoicing.py:173
+msgid "Persentase diskon harus antara 0.01% dan 100%."
+msgstr ""
+
+#: apps/finance/services/invoicing.py:175
+msgid "Nominal diskon harus lebih dari 0.00."
+msgstr ""
+
+#: apps/finance/services/invoicing.py:228
+msgid ""
+"Hanya permohonan diskon dengan status PENDING_APPROVAL yang dapat disetujui."
+msgstr ""
+
+#: apps/finance/services/invoicing.py:232
+msgid ""
+"Persetujuan diskon atau keringanan biaya memerlukan wewenang Admin Yayasan "
+"(FIN-007, FND-007)."
+msgstr ""
+
+#: apps/finance/services/invoicing.py:235
+msgid "Alasan persetujuan diskon wajib diisi."
+msgstr ""
+
+#: apps/finance/services/invoicing.py:347
+msgid ""
+"Hanya permohonan diskon dengan status PENDING_APPROVAL yang dapat ditolak."
+msgstr ""
+
+#: apps/finance/services/invoicing.py:351
+msgid ""
+"Penolakan permohonan diskon memerlukan wewenang Admin Yayasan (FIN-007, "
+"FND-007)."
+msgstr ""
+
+#: apps/finance/services/invoicing.py:354
+msgid "Alasan penolakan diskon wajib diisi."
+msgstr ""
+
+#: apps/finance/services/invoicing.py:570
+msgid "Status bukan ACTIVE (FIN-005)"
+msgstr ""
+
+#: apps/finance/services/invoicing.py:687
+msgid "Pembulatan ke ratusan terdekat"
+msgstr ""
+
+#: apps/finance/services/invoicing.py:784
+msgid ""
+"Faktur yang sudah dibayar, dibatalkan, atau dihapusbuku tidak dapat "
+"dibatalkan."
+msgstr ""
+
+#: apps/finance/services/invoicing.py:786
+msgid ""
+"Faktur yang sudah memiliki pembayaran parsial tidak dapat dibatalkan "
+"langsung."
+msgstr ""
+
+#: apps/finance/services/invoicing.py:815
+msgid "Faktur dengan status ini tidak dapat diajukan untuk penghapusbukuan."
+msgstr ""
+
+#: apps/finance/services/invoicing.py:818
+msgid "Faktur tidak memiliki saldo piutang tertunggak."
+msgstr ""
+
+#: apps/finance/services/invoicing.py:822
+msgid "Nominal penghapusbukuan tidak valid atau melebihi sisa tagihan."
+msgstr ""
+
+#: apps/finance/services/invoicing.py:829
+msgid ""
+"Permohonan penghapusbukuan untuk faktur ini sedang menunggu persetujuan."
+msgstr ""
+
+#: apps/finance/services/invoicing.py:863
+#: apps/finance/services/invoicing.py:914
+msgid "Permohonan penghapusbukuan sudah diproses sebelumnya."
+msgstr ""
+
+#: apps/finance/services/invoicing.py:867
+msgid ""
+"Persetujuan penghapusbukuan piutang memerlukan wewenang Yayasan (FIN-031)."
+msgstr ""
+
+#: apps/finance/services/invoicing.py:918
+msgid ""
+"Penolakan penghapusbukuan piutang memerlukan wewenang Yayasan (FIN-031)."
+msgstr ""
+
+#: apps/finance/services/period_close.py:37
+msgid "Format periode tidak valid. Gunakan format YYYY-MM (contoh: 2026-08)."
+msgstr ""
+
+#: apps/finance/services/period_close.py:242
+msgid "Alasan pembukaan kembali periode fiskal wajib diisi."
+msgstr ""
+
+#: apps/finance/services/period_close.py:253
+msgid "Periode fiskal tidak dalam status tertutup."
+msgstr ""
+
+#: apps/finance/services/refunds.py:68
+msgid ""
+"Hanya pembayaran dengan status SETTLED yang dapat diajukan pengembalian dana."
+msgstr ""
+
+#: apps/finance/services/refunds.py:74
+msgid "Nominal pengembalian dana harus lebih dari 0.00."
+msgstr ""
+
+#: apps/finance/services/refunds.py:82
+msgid "Nama bank tujuan wajib diisi."
+msgstr ""
+
+#: apps/finance/services/refunds.py:85
+msgid "Nomor rekening tujuan wajib diisi."
+msgstr ""
+
+#: apps/finance/services/refunds.py:88
+msgid "Nama pemilik rekening tujuan wajib diisi."
+msgstr ""
+
+#: apps/finance/services/refunds.py:91
+msgid "Alasan pengembalian dana wajib diisi."
+msgstr ""
+
+#: apps/finance/services/refunds.py:180
+msgid ""
+"Persetujuan atau penolakan pengembalian dana memerlukan wewenang Admin "
+"Yayasan (FND-007, FIN-032)."
+msgstr ""
+
+#: apps/finance/services/refunds.py:185
+msgid ""
+"Hanya pengembalian dana dengan status PENDING_APPROVAL yang dapat diproses "
+"persetujuannya."
+msgstr ""
+
+#: apps/finance/services/refunds.py:190
+msgid "Keputusan harus 'APPROVE' atau 'REJECT'."
+msgstr ""
+
+#: apps/finance/services/refunds.py:194
+msgid "Alasan persetujuan pengembalian dana wajib diisi."
+msgstr ""
+
+#: apps/finance/services/refunds.py:196
+msgid "Alasan penolakan pengembalian dana wajib diisi."
+msgstr ""
+
+#: apps/finance/services/refunds.py:272
+msgid "Hanya pengembalian dana dengan status APPROVED yang dapat dieksekusi."
+msgstr ""
+
+#: apps/finance/services/refunds.py:276
+msgid "Nomor referensi payout atau bukti transfer bank wajib diisi."
+msgstr ""
+
+#: apps/finance/services/refunds.py:288
+msgid "Total pengembalian dana melebihi nominal pembayaran."
+msgstr ""
+
+#: apps/finance/services/refunds.py:491
+msgid "Hanya pengembalian dana yang belum dieksekusi yang dapat dibatalkan."
+msgstr ""
+
+#: apps/finance/views.py:494
+msgid "Parameter school_id dan period wajib diisi."
+msgstr ""
+
+#: apps/finance/views.py:681 apps/finance/views.py:692
+#: apps/finance/views.py:1177
+msgid "Tagihan tidak ditemukan."
+msgstr ""
+
+#: apps/finance/views.py:870
+msgid ""
+"Kwitansi hanya dapat diakses untuk pembayaran yang telah lunas (SETTLED)."
+msgstr ""
+
+#: apps/finance/views.py:945 apps/finance/views.py:1820
+#: apps/finance/views.py:1869
+msgid "Konteks yayasan tidak ditemukan."
+msgstr ""
+
+#: apps/finance/views.py:985
+msgid "Konfigurasi QRIS belum diatur."
+msgstr ""
+
+#: apps/finance/views.py:1237
+msgid "Konteks yayasan diperlukan."
+msgstr ""
+
+#: apps/finance/views.py:1246
+msgid "Format as_of tidak valid. Gunakan YYYY-MM-DD."
+msgstr ""
+
+#: apps/finance/views.py:1367
+msgid "Batch tidak ditemukan."
+msgstr ""
+
+#: apps/finance/views.py:1390
+msgid "Field 'resolution' wajib diisi."
+msgstr ""
+
+#: apps/finance/views.py:1403
+msgid "Discrepancy tidak ditemukan."
+msgstr ""
+
+#: apps/finance/views.py:1433
+msgid "Field 'file' wajib diisi."
+msgstr ""
+
+#: apps/finance/views.py:1435
+msgid "Field 'bank_code' wajib diisi."
+msgstr ""
+
+#: apps/finance/views.py:1441
+msgid "Field 'settlement_date' harus format YYYY-MM-DD."
+msgstr ""
+
+#: apps/finance/views.py:1536 apps/finance/views.py:1595
+msgid "Parameter periode wajib diisi (format YYYY-MM)."
+msgstr ""
+
+#: apps/finance/views.py:1573
+msgid "Alasan pembukaan kembali wajib diisi."
+msgstr ""
+
+#: apps/finance/views.py:1662
+msgid "Pembayaran tidak ditemukan."
+msgstr ""
+
+#: apps/hardware/models.py:9
+msgid "Gate Reader (Turnstile)"
+msgstr ""
+
+#: apps/hardware/models.py:10
+msgid "Face Terminal"
+msgstr ""
+
+#: apps/hardware/models.py:11
+msgid "POS Terminal"
+msgstr ""
+
+#: apps/hardware/models.py:13
+msgid "Handheld"
+msgstr ""
+
+#: apps/hardware/models.py:14
+msgid "Campus Gateway"
+msgstr ""
+
+#: apps/hardware/models.py:20
+msgid "Dua Arah (Bidirectional)"
+msgstr ""
+
+#: apps/hardware/models.py:24
+msgid "Online"
+msgstr ""
+
+#: apps/hardware/models.py:25
+msgid "Offline"
+msgstr ""
+
+#: apps/hardware/models.py:26
+msgid "Degraded"
+msgstr ""
+
+#: apps/hardware/models.py:27
+msgid "Retired"
+msgstr ""
+
+#: apps/hardware/models.py:39
+msgid "School where the device is deployed"
+msgstr ""
+
+#: apps/hardware/models.py:43
+msgid "Unique hardware serial number or device identifier"
+msgstr ""
+
+#: apps/hardware/models.py:47
+msgid "Friendly label, e.g. Gerbang Utama Masuk"
+msgstr ""
+
+#: apps/hardware/models.py:64
+msgid "Physical campus location"
+msgstr ""
+
+#: apps/hardware/models.py:75
+msgid "Local IP address on campus LAN"
+msgstr ""
+
+#: apps/hardware/models.py:108
+msgid "Device"
+msgstr ""
+
+#: apps/hardware/models.py:109
+msgid "Devices"
+msgstr ""
+
+#: apps/hardware/models.py:134 apps/marketing/views.py:119
+#: apps/marketing/views.py:121 apps/marketing/views.py:122
+#: apps/wallet/models.py:12 apps/wallet/models.py:157
+msgid "Aktif"
+msgstr ""
+
+#: apps/hardware/models.py:135
+msgid "Ditarik (Consent Withdrawn)"
+msgstr ""
+
+#: apps/hardware/models.py:136
+msgid "Dihapus (Purged)"
+msgstr ""
+
+#: apps/hardware/models.py:160
+msgid ""
+"Enrollment device class — always FACE_TERMINAL today; kept general per spec/"
+"12 §2"
+msgstr ""
+
+#: apps/hardware/models.py:163
+msgid ""
+"apps.compliance.ConsentRecord.id this enrollment relies on (CMP-009: no "
+"bundling, no template without a purpose-matched consent)"
+msgstr ""
+
+#: apps/hardware/models.py:168
+msgid "Fernet-encrypted template payload; blanked on withdrawal/purge"
+msgstr ""
+
+#: apps/hardware/models.py:177
+msgid "Biometric Template"
+msgstr ""
+
+#: apps/hardware/models.py:178
+msgid "Biometric Templates"
+msgstr ""
+
+#: apps/hardware/models.py:189 apps/notifications/models.py:54
+#: apps/notifications/models.py:63 apps/notifications/models.py:72
+msgid "Pending"
+msgstr ""
+
+#: apps/hardware/models.py:190
+msgid "Applied"
+msgstr ""
+
+#: apps/hardware/models.py:191 apps/notifications/models.py:58
+#: apps/notifications/models.py:67
+msgid "Failed"
+msgstr ""
+
+#: apps/hardware/models.py:223
+msgid ""
+"Raw event fields as uploaded: occurred_at, raw_uid, direction, method, etc."
+msgstr ""
+
+#: apps/hardware/models.py:236
+msgid "Device Event Staging Row"
+msgstr ""
+
+#: apps/hardware/models.py:237
+msgid "Device Event Staging Rows"
+msgstr ""
+
+#: apps/identity/authentication.py:32
+msgid ""
+"X-Foundation-ID header value does not match the authenticated user's "
+"foundation."
+msgstr ""
+
+#: apps/identity/authentication.py:55
+msgid "Token contained no recognizable user identification"
+msgstr ""
+
+#: apps/identity/authentication.py:62
+msgid "User not found"
+msgstr ""
+
+#: apps/identity/authentication.py:65
+msgid "User is inactive"
+msgstr ""
+
+#: apps/identity/web_views.py:52
+msgid "Nomor HP / Email dan kata sandi wajib diisi."
+msgstr ""
+
+#: apps/identity/web_views.py:65 apps/identity/web_views.py:80
+msgid "Akun pengguna tidak aktif. Hubungi Tata Usaha."
+msgstr ""
+
+#: apps/identity/web_views.py:73
+msgid "Kredensial tidak valid atau akun terkunci. Periksa kembali data Anda."
+msgstr ""
+
+#: apps/identity/web_views.py:101
+msgid "Format data tidak valid."
+msgstr ""
+
+#: apps/identity/web_views.py:109
+msgid "Provider dan id_token wajib diisi."
+msgstr ""
+
+#: apps/identity/web_views.py:126
+msgid "Akun Google/Microsoft belum terhubung dengan akun staf EduCore."
+msgstr ""
+
+#: apps/identity/web_views.py:136
+msgid "Akun pengguna tidak aktif."
+msgstr ""
+
+#: apps/identity/web_views.py:241 apps/identity/web_views.py:244
+msgid "Hanya Administrator Yayasan yang berwenang mengakses pengaturan ini."
+msgstr ""
+
+#: apps/identity/web_views.py:302
+msgid "Penyematan tenant Microsoft Entra berhasil disimpan."
+msgstr ""
+
+#: apps/identity/web_views.py:331
+msgid ""
+"Penyematan tenant Microsoft Entra berhasil dilepas. SSO kembali menggunakan "
+"mode multi-tenant standar."
+msgstr ""
+
+#: apps/marketing/views.py:12 frontend/templates/marketing/base.html:92
+msgid "Akademik & rapor"
+msgstr ""
+
+#: apps/marketing/views.py:12
+msgid ""
+"Kurikulum, jadwal, nilai, dan rapor siap cetak yang mengikuti format resmi."
+msgstr ""
+
+#: apps/marketing/views.py:13 frontend/templates/marketing/base.html:93
+msgid "Kehadiran & gerbang"
+msgstr ""
+
+#: apps/marketing/views.py:13
+msgid ""
+"Absensi per sesi, pemindaian gerbang, dan notifikasi kedatangan ke orang tua "
+"dalam hitungan detik."
+msgstr ""
+
+#: apps/marketing/views.py:14 frontend/templates/marketing/base.html:94
+msgid "Keuangan & tagihan"
+msgstr ""
+
+#: apps/marketing/views.py:14
+msgid ""
+"Tagihan SPP otomatis, VA dan QRIS, alokasi pembayaran, serta buku besar yang "
+"selalu seimbang."
+msgstr ""
+
+#: apps/marketing/views.py:15
+msgid "Kantin & dompet"
+msgstr ""
+
+#: apps/marketing/views.py:15
+msgid ""
+"Dompet siswa non-tunai, batas belanja harian, dan POS kantin yang tetap "
+"jalan saat jaringan mati."
+msgstr ""
+
+#: apps/marketing/views.py:16
+msgid "Suite guru"
+msgstr ""
+
+#: apps/marketing/views.py:16
+msgid ""
+"Agenda mengajar, antrean penilaian, dan catatan kelas di web maupun ponsel."
+msgstr ""
+
+#: apps/marketing/views.py:17
+msgid "Aplikasi orang tua"
+msgstr ""
+
+#: apps/marketing/views.py:17
+msgid ""
+"Kehadiran, tagihan, saldo kantin, dan rapor anak — dalam satu aplikasi "
+"ringan."
+msgstr ""
+
+#: apps/marketing/views.py:21
+msgid "Dibuat untuk ponsel 3G"
+msgstr ""
+
+#: apps/marketing/views.py:21
+msgid ""
+"Setiap layar menyatakan kondisi memuat, data lama, dan offline secara "
+"eksplisit. Aplikasi guru dan POS bekerja penuh tanpa jaringan."
+msgstr ""
+
+#: apps/marketing/views.py:22
+msgid "Dibangun untuk Indonesia"
+msgstr ""
+
+#: apps/marketing/views.py:22
+msgid ""
+"Dari format rapor resmi hingga VA dan QRIS, dari NISN hingga Dapodik — "
+"dibangun dari nol untuk kebutuhan sekolah Indonesia, bukan ditempel "
+"belakangan."
+msgstr ""
+
+#: apps/marketing/views.py:23
+msgid "Siap diaudit"
+msgstr ""
+
+#: apps/marketing/views.py:23
+msgid ""
+"Setiap tindakan yang mengubah data menulis jejak audit dengan aktor, waktu, "
+"dan alasan. Tidak ada pengecualian untuk proses internal."
+msgstr ""
+
+#: apps/marketing/views.py:27
+msgid "Ketua yayasan"
+msgstr ""
+
+#: apps/marketing/views.py:27
+msgid ""
+"Bandingkan sekolah, pantau kolektibilitas, dan setujui keringanan dalam satu "
+"antrean."
+msgstr ""
+
+#: apps/marketing/views.py:28
+msgid "Admin sekolah"
+msgstr ""
+
+#: apps/marketing/views.py:28
+msgid ""
+"Pendaftaran, mutasi, jadwal, dan pelaporan resmi tanpa spreadsheet paralel."
+msgstr ""
+
+#: apps/marketing/views.py:29
+msgid "Guru"
+msgstr ""
+
+#: apps/marketing/views.py:29
+msgid ""
+"Absen satu sentuh, nilai tanpa menunggu jaringan, dan rapor yang terisi "
+"sendiri."
+msgstr ""
+
+#: apps/marketing/views.py:30
+msgid "Orang tua"
+msgstr ""
+
+#: apps/marketing/views.py:30
+msgid ""
+"Tahu anak sudah sampai, tahu berapa yang harus dibayar, bayar dari ponsel."
+msgstr ""
+
+#: apps/marketing/views.py:34
+msgid "Isolasi tenant"
+msgstr ""
+
+#: apps/marketing/views.py:34
+msgid ""
+"Setiap tabel dikunci per yayasan di lapisan basis data, bukan hanya di "
+"aplikasi."
+msgstr ""
+
+#: apps/marketing/views.py:35
+msgid "Retensi terjadwal"
+msgstr ""
+
+#: apps/marketing/views.py:35
+msgid ""
+"Foto gerbang dan dokumen kedaluwarsa dihapus otomatis sesuai periode "
+"statutori."
+msgstr ""
+
+#: apps/marketing/views.py:36
+msgid "Tanpa PII di log"
+msgstr ""
+
+#: apps/marketing/views.py:36
+msgid "Nama, NISN, dan NIK tidak pernah masuk log, analitik, atau isi SMS."
+msgstr ""
+
+#: apps/marketing/views.py:37
+msgid "Ekspor resmi"
+msgstr ""
+
+#: apps/marketing/views.py:37
+msgid ""
+"Jalur ekspor Dapodik dan EMIS mengikuti skema versi terbaru sebagai data, "
+"bukan kode."
+msgstr ""
+
+#: apps/marketing/views.py:61 apps/marketing/views.py:79
+#: apps/marketing/views.py:97
+msgid "STABIL"
+msgstr ""
+
+#: apps/marketing/views.py:62
+msgid "Aplikasi Orang Tua"
+msgstr ""
+
+#: apps/marketing/views.py:63
+msgid ""
+"Kehadiran harian, tagihan dan pembayaran, saldo kantin, rapor, dan "
+"notifikasi gerbang."
+msgstr ""
+
+#: apps/marketing/views.py:65 frontend/templates/marketing/downloads.html:58
+msgid "ORANG TUA"
+msgstr ""
+
+#: apps/marketing/views.py:67
+msgid "HARI INI"
+msgstr ""
+
+#: apps/marketing/views.py:68
+msgid "Aisyah — kelas X MIPA 2"
+msgstr ""
+
+#: apps/marketing/views.py:70
+msgid "Tiba di sekolah"
+msgstr ""
+
+#: apps/marketing/views.py:70
+msgid "07:02 · HADIR"
+msgstr ""
+
+#: apps/marketing/views.py:71
+msgid "SPP September"
+msgstr ""
+
+#: apps/marketing/views.py:72
+msgid "Saldo kantin"
+msgstr ""
+
+#: apps/marketing/views.py:74
+msgid "Bayar sekarang"
+msgstr ""
+
+#: apps/marketing/views.py:80
+msgid "Aplikasi Guru"
+msgstr ""
+
+#: apps/marketing/views.py:81
+msgid ""
+"Agenda mengajar, absensi sesi, antrean penilaian, dan catatan kelas — "
+"bekerja penuh offline."
+msgstr ""
+
+#: apps/marketing/views.py:83 frontend/templates/marketing/downloads.html:62
+msgid "GURU"
+msgstr ""
+
+#: apps/marketing/views.py:85
+msgid "AGENDA"
+msgstr ""
+
+#: apps/marketing/views.py:86
+msgid "Rabu, 17 September"
+msgstr ""
+
+#: apps/marketing/views.py:88
+msgid "07:30 · X MIPA 2"
+msgstr ""
+
+#: apps/marketing/views.py:88
+msgid "Absen belum diisi"
+msgstr ""
+
+#: apps/marketing/views.py:89
+msgid "09:15 · XI MIPA 1"
+msgstr ""
+
+#: apps/marketing/views.py:89
+msgid "Selesai · 32 hadir"
+msgstr ""
+
+#: apps/marketing/views.py:90
+msgid "11:00 · X MIPA 3"
+msgstr ""
+
+#: apps/marketing/views.py:90
+msgid "8 tugas menunggu nilai"
+msgstr ""
+
+#: apps/marketing/views.py:92
+msgid "Ambil absen"
+msgstr ""
+
+#: apps/marketing/views.py:98
+msgid "POS Kantin"
+msgstr ""
+
+#: apps/marketing/views.py:99
+msgid ""
+"Terminal kantin dan kiosk. Dipasang oleh tim penerapan; pembaruan diturunkan "
+"per sekolah."
+msgstr ""
+
+#: apps/marketing/views.py:102
+msgid "TRANSAKSI"
+msgstr ""
+
+#: apps/marketing/views.py:103
+msgid "Kantin — terminal 2"
+msgstr ""
+
+#: apps/marketing/views.py:105
+msgid "Nasi ayam"
+msgstr ""
+
+#: apps/marketing/views.py:106
+msgid "Susu kotak"
+msgstr ""
+
+#: apps/marketing/views.py:107
+msgid "Sisa saldo"
+msgstr ""
+
+#: apps/marketing/views.py:109
+msgid "Tap kartu siswa"
+msgstr ""
+
+#: apps/marketing/views.py:119
+msgid "Orang tua — saat ini"
+msgstr ""
+
+#: apps/marketing/views.py:120
+msgid "Orang tua — sebelumnya"
+msgstr ""
+
+#: apps/marketing/views.py:120
+msgid "Sampai Des 2026"
+msgstr ""
+
+#: apps/marketing/views.py:121
+msgid "Guru — saat ini"
+msgstr ""
+
+#: apps/marketing/views.py:122
+msgid "POS kantin"
+msgstr ""
+
+#: apps/marketing/views.py:154
+msgid "Roster & staf"
+msgstr ""
+
+#: apps/marketing/views.py:154
+msgid ""
+"Yayasan, sekolah, kelas, siswa aktif, dan staf beserta jabatan serta status "
+"kepegawaian."
+msgstr ""
+
+#: apps/marketing/views.py:155
+msgid "Keuangan"
+msgstr ""
+
+#: apps/marketing/views.py:155
+msgid ""
+"Tagihan, alokasi pembayaran, AR aging, dan statement per siswa. Uang selalu "
+"string 2dp dengan mata uang."
+msgstr ""
+
+#: apps/marketing/views.py:156
+msgid "Kehadiran"
+msgstr ""
+
+#: apps/marketing/views.py:156
+msgid ""
+"Rekap harian dan per sesi dengan enam status tetap. Foto gerbang tidak "
+"pernah diekspor."
+msgstr ""
+
+#: apps/marketing/views.py:157
+msgid "Akademik"
+msgstr ""
+
+#: apps/marketing/views.py:157
+msgid ""
+"Struktur kurikulum, jadwal, dan ringkasan capaian per periode penilaian."
+msgstr ""
+
+#: apps/marketing/views.py:161
+msgid "Autentikasi yang bisa dirotasi"
+msgstr ""
+
+#: apps/marketing/views.py:161
+msgid ""
+"Pasangan key-id dan secret per yayasan, ditandatangani HMAC-SHA256 per "
+"permintaan. Rotasi tanpa downtime."
+msgstr ""
+
+#: apps/marketing/views.py:162
+msgid "Aman diulang"
+msgstr ""
+
+#: apps/marketing/views.py:162
+msgid ""
+"Setiap endpoint mutasi menerima Idempotency-Key. Kirim ulang permintaan yang "
+"sama dan Anda mendapat respons yang sama."
+msgstr ""
+
+#: apps/marketing/views.py:163
+msgid "Webhook, dengan jaring polling"
+msgstr ""
+
+#: apps/marketing/views.py:163
+msgid ""
+"Webhook bertanda tangan untuk kejadian domain, lima kali coba ulang — dan "
+"endpoint events bila penerima Anda pernah mati."
+msgstr ""
+
+#: apps/notifications/models.py:13
+msgid "WhatsApp"
+msgstr ""
+
+#: apps/notifications/models.py:14
+msgid "Push Notification"
+msgstr ""
+
+#: apps/notifications/models.py:15
+msgid "SMS"
+msgstr ""
+
+#: apps/notifications/models.py:16
+msgid "Email"
+msgstr ""
+
+#: apps/notifications/models.py:17
+msgid "In-App"
+msgstr ""
+
+#: apps/notifications/models.py:21
+msgid "Kedatangan (Arrival)"
+msgstr ""
+
+#: apps/notifications/models.py:22
+msgid "Kepulangan (Departure)"
+msgstr ""
+
+#: apps/notifications/models.py:23
+msgid "Darurat (Emergency)"
+msgstr ""
+
+#: apps/notifications/models.py:24
+msgid "Tagihan Pembayaran (Payment Due)"
+msgstr ""
+
+#: apps/notifications/models.py:25
+msgid "Pembayaran Diterima (Payment Received)"
+msgstr ""
+
+#: apps/notifications/models.py:26
+msgid "Nilai Diumumkan (Grade Published)"
+msgstr ""
+
+#: apps/notifications/models.py:27
+msgid "Buku Rapor (Report Card)"
+msgstr ""
+
+#: apps/notifications/models.py:28
+msgid "Tugas Sekolah (Homework)"
+msgstr ""
+
+#: apps/notifications/models.py:29
+msgid "Pelanggaran Berat (Major Behaviour)"
+msgstr ""
+
+#: apps/notifications/models.py:30
+msgid "Catatan Ringan (Minor Behaviour)"
+msgstr ""
+
+#: apps/notifications/models.py:31
+msgid "Transaksi Kantin (Canteen)"
+msgstr ""
+
+#: apps/notifications/models.py:32
+msgid "Pengumuman Sekolah (Announcement)"
+msgstr ""
+
+#: apps/notifications/models.py:33
+msgid "Rekonsiliasi Dompet (Wallet Reconciliation)"
+msgstr ""
+
+#: apps/notifications/models.py:34
+msgid "Penugasan Guru Pengganti (Substitute Assigned)"
+msgstr ""
+
+#: apps/notifications/models.py:35
+msgid "Penolakan Guru Pengganti (Substitute Declined)"
+msgstr ""
+
+#: apps/notifications/models.py:36
+msgid "Ekspor Laporan Siap (Export Ready)"
+msgstr ""
+
+#: apps/notifications/models.py:37
+msgid "Ketidakhadiran (Absence)"
+msgstr ""
+
+#: apps/notifications/models.py:38
+msgid "Insiden Klinik (Clinic Incident)"
+msgstr ""
+
+#: apps/notifications/models.py:39
+msgid "Perangkat Offline (Device Offline)"
+msgstr ""
+
+#: apps/notifications/models.py:40
+msgid "Ringkasan Aktivitas Harian (Daily Digest)"
+msgstr ""
+
+#: apps/notifications/models.py:41
+msgid "Peminjaman Perpustakaan Jatuh Tempo (Library Loan Due)"
+msgstr ""
+
+#: apps/notifications/models.py:42
+msgid "Eskalasi BK Mendesak (Urgent Counselling Escalation)"
+msgstr ""
+
+#: apps/notifications/models.py:43
+msgid "Pengingat Tindak Lanjut BK (Counselling Follow-up)"
+msgstr ""
+
+#: apps/notifications/models.py:47
+msgid "Critical"
+msgstr ""
+
+#: apps/notifications/models.py:48
+msgid "High"
+msgstr ""
+
+#: apps/notifications/models.py:50
+msgid "Low"
+msgstr ""
+
+#: apps/notifications/models.py:55
+msgid "Processing"
+msgstr ""
+
+#: apps/notifications/models.py:56
+msgid "Dispatched"
+msgstr ""
+
+#: apps/notifications/models.py:57
+msgid "Cancelled"
+msgstr ""
+
+#: apps/notifications/models.py:59
+msgid "Digested"
+msgstr ""
+
+#: apps/notifications/models.py:64
+msgid "Sent"
+msgstr ""
+
+#: apps/notifications/models.py:65
+msgid "Delivered"
+msgstr ""
+
+#: apps/notifications/models.py:66
+msgid "Read"
+msgstr ""
+
+#: apps/notifications/models.py:71
+msgid "Approved"
+msgstr ""
+
+#: apps/notifications/models.py:102
+msgid "Tagihan telah lunas sebelum pengingat terkirim (FIN-027)"
+msgstr ""
+
+#: apps/notifications/models.py:176
+msgid "Saldo telah diselesaikan sebelum notifikasi terkirim (REC-008)"
+msgstr ""
+
+#: apps/notifications/models.py:258
+msgid "e.g. attendance.arrival"
+msgstr ""
+
+#: apps/notifications/models.py:260
+msgid "Default id-ID per NTF-008"
+msgstr ""
+
+#: apps/notifications/models.py:262
+#, python-brace-format
+msgid "Message template with {variable} placeholders"
+msgstr ""
+
+#: apps/notifications/models.py:263
+msgid "Declared variable keys"
+msgstr ""
+
+#: apps/notifications/models.py:269
+msgid "Approval tracking for WhatsApp templates (NTF-005)"
+msgstr ""
+
+#: apps/notifications/models.py:287
+msgid "Ordered list of preferred channels"
+msgstr ""
+
+#: apps/notifications/models.py:288
+msgid "Default 21:00 local"
+msgstr ""
+
+#: apps/notifications/models.py:289
+msgid "Default 06:00 local"
+msgstr ""
+
+#: apps/notifications/models.py:315
+msgid "Idempotency dedupe key (NTF-003)"
+msgstr ""
+
+#: apps/notifications/models.py:347
+msgid "Per-channel provider cost per NTF-011"
+msgstr ""
+
+#: apps/notifications/models.py:362
+msgid "Android"
+msgstr ""
+
+#: apps/notifications/models.py:363
+msgid "iOS"
+msgstr ""
+
+#: apps/notifications/models.py:364
+msgid "Web"
+msgstr ""
+
+#: apps/notifications/services.py:155
+msgid "Pengguna memilih tidak menerima notifikasi kategori ini (Opt-out)"
+msgstr ""
+
+#: apps/notifications/services.py:192
+msgid "Batas harian tercapai (maksimal 20 pesan per hari per NTF-012)"
+msgstr ""
+
+#: apps/notifications/services.py:372
+msgid "Kondisi notifikasi tidak lagi berlaku saat pengiriman (NTF-004)"
+msgstr ""
+
+#: apps/notifications/services.py:520
+msgid "Perilaku & Catatan Guru"
+msgstr ""
+
+#: apps/notifications/services.py:521
+msgid "Tugas Sekolah"
+msgstr ""
+
+#: apps/notifications/services.py:522
+msgid "Ringkasan Keuangan/Kantin"
+msgstr ""
+
+#: apps/notifications/views.py:160
+msgid "Notifikasi tidak ditemukan"
+msgstr ""
+
+#: apps/notifications/views.py:190
+msgid "Kategori wajib diisi"
+msgstr ""
+
+#: apps/notifications/views.py:237
+msgid "Token perangkat wajib diisi."
+msgstr ""
+
+#: apps/notifications/views.py:284
+msgid "Parameter token wajib disertakan."
+msgstr ""
+
+#: apps/partners/models.py:51
+msgid "Human-readable partner/integration name"
+msgstr ""
+
+#: apps/partners/models.py:52
+msgid "Public key identifier, e.g. ak_live_7Qp2R9"
+msgstr ""
+
+#: apps/partners/models.py:53
+msgid "Fernet-encrypted HMAC secret; never returned after issue time"
+msgstr ""
+
+#: apps/partners/models.py:54
+msgid "Granted scope strings, subset of ALLOWED_SCOPES"
+msgstr ""
+
+#: apps/partners/models.py:55
+msgid "School IDs in scope; empty list = every school in the foundation"
+msgstr ""
+
+#: apps/partners/models.py:56
+msgid ""
+"Optional CIDR/address list; empty = unrestricted (REQUIRED for "
+"payroll.write, PVA-013)"
+msgstr ""
+
+#: apps/partners/models.py:59
+msgid "key_id (numeric pk) of the key this one supersedes"
+msgstr ""
+
+#: apps/partners/models.py:60
+msgid "PVA-012: superseded key becomes read-only (day 23 of overlap)"
+msgstr ""
+
+#: apps/partners/models.py:61
+msgid "PVA-012: superseded key stops working (day 30 of overlap)"
+msgstr ""
+
+#: apps/partners/models.py:99
+msgid "Partner's HTTPS endpoint (https:// enforced)"
+msgstr ""
+
+#: apps/partners/models.py:100
+msgid "LIVE or TEST; one active endpoint per environment"
+msgstr ""
+
+#: apps/partners/models.py:101
+msgid "Fernet-encrypted secret used to sign outgoing webhook deliveries"
+msgstr ""
+
+#: apps/partners/models.py:132
+msgid "e.g. finance.payment.settled"
+msgstr ""
+
+#: apps/partners/models.py:135
+msgid "Failed delivery attempts so far"
+msgstr ""
+
+#: apps/partners/models.py:185
+msgid "Payroll period YYYY-MM (e.g. 2026-08)"
+msgstr ""
+
+#: apps/partners/models.py:195
+msgid "Approval + acknowledgement window; past this, ack is locked"
+msgstr ""
+
+#: apps/partners/models.py:197
+msgid "Partner key_id that acknowledged"
+msgstr ""
+
+#: apps/partners/models.py:230
+msgid "apps.identity.Staff ID"
+msgstr ""
+
+#: apps/reporting/models.py:25 apps/reporting/models.py:57
+#: apps/reporting/models.py:89 apps/reporting/models.py:116
+#: apps/reporting/models.py:153 apps/reporting/models.py:184
+msgid "RPT-005: data freshness timestamp"
+msgstr ""
+
+#: apps/reporting/models.py:88
+msgid "{descriptor: count}"
+msgstr ""
+
+#: apps/reporting/models.py:114
+msgid "Normalized to the 1st of the month"
+msgstr ""
+
+#: apps/reporting/models.py:180
+msgid "CURRENT, 0_30, 31_60, 61_90, 90_PLUS"
+msgstr ""
+
+#: apps/reporting/views.py:38 apps/reporting/views.py:45
+#, python-format
+msgid "Format %(param)s tidak valid (YYYY-MM-DD)."
+msgstr ""
+
+#: apps/reporting/views.py:60 apps/reporting/views.py:85
+#: apps/reporting/views.py:114 apps/reporting/views.py:143
+#: apps/reporting/views.py:168 apps/wallet/views.py:552
+#: apps/wallet/views.py:652
+msgid "Parameter school_id wajib diisi."
+msgstr ""
+
+#: apps/wallet/models.py:13
+msgid "Dibekukan"
+msgstr ""
+
+#: apps/wallet/models.py:23
+msgid "Guardian-configured daily spend limit (WAL-009)"
+msgstr ""
+
+#: apps/wallet/models.py:25
+msgid ""
+"Set when an offline overspend was accepted and took the wallet negative "
+"(WAL-017)"
+msgstr ""
+
+#: apps/wallet/models.py:39
+msgid "Isi Ulang"
+msgstr ""
+
+#: apps/wallet/models.py:40
+msgid "Pembelian"
+msgstr ""
+
+#: apps/wallet/models.py:41
+msgid "Pengembalian"
+msgstr ""
+
+#: apps/wallet/models.py:42
+msgid "Penyesuaian"
+msgstr ""
+
+#: apps/wallet/models.py:43
+msgid "Transfer Keluar"
+msgstr ""
+
+#: apps/wallet/models.py:49
+msgid "Perlu Rekonsiliasi"
+msgstr ""
+
+#: apps/wallet/models.py:53
+msgid "Tunai di Kantor Sekolah"
+msgstr ""
+
+#: apps/wallet/models.py:54 apps/wallet/models.py:254
+msgid "Penyesuaian Manual"
+msgstr ""
+
+#: apps/wallet/models.py:63
+msgid ""
+"Signed delta: positive for TOPUP/REFUND, negative for PURCHASE/TRANSFER_OUT"
+msgstr ""
+
+#: apps/wallet/models.py:91
+msgid "List of product SKUs"
+msgstr ""
+
+#: apps/wallet/models.py:103
+msgid "Kantin"
+msgstr ""
+
+#: apps/wallet/models.py:104
+msgid "Seragam"
+msgstr ""
+
+#: apps/wallet/models.py:105
+msgid "Alat Tulis"
+msgstr ""
+
+#: apps/wallet/models.py:115
+msgid "Commission in basis points (100 = 1%)"
+msgstr ""
+
+#: apps/wallet/models.py:135
+msgid "e.g. {calories, sugar_g}"
+msgstr ""
+
+#: apps/wallet/models.py:158
+msgid "Nonaktif"
+msgstr ""
+
+#: apps/wallet/models.py:178
+msgid "Dibatalkan"
+msgstr ""
+
+#: apps/wallet/models.py:186
+msgid "List of {sku, name, qty, unit_price}"
+msgstr ""
+
+#: apps/wallet/models.py:218 apps/wallet/models.py:305
+msgid "Menunggu"
+msgstr ""
+
+#: apps/wallet/models.py:219 apps/wallet/models.py:306
+msgid "Dibayar"
+msgstr ""
+
+#: apps/wallet/models.py:252
+msgid "Kelebihan Belanja Luring"
+msgstr ""
+
+#: apps/wallet/models.py:253
+msgid "Selisih Sinkronisasi"
+msgstr ""
+
+#: apps/wallet/models.py:259
+msgid "Diselesaikan"
+msgstr ""
+
+#: apps/wallet/models.py:260
+msgid "Dihapusbukukan"
+msgstr ""
+
+#: apps/wallet/models.py:261
+#, fuzzy
+#| msgid "Tagihan"
+msgid "Ditagihkan"
 msgstr "Tagihan"
 
-msgid "Rapor"
-msgstr "Rapor"
+#: apps/wallet/models.py:273
+msgid "Absolute value of the negative balance at detection (REC-002)"
+msgstr ""
 
+#: apps/wallet/models.py:307
+msgid "Didonasikan"
+msgstr ""
+
+#: apps/wallet/models.py:342
+msgid "Menunggu Pembayaran"
+msgstr ""
+
+#: apps/wallet/models.py:344
+msgid "Kedaluwarsa"
+msgstr ""
+
+#: apps/wallet/models.py:345
+msgid "Gagal"
+msgstr ""
+
+#: apps/wallet/models.py:393
+msgid "Explicit opt-in required (WAL-006)"
+msgstr ""
+
+#: apps/wallet/models.py:394
+msgid "Auto-top-up triggers when balance drops below this"
+msgstr ""
+
+#: apps/wallet/models.py:395
+msgid "Amount requested each time auto-top-up triggers"
+msgstr ""
+
+#: apps/wallet/views.py:219
+msgid "Topup intent tidak ditemukan."
+msgstr ""
+
+#: apps/wallet/views.py:406
+msgid "Settlement tidak ditemukan."
+msgstr ""
+
+#: apps/wallet/views.py:408
+msgid "Belum ada dokumen statement untuk diunduh."
+msgstr ""
+
+#: apps/wallet/views.py:466 apps/wallet/views.py:480 apps/wallet/views.py:524
+#: apps/wallet/views.py:539
+msgid "Terminal tidak ditemukan."
+msgstr ""
+
+#: apps/wallet/views.py:582 apps/wallet/views.py:602 apps/wallet/views.py:615
+#: apps/wallet/views.py:633
+msgid "Kasus tidak ditemukan."
+msgstr ""
+
+#: apps/wallet/views.py:604
+msgid "INVALID_STATE: kasus tidak lagi OPEN."
+msgstr ""
+
+#: apps/wallet/views.py:675 apps/wallet/views.py:700
+msgid "Permintaan tidak ditemukan."
+msgstr ""
+
+#: apps/wallet/views.py:734
+msgid "Format tanggal tidak valid. Gunakan format YYYY-MM-DD."
+msgstr ""
+
+#: apps/wallet/views.py:740
+msgid "Parameter 'from' tidak boleh melebihi 'to'."
+msgstr ""
+
+#: frontend/templates/marketing/base.html:7
+msgid "EduCore — Sistem Operasi Sekolah"
+msgstr ""
+
+#: frontend/templates/marketing/base.html:8
+msgid ""
+"EduCore menyatukan akademik, kehadiran, keuangan, kantin, dan komunikasi "
+"orang tua dalam satu platform untuk yayasan pendidikan di Indonesia."
+msgstr ""
+
+#: frontend/templates/marketing/base.html:27
+msgid "Ganti bahasa situs"
+msgstr ""
+
+#: frontend/templates/marketing/base.html:33
+msgid "Masuk"
+msgstr ""
+
+#: frontend/templates/marketing/base.html:34
+#: frontend/templates/marketing/home.html:11
+#: frontend/templates/marketing/home.html:137
+msgid "Minta demo"
+msgstr ""
+
+#: frontend/templates/marketing/base.html:37
+msgid "Beranda"
+msgstr ""
+
+#: frontend/templates/marketing/base.html:38
+#: frontend/templates/marketing/home.html:138
+msgid "Mitra & API"
+msgstr ""
+
+#: frontend/templates/marketing/base.html:39
+#: frontend/templates/marketing/home.html:12
+msgid "Unduh aplikasi"
+msgstr ""
+
+#: frontend/templates/marketing/base.html:48
+msgid "Pilih bahasa"
+msgstr ""
+
+#: frontend/templates/marketing/base.html:49
+msgid ""
+"Pilihan ini berlaku untuk seluruh situs dan tersimpan di perangkat Anda."
+msgstr ""
+
+#: frontend/templates/marketing/base.html:51
+msgid "Tutup"
+msgstr ""
+
+#: frontend/templates/marketing/base.html:60
+msgid "Bahasa sumber — selalu paling lengkap"
+msgstr ""
+
+#: frontend/templates/marketing/base.html:68
+msgid "Terjemahan penuh"
+msgstr ""
+
+#: frontend/templates/marketing/base.html:87
+msgid ""
+"Sistem operasi sekolah untuk yayasan pendidikan di Indonesia. PT Astra "
+"Digital Solusi, Jakarta."
+msgstr ""
+
+#: frontend/templates/marketing/base.html:90
+msgid "Produk"
+msgstr ""
+
+#: frontend/templates/marketing/base.html:98
+msgid "Pengembang"
+msgstr ""
+
+#: frontend/templates/marketing/base.html:100
+msgid "Dokumentasi"
+msgstr ""
+
+#: frontend/templates/marketing/base.html:102
+msgid "Status layanan"
+msgstr ""
+
+#: frontend/templates/marketing/base.html:106
+#: frontend/templates/marketing/data_retention.html:8
+#: frontend/templates/marketing/dpa.html:8
+#: frontend/templates/marketing/home.html:116
+#: frontend/templates/marketing/privacy_policy.html:8
+msgid "Kepatuhan"
+msgstr ""
+
+#: frontend/templates/marketing/base.html:108
+msgid "Kebijakan privasi"
+msgstr ""
+
+#: frontend/templates/marketing/base.html:109
+msgid "Perjanjian data (UU PDP)"
+msgstr ""
+
+#: frontend/templates/marketing/base.html:110
+msgid "Retensi data"
+msgstr ""
+
+#: frontend/templates/marketing/data_retention.html:4
+msgid "Retensi Data — EduCore"
+msgstr ""
+
+#: frontend/templates/marketing/data_retention.html:9
+msgid "Retensi Data"
+msgstr ""
+
+#: frontend/templates/marketing/data_retention.html:10
+msgid ""
+"Berapa lama setiap kategori data disimpan, dan kapan data dihapus secara "
+"otomatis, sesuai kewajiban statutori dan UU PDP."
+msgstr ""
+
+#: frontend/templates/marketing/data_retention.html:15
+#: frontend/templates/marketing/dpa.html:15
+#: frontend/templates/marketing/privacy_policy.html:15
+msgid "Daftar isi"
+msgstr ""
+
+#: frontend/templates/marketing/data_retention.html:17
+#: frontend/templates/marketing/data_retention.html:26
+msgid "Periode retensi per kategori"
+msgstr ""
+
+#: frontend/templates/marketing/data_retention.html:18
+#: frontend/templates/marketing/data_retention.html:36
+msgid "Bagaimana retensi ditegakkan"
+msgstr ""
+
+#: frontend/templates/marketing/data_retention.html:19
+#: frontend/templates/marketing/data_retention.html:39
+msgid "Penarikan persetujuan biometrik"
+msgstr ""
+
+#: frontend/templates/marketing/data_retention.html:20
+#: frontend/templates/marketing/data_retention.html:42
+msgid "Permintaan penghapusan lebih awal"
+msgstr ""
+
+#: frontend/templates/marketing/data_retention.html:21
+#: frontend/templates/marketing/data_retention.html:45
+#: frontend/templates/marketing/dpa.html:23
+#: frontend/templates/marketing/dpa.html:52
+#: frontend/templates/marketing/privacy_policy.html:24
+#: frontend/templates/marketing/privacy_policy.html:50
+msgid "Kontak"
+msgstr ""
+
+#: frontend/templates/marketing/data_retention.html:28
+#: frontend/templates/marketing/dpa.html:35
+msgid "Kategori data"
+msgstr ""
+
+#: frontend/templates/marketing/data_retention.html:28
+msgid "Periode retensi"
+msgstr ""
+
+#: frontend/templates/marketing/data_retention.html:29
+msgid "Catatan keuangan (tagihan, pembayaran, buku besar)"
+msgstr ""
+
+#: frontend/templates/marketing/data_retention.html:29
+msgid "10 tahun, sesuai kewajiban statutori"
+msgstr ""
+
+#: frontend/templates/marketing/data_retention.html:30
+msgid "Catatan akademik & rapor"
+msgstr ""
+
+#: frontend/templates/marketing/data_retention.html:30
+msgid "Sesuai kebijakan sekolah — permanen secara default"
+msgstr ""
+
+#: frontend/templates/marketing/data_retention.html:31
+msgid "Template biometrik (wajah/sidik jari)"
+msgstr ""
+
+#: frontend/templates/marketing/data_retention.html:31
+msgid ""
+"Dihapus saat siswa keluar atau saat persetujuan ditarik, maksimal 24 jam"
+msgstr ""
+
+#: frontend/templates/marketing/data_retention.html:32
+msgid "Foto gerbang / kehadiran"
+msgstr ""
+
+#: frontend/templates/marketing/data_retention.html:32
+msgid "90 hari secara default"
+msgstr ""
+
+#: frontend/templates/marketing/data_retention.html:33
+msgid "Data kepegawaian staf"
+msgstr ""
+
+#: frontend/templates/marketing/data_retention.html:33
+msgid ""
+"Sepanjang masa kerja, ditambah periode statutori ketenagakerjaan setelah "
+"keluar"
+msgstr ""
+
+#: frontend/templates/marketing/data_retention.html:37
+msgid ""
+"Kebijakan retensi dijalankan oleh proses terjadwal otomatis, bukan proses "
+"manual. Setiap eksekusi menghasilkan laporan dry-run yang mencantumkan "
+"secara spesifik data mana yang akan dihapus sebelum penghapusan aktual "
+"dilakukan, sehingga admin yayasan dapat meninjau sebelum data hilang secara "
+"permanen."
+msgstr ""
+
+#: frontend/templates/marketing/data_retention.html:40
+msgid ""
+"Orang tua/wali dapat menarik persetujuan penggunaan biometrik kapan saja "
+"melalui aplikasi orang tua. Penarikan berlaku dalam 24 jam: template "
+"biometrik dihapus dan siswa kembali menggunakan verifikasi kartu."
+msgstr ""
+
+#: frontend/templates/marketing/data_retention.html:43
+msgid ""
+"Permintaan penghapusan data pribadi sebelum periode retensi berakhir "
+"diproses sepanjang tidak bertentangan dengan kewajiban statutori (misalnya "
+"catatan keuangan yang wajib disimpan 10 tahun). Admin sekolah dapat "
+"mengajukan permintaan ini dan menerima hasilnya dalam satu sesi administrasi."
+msgstr ""
+
+#: frontend/templates/marketing/data_retention.html:46
+msgid ""
+"Pertanyaan mengenai jadwal retensi atau permintaan penghapusan data dapat "
+"dikirim ke"
+msgstr ""
+
+#: frontend/templates/marketing/downloads.html:4
+msgid "Unduh Aplikasi — EduCore"
+msgstr ""
+
+#: frontend/templates/marketing/downloads.html:8
+msgid "Unduh"
+msgstr ""
+
+#: frontend/templates/marketing/downloads.html:9
+msgid "Aplikasi EduCore untuk setiap peran."
+msgstr ""
+
+#: frontend/templates/marketing/downloads.html:10
+msgid ""
+"Dibangun untuk ponsel Android kelas bawah dan jaringan 3G. Rilis stabil "
+"dites di Android 9 ke atas dan iOS 15 ke atas."
+msgstr ""
+
+#: frontend/templates/marketing/downloads.html:21
+#: frontend/templates/marketing/downloads.html:22
+#: frontend/templates/marketing/downloads.html:26
+#, python-format
+msgid "Unduh %(app_title)s"
+msgstr ""
+
+#: frontend/templates/marketing/downloads.html:26
+msgid "Unduh APK terkelola"
+msgstr ""
+
+#: frontend/templates/marketing/downloads.html:27
+#, python-format
+msgid "Panduan pemasangan %(app_title)s"
+msgstr ""
+
+#: frontend/templates/marketing/downloads.html:27
+msgid "Panduan pemasangan"
+msgstr ""
+
+#: frontend/templates/marketing/downloads.html:53
+msgid "Pasang lewat kode QR"
+msgstr ""
+
+#: frontend/templates/marketing/downloads.html:54
+msgid ""
+"Orang tua memindai kode di surat aktivasi sekolah dan langsung masuk ke toko "
+"aplikasi yang benar."
+msgstr ""
+
+#: frontend/templates/marketing/downloads.html:57
+msgid "Kode QR unduh aplikasi orang tua"
+msgstr ""
+
+#: frontend/templates/marketing/downloads.html:61
+msgid "Kode QR unduh aplikasi guru"
+msgstr ""
+
+#: frontend/templates/marketing/downloads.html:66
+msgid "Dukungan rilis"
+msgstr ""
+
+#: frontend/templates/marketing/dpa.html:4
+msgid "Perjanjian Pemrosesan Data (UU PDP) — EduCore"
+msgstr ""
+
+#: frontend/templates/marketing/dpa.html:9
+msgid "Perjanjian Pemrosesan Data (UU PDP)"
+msgstr ""
+
+#: frontend/templates/marketing/dpa.html:10
+msgid ""
+"Ringkasan Perjanjian Pemrosesan Data (Data Processing Agreement) yang "
+"mengikat setiap kontrak berlangganan EduCore, sesuai UU No. 27 Tahun 2022 "
+"tentang Pelindungan Data Pribadi."
+msgstr ""
+
+#: frontend/templates/marketing/dpa.html:17
+#: frontend/templates/marketing/dpa.html:28
+msgid "Para pihak"
+msgstr ""
+
+#: frontend/templates/marketing/dpa.html:18
+#: frontend/templates/marketing/dpa.html:31
+msgid "Ruang lingkup pemrosesan"
+msgstr ""
+
+#: frontend/templates/marketing/dpa.html:19
+#: frontend/templates/marketing/dpa.html:40
+msgid "Kewajiban EduCore sebagai pemroses"
+msgstr ""
+
+#: frontend/templates/marketing/dpa.html:20
+#: frontend/templates/marketing/dpa.html:43
+msgid "Subpemroses pihak ketiga"
+msgstr ""
+
+#: frontend/templates/marketing/dpa.html:21
+#: frontend/templates/marketing/dpa.html:46
+msgid "Hak yayasan sebagai pengendali"
+msgstr ""
+
+#: frontend/templates/marketing/dpa.html:22
+#: frontend/templates/marketing/dpa.html:49
+msgid "Pengakhiran & pengembalian data"
+msgstr ""
+
+#: frontend/templates/marketing/dpa.html:29
+msgid ""
+"Perjanjian ini berlaku antara yayasan/sekolah pelanggan (Pengendali Data) "
+"dan PT Astra Digital Solusi, penyedia EduCore (Pemroses Data). Salinan yang "
+"ditandatangani menjadi lampiran kontrak berlangganan setiap yayasan dan "
+"mengikat secara hukum sejak tanggal aktivasi akun."
+msgstr ""
+
+#: frontend/templates/marketing/dpa.html:33
+msgid "Aspek"
+msgstr ""
+
+#: frontend/templates/marketing/dpa.html:33
+#: frontend/templates/marketing/partner_api.html:84
+msgid "Ketentuan"
+msgstr ""
+
+#: frontend/templates/marketing/dpa.html:34
+msgid "Subjek data"
+msgstr ""
+
+#: frontend/templates/marketing/dpa.html:34
+msgid "Siswa, orang tua/wali, dan staf yayasan"
+msgstr ""
+
+#: frontend/templates/marketing/dpa.html:35
+msgid ""
+"Identitas, kehadiran, akademik, keuangan, kepegawaian, dan (opsional) "
+"biometrik/kesehatan"
+msgstr ""
+
+#: frontend/templates/marketing/dpa.html:36
+msgid "Tujuan"
+msgstr ""
+
+#: frontend/templates/marketing/dpa.html:36
+msgid ""
+"Semata-mata untuk menjalankan layanan EduCore sesuai instruksi tertulis "
+"yayasan"
+msgstr ""
+
+#: frontend/templates/marketing/dpa.html:37
+msgid "Durasi"
+msgstr ""
+
+#: frontend/templates/marketing/dpa.html:37
+msgid ""
+"Sepanjang masa berlangganan, ditambah periode retensi statutori yang berlaku"
+msgstr ""
+
+#: frontend/templates/marketing/dpa.html:41
+msgid ""
+"EduCore memproses data pribadi hanya berdasarkan instruksi terdokumentasi "
+"dari yayasan, menjaga kerahasiaan data, menerapkan enkripsi TLS 1.3 saat "
+"transit dan AES-256 saat tersimpan, membatasi akses staf internal secara "
+"terbatas waktu dan teraudit, serta membantu yayasan memenuhi permintaan hak "
+"subjek data dan kewajiban pelaporan insiden dalam waktu 3×24 jam sejak "
+"insiden terdeteksi."
+msgstr ""
+
+#: frontend/templates/marketing/dpa.html:44
+msgid ""
+"Daftar subpemroses (mis. penyedia infrastruktur cloud, gateway pembayaran, "
+"penyedia WhatsApp Business API) dipublikasikan beserta tujuan dan lokasi "
+"pemrosesannya. Penambahan subpemroses baru memerlukan penilaian dampak "
+"pelindungan data (DPIA) terdokumentasi sebelum diaktifkan."
+msgstr ""
+
+#: frontend/templates/marketing/dpa.html:47
+msgid ""
+"Yayasan berhak meminta audit kepatuhan, salinan log akses ke data "
+"pribadinya, dan bukti pemenuhan kewajiban keamanan. Yayasan tetap menjadi "
+"satu-satunya pihak yang berwenang menginstruksikan perubahan tujuan "
+"pemrosesan."
+msgstr ""
+
+#: frontend/templates/marketing/dpa.html:50
+msgid ""
+"Saat kontrak berakhir, yayasan dapat meminta ekspor lengkap datanya. Data "
+"dihapus dari sistem produksi setelah periode retensi statutori terpenuhi, "
+"sebagaimana dijelaskan pada"
+msgstr ""
+
+#: frontend/templates/marketing/dpa.html:50
+#: frontend/templates/marketing/privacy_policy.html:42
+msgid "halaman retensi data"
+msgstr ""
+
+#: frontend/templates/marketing/dpa.html:53
+msgid ""
+"Untuk menerima salinan lengkap Perjanjian Pemrosesan Data yang dapat "
+"ditandatangani, hubungi"
+msgstr ""
+
+#: frontend/templates/marketing/home.html:7
+msgid "Sistem operasi sekolah"
+msgstr ""
+
+#: frontend/templates/marketing/home.html:8
+msgid "Satu sistem untuk seluruh yayasan Anda."
+msgstr ""
+
+#: frontend/templates/marketing/home.html:9
+msgid ""
+"Akademik, kehadiran, keuangan, kantin, dan komunikasi orang tua dalam satu "
+"platform — dibangun untuk yayasan pendidikan di Indonesia."
+msgstr ""
+
+#: frontend/templates/marketing/home.html:17
+msgid "sekolah aktif"
+msgstr ""
+
+#: frontend/templates/marketing/home.html:21
+msgid "siswa terdaftar"
+msgstr ""
+
+#: frontend/templates/marketing/home.html:25
+msgid "uptime jam sekolah"
+msgstr ""
+
+#: frontend/templates/marketing/home.html:33
+msgid "Dasbor yayasan — data langsung"
+msgstr ""
+
+#: frontend/templates/marketing/home.html:36
+msgid "Tertagih bulan ini"
+msgstr ""
+
+#: frontend/templates/marketing/home.html:43
+msgid "Kolektibilitas"
+msgstr ""
+
+#: frontend/templates/marketing/home.html:47
+msgid "Kehadiran rata-rata"
+msgstr ""
+
+#: frontend/templates/marketing/home.html:51
+msgid "Menunggu persetujuan"
+msgstr ""
+
+#: frontend/templates/marketing/home.html:55
+msgid "Kolektibilitas per sekolah"
+msgstr ""
+
+#: frontend/templates/marketing/home.html:69
+msgid "Modul"
+msgstr ""
+
+#: frontend/templates/marketing/home.html:70
+msgid "Semua yang dijalankan sekolah setiap hari."
+msgstr ""
+
+#: frontend/templates/marketing/home.html:71
+msgid ""
+"Satu basis data, satu identitas, satu jejak audit. Modul dinyalakan per "
+"sekolah sesuai kebutuhan yayasan."
+msgstr ""
+
+#: frontend/templates/marketing/home.html:100
+msgid "Untuk setiap peran di yayasan"
+msgstr ""
+
+#: frontend/templates/marketing/home.html:117
+msgid "Data siswa diperlakukan seperti data yang diatur undang-undang."
+msgstr ""
+
+#: frontend/templates/marketing/home.html:118
+msgid ""
+"EduCore dirancang mengikuti UU PDP: minimal data, retensi terbatas, dan "
+"pemisahan tenant ditegakkan di lapisan basis data."
+msgstr ""
+
+#: frontend/templates/marketing/home.html:134
+msgid "Lihat EduCore dengan data sekolah Anda."
+msgstr ""
+
+#: frontend/templates/marketing/home.html:135
+msgid ""
+"Demo 45 menit bersama tim penerapan, memakai satu sekolah contoh dari "
+"yayasan Anda."
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:4
+msgid "Partner & Vendor API — EduCore"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:8
+msgid "Integrasi mitra & vendor"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:9
+msgid "API mitra untuk data sekolah."
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:10
+msgid ""
+"Baca roster, data pribadi dan jabatan staf, tagihan, serta kehadiran dari "
+"EduCore lewat REST yang berversi dan bertanda tangan."
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:12
+msgid "Kunci sandbox Partner API"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:12
+msgid "Buat akun sandbox"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:13
+msgid "Baca dokumentasi"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:19
+msgid "Permukaan integrasi"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:20
+msgid "Domain yang terbuka untuk mitra"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:21
+msgid ""
+"Setiap kunci API diberi cakupan per domain dan per sekolah. Cakupan yang "
+"tidak diminta tidak pernah terbaca."
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:23
+msgid "Batas data"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:24
+msgid ""
+"EduCore tidak menyimpan data penggajian atau kompensasi. Permukaan mitra "
+"hanya memaparkan data pribadi, jabatan, dan kepegawaian — gaji, komponen "
+"upah, potongan, dan slip tetap berada di sistem penggajian Anda sebagai "
+"sumber kebenaran."
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:54
+msgid ""
+"Kunci berawalan <code>ak_test_</code> selalu menabrak data sintetis dan "
+"tidak pernah mengirim notifikasi ke orang tua. Gunakan itu untuk seluruh "
+"pengembangan."
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:59
+msgid "Referensi"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:62
+#: frontend/templates/marketing/partner_api.html:77
+msgid "Autentikasi"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:63
+#: frontend/templates/marketing/partner_api.html:90
+msgid "Versi & deprekasi"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:64
+#: frontend/templates/marketing/partner_api.html:93
+msgid "Konvensi"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:66
+#: frontend/templates/marketing/partner_api.html:123
+msgid "Webhook & polling"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:68
+#: frontend/templates/marketing/partner_api.html:147
+msgid "Batas laju"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:78
+msgid ""
+"Setiap permintaan membawa key-id di header dan tanda tangan HMAC-SHA256 atas "
+"<code>timestamp + method + path + body</code>. Secret tidak pernah dikirim. "
+"Permintaan dengan timestamp lebih dari 300 detik ditolak."
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:84
+#: frontend/templates/marketing/partner_api.html:95
+msgid "Aturan"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:85
+msgid "Cakupan"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:85
+msgid ""
+"Ditetapkan yayasan, per domain dan per sekolah. Tidak bisa diperluas oleh "
+"mitra."
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:86
+msgid "Rotasi"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:86
+msgid ""
+"Dua kunci aktif maksimal 30 hari. Kunci lama jadi read-only saat hari ke-23."
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:87
+msgid "Opsional per kunci, wajib untuk cakupan <code>roster.pii</code>."
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:91
+msgid ""
+"Versi ada di path, bukan header. Perubahan yang memutus kontrak selalu "
+"menjadi <code>/api/v2/</code> baru; penambahan field opsional bukan "
+"perubahan yang memutus. Versi lama hidup 12 bulan setelah pengganti keluar, "
+"dan mengirim header <code>Sunset</code> sejak hari pertama."
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:95
+msgid "Bentuk"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:96
+msgid "Paginasi"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:97
+msgid "Uang"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:98
+msgid "Waktu"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:99
+msgid "Idempotensi"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:99
+msgid "<code>Idempotency-Key</code> — disimpan 7 hari"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:101
+msgid ""
+"Format uang adalah string dengan mata uang di level objek yang sama. Jangan "
+"pernah menjumlahkan lintas mata uang: endpoint agregat mengembalikan array "
+"total per mata uang, bukan satu angka."
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:104
+msgid ""
+"Semua error adalah RFC 9457 <code>application/problem+json</code>. Cabangkan "
+"logika pada <code>code</code> — string SCREAMING_SNAKE yang stabil — bukan "
+"pada prosa <code>detail</code>."
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:124
+msgid ""
+"Webhook adalah jalur utama. Daftarkan satu endpoint HTTPS per lingkungan, "
+"terima POST bertanda tangan, dan balas 2xx dalam 5 detik. Kegagalan dicoba "
+"ulang lima kali hingga 6 jam; setelahnya kejadian tetap tersedia lewat "
+"polling."
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:126
+msgid "Kejadian"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:126
+msgid "Dipicu saat"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:127
+msgid "Data pribadi, jabatan, atau status kepegawaian staf berubah"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:128
+msgid "Siswa aktif baru di sekolah dalam cakupan kunci"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:129
+msgid "Pembayaran VA atau QRIS ter-settle dan teralokasi"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:130
+msgid "Kunci dirotasi — 30 hari sebelum yang lama mati"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:135
+msgid "Metode & jalur"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:135
+msgid "Keterangan"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:136
+msgid "Yayasan yang memberi Anda akses"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:137
+msgid "Sekolah dalam cakupan kunci"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:138
+msgid "Staf aktif beserta jabatan, kursor terpaginasi"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:139
+msgid "Satu staf — data pribadi, jabatan, kepegawaian"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:140
+msgid "Siswa aktif per sekolah atau kelas"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:141
+msgid "Tagihan dan sisa terutang"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:142
+msgid "Rekap kehadiran harian per kelas"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:143
+msgid "Aliran kejadian — alternatif webhook"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:144
+msgid "Daftarkan endpoint penerima webhook"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:149
+msgid "Batas"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:149
 msgid "Nilai"
 msgstr "Nilai"
+
+#: frontend/templates/marketing/partner_api.html:150
+msgid "Permintaan per kunci"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:150
+msgid "600 / menit"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:151
+msgid "Baris maksimal per halaman kursor"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:152
+msgid "Interval polling tercepat yang diizinkan"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:152
+msgid "30 detik"
+msgstr ""
+
+#: frontend/templates/marketing/partner_api.html:154
+msgid ""
+"Melewati batas menghasilkan <code>429 RATE_LIMITED</code> dengan header "
+"<code>Retry-After</code>. Ekspor besar memakai endpoint job asinkron, bukan "
+"paginasi beruntun."
+msgstr ""
+
+#: frontend/templates/marketing/privacy_policy.html:4
+msgid "Kebijakan Privasi — EduCore"
+msgstr ""
+
+#: frontend/templates/marketing/privacy_policy.html:9
+msgid "Kebijakan Privasi"
+msgstr ""
+
+#: frontend/templates/marketing/privacy_policy.html:10
+msgid ""
+"Berlaku untuk data yang diproses EduCore atas nama yayasan pendidikan yang "
+"menggunakan platform ini, sesuai UU No. 27 Tahun 2022 tentang Pelindungan "
+"Data Pribadi (UU PDP)."
+msgstr ""
+
+#: frontend/templates/marketing/privacy_policy.html:17
+#: frontend/templates/marketing/privacy_policy.html:29
+msgid "Peran pengendali & pemroses"
+msgstr ""
+
+#: frontend/templates/marketing/privacy_policy.html:18
+#: frontend/templates/marketing/privacy_policy.html:32
+msgid "Data yang dikumpulkan"
+msgstr ""
+
+#: frontend/templates/marketing/privacy_policy.html:19
+#: frontend/templates/marketing/privacy_policy.html:35
+msgid "Dasar & tujuan pemrosesan"
+msgstr ""
+
+#: frontend/templates/marketing/privacy_policy.html:20
+#: frontend/templates/marketing/privacy_policy.html:38
+msgid "Keamanan & lokasi data"
+msgstr ""
+
+#: frontend/templates/marketing/privacy_policy.html:21
+#: frontend/templates/marketing/privacy_policy.html:41
+msgid "Hak subjek data"
+msgstr ""
+
+#: frontend/templates/marketing/privacy_policy.html:22
+#: frontend/templates/marketing/privacy_policy.html:44
+msgid "Data anak"
+msgstr ""
+
+#: frontend/templates/marketing/privacy_policy.html:23
+#: frontend/templates/marketing/privacy_policy.html:47
+msgid "Insiden kebocoran data"
+msgstr ""
+
+#: frontend/templates/marketing/privacy_policy.html:30
+msgid ""
+"Yayasan/sekolah adalah pengendali data (data controller) atas data siswa, "
+"orang tua, dan staf yang dimasukkan ke EduCore. EduCore bertindak sebagai "
+"pemroses data (data processor) yang memproses data tersebut hanya sesuai "
+"instruksi tertulis yayasan, sebagaimana diatur dalam Perjanjian Pemrosesan "
+"Data (DPA)."
+msgstr ""
+
+#: frontend/templates/marketing/privacy_policy.html:33
+msgid ""
+"Bergantung pada modul yang diaktifkan yayasan, EduCore dapat memproses: "
+"identitas siswa dan orang tua/wali (nama, NISN, NIK, tanggal lahir, alamat), "
+"data kehadiran dan foto gerbang, template biometrik (opsional, dengan "
+"persetujuan terpisah), data akademik dan rapor, data keuangan dan tagihan, "
+"data kepegawaian dan jabatan staf, serta log komunikasi ke orang tua."
+msgstr ""
+
+#: frontend/templates/marketing/privacy_policy.html:36
+msgid ""
+"Dasar hukum pemrosesan dicatat per tujuan (pelaksanaan layanan pendidikan, "
+"kewajiban pelaporan ke pemerintah, atau persetujuan eksplisit untuk "
+"biometrik, media, dan komunikasi pemasaran). Persetujuan diminta per tujuan "
+"secara terpisah — tidak pernah digabung dalam satu persetujuan umum — dan "
+"dicatat dengan versi serta waktu."
+msgstr ""
+
+#: frontend/templates/marketing/privacy_policy.html:39
+msgid ""
+"Seluruh data produksi — basis data, penyimpanan objek, cadangan, dan log — "
+"berada di pusat data Indonesia, tanpa replikasi lintas negara. Data "
+"terenkripsi TLS 1.3 saat transit dan AES-256 saat tersimpan, dengan kunci "
+"enkripsi terpisah untuk PII umum, template biometrik, dan data kesehatan/"
+"konseling. Akses staf EduCore ke lingkungan produksi dibatasi waktu, "
+"disetujui, dan tercatat — tidak ada kredensial produksi yang berlaku "
+"permanen."
+msgstr ""
+
+#: frontend/templates/marketing/privacy_policy.html:42
+msgid ""
+"Orang tua/wali dan staf dapat mengajukan permintaan akses, koreksi, "
+"penghapusan, pembatasan pemrosesan, atau portabilitas data melalui admin "
+"sekolah. Permintaan yang sah dilayani dalam 30 hari, kecuali data yang wajib "
+"dipertahankan sesuai kewajiban retensi statutori (lihat"
+msgstr ""
+
+#: frontend/templates/marketing/privacy_policy.html:45
+msgid ""
+"Pengaturan berbagi data siswa secara default menggunakan opsi paling ketat. "
+"Perluasan akses (misalnya berbagi data ke pihak ketiga baru) hanya dapat "
+"dilakukan lewat tindakan eksplisit admin sekolah dan selalu tercatat dalam "
+"jejak audit."
+msgstr ""
+
+#: frontend/templates/marketing/privacy_policy.html:48
+msgid ""
+"Dugaan kebocoran data pribadi ditangani melalui prosedur insiden internal "
+"dengan jam notifikasi 3×24 jam kepada yayasan terdampak, disertai bukti "
+"kejadian dan daftar subjek data yang terpengaruh."
+msgstr ""
+
+#: frontend/templates/marketing/privacy_policy.html:51
+msgid ""
+"Pertanyaan mengenai kebijakan ini atau permintaan terkait data pribadi dapat "
+"dikirim ke"
+msgstr ""
+
+#: frontend/templates/rest_framework/base.html:37
+msgid "navbar"
+msgstr ""
+
+#: frontend/templates/rest_framework/base.html:75
+msgid "content"
+msgstr ""
+
+#: frontend/templates/rest_framework/base.html:78
+msgid "request form"
+msgstr ""
+
+#: frontend/templates/rest_framework/base.html:136
+msgid "Extra Actions"
+msgstr ""
+
+#: frontend/templates/rest_framework/base.html:150
+msgid "Filters"
+msgstr ""
+
+#: frontend/templates/rest_framework/base.html:157
+msgid "main content"
+msgstr ""
+
+#: frontend/templates/rest_framework/base.html:173
+msgid "request info"
+msgstr ""
+
+#: frontend/templates/rest_framework/base.html:177
+msgid "response info"
+msgstr ""

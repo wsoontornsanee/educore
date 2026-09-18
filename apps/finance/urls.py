@@ -1,5 +1,5 @@
 from django.urls import include, path
-from rest_framework.routers import DefaultRouter
+from apps.core.routers import EduCoreRouter
 
 from apps.finance.views import (
     ArAgingView,
@@ -30,7 +30,7 @@ from apps.finance.views import (
     ExternalAccountMappingViewSet,
 )
 
-router = DefaultRouter()
+router = EduCoreRouter()
 router.register(r'fee-types', FeeTypeViewSet, basename='fee-types')
 router.register(r'fee-plans', FeePlanViewSet, basename='fee-plans')
 router.register(r'assignments', StudentFeeAssignmentViewSet, basename='fee-assignments')
