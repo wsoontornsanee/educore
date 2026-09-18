@@ -42,7 +42,7 @@ status_counts ([{status, label, count}]), total_count, shown_count, report_cards
 
   <div style="display:flex;gap:16px;flex-wrap:wrap">
     {% for item in status_counts %}
-      <div class="card" style="padding:16px 20px;min-width:150px">
+      <div class="card" style="padding:16px 20px;flex:1 1 130px">
         <span class="text-label text-ink-500">{{ item.label }}</span>
         <div class="font-display text-ink-900" style="font-weight:800;font-size:26px">{{ item.count }}</div>
       </div>
@@ -51,7 +51,7 @@ status_counts ([{status, label, count}]), total_count, shown_count, report_cards
 
   {% if report_cards %}
     <div class="card" style="overflow-x:auto">
-      <table style="width:100%;min-width:720px;border-collapse:collapse;font-family:'IBM Plex Sans',sans-serif;font-size:0.8125rem">
+      <table style="width:100%;border-collapse:collapse;font-family:'IBM Plex Sans',sans-serif;font-size:0.8125rem">
         <thead>
           <tr style="border-bottom:2px solid var(--color-line);text-align:left">
             <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Siswa" %}</th>

@@ -165,6 +165,17 @@ class ReportCardConsoleTests(TestCase):
         self.assertNotContains(res, '1122334455')
         self.assertNotContains(res, '3471010101010202')
 
+    def test_detail_attendance_in_fixed_order_with_indonesian_labels(self):
+        ReportCard.all_tenants.filter(id=self.card.id).update(
+            attendance_summary={'ALPA': 1, 'SAKIT': 2, 'HADIR': 88},
+        )
+        res = self.client.get(f'{LIST_URL}{self.card.id}/')
+        self.assertEqual(
+            [(str(r['label']), r['days']) for r in res.context['attendance_rows']],
+            [('Hadir', 88), ('Sakit', 2), ('Tanpa keterangan', 1)],
+        )
+        self.assertNotContains(res, '(Present)')
+
     def test_detail_incomplete_grade_row(self):
         ReportCard.all_tenants.filter(id=self.card.id).update(
             grades_snapshot=[{'subject': 'Fisika', 'subject_code': 'FIS', 'status': 'INCOMPLETE', 'grade': None}],

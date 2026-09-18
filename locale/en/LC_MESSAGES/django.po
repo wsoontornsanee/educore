@@ -7570,3 +7570,11 @@ msgstr "Extracurricular"
 #, python-format
 msgid "Menampilkan %(shown)s rapor dari %(total)s."
 msgstr "Showing %(shown)s of %(total)s report cards."
+
+#: apps/academic/console_views.py
+msgid "Tanpa keterangan"
+msgstr "Unexcused"
+
+#: apps/academic/console_views.py
+msgid "Dispensasi"
+msgstr "Dispensation"

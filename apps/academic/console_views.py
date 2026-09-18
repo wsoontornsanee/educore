@@ -28,7 +28,6 @@ from apps.academic.models import (
     TimetableSlot,
 )
 from apps.academic.services import compute_descriptor, get_homework_grading_queue, render_report_card_html
-from apps.attendance.models import AttendanceStatus
 from apps.identity.console_access import StaffConsoleMixin
 from apps.identity.models import Staff
 from educore.middleware.tenancy import get_current_foundation_id
@@ -240,6 +239,17 @@ class GradingQueuePageView(StaffConsoleMixin, APIView):
 
 REPORT_CARD_PAGE_SIZE = 200
 
+# Fixed display order and id-ID labels for the rapor attendance summary
+# (AttendanceStatus's own labels mix Indonesian and English).
+ATTENDANCE_SUMMARY_LABELS = (
+    ('HADIR', _("Hadir")),
+    ('TERLAMBAT', _("Terlambat")),
+    ('SAKIT', _("Sakit")),
+    ('IZIN', _("Izin")),
+    ('ALPA', _("Tanpa keterangan")),
+    ('DISPEN', _("Dispensasi")),
+)
+
 
 class ReportCardListPageView(StaffConsoleMixin, APIView):
     """GET /web/academic/report-cards/?term=<id>&class_group=<id> — current
@@ -337,9 +347,10 @@ class ReportCardDetailPageView(_ReportCardAccessMixin, APIView):
                 'descriptor': compute_descriptor(Decimal(str(grade)), Decimal('100')) if grade is not None else None,
                 'narrative': entry.get('objective_narrative', ''),
             })
+        attendance_summary = report_card.attendance_summary
         attendance_rows = [
-            {'label': AttendanceStatus(key).label if key in AttendanceStatus.values else key, 'days': days}
-            for key, days in sorted(report_card.attendance_summary.items())
+            {'label': label, 'days': attendance_summary[key]}
+            for key, label in ATTENDANCE_SUMMARY_LABELS if key in attendance_summary
         ]
 
         return render(request, 'pages/academic_report_card_detail.html', {
