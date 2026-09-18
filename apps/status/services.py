@@ -94,8 +94,11 @@ def rollup_daily_status(date=None):
     """Upsert today's (or `date`'s) DailyComponentStatus per component from its heartbeats.
 
     Idempotent — safe to call repeatedly within the same day. manual_status
-    always wins; otherwise DOWN if any heartbeat that day was down, else
-    OPERATIONAL (no automatic DEGRADED signal exists without a manual override).
+    always wins; otherwise the worst status seen that day (DOWN > DEGRADED >
+    OPERATIONAL). A heartbeat with status=NULL (written before the status
+    field existed) is treated as DOWN if is_up=False else OPERATIONAL —
+    identical to this function's pre-migration behavior, so historical rows
+    keep rolling up exactly as they always did.
     """
     date = date or timezone.localdate()
     day_start = timezone.make_aware(datetime.datetime.combine(date, datetime.time.min))
@@ -108,7 +111,13 @@ def rollup_daily_status(date=None):
             heartbeats = ComponentHeartbeat.objects.filter(
                 component=component, checked_at__gte=day_start, checked_at__lte=day_end,
             )
-            status = ServiceComponent.STATUS_DOWN if heartbeats.filter(is_up=False).exists() else ServiceComponent.STATUS_OPERATIONAL
+            if heartbeats.filter(status=ServiceComponent.STATUS_DOWN).exists() or \
+                    heartbeats.filter(status__isnull=True, is_up=False).exists():
+                status = ServiceComponent.STATUS_DOWN
+            elif heartbeats.filter(status=ServiceComponent.STATUS_DEGRADED).exists():
+                status = ServiceComponent.STATUS_DEGRADED
+            else:
+                status = ServiceComponent.STATUS_OPERATIONAL
         DailyComponentStatus.objects.update_or_create(
             component=component, date=date, defaults={'status': status},
         )
