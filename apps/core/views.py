@@ -1,3 +1,5 @@
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.views.generic import TemplateView
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -110,3 +112,15 @@ class AnalyticsEventIngestView(IdempotentViewMixin, APIView):
             AnalyticsEvent.objects.bulk_create(events_to_create)
 
         return Response({'accepted': len(events_to_create)}, status=201)
+
+
+class ComingSoonView(LoginRequiredMixin, TemplateView):
+    """GET /web/coming-soon/ — shared placeholder for nav items with no real page yet.
+
+    LoginRequiredMixin redirects anonymous users to settings.LOGIN_URL
+    (configured to /web/login/ for the web console).
+    No RBAC permission check here: every nav item pointing at this view
+    already gated the LINK by the item's own permission (apps.identity.nav);
+    this view's only job is to not be reachable while logged out.
+    """
+    template_name = 'pages/coming_soon.html'

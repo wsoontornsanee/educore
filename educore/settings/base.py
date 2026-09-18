@@ -220,6 +220,11 @@ AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
 ]
 
+# Web console session-auth login redirect target (spec: web-console-nav-and-landing).
+# LoginRequiredMixin-based views (e.g. apps.core.views.ComingSoonView) redirect
+# anonymous users here instead of Django's default '/accounts/login/'.
+LOGIN_URL = '/web/login/'
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Django REST Framework configuration (spec/01 §8.1, spec/16 §6)
