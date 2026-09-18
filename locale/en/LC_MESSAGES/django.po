@@ -7355,3 +7355,20 @@ msgstr "Decision saved."
 msgid "Item ini sudah tidak menunggu tindakan Anda."
 msgstr "This item is no longer waiting on you."
 
+
+
+msgid "Ekspor diminta. Muat ulang halaman ini dalam beberapa menit untuk mengunduh berkasnya."
+msgstr "Export requested. Reload this page in a few minutes to download the file."
+
+msgid "Ekspor CSV (sesuai filter)"
+msgstr "Export CSV (current filters)"
+
+msgid "Ekspor terbaru"
+msgstr "Recent exports"
+
+msgid "Unduh CSV"
+msgstr "Download CSV"
+
+msgid "Sedang diproses"
+msgstr "Processing"
+

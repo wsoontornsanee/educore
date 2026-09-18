@@ -251,7 +251,7 @@ class AdministrasiEnglishTranslationTests(_AdminConsoleFixture):
 
     def test_pages_render_in_english(self):
         expectations = {
-            'admin-audit': 'A permanent record of every data change',
+            'admin-audit': 'Export CSV (current filters)',
             'admin-settings': 'Foundation profile',
             'admin-staff': 'Staff directory and the access roles',
             'admin-partners': 'Create a new key',
@@ -265,3 +265,94 @@ class AdministrasiEnglishTranslationTests(_AdminConsoleFixture):
         self.assertContains(response, 'Reporting currency')
         self.assertContains(response, 'Audit trail')  # nav label for admin-audit
         self.assertNotContains(response, 'Mata uang pelaporan')
+
+
+class AuditExportTests(_AdminConsoleFixture):
+    def setUp(self):
+        super().setUp()
+        self.url = reverse('admin-audit-export')
+        self.audit_url = reverse('admin-audit')
+
+    def _job(self):
+        from apps.core.models import ExportJob
+        return ExportJob.all_tenants.get(foundation_id=self.foundation.id)
+
+    def test_teacher_cannot_export(self):
+        from apps.core.models import ExportJob
+        self.client.force_login(self.teacher)
+        self.assertRedirects(self.client.post(self.url), reverse('web-console-home'), fetch_redirect_response=False)
+        self.assertFalse(ExportJob.all_tenants.exists())
+
+    def test_get_not_allowed(self):
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.get(self.url).status_code, 405)
+
+    def test_foundation_admin_export_carries_current_filters_and_no_school_ceiling(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            f'{self.url}?module=finance&school={self.school_a.id}&from=2026-01-01&to=bad&action=',
+        )
+        self.assertRedirects(
+            response, f'{self.audit_url}?module=finance&school={self.school_a.id}&from=2026-01-01&to=bad&action=',
+            fetch_redirect_response=False,
+        )
+        job = self._job()
+        self.assertEqual(job.report_key, 'foundation_audit')
+        self.assertEqual(job.format, 'CSV')
+        self.assertEqual(job.requested_by, str(self.admin.id))
+        self.assertEqual(job.filters, {'module': 'finance', 'school': self.school_a.id, 'from': '2026-01-01'})
+
+    def test_school_scoped_export_gets_server_side_school_ceiling(self):
+        self.client.force_login(self.school_admin)
+        self.client.post(f'{self.url}?school={self.school_b.id}')
+        job = self._job()
+        self.assertEqual(job.filters['school_ids'], [self.school_a.id])
+
+    def test_renderer_honors_school_ceiling(self):
+        import csv, io
+        from apps.core.models import ExportJob
+        from apps.foundation.services import render_foundation_audit_export
+        AuditEvent.objects.create(foundation_id=self.foundation.id, school_id=self.school_a.id, action='a.x', entity_type='T', entity_id='1')
+        AuditEvent.objects.create(foundation_id=self.foundation.id, school_id=self.school_b.id, action='b.x', entity_type='T', entity_id='2')
+        AuditEvent.objects.create(foundation_id=self.foundation.id, school_id=None, action='f.x', entity_type='T', entity_id='3')
+        job = ExportJob.all_tenants.create(
+            foundation_id=self.foundation.id, report_key='foundation_audit', format='CSV',
+            filters={'school': self.school_b.id, 'school_ids': [self.school_a.id]},
+        )
+        data, _ct, _name = render_foundation_audit_export(job)
+        rows = list(csv.reader(io.StringIO(data.decode('utf-8-sig'))))
+        self.assertEqual(len(rows), 1)  # header only: school filter cannot widen past the ceiling
+        job.filters = {'school_ids': [self.school_a.id]}
+        data, _ct, _name = render_foundation_audit_export(job)
+        actions = {row[6] for row in csv.reader(io.StringIO(data.decode('utf-8-sig')))} - {'Aksi'}
+        self.assertEqual(actions, {'a.x'})
+
+    def test_page_lists_only_own_exports_with_download_link_when_completed(self):
+        from unittest import mock
+        from apps.core.models import ExportJob
+        mine = ExportJob.all_tenants.create(
+            foundation_id=self.foundation.id, report_key='foundation_audit', format='CSV',
+            requested_by=str(self.admin.id), status='COMPLETED', result_key='exports/x.csv',
+        )
+        ExportJob.all_tenants.create(
+            foundation_id=self.foundation.id, report_key='foundation_audit', format='CSV',
+            requested_by=str(self.school_admin.id), status='PENDING',
+        )
+        ExportJob.all_tenants.create(
+            foundation_id=self.foundation.id, report_key='foundation_dashboard', format='CSV',
+            requested_by=str(self.admin.id), status='PENDING',
+        )
+        self.client.force_login(self.admin)
+        with mock.patch('apps.core.storage.generate_download_url', return_value='https://signed.example/x.csv'):
+            response = self.client.get(self.audit_url)
+        exports = response.context['recent_exports']
+        self.assertEqual([e['id'] for e in exports], [mine.id])
+        self.assertEqual(exports[0]['download_url'], 'https://signed.example/x.csv')
+        self.assertContains(response, 'https://signed.example/x.csv')
+
+    def test_json_audit_filter_school_ids_ceiling(self):
+        from apps.foundation.services import filter_foundation_audit_events
+        AuditEvent.objects.create(foundation_id=self.foundation.id, school_id=self.school_a.id, action='a.x', entity_type='T', entity_id='1')
+        self.assertEqual(filter_foundation_audit_events(self.foundation.id, school_ids=[]).count(), 0)
+        self.assertEqual(filter_foundation_audit_events(self.foundation.id, school_ids=[self.school_a.id]).count(), 1)
+        self.assertEqual(filter_foundation_audit_events(self.foundation.id).count(), 1)

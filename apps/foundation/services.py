@@ -547,12 +547,18 @@ def _day_start(date_value):
 
 def filter_foundation_audit_events(
     foundation_id, actor=None, school_id=None, module=None, action=None,
-    entity_type=None, entity_id=None, from_date=None, to_date=None,
+    entity_type=None, entity_id=None, from_date=None, to_date=None, school_ids=None,
 ):
     """FND-010 Audit Explorer filter, shared by the live cursor-paginated list
-    view and the CSV export renderer below. `module` matches the leading
-    `module.` segment of AuditEvent.action (e.g. 'finance.invoice.issue')."""
+    view, the web console viewer and the CSV export renderer below. `module`
+    matches the leading `module.` segment of AuditEvent.action (e.g.
+    'finance.invoice.issue'). `school_ids` (an iterable, possibly empty)
+    restricts to those schools' events — a school-scoped viewer's ceiling,
+    which `school_id` alone can narrow but never widen; None means no
+    restriction."""
     queryset = AuditEvent.objects.filter(foundation_id=foundation_id)
+    if school_ids is not None:
+        queryset = queryset.filter(school_id__in=list(school_ids))
     if actor:
         queryset = queryset.filter(actor_id=actor)
     if school_id:
@@ -603,6 +609,7 @@ def render_foundation_audit_export(job: ExportJob):
         entity_id=filters.get('entity_id'),
         from_date=filters.get('from'),
         to_date=filters.get('to'),
+        school_ids=filters.get('school_ids'),
     )[:AUDIT_EXPORT_MAX_ROWS]
 
     buffer = io.StringIO()
