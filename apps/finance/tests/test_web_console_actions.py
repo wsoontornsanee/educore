@@ -76,6 +76,23 @@ class DiscrepancyResolveTests(ActionTestBase):
         self.assertEqual(self.discrepancy.resolution, DiscrepancyResolution.PENDING)
         self.assertEqual(len(flashes(response)), 1)
 
+    def test_empty_resolution_rejected_before_service(self):
+        self.client.force_login(self.officer)
+        response = self._post(resolution='')
+        self.discrepancy.refresh_from_db()
+        self.assertEqual(self.discrepancy.resolution, DiscrepancyResolution.PENDING)
+        self.assertEqual(len(flashes(response)), 1)
+
+    def test_resolve_select_forces_a_deliberate_choice(self):
+        self.client.force_login(self.officer)
+        page = self.client.get(reverse('finance-console-reconciliation'), {'batch': self.batch.id})
+        html = page.content.decode()
+        self.assertIn('<select name="resolution" required', html)
+        placeholder = html.index('<option value="" selected disabled>')
+        self.assertLess(placeholder, html.index('value="MANUAL_SETTLED"'))
+        self.assertLess(placeholder, html.index('value="WAIVED"'))
+        self.assertLess(placeholder, html.index('value="ESCALATED"'))
+
     def test_already_resolved_shows_error_and_keeps_first_resolution(self):
         self.client.force_login(self.officer)
         self._post(resolution='WAIVED')
@@ -248,6 +265,17 @@ class WriteOffDecisionTests(ActionTestBase):
         self.assertEqual(self.invoice.status, InvoiceStatus.WRITTEN_OFF)
         self.assertEqual(len(flashes(response)), 1)
 
+    def test_approve_form_has_no_notes_input_but_reject_form_does(self):
+        self.client.force_login(self.admin)
+        html = self.client.get(reverse('finance-console-receivables')).content.decode()
+
+        def form_for(url):
+            start = html.index(f'action="{url}"')
+            return html[start:html.index('</form>', start)]
+
+        self.assertNotIn('name="notes"', form_for(self.approve_url))
+        self.assertIn('name="notes"', form_for(self.reject_url))
+
     def test_foundation_admin_rejects_with_notes(self):
         self.client.force_login(self.admin)
         self.client.post(self.reject_url, {'notes': 'masih bisa ditagih'}, follow=True)
@@ -382,3 +410,14 @@ class CashPaymentTests(ActionTestBase):
     def test_cash_form_shown_on_billing_page_for_writers_only(self):
         self.client.force_login(self.officer)
         self.assertContains(self.client.get(reverse('finance-console-billing')), self.url)
+
+    def test_cash_form_hidden_from_reader_without_invoice_write(self):
+        # school_admin holds finance.invoice.read (billing page) but not finance.invoice.write.
+        reader = make_user(
+            self.foundation, '+6281300008041', RoleAssignment.ROLE_SCHOOL_ADMIN,
+            RoleAssignment.SCOPE_SCHOOL, self.school1.id, staff_school=self.school1, name='Reader',
+        )
+        self.client.force_login(reader)
+        page = self.client.get(reverse('finance-console-billing'))
+        self.assertEqual(page.status_code, 200)
+        self.assertNotContains(page, self.url)

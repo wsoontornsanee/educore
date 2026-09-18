@@ -96,9 +96,12 @@
             {% if can_decide %}<td>
               <form method="post" action="{% url 'finance-console-writeoff-approve' w.id %}" class="fin-actionform">
                 {% csrf_token %}
-                <input type="text" name="notes" maxlength="500" placeholder="{% translate 'Catatan' %}">
                 <button type="submit" class="btn btn-primary text-body-sm">{% translate "Setujui" %}</button>
-                <button type="submit" formaction="{% url 'finance-console-writeoff-reject' w.id %}" class="btn btn-secondary text-body-sm">{% translate "Tolak" %}</button>
+              </form>
+              <form method="post" action="{% url 'finance-console-writeoff-reject' w.id %}" class="fin-actionform">
+                {% csrf_token %}
+                <input type="text" name="notes" maxlength="500" placeholder="{% translate 'Alasan penolakan' %}">
+                <button type="submit" class="btn btn-secondary text-body-sm">{% translate "Tolak" %}</button>
               </form>
             </td>{% endif %}
           </tr>

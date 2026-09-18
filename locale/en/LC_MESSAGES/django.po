@@ -7901,3 +7901,9 @@ msgstr "Automatically allocated to the oldest open invoices."
 
 msgid "Batch penyelesaian gateway pembayaran per hari."
 msgstr "Payment gateway settlement batches per day."
+
+msgid "Pilih tindakan"
+msgstr "Choose an action"
+
+msgid "Alasan penolakan"
+msgstr "Rejection reason"

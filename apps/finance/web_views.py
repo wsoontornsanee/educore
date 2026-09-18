@@ -15,7 +15,7 @@ message and redirect back to the page. Approve/reject authority (foundation
 admin) is enforced by the services, not by the views.
 """
 import re
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -23,7 +23,6 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import F, Q, Sum
-from django.http import Http404  # noqa: F401  (used by get_object_or_404 callers)
 from django.shortcuts import get_object_or_404, redirect  # noqa: F401
 from django.urls import reverse
 from django.utils import timezone
@@ -408,9 +407,9 @@ class WriteOffDecisionView(_DecisionView):
         return get_object_or_404(self.scoped(InvoiceWriteOffRequest), pk=pk)
 
     def perform(self, write_off):
-        notes = self.request.POST.get('notes', '').strip()
         if self.decision == 'approve':
-            approve_invoice_write_off(request_obj=write_off, user=self.request.user, notes=notes)
+            approve_invoice_write_off(request_obj=write_off, user=self.request.user)
             return _('Penghapusbukuan disetujui.')
+        notes = self.request.POST.get('notes', '').strip()
         reject_invoice_write_off(request_obj=write_off, user=self.request.user, notes=notes)
         return _('Penghapusbukuan ditolak.')
