@@ -1,0 +1,93 @@
+{% extends "base_console.html" %}
+{% load i18n %}
+
+{% comment %}
+Page: Antrean penilaian — homework awaiting grading (Web Console Akademik, PR 3).
+Served by apps.academic.console_views.GradingQueuePageView at /web/academic/grading-queue/.
+Read-only. Parameters: submissions (HomeworkSubmission rows, oldest first),
+total_count, late_count, shown_count, class_subjects, selected_class_subject_id.
+{% endcomment %}
+
+{% block title %}{% translate "Antrean penilaian — EduCore" %}{% endblock %}
+
+{% block console_content %}
+<main style="display:flex;flex-direction:column;gap:20px;max-width:1100px">
+  <header style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap">
+    <div>
+      <span class="text-label text-ink-500">{% translate "Akademik" %}</span>
+      <h1 class="font-display text-h2 text-ink-900" style="margin:4px 0 0 0">{% translate "Antrean penilaian" %}</h1>
+    </div>
+    <form method="get" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+      <label style="display:flex;flex-direction:column;gap:4px">
+        <span class="text-label text-ink-500">{% translate "Mata pelajaran & kelas" %}</span>
+        <select name="class_subject" class="text-body-sm" style="padding:8px 10px;border:1px solid var(--color-line);border-radius:0;background:var(--color-surface)">
+          <option value="">{% translate "Semua" %}</option>
+          {% for class_subject in class_subjects %}
+            <option value="{{ class_subject.id }}"{% if class_subject.id == selected_class_subject_id %} selected{% endif %}>{{ class_subject.subject.name }} — {{ class_subject.class_group.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button type="submit" class="btn btn-secondary text-body-sm">{% translate "Tampilkan" %}</button>
+    </form>
+  </header>
+
+  <div style="display:flex;gap:16px;flex-wrap:wrap">
+    <div class="card" style="padding:16px 20px;min-width:160px">
+      <span class="text-label text-ink-500">{% translate "Menunggu dinilai" %}</span>
+      <div class="font-display text-ink-900" style="font-weight:800;font-size:26px">{{ total_count }}</div>
+    </div>
+    <div class="card" style="padding:16px 20px;min-width:160px">
+      <span class="text-label text-ink-500">{% translate "Terlambat" %}</span>
+      <div class="font-display" style="font-weight:800;font-size:26px;color:var(--color-warning)">{{ late_count }}</div>
+    </div>
+  </div>
+
+  {% if submissions %}
+    <div class="card" style="overflow-x:auto">
+      <table style="width:100%;min-width:720px;border-collapse:collapse;font-family:'IBM Plex Sans',sans-serif;font-size:0.8125rem">
+        <thead>
+          <tr style="border-bottom:2px solid var(--color-line);text-align:left">
+            <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Siswa" %}</th>
+            <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Tugas" %}</th>
+            <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Mata pelajaran & kelas" %}</th>
+            <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Dikumpulkan" %}</th>
+            <th class="text-label text-ink-500" style="padding:10px 14px">{% translate "Status" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for submission in submissions %}
+            <tr style="border-bottom:1px solid var(--color-line)">
+              <td class="text-body-sm" style="padding:10px 14px">
+                <div class="text-ink-900">{{ submission.student.person.full_name }}</div>
+                <div class="font-mono text-ink-500" style="font-size:0.6875rem">{{ submission.student.nis }}</div>
+              </td>
+              <td class="text-body-sm text-ink-900" style="padding:10px 14px">{{ submission.homework.title }}</td>
+              <td class="text-body-sm text-ink-700" style="padding:10px 14px">
+                {{ submission.homework.class_subject.subject.name }} — {{ submission.homework.class_subject.class_group.name }}
+              </td>
+              <td class="text-body-sm font-mono text-ink-700" style="padding:10px 14px">{{ submission.submitted_at|date:"d M Y H:i" }}</td>
+              <td style="padding:10px 14px">
+                {% if submission.status == 'LATE' %}
+                  <span class="text-body-sm font-mono" style="color:var(--color-warning);font-weight:600">{% translate "Terlambat" %}</span>
+                {% else %}
+                  <span class="text-body-sm font-mono" style="color:var(--color-info);font-weight:600">{% translate "Terkumpul" %}</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if total_count > shown_count %}
+      <p class="text-body-sm text-ink-500" style="margin:0">
+        {% blocktranslate with shown=shown_count total=total_count %}Menampilkan {{ shown }} pengumpulan tertua dari {{ total }}.{% endblocktranslate %}
+      </p>
+    {% endif %}
+  {% else %}
+    <div class="card" style="padding:40px 24px;text-align:center">
+      <h2 class="font-display text-h3 text-ink-900" style="margin:0 0 8px 0">{% translate "Antrean kosong" %}</h2>
+      <p class="text-body-sm text-ink-700" style="margin:0">{% translate "Tidak ada tugas yang menunggu dinilai." %}</p>
+    </div>
+  {% endif %}
+</main>
+{% endblock %}

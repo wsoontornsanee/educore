@@ -759,6 +759,25 @@ def return_homework_submission(submission: HomeworkSubmission, feedback: str, ac
     return submission
 
 
+def get_homework_grading_queue(foundation_id, homework_id=None, class_subject_id=None, include_graded=False):
+    """TCH-014: homework submissions awaiting grading, oldest first.
+
+    Shared by the JSON grading-queue actions and the web console page so the
+    two never drift. `include_graded=False` keeps only SUBMITTED and LATE.
+    Returns an unsliced queryset with everything the row renderers need."""
+    qs = HomeworkSubmission.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True)
+    if homework_id:
+        qs = qs.filter(homework_id=homework_id)
+    if class_subject_id:
+        qs = qs.filter(homework__class_subject_id=class_subject_id)
+    if not include_graded:
+        qs = qs.filter(status__in=[HomeworkSubmissionStatus.SUBMITTED, HomeworkSubmissionStatus.LATE])
+    return qs.select_related(
+        'homework', 'homework__class_subject', 'homework__class_subject__subject',
+        'homework__class_subject__class_group', 'student', 'student__person', 'graded_by',
+    ).order_by('submitted_at', 'id')
+
+
 def get_homework_completion(homework: Homework) -> dict:
     """ACD-030: 4-segment class completion counts and percentages (graded, submitted, late, missing)."""
     enrolled_student_ids = set(

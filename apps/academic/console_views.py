@@ -12,7 +12,16 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.academic.models import AcademicYear, ClassEnrollment, ClassGroup, DayOfWeek, TimetableSlot
+from apps.academic.models import (
+    AcademicYear,
+    ClassEnrollment,
+    ClassGroup,
+    ClassSubject,
+    DayOfWeek,
+    HomeworkSubmissionStatus,
+    TimetableSlot,
+)
+from apps.academic.services import get_homework_grading_queue
 from apps.identity.console_access import StaffConsoleMixin
 from apps.identity.models import Staff
 from educore.middleware.tenancy import get_current_foundation_id
@@ -181,4 +190,42 @@ class TimetablePageView(StaffConsoleMixin, APIView):
             'title': title,
             'is_teacher_lens': lens is not None and lens[0] == 'teacher',
             'grid': grid,
+        })
+
+
+GRADING_QUEUE_PAGE_SIZE = 200
+
+
+class GradingQueuePageView(StaffConsoleMixin, APIView):
+    """GET /web/academic/grading-queue/?class_subject=<id> — homework
+    submissions awaiting grading (SUBMITTED + LATE), oldest first, capped at
+    GRADING_QUEUE_PAGE_SIZE rows. Read-only: grading stays on the JSON API."""
+
+    def get_required_permission(self):
+        return 'grades.read'
+
+    def get(self, request):
+        if self._resolve_staff(request) is None:
+            return Response({'error': NO_STAFF_PROFILE_MESSAGE}, status=status.HTTP_404_NOT_FOUND)
+
+        foundation_id = get_current_foundation_id()
+        raw_class_subject = request.query_params.get('class_subject', '')
+        selected_class_subject_id = int(raw_class_subject) if raw_class_subject.isdigit() else None
+
+        queue = get_homework_grading_queue(foundation_id, class_subject_id=selected_class_subject_id)
+        total_count = queue.count()
+        late_count = queue.filter(status=HomeworkSubmissionStatus.LATE).count()
+        submissions = list(queue[:GRADING_QUEUE_PAGE_SIZE])
+
+        class_subjects = ClassSubject.objects.filter(
+            foundation_id=foundation_id, deleted_at__isnull=True, class_group__academic_year__is_active=True,
+        ).select_related('subject', 'class_group').order_by('class_group__name', 'subject__name')
+
+        return render(request, 'pages/academic_grading_queue.html', {
+            'submissions': submissions,
+            'total_count': total_count,
+            'late_count': late_count,
+            'shown_count': len(submissions),
+            'class_subjects': class_subjects,
+            'selected_class_subject_id': selected_class_subject_id,
         })
