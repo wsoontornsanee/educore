@@ -2,6 +2,7 @@
 import datetime
 
 from django.urls import reverse
+from django.utils import translation
 
 from apps.academic.models import ReportCard, ReportCardStatus, SubstitutionStatus, TimetableSubstitution
 from apps.academic.tests.base import build_academic_fixture
@@ -179,6 +180,8 @@ class InboxActionRequestTests(InboxActionTestBase):
 
 class InboxActionEnglishTests(InboxActionTestBase):
     def test_buttons_and_result_message_translate(self):
+        # LocaleMiddleware leaves the thread's language activated; don't leak 'en' into later non-request tests.
+        self.addCleanup(translation.deactivate)
         req = self.make_absence()
         self.client.force_login(self.school_admin)
         self.client.cookies['django_language'] = 'en'
