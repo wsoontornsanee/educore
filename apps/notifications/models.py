@@ -34,6 +34,7 @@ class NotificationCategory(models.TextChoices):
     SUBSTITUTE_ASSIGNED = 'SUBSTITUTE_ASSIGNED', _('Penugasan Guru Pengganti (Substitute Assigned)')
     SUBSTITUTE_DECLINED = 'SUBSTITUTE_DECLINED', _('Penolakan Guru Pengganti (Substitute Declined)')
     EXPORT_READY = 'EXPORT_READY', _('Ekspor Laporan Siap (Export Ready)')
+    ABSENCE = 'ABSENCE', _('Ketidakhadiran (Absence)')
 
 
 class NotificationPriority(models.TextChoices):
@@ -173,6 +174,12 @@ CATEGORY_CONFIG = {
         'default_channels': [ChannelType.PUSH],
         'priority': NotificationPriority.NORMAL,
         'quiet_hours_respected': True,
+        'opt_out_allowed': True,
+    },
+    NotificationCategory.ABSENCE: {
+        'default_channels': [ChannelType.WHATSAPP, ChannelType.PUSH],
+        'priority': NotificationPriority.HIGH,
+        'quiet_hours_respected': False,
         'opt_out_allowed': True,
     },
 }
