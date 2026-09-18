@@ -553,9 +553,16 @@ def _serialize_date(value):
 def collect_person_data_bundle(subject_type: str, subject_id: int, foundation_id: int) -> dict:
     """DSAR access-export bundle (CMP-011): Identity + Academic + Attendance +
     Finance for one Student or Staff. Notifications/wallet/campus-life data
-    are a documented follow-up, not pulled in here. Shape is sheet-ready:
-    every key except 'identity' is a flat list of row-dicts, consumed
-    directly by apps/compliance/exports.py's dsar_access renderer."""
+    are a documented follow-up, not pulled in here. Clinic/UKS data
+    (apps.campus.ClinicVisit, HealthProfile) is additionally a deliberate,
+    permanent exclusion per LIF-007 ("clinic notes MUST be excluded from all
+    general exports"), not just a not-yet-built follow-up — if a future DSAR
+    scope expansion needs it, that's a conscious spec change, not a drive-by
+    field add. See apps/compliance/tests/test_dsar_access_export.py::
+    test_bundle_never_includes_clinic_visit_data for the regression guard.
+    Shape is sheet-ready: every key except 'identity' is a flat list of
+    row-dicts, consumed directly by apps/compliance/exports.py's dsar_access
+    renderer."""
     from apps.attendance.models import AttendanceDay, PeriodAttendance
     from apps.finance.models import Invoice, Payment
 
