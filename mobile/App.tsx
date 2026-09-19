@@ -8,7 +8,7 @@ import Constants from 'expo-constants';
 import { setApiBaseUrl } from './src/services/api';
 import { resolveApiBase } from './src/services/apiConfig';
 import { checkAuth, logout } from './src/services/auth';
-import { isParent, isStaff } from './src/services/roleRouting';
+import { isClinicOfficerOnly, isParent, isStaff } from './src/services/roleRouting';
 import { fetchSubstitutionSlot } from './src/services/agenda';
 import { track } from './src/services/analytics';
 import { initAnalyticsQueueDb } from './src/services/analyticsQueue';
@@ -25,6 +25,7 @@ import { authenticateBiometric } from './src/services/biometric';
 import { LocaleProvider } from './src/i18n/LocaleContext';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { TeacherShell } from './src/screens/teacher/TeacherShell';
+import { ClinicShell } from './src/screens/clinic/ClinicShell';
 import { ParentShell, ParentTab } from './src/screens/parent/ParentShell';
 import { ParentHomeScreen } from './src/screens/parent/ParentHomeScreen';
 import { ParentAttendanceScreen } from './src/screens/parent/ParentAttendanceScreen';
@@ -281,6 +282,8 @@ export default function App() {
               }
             }}
           />
+        ) : isClinicOfficerOnly(currentUser) ? (
+          <ClinicShell user={currentUser} onLogout={handleLogout} />
         ) : (
           <TeacherShell
             user={currentUser}
