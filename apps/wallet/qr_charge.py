@@ -365,8 +365,12 @@ def derive_confirmation_code(pos_transaction_id: int, nonce: str) -> str:
     return ''.join(_CODE_ALPHABET[b & 0x1F] for b in digest[:4])
 
 
-def _existing_charge(student, client_transaction_id: str) -> Optional[POSTransaction]:
-    return POSTransaction.objects.filter(
+def _existing_charge(student, client_transaction_id: str, lock: bool = False) -> Optional[POSTransaction]:
+    qs = POSTransaction.objects
+    if lock:
+        # A locking read sees rows committed after this transaction's snapshot was taken.
+        qs = qs.select_for_update()
+    return qs.filter(
         foundation_id=student.foundation_id, student=student, entry_mode=POSEntryMode.SELF_ENTERED,
         client_transaction_id=client_transaction_id,
         status__in=[POSTransactionStatus.COMPLETED, POSTransactionStatus.VOIDED],
@@ -414,6 +418,12 @@ def charge_qr_session(token: str, student, amount, idempotency_key: str) -> POST
                 raise _above_cap_error(cap, school.base_currency)
 
             wallet = _get_locked_wallet(get_or_create_wallet(student).id, student.foundation_id)
+            # A retry that raced its original passed the check above before the original committed. The
+            # wallet lock has now serialised us behind it, so look again. A reusable decal has no terminal,
+            # so nothing in the database's unique keys would stop a second sale row for the same key.
+            already = _existing_charge(student, client_transaction_id, lock=True)
+            if already:
+                return already
             if wallet.status != WalletStatus.ACTIVE:
                 raise _refuse('WALLET_FROZEN')
             if wallet.currency != school.base_currency:
