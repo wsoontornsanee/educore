@@ -191,6 +191,60 @@ class StudentHealthProfileViewCrossSchoolTests(TestCase):
         self.assertEqual(put_resp.data['allergies'], ['Debu', 'Kacang'])
 
 
+class ClinicMobileContractTests(TestCase):
+    """What the clinic officer's mobile app relies on: student search scoped to the officer's school, and the
+    shape of a refused visit (mobile/src/services/clinicStaff.ts)."""
+
+    def setUp(self):
+        self.fx = build_academic_fixture()
+        set_current_foundation_id(self.fx['foundation'].id)
+        assign(self.fx, self.fx['teacher_user'], ROLE_CLINIC_OFFICER)
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.fx['teacher_user'])
+
+    def test_student_search_finds_own_school_only_and_serves_what_the_lookup_reads(self):
+        school_b = School.all_tenants.create(
+            foundation_id=self.fx['foundation'].id, name="SMP B", npsn="22900009", level=School.LEVEL_SMP,
+        )
+        Student.all_tenants.create(
+            foundation_id=self.fx['foundation'].id, school=school_b, nisn="1122334488", nis="B-777",
+            status=Student.STATUS_ACTIVE,
+            person=Person.all_tenants.create(
+                foundation_id=self.fx['foundation'].id, nik="3471010101010505", full_name="Dewi Lain Sekolah",
+            ),
+        )
+        own = self.fx['student']
+
+        resp = self.client.get('/api/v1/students/', {'q': own.nis, 'status': 'ACTIVE'})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.content)
+        results = resp.data['results'] if isinstance(resp.data, dict) else resp.data
+        self.assertEqual([r['id'] for r in results], [own.id])
+        row = results[0]
+        self.assertEqual(row['nis'], own.nis)
+        self.assertEqual(row['school'], own.school_id)
+        self.assertTrue(row['school_name'])
+        self.assertTrue(row['person']['full_name'])
+
+        other = self.client.get('/api/v1/students/', {'q': 'B-777', 'status': 'ACTIVE'})
+        other_results = other.data['results'] if isinstance(other.data, dict) else other.data
+        self.assertEqual(other_results, [])
+
+    def test_medication_without_guardian_consent_is_refused_with_a_message_list(self):
+        stock = MedicationStock.objects.create(
+            foundation_id=self.fx['foundation'].id, school=self.fx['school'], name='Paracetamol', unit='tablet',
+            quantity=10, expiry_date=_dt.date(2030, 1, 1), reorder_level=2,
+        )
+        resp = self.client.post('/api/v1/campus/clinic-visits/', {
+            'student_id': self.fx['student'].id, 'complaint': 'Demam', 'outcome': ClinicOutcome.RETURNED_TO_CLASS,
+            'medication_id': stock.id, 'medication_quantity': 1,
+        }, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIsInstance(resp.data, list)
+        self.assertIn('persetujuan wali', ' '.join(str(m) for m in resp.data))
+        stock.refresh_from_db()
+        self.assertEqual(stock.quantity, 10)
+
+
 class ClinicCrossTenantIsolationTests(TestCase):
     def setUp(self):
         self.fx_a = build_academic_fixture(foundation_name="Yayasan A")
