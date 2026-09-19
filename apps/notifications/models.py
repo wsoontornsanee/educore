@@ -43,6 +43,7 @@ class NotificationCategory(models.TextChoices):
     COUNSELLING_URGENT = 'COUNSELLING_URGENT', _('Eskalasi BK Mendesak (Urgent Counselling Escalation)')
     COUNSELLING_FOLLOW_UP = 'COUNSELLING_FOLLOW_UP', _('Pengingat Tindak Lanjut BK (Counselling Follow-up)')
     PICKUP_OVERRIDE = 'PICKUP_OVERRIDE', _('Penjemputan oleh Penjemput Tidak Terdaftar (Pickup Override)')
+    BUS_APPROACH = 'BUS_APPROACH', _('Bus Sekolah Mendekat (Bus Approaching)')
 
 
 class NotificationPriority(models.TextChoices):
@@ -239,6 +240,13 @@ CATEGORY_CONFIG = {
         'priority': NotificationPriority.HIGH,
         'quiet_hours_respected': False,
         'opt_out_allowed': False,
+    },
+    NotificationCategory.BUS_APPROACH: {
+        # ATT-020: the bus is about to reach a student's stop. Useless once late, so never held for quiet hours.
+        'default_channels': [ChannelType.WHATSAPP, ChannelType.PUSH],
+        'priority': NotificationPriority.HIGH,
+        'quiet_hours_respected': False,
+        'opt_out_allowed': True,
     },
     NotificationCategory.DAILY_DIGEST: {
         # NTF-007: the aggregated evening digest itself. Not quiet-hours-gated —

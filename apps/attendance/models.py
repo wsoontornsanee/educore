@@ -611,3 +611,137 @@ class PickupEvent(TenantModel):
 
     def __str__(self):
         return f"Pickup event #{self.pk} student {self.student_id} via {self.method}"
+
+
+# ── School transport (spec/05 §6, ATT-019..ATT-022) ────────────────────────────────────────────────────
+
+class BusRoute(TenantModel):
+    """A school bus route. `approach_minutes` is how far out from a student's stop the guardians are told the
+    bus is coming (ATT-020, "~5 minutes, configurable")."""
+    school = models.ForeignKey('identity.School', on_delete=models.PROTECT, related_name='bus_routes')
+    name = models.CharField(max_length=120)
+    approach_minutes = models.PositiveSmallIntegerField(default=5)
+    is_active = models.BooleanField(default=True)
+    active_uniq_marker = soft_delete_uniqueness_marker()
+
+    class Meta(TenantModel.Meta):
+        db_table = 'bus_routes'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'school', 'name', 'active_uniq_marker'], name='unique_active_bus_route_name',
+            ),
+        ]
+        indexes = [models.Index(fields=['foundation_id', 'school', 'is_active'], name='idx_busroute_fnd_sch_act')]
+
+    def __str__(self):
+        return f"{self.name} (school {self.school_id})"
+
+
+class BusStop(TenantModel):
+    """A pick-up / drop-off point on a route. `radius_m` is the geofence: a bus inside it has arrived."""
+    route = models.ForeignKey(BusRoute, on_delete=models.PROTECT, related_name='stops')
+    name = models.CharField(max_length=120)
+    sequence = models.PositiveSmallIntegerField(default=0)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6)
+    radius_m = models.PositiveIntegerField(default=150)
+
+    class Meta(TenantModel.Meta):
+        db_table = 'bus_stops'
+        ordering = ['sequence', 'id']
+        indexes = [models.Index(fields=['foundation_id', 'route', 'sequence'], name='idx_busstop_fnd_rt_seq')]
+
+    def __str__(self):
+        return f"{self.name} (route {self.route_id})"
+
+
+class BusStopAssignment(TenantModel):
+    """The stop where a student boards and alights. A student has one stop per route."""
+    route = models.ForeignKey(BusRoute, on_delete=models.PROTECT, related_name='assignments')
+    stop = models.ForeignKey(BusStop, on_delete=models.PROTECT, related_name='assignments')
+    student = models.ForeignKey('identity.Student', on_delete=models.PROTECT, related_name='bus_assignments')
+    active_uniq_marker = soft_delete_uniqueness_marker()
+
+    class Meta(TenantModel.Meta):
+        db_table = 'bus_stop_assignments'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'route', 'student', 'active_uniq_marker'],
+                name='unique_active_bus_assignment_per_route',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['foundation_id', 'student'], name='idx_busasg_fnd_stu'),
+            models.Index(fields=['foundation_id', 'stop'], name='idx_busasg_fnd_stop'),
+        ]
+
+    def __str__(self):
+        return f"Student {self.student_id} at stop {self.stop_id}"
+
+
+class BusRunDirection(models.TextChoices):
+    TO_SCHOOL = 'TO_SCHOOL', _('Berangkat ke sekolah (To school)')
+    FROM_SCHOOL = 'FROM_SCHOOL', _('Pulang dari sekolah (From school)')
+
+
+class BusRunStatus(models.TextChoices):
+    ACTIVE = 'ACTIVE', _('Berjalan (Active)')
+    COMPLETED = 'COMPLETED', _('Selesai (Completed)')
+
+
+class BusRun(TenantModel):
+    """One trip of a route. While ACTIVE the driver's handheld reports the bus position (`last_*`), which drives
+    the geofence notices and the guardians' live view. `announced_stop_ids` are the stops whose guardians were
+    already told the bus is near; `unaccounted_checked_at` is set once the route-end check has run (ATT-021),
+    so a repeated check never alerts twice."""
+    school = models.ForeignKey('identity.School', on_delete=models.PROTECT, related_name='bus_runs')
+    route = models.ForeignKey(BusRoute, on_delete=models.PROTECT, related_name='runs')
+    direction = models.CharField(max_length=16, choices=BusRunDirection.choices)
+    status = models.CharField(max_length=16, choices=BusRunStatus.choices, default=BusRunStatus.ACTIVE, db_index=True)
+    started_at = models.DateTimeField(default=timezone.now)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    started_by = models.ForeignKey('identity.User', null=True, on_delete=models.PROTECT, related_name='+')
+    ended_by = models.ForeignKey('identity.User', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
+    last_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    last_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    last_speed_mps = models.FloatField(null=True, blank=True)
+    last_position_at = models.DateTimeField(null=True, blank=True)
+    announced_stop_ids = models.JSONField(default=list, blank=True)
+    unaccounted_checked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta(TenantModel.Meta):
+        db_table = 'bus_runs'
+        indexes = [
+            models.Index(fields=['foundation_id', 'route', 'status'], name='idx_busrun_fnd_rt_st'),
+            models.Index(fields=['foundation_id', 'status', 'unaccounted_checked_at'], name='idx_busrun_fnd_st_chk'),
+        ]
+
+    def __str__(self):
+        return f"Run #{self.pk} of route {self.route_id} ({self.status})"
+
+
+class BusEventKind(models.TextChoices):
+    BOARD = 'BOARD', _('Naik (Board)')
+    ALIGHT = 'ALIGHT', _('Turun (Alight)')
+
+
+class BusBoardingEvent(TenantModel):
+    """A student boarding or alighting, tapped on the driver's handheld and geotagged (ATT-019). Idempotent on
+    `event_uuid` (HW-005); a replayed offline event keeps its original `occurred_at`."""
+    event_uuid = models.UUIDField(unique=True)
+    school = models.ForeignKey('identity.School', on_delete=models.PROTECT, related_name='bus_events')
+    run = models.ForeignKey(BusRun, on_delete=models.PROTECT, related_name='events')
+    student = models.ForeignKey('identity.Student', on_delete=models.PROTECT, related_name='bus_events')
+    kind = models.CharField(max_length=8, choices=BusEventKind.choices)
+    occurred_at = models.DateTimeField(db_index=True)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    device = models.ForeignKey('hardware.Device', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
+    replayed = models.BooleanField(default=False)
+
+    class Meta(TenantModel.Meta):
+        db_table = 'bus_boarding_events'
+        indexes = [models.Index(fields=['foundation_id', 'run', 'student', 'occurred_at'], name='idx_busev_fnd_run_stu_at')]
+
+    def __str__(self):
+        return f"{self.kind} student {self.student_id} run {self.run_id}"

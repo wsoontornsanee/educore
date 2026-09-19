@@ -9235,3 +9235,67 @@ msgstr "Invalid foundation_id parameter."
 #: apps/reporting/models.py
 msgid "Monday of the week (Asia/Jakarta calendar)"
 msgstr "Monday of the week (Asia/Jakarta calendar)"
+
+#: apps/attendance
+msgid "Data tidak ditemukan."
+msgstr "Not found."
+
+#: apps/attendance
+msgid "Kirim raw_uid (kartu) atau student_id."
+msgstr "Send raw_uid (the card) or student_id."
+
+#: apps/attendance
+msgid "Nama rute wajib diisi."
+msgstr "The route name is required."
+
+#: apps/attendance
+msgid "Nama titik wajib diisi."
+msgstr "The stop name is required."
+
+#: apps/attendance
+msgid "Perjalanan ini sudah selesai."
+msgstr "This run has already ended."
+
+#: apps/attendance
+msgid "Rute ini sudah memiliki perjalanan yang sedang berjalan."
+msgstr "This route already has a run in progress."
+
+#: apps/attendance
+msgid "Rute ini tidak aktif."
+msgstr "This route is not active."
+
+#: apps/attendance
+msgid "Rute tidak ditemukan."
+msgstr "Route not found."
+
+#: apps/attendance
+msgid "Siswa bukan dari sekolah rute ini."
+msgstr "The student is not from this route's school."
+
+#: apps/attendance
+msgid "Sudah ada rute dengan nama itu di sekolah ini."
+msgstr "A route with that name already exists at this school."
+
+#: apps/attendance
+msgid "Berangkat ke sekolah (To school)"
+msgstr "Berangkat ke sekolah (To school)"
+
+#: apps/attendance
+msgid "Pulang dari sekolah (From school)"
+msgstr "Pulang dari sekolah (From school)"
+
+#: apps/attendance
+msgid "Berjalan (Active)"
+msgstr "Berjalan (Active)"
+
+#: apps/attendance
+msgid "Naik (Board)"
+msgstr "Naik (Board)"
+
+#: apps/attendance
+msgid "Turun (Alight)"
+msgstr "Turun (Alight)"
+
+#: apps/notifications/models.py
+msgid "Bus Sekolah Mendekat (Bus Approaching)"
+msgstr "Bus Sekolah Mendekat (Bus Approaching)"
