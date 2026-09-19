@@ -819,9 +819,23 @@ class GuardianChildrenView(views.APIView):
             guardian__deleted_at__isnull=True,
             deleted_at__isnull=True,
             student__deleted_at__isnull=True,
-        ).select_related('student__person')
-        serializer = GuardianChildSerializer(links, many=True)
+        ).select_related('student__person', 'student__school')
+        links = list(links)
+        serializer = GuardianChildSerializer(
+            links, many=True, context={'class_names': self._current_class_names(foundation_id, links)},
+        )
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @staticmethod
+    def _current_class_names(foundation_id, links) -> dict:
+        """student_id -> name of the newest active rombel enrolment, in one query."""
+        from apps.academic.models import ClassEnrollment
+        rows = ClassEnrollment.all_tenants.filter(
+            foundation_id=foundation_id, student_id__in=[link.student_id for link in links],
+            is_active=True, deleted_at__isnull=True,
+        ).order_by('enrolled_at', 'id').values_list('student_id', 'class_group__name')
+        # Ascending order: a later enrolment overwrites an earlier one.
+        return dict(rows)
 
 
 # ── Third-Party SSO — Google Workspace / Microsoft 365 (spec/14 §6, TASK-036) ──

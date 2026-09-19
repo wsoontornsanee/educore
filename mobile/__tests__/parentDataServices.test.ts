@@ -11,7 +11,7 @@ describe('Parent data services', () => {
     const original = apiClient.get;
     apiClient.get = (async (path: string) => {
       assert.strictEqual(path, '/me/children/');
-      return { data: [{ student_id: 1, full_name: 'Dewi', photo_key: '', financial_responsible: true }], status: 200, headers: {} };
+      return { data: [{ student_id: 1, full_name: 'Dewi', photo_key: '', nis: '2026010', nisn: '', class_name: '', school_name: 'SMP Nusantara', financial_responsible: true }], status: 200, headers: {} };
     }) as any;
     try {
       const result = await fetchChildren();
