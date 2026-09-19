@@ -405,6 +405,16 @@ def _canteen_for_week(school, week, week_end, counted) -> dict:
     return {'canteen_active_students': active}
 
 
+def _parent_user_ids(school, counted_student_ids) -> set:
+    """User ids of the parent accounts (guardians with a login) linked to those students of `school`."""
+    from apps.identity.models import GuardianLink
+
+    return set(GuardianLink.all_tenants.filter(
+        foundation_id=school.foundation_id, student_id__in=counted_student_ids, deleted_at__isnull=True,
+        guardian__deleted_at__isnull=True, guardian__user__isnull=False,
+    ).values_list('guardian__user_id', flat=True))
+
+
 def refresh_parent_weekly_activity(scope: str) -> dict:
     """RPT-012 / RPT-013: rebuild rpt_parent_weekly_activity, one row per school per week.
 
@@ -419,7 +429,7 @@ def refresh_parent_weekly_activity(scope: str) -> dict:
     from apps.academic.models import TimetableSlot
     from apps.attendance.models import PeriodAttendance
     from apps.attendance.services import attendance_calendar_events
-    from apps.identity.models import GuardianLink, UserActivityDay
+    from apps.identity.models import UserActivityDay
 
     if scope != 'full':
         return {'rows_written': 0, 'scope': scope}  # weekly metric: the nightly full run is enough
@@ -436,10 +446,7 @@ def refresh_parent_weekly_activity(scope: str) -> dict:
     rows_written = 0
     for school in School.all_tenants.filter(deleted_at__isnull=True):
         counted = _counted_student_ids(school, enrolled_ids)
-        parent_user_ids = set(GuardianLink.all_tenants.filter(
-            foundation_id=school.foundation_id, student_id__in=counted, deleted_at__isnull=True,
-            guardian__deleted_at__isnull=True, guardian__user__isnull=False,
-        ).values_list('guardian__user_id', flat=True))
+        parent_user_ids = _parent_user_ids(school, counted)
 
         existing_by_week = {
             row.week_start: row for row in RptParentWeeklyActivity.all_tenants.filter(

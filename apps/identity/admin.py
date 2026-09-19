@@ -1,5 +1,13 @@
 from django.contrib import admin
-from .models import ModulePrice, PlatformRoleAssignment
+from .models import Foundation, ModulePrice, PlatformRoleAssignment
+
+
+@admin.register(Foundation)
+class FoundationAdmin(admin.ModelAdmin):
+    """Where the platform records `contract_date`, the start of the time-to-value clock (RPT-016)."""
+    list_display = ('brand_name', 'plan_tier', 'status', 'contract_date')
+    list_filter = ('plan_tier', 'status')
+    search_fields = ('brand_name', 'legal_name')
 
 
 @admin.register(PlatformRoleAssignment)
