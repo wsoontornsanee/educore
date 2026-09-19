@@ -38,7 +38,9 @@ from apps.wallet.models import (
     WalletStatus,
     WalletTransactionType,
 )
-from apps.wallet.qr_offline import OfflineTokenError, peek_key_id, verify_offline_session_token
+from apps.wallet.qr_offline import (
+    ONLINE_CLOCK_SKEW_TOLERANCE, OfflineTokenError, peek_key_id, verify_offline_session_token,
+)
 from apps.wallet.services import (
     InsufficientBalanceError,
     _get_locked_wallet,
@@ -289,7 +291,9 @@ def _load_offline(token: str, student) -> _Target:
     if key.foundation_id != student.foundation_id or terminal.merchant.school_id != student.school_id:
         raise _refuse('MERCHANT_FOREIGN_TENANT')
     try:
-        _, nonce = verify_offline_session_token(terminal, token, timezone.now())
+        _, nonce = verify_offline_session_token(
+            terminal, token, timezone.now(), skew_tolerance=ONLINE_CLOCK_SKEW_TOLERANCE,
+        )
     except OfflineTokenError as exc:
         raise _refuse('QR_TOKEN_EXPIRED' if exc.code == 'EXPIRED' else 'QR_TOKEN_INVALID')
     if terminal.status != POSTerminalStatus.ACTIVE:
