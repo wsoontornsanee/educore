@@ -55,14 +55,22 @@ MOBILE_MENUS = [
 ]
 
 
+# Every requires_* gate nav.get_nav_for_user honours. _web_cell must mirror each
+# one; a test fails when NAV_GROUPS declares a gate that is missing here.
+KNOWN_WEB_GATES = frozenset({
+    'requires_staff_profile', 'requires_foundation_admin', 'requires_staff_access',
+})
+
+
 def _web_cell(role, item):
     # Derived from the real gates, not asserted. A guardian never has a Staff
-    # row (console_access.py) or the foundation-admin flag, so those gated items
-    # are blank for Parent; every other item falls through to the ordinary
-    # permission check (permission=None items, e.g. the task inbox, are open to
-    # any authenticated user, guardians included).
+    # row (console_access.py), a staff role or the foundation-admin flag, so
+    # items behind those gates are blank for Parent; every other item falls
+    # through to the ordinary permission check.
     if role == ROLE_PARENT and (
-        item.get('requires_staff_profile') or item.get('requires_foundation_admin')
+        item.get('requires_staff_profile')
+        or item.get('requires_foundation_admin')
+        or item.get('requires_staff_access')
     ):
         return ''
     admin_only = item.get('requires_foundation_admin')

@@ -53,25 +53,41 @@ class BuildMatrixTests(SimpleTestCase):
         self.assertEqual(row['Finance Officer'], '✓*')
         self.assertEqual(row['Teacher'], '')
 
-    def test_no_permission_menu_open_to_every_role_including_parent(self):
-        # permission=None items pass every authenticated user (nav.py); the
-        # parent column is derived from the same gates, not asserted blank.
+    def test_staff_access_menu_open_to_staff_roles_but_not_parent(self):
+        # The inbox declares requires_staff_access (nav.has_staff_access): a
+        # staff role passes, a guardian-only account does not.
         row = _access_row(self.matrix, 'Kotak tugas')
         self.assertEqual(row['Teacher'], '✓')
-        self.assertEqual(row['Parent'], '✓')
+        self.assertEqual(row['Clinic Officer'], '✓')
+        self.assertEqual(row['Parent'], '')
 
-    def test_parent_column_only_ticks_ungated_inbox_on_web_rows(self):
-        # A guardian has no Staff row and no admin flag, so staff-profile /
-        # foundation-admin items are blank; permission-gated items are blank
-        # because the parent role holds none of those menu permissions.
-        ticked = []
+    def test_parent_column_blank_on_every_web_row(self):
+        # A guardian has no staff role, Staff row or admin flag, and the
+        # parent role holds none of the menu permissions.
         for row in self.matrix['Access Matrix'][1:]:
             if row[0] == 'Web console':
                 cells = dict(zip(self.matrix['Access Matrix'][0], row))
-                if cells['Parent']:
-                    ticked.append(row[1])
-        self.assertEqual(len(ticked), 1, ticked)
-        self.assertTrue(ticked[0].endswith('Kotak tugas'), ticked)
+                self.assertEqual(cells['Parent'], '', row[1])
+
+    def test_ungated_permission_none_item_still_ticks_parent(self):
+        # Derivation, not assertion: an item with no gate at all is open to
+        # every role, so the parent cell is a tick.
+        fake = [{'label': 'Grup', 'items': [
+            {'id': 'x', 'label': 'Terbuka', 'permission': None, 'url_name': 'console-inbox'},
+        ]}]
+        with mock.patch.object(rbac_matrix, 'NAV_GROUPS', fake):
+            matrix = build_matrix()
+        row = _access_row(matrix, 'Terbuka')
+        self.assertEqual(row['Parent'], '✓')
+
+    def test_every_nav_gate_key_is_known_to_the_generator(self):
+        # Drift guard: a new requires_* gate in nav.py must be mirrored in
+        # _web_cell, otherwise the sheet silently overstates access.
+        declared = {
+            key for group in NAV_GROUPS for item in group['items']
+            for key in item if key.startswith('requires_')
+        }
+        self.assertLessEqual(declared, rbac_matrix.KNOWN_WEB_GATES)
 
     def test_surfaces_legend_explains_all_cell_markers(self):
         cells = {cell for row in self.matrix['Surfaces'] for cell in row}
