@@ -1,5 +1,7 @@
 """Tests for GET /me/children/ (spec/08 PAR-003, PAR-017)."""
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from rest_framework.test import APIClient
 from apps.identity.models import (
     Foundation, Guardian, GuardianLink, Person, RoleAssignment, School, Student, User,
@@ -57,6 +59,66 @@ class GuardianChildrenEndpointTests(TestCase):
         self.assertEqual(len(by_id), 2)
         self.assertTrue(by_id[self.student_financial.id]['financial_responsible'])
         self.assertFalse(by_id[self.student_non_financial.id]['financial_responsible'])
+
+    def _enrol(self, student, class_name, enrolled_at, is_active=True):
+        from apps.academic.models import AcademicYear, ClassEnrollment, ClassGroup
+        ay, _ = AcademicYear.all_tenants.get_or_create(
+            foundation_id=self.foundation.id, school=self.school, name="2026/2027",
+            defaults={'start_date': "2026-07-01", 'end_date': "2027-06-30"},
+        )
+        cg, _ = ClassGroup.all_tenants.get_or_create(
+            foundation_id=self.foundation.id, school=self.school, academic_year=ay, name=class_name,
+            defaults={'grade_level': 7},
+        )
+        return ClassEnrollment.all_tenants.create(
+            foundation_id=self.foundation.id, student=student, class_group=cg,
+            enrolled_at=enrolled_at, is_active=is_active,
+        )
+
+    def test_returns_identity_fields_the_parent_app_renders(self):
+        self.student_financial.nisn = "0012345678"
+        self.student_financial.save(update_fields=['nisn'])
+        self._enrol(self.student_financial, "VII-A", "2026-07-15")
+        self._auth(self.guardian_user)
+        by_id = {row['student_id']: row for row in self.client.get('/api/v1/me/children/').data}
+        row = by_id[self.student_financial.id]
+        self.assertEqual(row['nis'], "2026010")
+        self.assertEqual(row['nisn'], "0012345678")
+        self.assertEqual(row['class_name'], "VII-A")
+        self.assertEqual(row['school_name'], "SMP Nusantara")
+
+    def test_child_without_nisn_or_active_class_gets_empty_strings_not_null(self):
+        self._enrol(self.student_non_financial, "VII-B", "2026-07-15", is_active=False)
+        self._auth(self.guardian_user)
+        by_id = {row['student_id']: row for row in self.client.get('/api/v1/me/children/').data}
+        row = by_id[self.student_non_financial.id]
+        self.assertEqual(row['nisn'], "")
+        self.assertEqual(row['class_name'], "")
+
+    def test_class_name_is_the_newest_active_enrolment(self):
+        self._enrol(self.student_financial, "VII-A", "2025-07-15")
+        self._enrol(self.student_financial, "VIII-A", "2026-07-15")
+        self._auth(self.guardian_user)
+        by_id = {row['student_id']: row for row in self.client.get('/api/v1/me/children/').data}
+        self.assertEqual(by_id[self.student_financial.id]['class_name'], "VIII-A")
+
+    def test_query_count_does_not_grow_with_children(self):
+        self._auth(self.guardian_user)
+        self.client.get('/api/v1/me/children/')  # warm caches
+        with CaptureQueriesContext(connection) as few:
+            self.client.get('/api/v1/me/children/')
+        for i in range(3):
+            person = Person.all_tenants.create(foundation_id=self.foundation.id, full_name=f"Adik {i}")
+            child = Student.all_tenants.create(
+                foundation_id=self.foundation.id, school=self.school, person=person, nis=f"20260{50 + i}",
+            )
+            GuardianLink.all_tenants.create(
+                foundation_id=self.foundation.id, guardian=self.guardian, student=child, financial_responsible=False,
+            )
+            self._enrol(child, "VII-A", "2026-07-15")
+        with CaptureQueriesContext(connection) as many:
+            self.client.get('/api/v1/me/children/')
+        self.assertEqual(len(many), len(few))
 
     def test_staff_user_gets_403(self):
         with tenant_context(self.foundation.id):

@@ -250,8 +250,8 @@ export default function App() {
                   linkedStudents={allChildren.map((c) => ({
                     id: c.student_id,
                     full_name: c.full_name,
-                    nis: c.nis ?? '',
-                    nisn: c.nisn ?? '',
+                    nis: c.nis,
+                    nisn: c.nisn,
                     class_name: c.class_name,
                     school_name: c.school_name,
                   }))}

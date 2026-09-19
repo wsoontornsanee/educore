@@ -8,8 +8,8 @@ import type { ChildSummary, AttendanceDayItem } from '../src/types/index.ts';
 
 describe('resolveDeepLinkChild', () => {
   const children: ChildSummary[] = [
-    { student_id: 1, full_name: 'Anak Satu', photo_key: '', financial_responsible: true },
-    { student_id: 2, full_name: 'Anak Dua', photo_key: '', financial_responsible: false },
+    { student_id: 1, full_name: 'Anak Satu', photo_key: '', nis: '2026010', nisn: '', class_name: '', school_name: 'SMP Nusantara', financial_responsible: true },
+    { student_id: 2, full_name: 'Anak Dua', photo_key: '', nis: '2026010', nisn: '', class_name: '', school_name: 'SMP Nusantara', financial_responsible: false },
   ];
 
   it('returns the matching child by student_id', () => {

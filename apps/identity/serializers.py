@@ -456,10 +456,23 @@ class OtpVerifySerializer(serializers.Serializer):
 
 
 class GuardianChildSerializer(serializers.Serializer):
+    """One child in the guardian's switcher. NIS/NISN are the guardian's own child's identifiers,
+    served over the authenticated API only (never logged, AGENTS red line 5). ``class_name`` needs
+    ``context['class_names']`` (student_id -> current rombel name); absent means no active enrolment."""
     student_id = serializers.IntegerField(source='student.id')
     full_name = serializers.CharField(source='student.person.full_name')
     photo_key = serializers.CharField(source='student.photo_key')
     financial_responsible = serializers.BooleanField()
+    nis = serializers.CharField(source='student.nis')
+    nisn = serializers.SerializerMethodField()
+    class_name = serializers.SerializerMethodField()
+    school_name = serializers.CharField(source='student.school.name')
+
+    def get_nisn(self, link) -> str:
+        return link.student.nisn or ''
+
+    def get_class_name(self, link) -> str:
+        return self.context.get('class_names', {}).get(link.student_id, '')
 
 
 # ── SSO (spec/14 §6, TASK-036) ─────────────────────────────────────
