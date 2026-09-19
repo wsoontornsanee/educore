@@ -4,7 +4,8 @@
 {% block title %}{% translate "EduCore — Konsol" %}{% endblock %}
 
 {% block content %}
-<div style="max-width: 640px; margin: 64px auto; text-align: center;">
+<div style="max-width: 640px; margin: 24px auto 0;">{% include "components/_console_flash.html" %}</div>
+<div style="max-width: 640px; margin: 40px auto 64px; text-align: center;">
   <h1 class="font-display text-h2" style="margin-bottom: 12px;">
     {% blocktranslate with name=request.user.full_name %}Selamat datang, {{ name }}{% endblocktranslate %}
   </h1>

@@ -3,6 +3,7 @@ import datetime
 
 from django.test import TestCase
 from django.utils import timezone
+from django.urls import reverse
 from rest_framework.test import APIClient
 
 from apps.academic.models import ClassEnrollment, ExamQuestionType
@@ -124,7 +125,7 @@ class ExamPublishConsoleTests(TestCase):
     def test_read_only_user_cannot_publish(self):
         exam = make_exam(self.fx, published=False)
         self.client.force_authenticate(user=self.reader)
-        self.assertEqual(self.client.post(self._url(exam)).status_code, 403)
+        self.assertRedirects(self.client.post(self._url(exam)), reverse('web-console-home'), fetch_redirect_response=False)
         exam.refresh_from_db()
         self.assertFalse(exam.published)
 

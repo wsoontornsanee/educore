@@ -18,6 +18,7 @@ from django.views.generic import TemplateView
 from apps.attendance.models import AttendanceDay, AttendanceStatus
 from apps.finance.models import Invoice, InvoiceStatus
 from educore.middleware.tenancy import get_current_foundation_id, set_current_foundation_id, tenant_context
+from .console_access import redirect_denied_to_home
 from .inbox import InboxActionError, get_inbox_for_user, perform_inbox_action
 from .landing import resolve_post_login_redirect
 from .models import RoleAssignment, Student
@@ -480,7 +481,7 @@ class _ConsoleLandingView(LoginRequiredMixin, TemplateView):
     def get(self, request, *args, **kwargs):
         foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
         if not self._user_has_required_permission(request.user, foundation_id):
-            return redirect('web-console-home')
+            return redirect_denied_to_home(request)
         return super().get(request, *args, **kwargs)
 
     def _user_has_required_permission(self, user, foundation_id):

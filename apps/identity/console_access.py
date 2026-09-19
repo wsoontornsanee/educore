@@ -11,16 +11,25 @@ browser page on its own:
 3. school scoping — a school-scoped role sees only the schools it is assigned
    to, a foundation-scoped role sees every school in the foundation.
 """
+from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
 from django.shortcuts import redirect
 from django.utils.translation import gettext as _
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import NotFound, PermissionDenied
 
 from educore.middleware.tenancy import get_current_foundation_id
 
 from .models import RoleAssignment, School, Staff
 from .permissions import HasRequiredPermission
 from .rbac import SCOPE_SCHOOL, get_user_permissions, has_permission_in_any_scope, is_foundation_admin
+
+
+def redirect_denied_to_home(request):
+    """A signed-in user reached a console page they may not use: send them home
+    with a message instead of a dead end (raw 403 / blank redirect)."""
+    messages.error(request, _("Anda tidak memiliki akses ke halaman tersebut."))
+    return redirect('web-console-home')
 
 
 def permitted_schools(user, foundation_id, permission_key):
@@ -50,6 +59,13 @@ class StaffConsoleMixin:
     """
 
     permission_classes = [HasRequiredPermission]
+
+    def handle_exception(self, exc):
+        # These are HTML pages, so DRF's default JSON 403 body would land in the
+        # browser as raw text. A missing Staff profile or unseen school stays a 404.
+        if isinstance(exc, (PermissionDenied, DjangoPermissionDenied)) and self.request.user.is_authenticated:
+            return redirect_denied_to_home(self.request)
+        return super().handle_exception(exc)
 
     def _resolve_staff(self, request):
         foundation_id = get_current_foundation_id()
@@ -138,8 +154,8 @@ class ConsolePermissionMixin(LoginRequiredMixin):
     Subclasses set `required_permission` (an RBAC key), or
     `foundation_admin_only = True` for pages whose backing API is gated by
     is_foundation_admin rather than a permission key. A denied user is
-    redirected to web-console-home rather than shown a raw 403 (matching the
-    console landing pages: never leave a user at a dead end).
+    redirected to web-console-home with a message rather than shown a raw 403
+    (matching StaffConsoleMixin: never leave a user at a dead end).
     `self.foundation_id` is set once the gate passes.
     """
     required_permission = None
@@ -149,7 +165,7 @@ class ConsolePermissionMixin(LoginRequiredMixin):
         if request.user.is_authenticated:
             self.foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
             if not self.foundation_id or not self._is_allowed(request.user):
-                return redirect('web-console-home')
+                return redirect_denied_to_home(request)
         return super().dispatch(request, *args, **kwargs)
 
     def _is_allowed(self, user):

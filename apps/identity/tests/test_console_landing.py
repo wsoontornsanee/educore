@@ -83,6 +83,10 @@ class ConsoleLandingPagesRbacTests(TestCase):
         response = self.client.get(reverse(url_name))
         self.assertRedirects(response, reverse('web-console-home'))
 
+    def test_denied_redirect_tells_the_user_why(self):
+        response = self.client.get(reverse('console-home-overview'), follow=True)
+        self.assertContains(response, "Anda tidak memiliki akses ke halaman tersebut.")
+
     def test_foundation_overview_denies_user_without_grades_read(self):
         self._assert_redirects_to_console_home('console-home-overview')
 
