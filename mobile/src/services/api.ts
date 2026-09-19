@@ -4,18 +4,21 @@
  * Uses standard Fetch API (native to React Native, Expo, and Node.js).
  * Injects JWT Bearer tokens and handles automatic 401 token refresh.
  */
+import { ApiConfigError } from './apiConfig.ts';
 import { clearAuth, getTokens, saveTokens } from './storage.ts';
 
-// Release builds get this from the EAS profile env (eas.json); the fallback is the Android emulator's host loopback.
-export const DEFAULT_API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:8000/api/v1';
 
-let currentBaseUrl = DEFAULT_API_BASE;
+// Set once at startup from the build config (App.tsx -> resolveApiBase); there is deliberately no default.
+let currentBaseUrl = '';
 
 export function setApiBaseUrl(url: string): void {
   currentBaseUrl = url.replace(/\/+$/, '');
 }
 
 export function getApiBaseUrl(): string {
+  if (!currentBaseUrl) {
+    throw new ApiConfigError('API base URL is not set; call setApiBaseUrl(resolveApiBase(...)) at startup.');
+  }
   return currentBaseUrl;
 }
 
@@ -55,7 +58,7 @@ async function request<T>(
   body?: any,
   options: RequestOptions = {}
 ): Promise<ApiResponse<T>> {
-  const url = path.startsWith('http') ? path : `${currentBaseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
+  const url = path.startsWith('http') ? path : `${getApiBaseUrl()}${path.startsWith('/') ? '' : '/'}${path}`;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     Accept: 'application/json',
@@ -119,7 +122,7 @@ async function request<T>(
         throw new Error('No refresh token available');
       }
 
-      const refreshRes = await fetch(`${currentBaseUrl}/auth/token/refresh/`, {
+      const refreshRes = await fetch(`${getApiBaseUrl()}/auth/token/refresh/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ refresh }),
