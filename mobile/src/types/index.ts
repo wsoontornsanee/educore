@@ -155,6 +155,26 @@ export interface ClinicVisitItem {
   updated_at: string;
 }
 
+export type PickupStatus = 'ACTIVE' | 'SCHEDULED' | 'USED' | 'EXPIRED' | 'REVOKED';
+
+/** A guardian's authorisation for a named person to collect a child (spec/05 ATT-015). */
+export interface PickupAuthorizationItem {
+  id: number;
+  student_id: number;
+  person_name: string;
+  relation: string;
+  phone: string;
+  photo_key: string;
+  valid_from: string;
+  valid_to: string;
+  one_time: boolean;
+  status: PickupStatus;
+  used_at: string | null;
+  revoked_at: string | null;
+  /** Present only while the authorisation can still be used (ACTIVE or SCHEDULED). */
+  qr_token: string | null;
+}
+
 export interface MedicationStockItem {
   id: number;
   school: number;
