@@ -6,12 +6,13 @@ action a plain POST that calls the service the JSON API calls, flash + redirect.
 screen is the one interactive page: it mints the QR, polls for the student's charge and lets
 the operator void a wrong amount (QRS-014, QRS-025).
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.translation import gettext as _, gettext_lazy as _lazy
 from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
@@ -27,6 +28,7 @@ from .models import (
     POSPaymentPoint,
     POSQRDecal,
     POSQRSession,
+    POSTransactionStatus,
     POSTerminal,
     POSTerminalStatus,
     POSTransaction,
@@ -47,6 +49,8 @@ from .qr_decals import (
     close_payment_point,
     create_payment_point,
     get_counter_feed,
+    get_sales_by_payment_point,
+    local_day_bounds,
     print_decal,
     render_decal_pdf,
     revoke_decal,
@@ -61,6 +65,7 @@ from .qr_oversight import (
 from .services import VoidWindowExpiredError, void_pos_transaction
 
 ADMIN_PERMISSION = 'school_config.write'
+RESOLVED_DISPUTE_DAYS = 30
 
 
 def _qr_page_url(school):
@@ -95,12 +100,27 @@ class CanteenQRPageView(StaffConsoleMixin, APIView):
                         foundation_id=foundation_id, deleted_at__isnull=True, status=POSTerminalStatus.ACTIVE,
                     ))
                     merchant.signals = get_underpayment_signals(merchant, day) if merchant.qr_self_amount_enabled else None
+                    # QRS-040: the day's sales per counter; only meaningful once a merchant takes QR payments.
+                    if merchant.qr_self_amount_enabled:
+                        _day, start, end = local_day_bounds(school, day)
+                        merchant.sales_by_point = get_sales_by_payment_point(POSTransaction.objects.filter(
+                            foundation_id=foundation_id, merchant=merchant, status=POSTransactionStatus.COMPLETED,
+                            occurred_at__gte=start, occurred_at__lt=end, deleted_at__isnull=True,
+                        ))
+                    else:
+                        merchant.sales_by_point = None
                 disputes = list(QRDispute.objects.filter(
                     foundation_id=foundation_id, merchant__in=merchants, status=QRDisputeStatus.OPEN, deleted_at__isnull=True,
                 ).select_related('merchant', 'student', 'student__person', 'pos_transaction').order_by('created_at'))
+                resolved_disputes = list(QRDispute.objects.filter(
+                    foundation_id=foundation_id, merchant__in=merchants, deleted_at__isnull=True,
+                    status__in=[QRDisputeStatus.UPHELD, QRDisputeStatus.REJECTED],
+                    resolved_at__gte=timezone.now() - timedelta(days=RESOLVED_DISPUTE_DAYS),
+                ).select_related('merchant', 'student', 'student__person', 'pos_transaction').order_by('-resolved_at')[:50])
             ctx.update({
                 'merchants': merchants,
                 'disputes': disputes,
+                'resolved_disputes': resolved_disputes,
                 'cap': school.qr_self_amount_max,
                 'currency': school.base_currency,
                 'can_admin': has_permission(request.user, ADMIN_PERMISSION, foundation_id, school_id=school.id),
