@@ -29,6 +29,19 @@ class UserRoleSerializer(serializers.ModelSerializer):
         model = RoleAssignment
         fields = ['id', 'role', 'scope_type', 'scope_id']
 
+class RoleAssignmentSerializer(serializers.ModelSerializer):
+    """A staff member's role assignment, for the role grant/revoke API."""
+    class Meta:
+        model = RoleAssignment
+        fields = ['id', 'user_id', 'role', 'scope_type', 'scope_id', 'created_at']
+        read_only_fields = fields
+
+class RoleGrantSerializer(serializers.Serializer):
+    """Body of POST /staff/<id>/roles/ — role + scope, the same shape role_admin.grant_role takes."""
+    role = serializers.CharField()
+    scope_type = serializers.ChoiceField(choices=[RoleAssignment.SCOPE_FOUNDATION, RoleAssignment.SCOPE_SCHOOL])
+    scope_id = serializers.IntegerField()
+
 class UserProfileSerializer(serializers.Serializer):
     """Profile serializer for GET /me (spec/02 §7)."""
     user = serializers.SerializerMethodField()

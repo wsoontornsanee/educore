@@ -234,6 +234,101 @@ class StaffViewSet(viewsets.ModelViewSet):
         return Response(StaffSerializer(offboarded_staff).data, status=status.HTTP_200_OK)
 
 
+class StaffRoleListView(views.APIView):
+    """GET /api/v1/staff/<staff_id>/roles/ — list a staff member's role assignments.
+    POST /api/v1/staff/<staff_id>/roles/ — grant a role.
+
+    JSON API parity for the web console's role editing (PR #223): both entry
+    points call the exact same `role_admin` service functions, so every
+    privilege-escalation rule (self-edit, scope ceiling, no-escalation, last
+    foundation-admin) is enforced identically and in one place. Session/JWT-
+    authenticated staff only (`HasRequiredPermission` requires
+    `request.user.is_authenticated`) — this app registers no API-key
+    authentication, so partner integrations cannot reach this endpoint.
+    """
+    from .permissions import HasRequiredPermission
+
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'school_config.write'
+
+    def _foundation_id(self, request):
+        return get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+
+    def _load_staff(self, request, staff_id):
+        from .console_access import accessible_school_ids
+        from .models import Staff
+
+        foundation_id = self._foundation_id(request)
+        ceiling = accessible_school_ids(request.user, foundation_id, self.required_permission)
+        qs = Staff.all_tenants.filter(id=staff_id, foundation_id=foundation_id, deleted_at__isnull=True)
+        if ceiling is not None:
+            qs = qs.filter(school_id__in=ceiling)
+        staff = qs.first()
+        if staff is None:
+            raise NotFound()
+        return staff, foundation_id
+
+    def get(self, request, staff_id):
+        from .serializers import RoleAssignmentSerializer
+
+        staff, foundation_id = self._load_staff(request, staff_id)
+        assignments = RoleAssignment.all_tenants.filter(
+            foundation_id=foundation_id, user_id=staff.user_id, deleted_at__isnull=True,
+        ).order_by('scope_type', 'role')
+        return Response(RoleAssignmentSerializer(assignments, many=True).data)
+
+    def post(self, request, staff_id):
+        from .role_admin import RoleChangeError, grant_role
+        from .serializers import RoleAssignmentSerializer, RoleGrantSerializer
+
+        staff, foundation_id = self._load_staff(request, staff_id)
+        body = RoleGrantSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+
+        try:
+            assignment, created = grant_role(
+                foundation_id=foundation_id, actor=request.user, target_user_id=staff.user_id,
+                ip_address=request.META.get('REMOTE_ADDR'), **body.validated_data,
+            )
+        except (RoleChangeError, DjangoValidationError) as exc:
+            raise DRFValidationError(detail=exc.messages if hasattr(exc, 'messages') else str(exc))
+
+        if not created:
+            existing = RoleAssignment.all_tenants.get(
+                foundation_id=foundation_id, user_id=staff.user_id, deleted_at__isnull=True,
+                **body.validated_data,
+            )
+            return Response(RoleAssignmentSerializer(existing).data, status=status.HTTP_200_OK)
+        return Response(RoleAssignmentSerializer(assignment).data, status=status.HTTP_201_CREATED)
+
+
+class StaffRoleDetailView(StaffRoleListView):
+    """DELETE /api/v1/staff/<staff_id>/roles/<assignment_id>/ — revoke a role assignment.
+
+    The assignment must belong to this staff member, or it is a 404, exactly
+    like the web console (a mismatched pair cannot be used to probe or revoke
+    someone else's role).
+    """
+
+    def delete(self, request, staff_id, assignment_id):
+        from .role_admin import RoleChangeError, revoke_role_assignment
+
+        staff, foundation_id = self._load_staff(request, staff_id)
+        if not RoleAssignment.all_tenants.filter(
+            id=assignment_id, foundation_id=foundation_id, user_id=staff.user_id, deleted_at__isnull=True,
+        ).exists():
+            raise NotFound()
+
+        try:
+            revoke_role_assignment(
+                foundation_id=foundation_id, actor=request.user, assignment_id=assignment_id,
+                ip_address=request.META.get('REMOTE_ADDR'),
+            )
+        except RoleChangeError as exc:
+            raise DRFValidationError(detail=exc.messages)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class StudentViewSet(viewsets.ModelViewSet):
     """Student directory, guardian linking, and bulk import API (spec/02 §2, §5, §7).
     
