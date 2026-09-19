@@ -67,7 +67,7 @@ class DisputeTests(QRFixtureMixin, TestCase):
         open_qr_dispute(pos_tx, self.guardian, 'a')
         self.assertDisputeError('DISPUTE_EXISTS', open_qr_dispute, pos_tx, self.guardian, 'b')
 
-    def test_upheld_full_refunds_and_voids_sale(self):
+    def test_upheld_full_refunds_and_records_a_settlement_adjustment(self):
         pos_tx = self.pay('18000')
         dispute = resolve_qr_dispute(open_qr_dispute(pos_tx, self.guardian, 'x'), 'UPHELD', self.staff, 'ok')
         self.wallet.refresh_from_db()
@@ -75,7 +75,12 @@ class DisputeTests(QRFixtureMixin, TestCase):
         self.assertEqual(dispute.status, QRDisputeStatus.UPHELD)
         self.assertEqual(dispute.resolution_transaction.type, WalletTransactionType.REFUND)
         pos_tx.refresh_from_db()
-        self.assertEqual(pos_tx.status, POSTransactionStatus.VOIDED)  # excluded from merchant settlement
+        # The sale happened and was refunded: it stays COMPLETED; the merchant's side is netted at settlement.
+        self.assertEqual(pos_tx.status, POSTransactionStatus.COMPLETED)
+        adjustment = dispute.settlement_adjustment
+        self.assertEqual((adjustment.refund_amount, adjustment.commission_recovered, adjustment.deduction),
+                         (Decimal('18000.00'), Decimal('360.00'), Decimal('17640.00')))
+        self.assertIsNone(adjustment.settlement_id)
 
     def test_upheld_partial_is_adjustment_and_sale_stands(self):
         pos_tx = self.pay('18000')

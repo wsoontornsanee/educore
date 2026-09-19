@@ -8,7 +8,7 @@ conversation, not enforced (QRS-027).
 import math
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Dict, Optional
 
 from django.db import transaction
@@ -19,6 +19,7 @@ from apps.core.services import audit
 from apps.wallet.models import (
     POSEntryMode,
     POSTransaction,
+    MerchantSettlementAdjustment,
     POSTransactionStatus,
     QRDispute,
     QRDisputeStatus,
@@ -66,8 +67,9 @@ def open_qr_dispute(pos_transaction: POSTransaction, opened_by, reason: str) -> 
 def resolve_qr_dispute(
     dispute: QRDispute, outcome: str, actor, note: str = '', refund_amount: Optional[Decimal] = None,
 ) -> QRDispute:
-    """Close an open dispute. UPHELD credits the wallet: a full refund is a REFUND and voids the sale
-    (so settlement excludes it); a smaller amount is an ADJUSTMENT and leaves the sale standing."""
+    """Close an open dispute. UPHELD credits the wallet (a full refund is a REFUND, a smaller amount an
+    ADJUSTMENT) and records a settlement adjustment so the merchant gives the money back at its next unpaid
+    settlement. The sale itself stays COMPLETED either way."""
     if outcome not in (QRDisputeStatus.UPHELD, QRDisputeStatus.REJECTED):
         raise QRDisputeError('DISPUTE_INVALID_OUTCOME', _("Hasil sanggahan tidak valid."))
     dispute = QRDispute.objects.select_for_update().get(id=dispute.id, foundation_id=dispute.foundation_id)
@@ -79,24 +81,21 @@ def resolve_qr_dispute(
         amount = pos_tx.total if refund_amount is None else Decimal(str(refund_amount)).quantize(Decimal('0.01'))
         if amount <= Decimal('0.00') or amount > pos_tx.total:
             raise QRDisputeError('DISPUTE_INVALID_AMOUNT', _("Jumlah pengembalian harus lebih dari nol dan tidak melebihi pembayaran."))
-        full = amount == pos_tx.total
         dispute.resolution_transaction = record_wallet_transaction(
             pos_tx.wallet_transaction.wallet,
-            WalletTransactionType.REFUND if full else WalletTransactionType.ADJUSTMENT,
+            WalletTransactionType.REFUND if amount == pos_tx.total else WalletTransactionType.ADJUSTMENT,
             amount, f"dispute:{dispute.id}", reference=f"DISPUTE:{dispute.merchant.name}",
         )
         dispute.refund_amount = amount
-        if full:
-            pos_tx.status = POSTransactionStatus.VOIDED
-            pos_tx.voided_at = timezone.now()
-            pos_tx.void_reason = 'DISPUTE_UPHELD'
-            pos_tx.save(update_fields=['status', 'voided_at', 'void_reason', 'updated_at'])
 
     dispute.status = outcome
     dispute.resolved_by = actor
     dispute.resolved_at = timezone.now()
     dispute.resolution_note = note
     dispute.save()
+    if outcome == QRDisputeStatus.UPHELD:
+        # The sale stays COMPLETED (it happened and was refunded); the merchant's side is netted at settlement.
+        _record_settlement_adjustment(dispute, pos_tx)
     audit(
         action='wallet.qr_dispute.resolved', entity_type='QRDispute', entity_id=dispute.id,
         foundation_id=dispute.foundation_id, diff={'outcome': outcome, 'refund_amount': str(dispute.refund_amount)},
@@ -104,6 +103,23 @@ def resolve_qr_dispute(
     if outcome == QRDisputeStatus.UPHELD:
         _flag_merchant_if_needed(dispute.merchant)
     return dispute
+
+
+def _record_settlement_adjustment(dispute: QRDispute, pos_tx: POSTransaction) -> MerchantSettlementAdjustment:
+    """deduction = refund - the commission share on it, i.e. what voiding that portion would have removed."""
+    refund = dispute.refund_amount
+    recovered = (pos_tx.commission * refund / pos_tx.total).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP) if pos_tx.total else Decimal('0.00')
+    adjustment = MerchantSettlementAdjustment.objects.create(
+        foundation_id=dispute.foundation_id, merchant=dispute.merchant, dispute=dispute, pos_transaction=pos_tx,
+        refund_amount=refund, commission_recovered=recovered, deduction=refund - recovered,
+        occurred_at=dispute.resolved_at,
+    )
+    audit(
+        action='wallet.settlement_adjustment.created', entity_type='MerchantSettlementAdjustment',
+        entity_id=adjustment.id, foundation_id=dispute.foundation_id,
+        diff={'deduction': str(adjustment.deduction), 'refund': str(refund), 'commission_recovered': str(recovered)},
+    )
+    return adjustment
 
 
 def _flag_merchant_if_needed(merchant) -> None:

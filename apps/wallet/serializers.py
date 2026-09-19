@@ -190,14 +190,27 @@ class MerchantSettlementSerializer(serializers.ModelSerializer):
     gross = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
     commission = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
     net = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    adjustments_total = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True)
+    adjustments = serializers.SerializerMethodField()
 
     class Meta:
         model = MerchantSettlement
         fields = [
             'id', 'foundation_id', 'merchant', 'period_start', 'period_end', 'gross',
-            'commission', 'net', 'status', 'paid_at', 'statement_pdf_key', 'created_at', 'updated_at',
+            'commission', 'adjustments_total', 'adjustments', 'net', 'status', 'paid_at', 'statement_pdf_key',
+            'created_at', 'updated_at',
         ]
         read_only_fields = fields
+
+    def get_adjustments(self, obj):
+        return [
+            {
+                'id': a.id, 'dispute': a.dispute_id, 'pos_transaction': a.pos_transaction_id,
+                'refund_amount': str(a.refund_amount), 'commission_recovered': str(a.commission_recovered),
+                'deduction': str(a.deduction), 'occurred_at': a.occurred_at,
+            }
+            for a in obj.adjustments.order_by('occurred_at', 'id')
+        ]
 
 
 class MerchantSettlementRunSerializer(serializers.Serializer):

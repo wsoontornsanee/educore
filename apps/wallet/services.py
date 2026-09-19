@@ -14,6 +14,7 @@ from apps.core.services import audit, write_generated_file
 from apps.wallet.models import (
     Merchant,
     MerchantSettlement,
+    MerchantSettlementAdjustment,
     WalletAutoTopupConfig,
     MerchantSettlementStatus,
     POSTransaction,
@@ -550,6 +551,10 @@ def void_pos_transaction(pos_transaction: POSTransaction, reason: str, actor=Non
     if pos_transaction.status != POSTransactionStatus.COMPLETED:
         raise ValueError(f"INVALID_STATE: transaction is {pos_transaction.status}, not COMPLETED.")
 
+    if pos_transaction.dispute_adjustments.exists():
+        # An upheld dispute already refunded (part of) this sale; a void would refund it a second time.
+        raise ValueError("INVALID_STATE: transaction already refunded through an upheld dispute.")
+
     elapsed = timezone.now() - pos_transaction.occurred_at
     if elapsed > timedelta(minutes=void_window_minutes):
         raise VoidWindowExpiredError(
@@ -578,8 +583,15 @@ def void_pos_transaction(pos_transaction: POSTransaction, reason: str, actor=Non
     return pos_transaction
 
 
+@transaction.atomic
 def run_merchant_settlement(merchant, period_start, period_end) -> MerchantSettlement:
-    """WAL-022: gross/commission/net for a merchant over a period. Re-running while PENDING updates in place."""
+    """WAL-022: gross/commission/net for a merchant over a period. Re-running while PENDING updates in place.
+
+    Upheld QR dispute refunds are netted here: unabsorbed ``MerchantSettlementAdjustment`` lines resolved on or
+    before ``period_end`` are absorbed oldest-first, whole lines only, while the running total fits within
+    ``gross - commission``. A line that does not fit waits for a later run, so net never goes negative and a
+    PAID settlement is never touched.
+    """
     existing = MerchantSettlement.objects.filter(
         foundation_id=merchant.foundation_id, merchant=merchant,
         period_start=period_start, period_end=period_end, deleted_at__isnull=True,
@@ -595,39 +607,83 @@ def run_merchant_settlement(merchant, period_start, period_end) -> MerchantSettl
 
     gross = totals['gross'] or Decimal('0.00')
     commission = totals['commission'] or Decimal('0.00')
-    net = gross - commission
+    capacity = gross - commission
 
     if existing:
-        existing.gross, existing.commission, existing.net = gross, commission, net
-        existing.save(update_fields=['gross', 'commission', 'net', 'updated_at'])
+        # Re-run: release what this settlement absorbed before, then decide again from scratch.
+        MerchantSettlementAdjustment.objects.filter(
+            foundation_id=merchant.foundation_id, settlement=existing,
+        ).update(settlement=None)
         settlement = existing
     else:
         settlement = MerchantSettlement.objects.create(
             foundation_id=merchant.foundation_id, merchant=merchant,
-            period_start=period_start, period_end=period_end,
-            gross=gross, commission=commission, net=net,
+            period_start=period_start, period_end=period_end, gross=gross, commission=commission,
+            net=capacity,
         )
+
+    absorbed = Decimal('0.00')
+    waiting = MerchantSettlementAdjustment.objects.select_for_update().filter(
+        foundation_id=merchant.foundation_id, merchant=merchant, settlement__isnull=True,
+        occurred_at__date__lte=period_end,
+    ).order_by('occurred_at', 'id')
+    for line in waiting:
+        if absorbed + line.deduction <= capacity:
+            line.settlement = settlement
+            line.save(update_fields=['settlement', 'updated_at'])
+            absorbed += line.deduction
+            audit(
+                action='wallet.settlement_adjustment.absorbed', entity_type='MerchantSettlementAdjustment',
+                entity_id=line.id, foundation_id=merchant.foundation_id,
+                diff={'settlement': settlement.id, 'deduction': str(line.deduction)},
+            )
+
+    settlement.gross, settlement.commission = gross, commission
+    settlement.adjustments_total, settlement.net = absorbed, capacity - absorbed
+    settlement.save(update_fields=['gross', 'commission', 'adjustments_total', 'net', 'updated_at'])
 
     audit(
         action='wallet.merchant_settlement.run',
         entity_type='MerchantSettlement',
         entity_id=settlement.id,
         foundation_id=merchant.foundation_id,
-        diff={'gross': str(gross), 'commission': str(commission), 'net': str(net)},
+        diff={
+            'gross': str(gross), 'commission': str(commission), 'adjustments': str(absorbed), 'net': str(settlement.net),
+        },
     )
     return settlement
 
 
 def render_settlement_statement_html(settlement: MerchantSettlement) -> str:
+    from django.utils.html import escape
+
     merchant = settlement.merchant
+    lines = ''.join(
+        f"<tr><td>#{a.pos_transaction_id}</td><td>{a.occurred_at:%Y-%m-%d}</td><td>{a.refund_amount}</td>"
+        f"<td>{a.commission_recovered}</td><td>-{a.deduction}</td></tr>"
+        for a in settlement.adjustments.select_related('pos_transaction').order_by('occurred_at', 'id')
+    )
+    adjustments = (
+        "<h2>Potongan sanggahan yang dikabulkan</h2><table border=\"1\">"
+        "<tr><th>Transaksi</th><th>Tanggal</th><th>Pengembalian</th><th>Komisi kembali</th><th>Potongan</th></tr>"
+        f"{lines}</table>"
+    ) if lines else ''
+    waiting = MerchantSettlementAdjustment.objects.filter(
+        foundation_id=settlement.foundation_id, merchant=merchant, settlement__isnull=True,
+    ).aggregate(t=Sum('deduction'))['t']
+    waiting_note = (
+        f"<p>Potongan menunggu periode berikutnya: {waiting}</p>" if waiting else ''
+    )
     return f"""<html><body>
-<h1>Laporan Penyelesaian - {merchant.name}</h1>
+<h1>Laporan Penyelesaian - {escape(merchant.name)}</h1>
 <p>Periode: {settlement.period_start} s/d {settlement.period_end}</p>
 <table border="1">
 <tr><th>Bruto</th><td>{settlement.gross}</td></tr>
 <tr><th>Komisi</th><td>{settlement.commission}</td></tr>
+<tr><th>Potongan sanggahan</th><td>{settlement.adjustments_total}</td></tr>
 <tr><th>Neto</th><td>{settlement.net}</td></tr>
 </table>
+{adjustments}{waiting_note}
 </body></html>"""
 
 
@@ -1794,8 +1850,14 @@ def get_canteen_console_snapshot(foundation_id, school, now=None) -> Dict[str, A
         ).values('merchant_id').annotate(count=Count('id'))
     }
     zero = Decimal('0.00')
+    waiting_by_merchant = {
+        row['merchant_id']: row['total'] for row in MerchantSettlementAdjustment.objects.filter(
+            foundation_id=foundation_id, merchant__in=merchants, settlement__isnull=True, deleted_at__isnull=True,
+        ).values('merchant_id').annotate(total=Sum('deduction'))
+    }
     merchant_rows = [{
         'id': m.id,
+        'waiting_deductions': waiting_by_merchant.get(m.id) or zero,
         'name': m.name,
         'type_label': m.get_type_display(),
         'is_active': m.is_active,
@@ -1815,7 +1877,7 @@ def get_canteen_console_snapshot(foundation_id, school, now=None) -> Dict[str, A
 
     recent = list(POSTransaction.objects.filter(
         foundation_id=foundation_id, merchant__in=merchants, deleted_at__isnull=True,
-    ).select_related('merchant', 'student__person', 'qr_decal__payment_point').order_by('-occurred_at')[:RECENT_POS_TRANSACTION_LIMIT])
+    ).select_related('merchant', 'student__person', 'qr_decal__payment_point').prefetch_related('dispute_adjustments').order_by('-occurred_at')[:RECENT_POS_TRANSACTION_LIMIT])
 
     return {
         'currency': school.base_currency,
