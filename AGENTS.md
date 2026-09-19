@@ -58,7 +58,7 @@ Every task must strictly adhere to the following 5-phase SOP:
      - Every CI check has finished and passed (`gh pr checks <N>`; nothing pending or failing).
      - The branch is current with `main` (`git fetch origin` then `git rev-list --count HEAD..origin/main` is `0`) and the PR is `MERGEABLE` with no conflicts. If `main` moved, sync it (Pre-PR protocol below) and wait for CI on the new head; never merge on a CI result from an older head.
      - The PR is one you opened for the task at hand, and the user has not said to hold it.
-   - Merge with `gh pr merge <N> --merge`. `main` requires one approving review, which the PR author cannot supply, so when `REVIEW_REQUIRED` is the *only* blocker use `--admin`. This is a standing choice by the user, not a general licence: never use `--admin` to get past failing or pending CI, conflicts, or any other block.
+   - Merge with `gh pr merge <N> --squash`. `main` requires one approving review, which the PR author cannot supply, so when `REVIEW_REQUIRED` is the *only* blocker use `--admin`. This is a standing choice by the user, not a general licence: never use `--admin` to get past failing or pending CI, conflicts, or any other block.
    - Confirm with `gh pr view <N>` that it is `MERGED`, then set the Notion task to `Done` with the PR link, merge commit and verification summary in `Logs`, and report what was merged and any deploy step it needs.
    - **Deployment is still never automatic.** Never deploy, sync the production crontab, or run production data steps (backfills, migrations) without an explicit instruction from the user; report them as next steps.
 
