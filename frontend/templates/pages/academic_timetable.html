@@ -5,8 +5,10 @@
 Page: Jadwal — weekly timetable (Web Console Akademik, PR 2).
 Served by apps.academic.console_views.TimetablePageView at /web/academic/timetable/.
 Parameters: class_groups, teachers, lens (("class"|"teacher", id) or None), title,
-is_teacher_lens, grid ({days: [DayOfWeek], rows: [{period_no, start_time, end_time,
-cells: [[TimetableSlot, ...] per day]}]}).
+is_teacher_lens, grid ({days, headers: [{label, date}], rows: [{period_no, start_time, end_time,
+cells: [[TimetableSlot, ...] per day]}]}), week_start, week_end, is_current_week, prev_week_url,
+next_week_url, this_week_url. A slot's `substitution` (or None) is the non-declined substitution
+for the shown week.
 {% endcomment %}
 
 {% block title %}{% translate "Jadwal — EduCore" %}{% endblock %}
@@ -19,6 +21,7 @@ cells: [[TimetableSlot, ...] per day]}]}).
       <h1 class="font-display text-h2 text-ink-900" style="margin:4px 0 0 0">{% translate "Jadwal" %}{% if title %} — {{ title }}{% endif %}</h1>
     </div>
     <form method="get" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+      {% if not is_current_week %}<input type="hidden" name="week" value="{{ week_start|date:'Y-m-d' }}">{% endif %}
       <label style="display:flex;flex-direction:column;gap:4px">
         <span class="text-label text-ink-500">{% translate "Lihat jadwal" %}</span>
         <select name="lens" class="text-body-sm" style="padding:8px 10px;border:1px solid var(--color-line);border-radius:0;background:var(--color-surface)">
@@ -38,14 +41,21 @@ cells: [[TimetableSlot, ...] per day]}]}).
     </form>
   </header>
 
+  <nav aria-label="{% translate 'Pekan' %}" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <a href="{{ prev_week_url }}" class="btn btn-secondary text-body-sm" aria-label="{% translate 'Pekan sebelumnya' %}">←</a>
+    <span class="text-body-sm font-mono text-ink-900" style="font-weight:600">{{ week_start|date:"d M" }} – {{ week_end|date:"d M Y" }}</span>
+    <a href="{{ next_week_url }}" class="btn btn-secondary text-body-sm" aria-label="{% translate 'Pekan berikutnya' %}">→</a>
+    {% if not is_current_week %}<a href="{{ this_week_url }}" class="text-body-sm text-ink-500">{% translate "Pekan ini" %}</a>{% endif %}
+  </nav>
+
   {% if grid.rows %}
     <div class="card" style="overflow-x:auto">
       <table style="width:100%;min-width:720px;border-collapse:collapse;table-layout:fixed;font-family:'IBM Plex Sans',sans-serif;font-size:0.8125rem">
         <thead>
           <tr style="border-bottom:2px solid var(--color-line);text-align:left">
             <th class="text-label text-ink-500" style="padding:10px 12px;width:96px">{% translate "Jam ke" %}</th>
-            {% for day in grid.days %}
-              <th class="text-label text-ink-500" style="padding:10px 12px">{{ day.label }}</th>
+            {% for header in grid.headers %}
+              <th class="text-label text-ink-500" style="padding:10px 12px">{{ header.label }}<div class="font-mono" style="font-weight:400">{{ header.date|date:"d M" }}</div></th>
             {% endfor %}
           </tr>
         </thead>
@@ -61,11 +71,26 @@ cells: [[TimetableSlot, ...] per day]}]}).
                   {% for slot in cell %}
                     <div style="{% if not forloop.first %}margin-top:8px;{% endif %}">
                       {% if is_teacher_lens %}
-                        <div class="text-ink-900" style="font-weight:600">{{ slot.class_subject.class_group.name }}</div>
-                        <div class="text-ink-700">{{ slot.class_subject.subject.name }}</div>
+                        {% if slot.substitution and slot.substitution.substitute_teacher_id == lens.1 %}
+                          <div class="text-ink-900" style="font-weight:600">{{ slot.class_subject.class_group.name }}</div>
+                          <div class="text-ink-700">{{ slot.class_subject.subject.name }}</div>
+                          <div class="text-body-sm" style="color:var(--color-info)">{% blocktranslate with name=slot.class_subject.teacher.person.full_name %}Menggantikan {{ name }}{% endblocktranslate %}{% if slot.substitution.status == 'PENDING' %} · {% translate "menunggu konfirmasi" %}{% endif %}</div>
+                        {% elif slot.substitution %}
+                          <div class="text-ink-500" style="font-weight:600;text-decoration:line-through">{{ slot.class_subject.class_group.name }}</div>
+                          <div class="text-ink-500" style="text-decoration:line-through">{{ slot.class_subject.subject.name }}</div>
+                          <div class="text-body-sm" style="color:var(--color-warning)">{% blocktranslate with name=slot.substitution.substitute_teacher.person.full_name %}Digantikan {{ name }}{% endblocktranslate %}{% if slot.substitution.status == 'PENDING' %} · {% translate "menunggu konfirmasi" %}{% endif %}</div>
+                        {% else %}
+                          <div class="text-ink-900" style="font-weight:600">{{ slot.class_subject.class_group.name }}</div>
+                          <div class="text-ink-700">{{ slot.class_subject.subject.name }}</div>
+                        {% endif %}
                       {% else %}
                         <div class="text-ink-900" style="font-weight:600">{{ slot.class_subject.subject.name }}</div>
-                        <div class="text-ink-700">{{ slot.class_subject.teacher.person.full_name }}</div>
+                        {% if slot.substitution %}
+                          <div class="text-ink-700">{{ slot.substitution.substitute_teacher.person.full_name }}</div>
+                          <div class="text-body-sm" style="color:var(--color-warning)">{% blocktranslate with name=slot.class_subject.teacher.person.full_name %}Pengganti {{ name }}{% endblocktranslate %}{% if slot.substitution.status == 'PENDING' %} · {% translate "menunggu konfirmasi" %}{% endif %}</div>
+                        {% else %}
+                          <div class="text-ink-700">{{ slot.class_subject.teacher.person.full_name }}</div>
+                        {% endif %}
                       {% endif %}
                       {% if slot.room %}<div class="font-mono text-ink-500" style="font-size:0.6875rem">{{ slot.room }}</div>{% endif %}
                     </div>

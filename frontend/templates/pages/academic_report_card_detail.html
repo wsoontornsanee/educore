@@ -25,9 +25,22 @@ Shows the frozen snapshot only. Parameters: report_card, grade_rows
           {% if report_card.published_at %}· {% translate "Diterbitkan" %} {{ report_card.published_at|date:"d M Y" }}{% elif report_card.approved_at %}· {% translate "Disetujui" %} {{ report_card.approved_at|date:"d M Y" }}{% endif %}
         </p>
       </div>
-      <a href="{% url 'academic-report-card-print-page' report_card.id %}" target="_blank" rel="noopener" class="btn btn-secondary text-body-sm">{% translate "Buka tampilan cetak" %}</a>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a href="{% url 'academic-report-card-print-page' report_card.id %}" target="_blank" rel="noopener" class="btn btn-secondary text-body-sm">{% translate "Buka tampilan cetak" %}</a>
+        {% if can_approve %}
+          <form method="post" action="{% url 'academic-report-card-approve' report_card.id %}">{% csrf_token %}<button type="submit" class="btn btn-primary text-body-sm" onclick="return confirm('{% translate "Setujui rapor ini? Isi rapor tidak dapat diubah setelah diterbitkan." %}')">{% translate "Setujui" %}</button></form>
+        {% endif %}
+        {% if can_publish %}
+          <form method="post" action="{% url 'academic-report-card-publish' report_card.id %}">{% csrf_token %}<button type="submit" class="btn btn-primary text-body-sm" onclick="return confirm('{% translate "Terbitkan rapor ini? Rapor yang terbit tidak dapat diubah, hanya direvisi." %}')">{% translate "Terbitkan" %}</button></form>
+        {% endif %}
+        {% if can_revise %}
+          <form method="post" action="{% url 'academic-report-card-revise' report_card.id %}">{% csrf_token %}<button type="submit" class="btn btn-secondary text-body-sm" onclick="return confirm('{% translate "Buat versi revisi sebagai konsep baru? Versi terbit tetap tersimpan." %}')">{% translate "Buat revisi" %}</button></form>
+        {% endif %}
+      </div>
     </div>
   </header>
+
+  {% include "components/_console_flash.html" %}
 
   <section class="card" style="overflow-x:auto">
     <h2 class="text-label text-ink-500" style="margin:0;padding:14px 14px 0 14px">{% translate "Hasil belajar" %}</h2>

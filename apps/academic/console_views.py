@@ -5,11 +5,14 @@ Every view is gated by StaffConsoleMixin: the RBAC read permission for the
 page plus a linked Staff profile (a guardian holds student_records.read /
 grades.read too and must never reach the school-side console).
 """
+import datetime
 from decimal import Decimal
+from urllib.parse import urlencode
 
-from django.db.models import Count, Q
+from django.db.models import Count, F, Q
 from django.http import HttpResponse
 from django.shortcuts import render
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import status
 from rest_framework.response import Response
@@ -24,10 +27,13 @@ from apps.academic.models import (
     HomeworkSubmissionStatus,
     ReportCard,
     ReportCardStatus,
+    SubstitutionStatus,
     Term,
     TimetableSlot,
+    TimetableSubstitution,
 )
 from apps.academic.services import compute_descriptor, get_homework_grading_queue, render_report_card_html
+from apps.academic.console_actions import permitted_school_ids
 from apps.identity.console_access import StaffConsoleMixin
 from apps.identity.models import Staff
 from educore.middleware.tenancy import get_current_foundation_id
@@ -138,10 +144,30 @@ def build_timetable_grid(slots):
     return {'days': days, 'rows': rows}
 
 
+def _parse_week_start(raw):
+    """Monday of the week containing `raw` (ISO date); today's week if missing or invalid."""
+    try:
+        day = datetime.date.fromisoformat(raw)
+    except (TypeError, ValueError):
+        day = timezone.localdate()
+    return day - datetime.timedelta(days=day.weekday())
+
+
+def _week_url(lens, week_start=None):
+    params = {}
+    if lens is not None:
+        params['lens'] = f'{lens[0]}:{lens[1]}'
+    if week_start is not None:
+        params['week'] = week_start.isoformat()
+    return '?' + urlencode(params)
+
+
 class TimetablePageView(StaffConsoleMixin, APIView):
-    """GET /web/academic/timetable/?lens=class:<id>|teacher:<staff id> — weekly
-    grid for one class or one teacher. Default: the first class of an active
-    academic year. Recurring slots only; substitutions are not overlaid."""
+    """GET /web/academic/timetable/?lens=class:<id>|teacher:<staff id>&week=<date>
+    — weekly grid for one class or one teacher. Default: the first class of an
+    active academic year, this week. Single-date substitutions for the shown
+    week are overlaid (pending and accepted, mirroring get_effective_teacher_for_slot;
+    declined ones are ignored), and a teacher's view also lists slots they cover."""
 
     def get_required_permission(self):
         return 'student_records.read'
@@ -166,8 +192,17 @@ class TimetablePageView(StaffConsoleMixin, APIView):
         if lens is None and class_groups:
             lens = ('class', class_groups[0].id)
 
+        week_start = _parse_week_start(request.query_params.get('week'))
+        week_end = week_start + datetime.timedelta(days=6)
+        # A substitution counts only on the weekday its slot recurs on.
+        week_substitutions = TimetableSubstitution.objects.filter(
+            foundation_id=foundation_id, deleted_at__isnull=True,
+            date__range=(week_start, week_end), date__iso_week_day=F('slot__day_of_week'),
+        ).exclude(status=SubstitutionStatus.DECLINED)
+
         slots = TimetableSlot.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True)
         title = None
+        grid = build_timetable_grid([])
         if lens is not None:
             kind, object_id = lens
             if kind == 'class':
@@ -179,15 +214,24 @@ class TimetablePageView(StaffConsoleMixin, APIView):
             else:
                 selected = next((t for t in teachers if t.id == object_id), None)
                 title = selected.person.full_name if selected else None
-                slots = slots.filter(class_subject__teacher_id=object_id)
+                covered_slot_ids = week_substitutions.filter(substitute_teacher_id=object_id).values('slot_id')
+                slots = slots.filter(Q(class_subject__teacher_id=object_id) | Q(id__in=covered_slot_ids))
             if selected is None:
                 return Response({'error': _("Jadwal tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
-            slots = slots.select_related(
+            slots = list(slots.select_related(
                 'class_subject__subject', 'class_subject__teacher__person', 'class_subject__class_group',
-            )
+            ))
+            substitution_by_slot = {
+                sub.slot_id: sub
+                for sub in week_substitutions.filter(slot_id__in=[slot.id for slot in slots])
+                .select_related('substitute_teacher__person')
+            }
+            for slot in slots:
+                slot.substitution = substitution_by_slot.get(slot.id)
             grid = build_timetable_grid(slots)
-        else:
-            grid = build_timetable_grid([])
+        grid['headers'] = [
+            {'label': day.label, 'date': week_start + datetime.timedelta(days=day.value - 1)} for day in grid['days']
+        ]
 
         return render(request, 'pages/academic_timetable.html', {
             'class_groups': class_groups,
@@ -196,6 +240,12 @@ class TimetablePageView(StaffConsoleMixin, APIView):
             'title': title,
             'is_teacher_lens': lens is not None and lens[0] == 'teacher',
             'grid': grid,
+            'week_start': week_start,
+            'week_end': week_end,
+            'is_current_week': week_start == _parse_week_start(None),
+            'prev_week_url': _week_url(lens, week_start - datetime.timedelta(days=7)),
+            'next_week_url': _week_url(lens, week_start + datetime.timedelta(days=7)),
+            'this_week_url': _week_url(lens),
         })
 
 
@@ -222,6 +272,9 @@ class GradingQueuePageView(StaffConsoleMixin, APIView):
         total_count = queue.count()
         late_count = queue.filter(status=HomeworkSubmissionStatus.LATE).count()
         submissions = list(queue[:GRADING_QUEUE_PAGE_SIZE])
+        writable_schools = permitted_school_ids(request.user, foundation_id, 'grades.write')
+        for submission in submissions:
+            submission.can_write = submission.homework.class_subject.class_group.school_id in writable_schools
 
         class_subjects = ClassSubject.objects.filter(
             foundation_id=foundation_id, deleted_at__isnull=True, class_group__academic_year__is_active=True,
@@ -301,9 +354,11 @@ class ReportCardListPageView(StaffConsoleMixin, APIView):
             .order_by('class_group__name', 'student__person__full_name', 'id')[:REPORT_CARD_PAGE_SIZE]
         )
 
+        writable_schools = permitted_school_ids(request.user, foundation_id, 'grades.write')
         return render(request, 'pages/academic_report_card_list.html', {
             'terms': terms,
             'class_groups': class_groups,
+            'generate_class_groups': [c for c in class_groups if c.school_id in writable_schools],
             'selected_term_id': selected_term_id,
             'selected_class_group_id': selected_class_group_id,
             'status_counts': status_counts,
@@ -353,7 +408,16 @@ class ReportCardDetailPageView(_ReportCardAccessMixin, APIView):
             for key, label in ATTENDANCE_SUMMARY_LABELS if key in attendance_summary
         ]
 
+        foundation_id = report_card.foundation_id
+        school_id = report_card.class_group.school_id
+        can_approve = school_id in permitted_school_ids(request.user, foundation_id, 'school_config.write')
+        can_write_grades = school_id in permitted_school_ids(request.user, foundation_id, 'grades.write')
         return render(request, 'pages/academic_report_card_detail.html', {
+            'can_approve': can_approve and report_card.status in (
+                ReportCardStatus.DRAFT, ReportCardStatus.PENDING_REVIEW),
+            'can_publish': can_approve and report_card.status == ReportCardStatus.APPROVED,
+            'can_revise': can_write_grades and report_card.status == ReportCardStatus.PUBLISHED
+            and report_card.is_current,
             'report_card': report_card,
             'grade_rows': grade_rows,
             'attendance_rows': attendance_rows,
