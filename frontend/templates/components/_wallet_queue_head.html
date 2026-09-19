@@ -1,0 +1,22 @@
+{% load i18n %}
+{% comment %}Shared header for the wallet finance queue pages: title, school switcher, status filter.{% endcomment %}
+<div class="cn-head">
+  <div>
+    <span class="cn-eyebrow">{% translate "Kantin & dompet" %}</span>
+    <h1 class="cn-title">{{ title }}</h1>
+  </div>
+  <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+    {% include "components/_console_school_select.html" with schools=schools school=school %}
+    {% if school %}
+    <form method="get" style="display:flex;align-items:center;gap:8px">
+      <input type="hidden" name="school_id" value="{{ school.id }}">
+      <label for="wq-status" class="cn-eyebrow">{% translate "Status" %}</label>
+      <select id="wq-status" name="status" class="cn-select" onchange="this.form.submit()">
+        {% for value, label in status_choices %}<option value="{{ value }}"{% if value == status %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </form>
+    {% endif %}
+  </div>
+</div>
+<a class="cn-link" href="{% url 'canteen-console-page' %}{% if school %}?school_id={{ school.id }}{% endif %}">← {% translate "Kantin & dompet" %}</a>
+{% include "components/_console_messages.html" %}

@@ -1,0 +1,83 @@
+{% extends "base_console.html" %}
+{% load i18n console_format %}
+
+{% comment %}
+Page: Rekonsiliasi dompet (REC-025/026/028). Served by
+apps.wallet.web_finance_views.ReconciliationQueuePageView at
+/web/wallet/canteen/reconciliations/. Actions (finance.payment.write) POST to the
+Reconciliation*View classes.
+{% endcomment %}
+
+{% block title %}{% translate "Rekonsiliasi dompet — EduCore" %}{% endblock %}
+
+{% block console_content %}
+{% include "components/_console_ui.html" %}
+<main class="cn-page">
+  {% translate "Rekonsiliasi dompet" as page_title %}
+  {% include "components/_wallet_queue_head.html" with title=page_title %}
+
+  {% if school %}
+  {% if status == 'OPEN' %}
+  <div class="cn-kpis">
+    <div class="cn-card"><span class="cn-eyebrow">{% translate "Total eksposur terbuka" %}</span><span class="cn-kpi-value">{{ exposure|money:school.base_currency }}</span></div>
+    <div class="cn-card"><span class="cn-eyebrow">{% translate "Kasus terbuka" %}</span><span class="cn-kpi-value">{{ rows|length }}</span></div>
+  </div>
+  {% endif %}
+
+  <section class="cn-section" aria-labelledby="recon-h">
+    <h2 id="recon-h">{% translate "Kasus selisih saldo" %}</h2>
+    {% if rows %}
+    <div class="cn-table-wrap">
+      <table class="cn-table">
+        <thead><tr>
+          <th>{% translate "Siswa" %}</th><th>{% translate "Kelas" %}</th><th class="cn-num">{% translate "Kekurangan" %}</th><th>{% translate "Terdeteksi" %}</th><th>{% translate "Pemberitahuan" %}</th>
+          {% if can_write and status == 'OPEN' %}<th>{% translate "Tindakan" %}</th>{% endif %}
+        </tr></thead>
+        <tbody>
+          {% for r in rows %}
+          <tr>
+            <td>{{ r.student_name }}</td>
+            <td>{{ r.class_name|default:"—" }}</td>
+            <td class="cn-num">{{ r.shortfall|money:r.currency }}</td>
+            <td class="cn-muted">{{ r.detected_at|slice:":10" }} · {{ r.age_hours }} {% translate "jam" %}</td>
+            <td><span class="cn-badge{% if r.notice.status == 'NOT_SENT' %} is-warn{% endif %}">{{ r.notice.status }}</span></td>
+            {% if can_write and status == 'OPEN' %}
+            <td>
+              <form method="post" action="{% url 'wallet-reconciliation-cash' pk=r.id %}" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"
+                    onsubmit="if(!confirm('{% translate "Catat pelunasan tunai? Saldo dompet akan bertambah." %}')) return false; this.querySelector('button').disabled=true;">
+                {% csrf_token %}
+                <input class="cn-select" name="amount" inputmode="decimal" placeholder="{% translate "Jumlah" %}" required style="width:110px">
+                <input class="cn-select" name="reference" placeholder="{% translate "Referensi" %}" maxlength="255">
+                <button type="submit" class="btn btn-primary">{% translate "Terima tunai" %}</button>
+              </form>
+              <form method="post" action="{% url 'wallet-reconciliation-write-off' pk=r.id %}" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"
+                    onsubmit="if(!confirm('{% translate "Hapusbukukan kasus ini? Saldo dompet dipulihkan sebesar kekurangan." %}')) return false; this.querySelector('button').disabled=true;">
+                {% csrf_token %}
+                <input class="cn-select" name="reason" placeholder="{% translate "Alasan (wajib)" %}" maxlength="255" required>
+                <button type="submit" class="btn btn-secondary">{% translate "Hapus buku" %}</button>
+              </form>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <form method="post" action="{% url 'wallet-reconciliation-invoice' pk=r.id %}"
+                      onsubmit="if(!confirm('{% translate "Tagihkan kasus ini ke tagihan siswa?" %}')) return false; this.querySelector('button').disabled=true;">
+                  {% csrf_token %}<button type="submit" class="btn btn-secondary">{% translate "Tagihkan" %}</button>
+                </form>
+                <form method="post" action="{% url 'wallet-reconciliation-resend' pk=r.id %}" onsubmit="this.querySelector('button').disabled=true;">
+                  {% csrf_token %}<button type="submit" class="btn btn-secondary">{% translate "Kirim ulang pemberitahuan" %}</button>
+                </form>
+              </div>
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <div class="cn-empty">{% translate "Tidak ada kasus dengan status ini." %}</div>
+    {% endif %}
+  </section>
+  {% else %}
+    <div class="cn-section"><div class="cn-empty">{% translate "Belum ada sekolah yang dapat Anda akses." %}</div></div>
+  {% endif %}
+</main>
+{% endblock %}

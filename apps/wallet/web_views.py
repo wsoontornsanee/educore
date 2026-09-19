@@ -7,7 +7,7 @@ stays on the JSON API with its own finance.* permission keys.
 from django.shortcuts import render
 from rest_framework.views import APIView
 
-from apps.identity.console_access import StaffConsoleMixin
+from apps.identity.console_access import StaffConsoleMixin, permitted_schools
 
 from .services import get_canteen_console_snapshot
 
@@ -21,8 +21,12 @@ class CanteenConsolePageView(StaffConsoleMixin, APIView):
     def get(self, request):
         foundation_id, schools, school = self.console_context(request)
         snapshot = get_canteen_console_snapshot(foundation_id, school) if school else None
+        can_view_finance_queues = school is not None and school.id in {
+            s.id for s in permitted_schools(request.user, foundation_id, 'finance.payment.read')
+        }
         return render(request, 'pages/canteen_console_page.html', {
             'schools': schools,
             'school': school,
             'snapshot': snapshot,
+            'can_view_finance_queues': can_view_finance_queues,
         })

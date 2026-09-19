@@ -1414,7 +1414,11 @@ def get_notice_delivery_receipt(case: WalletReconciliation) -> dict:
 
 def settle_reconciliation_with_cash(case: WalletReconciliation, amount: Decimal, reference: str, actor=None) -> WalletTransaction:
     """REC-026: bendahara records a cash payment at the school office. Reuses the normal
-    top-up path so the existing settlement logic (TASK-035) fires unchanged."""
+    top-up path so the existing settlement logic (TASK-035) fires unchanged.
+    Only an OPEN case can be paid: crediting a case that is already settled,
+    invoiced or written off would double-credit the wallet."""
+    if case.status != WalletReconciliationStatus.OPEN:
+        raise ValueError(f"INVALID_STATE: case is {case.status}, not OPEN.")
     return topup_wallet(
         case.wallet, amount, 'CASH', f"reconciliation_cash:{case.id}:{timezone.now().timestamp()}",
         reference=reference or f"Pelunasan tunai - kasus #{case.id}",

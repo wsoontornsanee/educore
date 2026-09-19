@@ -1,0 +1,67 @@
+{% extends "base_console.html" %}
+{% load i18n console_format %}
+
+{% comment %}
+Page: Pengembalian saldo dompet (WAL-026). Served by
+apps.wallet.web_finance_views.RefundQueuePageView at /web/wallet/canteen/refunds/.
+Actions (finance.payment.write) POST to RefundMarkPaidView / RefundMarkDonatedView.
+{% endcomment %}
+
+{% block title %}{% translate "Pengembalian saldo dompet — EduCore" %}{% endblock %}
+
+{% block console_content %}
+{% include "components/_console_ui.html" %}
+<main class="cn-page">
+  {% translate "Pengembalian saldo dompet" as page_title %}
+  {% include "components/_wallet_queue_head.html" with title=page_title %}
+
+  {% if school %}
+  <section class="cn-section" aria-labelledby="refund-h">
+    <h2 id="refund-h">{% translate "Permintaan pengembalian" %}</h2>
+    {% if rows %}
+    <div class="cn-table-wrap">
+      <table class="cn-table">
+        <thead><tr>
+          <th>{% translate "Siswa" %}</th><th class="cn-num">{% translate "Saldo" %}</th><th>{% translate "Diminta" %}</th><th>{% translate "Status" %}</th>
+          {% if can_write and status == 'PENDING' %}<th>{% translate "Tindakan" %}</th>{% endif %}
+        </tr></thead>
+        <tbody>
+          {% for r in rows %}
+          <tr>
+            <td>{{ r.student_name }}</td>
+            <td class="cn-num">{{ r.amount|money:r.currency }}</td>
+            <td class="cn-muted">{{ r.requested_at|slice:":10" }}</td>
+            <td><span class="cn-badge{% if r.status == 'PENDING' %} is-warn{% else %} is-ok{% endif %}">{{ r.status }}</span></td>
+            {% if can_write and status == 'PENDING' %}
+            <td>
+              <form method="post" action="{% url 'wallet-refund-paid' pk=r.id %}" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px"
+                    onsubmit="if(!confirm('{% translate "Catat pengembalian ini sebagai dibayar? Dompet akan ditutup." %}')) return false; this.querySelector('button').disabled=true;">
+                {% csrf_token %}
+                <input class="cn-select" name="bank_name" placeholder="{% translate "Bank" %}" maxlength="64">
+                <input class="cn-select" name="account_number" placeholder="{% translate "No. rekening" %}" maxlength="64" autocomplete="off">
+                <input class="cn-select" name="account_holder_name" placeholder="{% translate "Atas nama" %}" maxlength="128">
+                <input class="cn-select" name="reference" placeholder="{% translate "Referensi transfer" %}" maxlength="255">
+                <button type="submit" class="btn btn-primary">{% translate "Tandai dibayar" %}</button>
+              </form>
+              <form method="post" action="{% url 'wallet-refund-donated' pk=r.id %}" style="display:flex;flex-direction:column;gap:6px"
+                    onsubmit="if(!confirm('{% translate "Donasikan saldo ini ke sekolah? Wali harus sudah menyetujui." %}')) return false; this.querySelector('button').disabled=true;">
+                {% csrf_token %}
+                <label class="text-body-sm"><input type="checkbox" name="donation_consent"> {% translate "Wali menyetujui donasi saldo" %}</label>
+                <button type="submit" class="btn btn-secondary">{% translate "Donasikan" %}</button>
+              </form>
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <div class="cn-empty">{% translate "Tidak ada permintaan pengembalian dengan status ini." %}</div>
+    {% endif %}
+  </section>
+  {% else %}
+    <div class="cn-section"><div class="cn-empty">{% translate "Belum ada sekolah yang dapat Anda akses." %}</div></div>
+  {% endif %}
+</main>
+{% endblock %}

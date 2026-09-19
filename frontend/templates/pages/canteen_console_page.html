@@ -20,6 +20,13 @@ All money totals are computed server-side (CUR-026); this page only formats them
     {% include "components/_console_school_select.html" with schools=schools school=school %}
   </div>
 
+  {% if can_view_finance_queues %}
+    <p style="margin:0;display:flex;gap:20px;flex-wrap:wrap">
+      <a class="cn-link" href="{% url 'wallet-refund-queue' %}?school_id={{ school.id }}">{% translate "Pengembalian saldo dompet" %} →</a>
+      <a class="cn-link" href="{% url 'wallet-reconciliation-queue' %}?school_id={{ school.id }}">{% translate "Rekonsiliasi dompet" %} →</a>
+    </p>
+  {% endif %}
+
   {% if snapshot %}
     <div class="cn-kpis">
       <div class="cn-card"><span class="cn-eyebrow">{% translate "Penjualan hari ini" %}</span><span class="cn-kpi-value">{{ snapshot.sales_total|money:snapshot.currency }}</span></div>

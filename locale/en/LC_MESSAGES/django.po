@@ -8039,3 +8039,179 @@ msgstr "Revision created as a draft."
 #, python-format
 msgid "Rapor dibuat: %(created)s baru, %(updated)s diperbarui, %(skipped)s dilewati."
 msgstr "Report cards: %(created)s created, %(updated)s updated, %(skipped)s skipped."
+
+#: apps/wallet/web_finance_views.py
+msgid "Pengembalian saldo dompet — EduCore"
+msgstr "Wallet balance refunds — EduCore"
+
+#: apps/wallet/web_finance_views.py
+msgid "Pengembalian saldo dompet"
+msgstr "Wallet balance refunds"
+
+#: apps/wallet/web_finance_views.py
+msgid "Permintaan pengembalian"
+msgstr "Refund requests"
+
+#: apps/wallet/web_finance_views.py
+msgid "Saldo"
+msgstr "Balance"
+
+#: apps/wallet/web_finance_views.py
+msgid "Diminta"
+msgstr "Requested"
+
+#: apps/wallet/web_finance_views.py
+msgid "Tindakan"
+msgstr "Actions"
+
+#: apps/wallet/web_finance_views.py
+msgid "Catat pengembalian ini sebagai dibayar? Dompet akan ditutup."
+msgstr "Record this refund as paid? The wallet will be closed."
+
+#: apps/wallet/web_finance_views.py
+msgid "Bank"
+msgstr "Bank"
+
+#: apps/wallet/web_finance_views.py
+msgid "No. rekening"
+msgstr "Account no."
+
+#: apps/wallet/web_finance_views.py
+msgid "Atas nama"
+msgstr "Account holder"
+
+#: apps/wallet/web_finance_views.py
+msgid "Referensi transfer"
+msgstr "Transfer reference"
+
+#: apps/wallet/web_finance_views.py
+msgid "Tandai dibayar"
+msgstr "Mark as paid"
+
+#: apps/wallet/web_finance_views.py
+msgid "Donasikan saldo ini ke sekolah? Wali harus sudah menyetujui."
+msgstr "Donate this balance to the school? The guardian must have consented."
+
+#: apps/wallet/web_finance_views.py
+msgid "Wali menyetujui donasi saldo"
+msgstr "Guardian consents to donating the balance"
+
+#: apps/wallet/web_finance_views.py
+msgid "Donasikan"
+msgstr "Donate"
+
+#: apps/wallet/web_finance_views.py
+msgid "Tidak ada permintaan pengembalian dengan status ini."
+msgstr "No refund requests with this status."
+
+#: apps/wallet/web_finance_views.py
+msgid "Rekonsiliasi dompet — EduCore"
+msgstr "Wallet reconciliation — EduCore"
+
+#: apps/wallet/web_finance_views.py
+msgid "Rekonsiliasi dompet"
+msgstr "Wallet reconciliation"
+
+#: apps/wallet/web_finance_views.py
+msgid "Total eksposur terbuka"
+msgstr "Total open exposure"
+
+#: apps/wallet/web_finance_views.py
+msgid "Kasus terbuka"
+msgstr "Open cases"
+
+#: apps/wallet/web_finance_views.py
+msgid "Kasus selisih saldo"
+msgstr "Balance shortfall cases"
+
+#: apps/wallet/web_finance_views.py
+msgid "Kekurangan"
+msgstr "Shortfall"
+
+#: apps/wallet/web_finance_views.py
+msgid "Terdeteksi"
+msgstr "Detected"
+
+#: apps/wallet/web_finance_views.py
+msgid "Pemberitahuan"
+msgstr "Notice"
+
+#: apps/wallet/web_finance_views.py
+msgid "jam"
+msgstr "hours"
+
+#: apps/wallet/web_finance_views.py
+msgid "Catat pelunasan tunai? Saldo dompet akan bertambah."
+msgstr "Record this cash payment? The wallet balance will increase."
+
+#: apps/wallet/web_finance_views.py
+msgid "Terima tunai"
+msgstr "Receive cash"
+
+#: apps/wallet/web_finance_views.py
+msgid "Hapusbukukan kasus ini? Saldo dompet dipulihkan sebesar kekurangan."
+msgstr "Write off this case? The wallet balance is restored by the shortfall."
+
+#: apps/wallet/web_finance_views.py
+msgid "Alasan (wajib)"
+msgstr "Reason (required)"
+
+#: apps/wallet/web_finance_views.py
+msgid "Hapus buku"
+msgstr "Write off"
+
+#: apps/wallet/web_finance_views.py
+msgid "Tagihkan kasus ini ke tagihan siswa?"
+msgstr "Bill this case to the student's invoice?"
+
+#: apps/wallet/web_finance_views.py
+msgid "Tagihkan"
+msgstr "Bill"
+
+#: apps/wallet/web_finance_views.py
+msgid "Kirim ulang pemberitahuan"
+msgstr "Resend notice"
+
+#: apps/wallet/web_finance_views.py
+msgid "Tidak ada kasus dengan status ini."
+msgstr "No cases with this status."
+
+#: apps/wallet/web_finance_views.py
+msgid "Item ini sudah diproses dan tidak dapat diubah lagi."
+msgstr "This item has already been processed and can no longer be changed."
+
+#: apps/wallet/web_finance_views.py
+msgid "Persetujuan wali wajib dicentang untuk mendonasikan saldo."
+msgstr "Guardian consent must be ticked to donate the balance."
+
+#: apps/wallet/web_finance_views.py
+msgid "Pengembalian dana dicatat sebagai dibayar."
+msgstr "Refund recorded as paid."
+
+#: apps/wallet/web_finance_views.py
+msgid "Saldo didonasikan ke sekolah."
+msgstr "Balance donated to the school."
+
+#: apps/wallet/web_finance_views.py
+msgid "Pelunasan tunai dicatat."
+msgstr "Cash payment recorded."
+
+#: apps/wallet/web_finance_views.py
+msgid "Jumlah harus angka positif dengan maksimal 2 desimal."
+msgstr "Amount must be a positive number with at most 2 decimals."
+
+#: apps/wallet/web_finance_views.py
+msgid "Kasus ditagihkan ke tagihan siswa."
+msgstr "Case billed to the student's invoice."
+
+#: apps/wallet/web_finance_views.py
+msgid "Kasus dihapusbukukan."
+msgstr "Case written off."
+
+#: apps/wallet/web_finance_views.py
+msgid "Alasan wajib diisi."
+msgstr "A reason is required."
+
+#: apps/wallet/web_finance_views.py
+msgid "Pemberitahuan dikirim ulang."
+msgstr "Notice resent."
