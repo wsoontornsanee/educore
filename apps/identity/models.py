@@ -15,7 +15,7 @@ from decimal import Decimal
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from apps.core.fields import CoordinateField, MoneyField, soft_delete_uniqueness_marker
@@ -437,6 +437,88 @@ class FoundationEntitlement(TenantModel):
         scope = f"School {self.school_id}" if self.school_id else "Foundation-wide"
         status_text = "ENABLED" if self.enabled else "DISABLED"
         return f"[{scope}] {self.module_key} -> {status_text}"
+
+    def save(self, *args, **kwargs):
+        """Save, and append an `EntitlementChange` when what this row means for its scope changed.
+
+        This is the one place every writer passes through (the setter, the API, a soft delete),
+        so the history cannot miss a change. What is compared is the *effective* value: the row's
+        `enabled`, or None once it is soft-deleted (the scope falls back to its default again).
+        """
+        with transaction.atomic():
+            before = None
+            if self.pk:
+                previous = type(self).all_tenants.with_deleted().filter(pk=self.pk).values('enabled', 'deleted_at').first()
+                if previous is not None and previous['deleted_at'] is None:
+                    before = previous['enabled']
+            super().save(*args, **kwargs)
+            after = None if self.deleted_at else self.enabled
+            if after != before:
+                EntitlementChange.all_tenants.create(
+                    foundation_id=self.foundation_id, school_id=self.school_id, module_key=self.module_key,
+                    enabled=after, effective_from=timezone.now(), created_by=self.updated_by or self.created_by,
+                )
+
+
+class EntitlementChange(TenantModel):
+    """Append-only history of `FoundationEntitlement` (spec/15 RPT-010).
+
+    `FoundationEntitlement` holds only the current value, so an in-place edit erases when a module
+    was on. One row is appended every time a scope's effective value changes; `enabled` is None
+    when the scope's own row was removed (it then falls back to the foundation default, and to
+    "enabled" if there is none, exactly as `is_module_entitled` resolves it). Rows are never
+    updated or deleted: a correction is a new row. Months are reconstructed from this by
+    `entitlements.entitled_days_in_month`.
+
+    Entitlements that existed before this table were seeded with one row each, dated at the row's
+    last update; what they were before that is not known and is read as the default (enabled).
+    """
+    school_id = models.BigIntegerField(null=True, blank=True, help_text="Null for the foundation-wide default")
+    module_key = models.CharField(max_length=32, choices=FoundationEntitlement.MODULE_CHOICES)
+    enabled = models.BooleanField(null=True, help_text="Null when the scope's own entitlement was removed")
+    effective_from = models.DateTimeField()
+
+    class Meta:
+        db_table = 'foundation_entitlement_changes'
+        indexes = [
+            models.Index(fields=['foundation_id', 'effective_from']),
+        ]
+
+    def __str__(self):
+        scope = f"School {self.school_id}" if self.school_id else "Foundation-wide"
+        return f"[{scope}] {self.module_key} -> {self.enabled} from {self.effective_from:%Y-%m-%d %H:%M}"
+
+
+class ModulePrice(models.Model):
+    """EduCore's own subscription price list (spec/00 §5, RPT-010): per plan tier and module,
+    per counted student per month. Platform data, not tenant data, so not a `TenantModel`.
+
+    A price applies from the first day of `effective_from` until a later row for the same tier and
+    module supersedes it; it is always a whole month, so no month is ever priced part way. Rows
+    are edited by adding a new `effective_from`, not by changing an old one, because closed
+    months keep the price they were charged at (`RptSubscriptionCharge.unit_price`) and a
+    dispute must be able to find that price here. Nothing is seeded: the prices are a commercial
+    decision, and a module with no price for the month is not charged (and is reported as such).
+    """
+    plan_tier = models.CharField(max_length=32, choices=Foundation.PLAN_CHOICES)
+    module_key = models.CharField(max_length=32, choices=FoundationEntitlement.MODULE_CHOICES)
+    currency = models.CharField(max_length=3, default='IDR')
+    unit_price = MoneyField(help_text="Per counted student per month")
+    effective_from = models.DateField(help_text="First day of the first month this price applies to")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'module_prices'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['plan_tier', 'module_key', 'currency', 'effective_from'], name='unique_module_price_per_start',
+            ),
+            models.CheckConstraint(condition=models.Q(effective_from__day=1), name='module_price_starts_on_first'),
+            models.CheckConstraint(condition=models.Q(unit_price__gte=0), name='module_price_not_negative'),
+        ]
+
+    def __str__(self):
+        return f"{self.plan_tier} {self.module_key}: {self.currency} {self.unit_price} from {self.effective_from}"
 
 
 class Student(TenantModel):
