@@ -13,10 +13,10 @@ permission/ownership check, see apps.identity.inbox, but a guardian-only
 account must not see the staff console's inbox).
 
 Only 'inbox', the four Operasional items (attendance, permission_slips, canteen,
-exam), the three Keuangan items and the four Administrasi items have real
+exam), the three Keuangan items and the five Administrasi items have real
 destinations (console-inbox, attendance-gate-console-page,
 permission-slip-console-page, canteen-console-page, exam-mode-console-page,
-finance-console-*, admin-staff/partners/settings/audit). Every other
+finance-console-*, admin-staff/partners/settings/audit/metering). Every other
 item still routes to the 'console:coming_soon' placeholder in this table (kept
 so a future task can flip one item's url_name the moment
 its real page ships), but get_nav_for_user hides every coming_soon item
@@ -78,6 +78,7 @@ NAV_GROUPS = [
         {"id": "partners", "label": _("Mitra & kunci API"), "permission": "school_config.write", "url_name": "admin-partners", "requires_foundation_admin": True},
         {"id": "settings", "label": _("Pengaturan sekolah"), "permission": "school_config.write", "url_name": "admin-settings"},
         {"id": "audit", "label": _("Jejak audit"), "permission": "audit_log.read", "url_name": "admin-audit"},
+        {"id": "metering", "label": _("Siswa terhitung"), "permission": "reporting.read", "url_name": "admin-metering"},
     ]},
 ]
 
