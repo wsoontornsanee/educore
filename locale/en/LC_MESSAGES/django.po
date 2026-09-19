@@ -8840,3 +8840,7 @@ msgstr "Parent"
 #: apps/identity/models.py
 msgid "Operator Platform"
 msgstr "Platform Operator"
+
+#: apps/reporting/views.py
+msgid "Format bulan tidak valid (YYYY-MM)."
+msgstr "Invalid month format (YYYY-MM)."

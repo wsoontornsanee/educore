@@ -29,6 +29,7 @@ urlpatterns = [
     path('api/v1/academic/', include('apps.academic.urls')),
     path('api/v1/', include('apps.wallet.urls')),
     path('api/v1/reporting/', include('apps.reporting.urls')),
+    path('api/v1/metering/', include('apps.reporting.metering_urls')),
     path('api/v1/campus/', include('apps.campus.urls')),
     # Partner & Vendor Integration API (spec/18) — HMAC-key partner surface
     # and its foundation-admin management surface.
