@@ -15,6 +15,8 @@ import {
   fetchWallet,
   fetchWalletTransactions,
   formatRupiah,
+  formatSignedRupiah,
+  isCreditAmount,
   pollTopupIntent,
   updateAutoTopupConfig,
   updateSpendRules,
@@ -41,6 +43,30 @@ describe('Parent Digital Canteen Wallet Service', () => {
       assert.strictEqual(formatRupiah(1250500), 'Rp 1.250.500');
       assert.strictEqual(formatRupiah(0), 'Rp 0');
       assert.strictEqual(formatRupiah('0.00'), 'Rp 0');
+    });
+
+    it('puts the sign of a negative amount before the currency, never inside it', () => {
+      assert.strictEqual(formatRupiah('-18000.00'), '-Rp 18.000');
+      assert.strictEqual(formatRupiah(-1250500), '-Rp 1.250.500');
+      assert.ok(!formatRupiah(-18000).includes('Rp -'));
+      assert.strictEqual(formatRupiah('-0.00'), 'Rp 0');
+    });
+
+    it('signs a ledger amount by its own sign: the server stores a purchase as a negative number', () => {
+      assert.strictEqual(formatSignedRupiah('-18000.00'), '-Rp 18.000');
+      assert.strictEqual(formatSignedRupiah('50000.00'), '+Rp 50.000');
+      assert.strictEqual(formatSignedRupiah('0.00'), 'Rp 0');
+      assert.strictEqual(formatSignedRupiah(null), 'Rp 0');
+      // the double negative seen on the simulator: "-" by type on top of a negative amount
+      assert.ok(!formatSignedRupiah('-18000.00').includes('--'));
+      assert.ok(!formatSignedRupiah('-18000.00').includes('Rp -'));
+    });
+
+    it('treats only a positive amount as money in', () => {
+      assert.strictEqual(isCreditAmount('50000.00'), true);
+      assert.strictEqual(isCreditAmount('-18000.00'), false);
+      assert.strictEqual(isCreditAmount('0.00'), false);
+      assert.strictEqual(isCreditAmount(undefined), false);
     });
 
     it('handles null, undefined, and non-numeric inputs gracefully', () => {
