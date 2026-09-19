@@ -1,4 +1,5 @@
 """Tests for Feature Entitlements gating and User Profile API (spec/02 §6, §7, spec/03 §3)."""
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase, APIRequestFactory
 from rest_framework.views import APIView
@@ -174,3 +175,44 @@ class EntitlementTests(APITestCase):
         with tenant_context(self.foundation.id):
             response = self.client.get('/api/v1/foundation/entitlements/')
             self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class EntitlementHistoryTests(APITestCase):
+    """Every change to an entitlement's effective value is appended to EntitlementChange (RPT-010)."""
+
+    def setUp(self):
+        clear_current_foundation_id()
+        self.foundation = Foundation.objects.create(legal_name="Yayasan Riwayat", brand_name="Riwayat")
+        self.school = School.all_tenants.create(
+            foundation_id=self.foundation.id, name="SD Riwayat", npsn="50100077", level=School.LEVEL_SD,
+        )
+
+    def history(self, school=None):
+        from apps.identity.models import EntitlementChange
+        return list(EntitlementChange.all_tenants.filter(
+            foundation_id=self.foundation.id, school_id=school.id if school else None, module_key=MODULE_WALLET,
+        ).order_by('id').values_list('enabled', flat=True))
+
+    def test_setter_logs_creation_and_each_flip_but_not_a_repeat(self):
+        set_module_entitlement(self.foundation.id, MODULE_WALLET, True)
+        set_module_entitlement(self.foundation.id, MODULE_WALLET, True, limits={'seats': 5})  # limits only
+        set_module_entitlement(self.foundation.id, MODULE_WALLET, False)
+        set_module_entitlement(self.foundation.id, MODULE_WALLET, True)
+        self.assertEqual(self.history(), [True, False, True])
+
+    def test_school_scope_is_logged_separately(self):
+        set_module_entitlement(self.foundation.id, MODULE_WALLET, False, school_id=self.school.id)
+        self.assertEqual(self.history(), [])
+        self.assertEqual(self.history(self.school), [False])
+
+    def test_soft_delete_logs_a_removal_and_restore_logs_the_value_again(self):
+        entitlement = set_module_entitlement(self.foundation.id, MODULE_WALLET, False)
+        entitlement.delete()
+        entitlement.restore()
+        self.assertEqual(self.history(), [False, None, False])
+
+    def test_history_row_is_dated_now_and_belongs_to_the_foundation(self):
+        from apps.identity.models import EntitlementChange
+        set_module_entitlement(self.foundation.id, MODULE_WALLET, False)
+        change = EntitlementChange.all_tenants.get(foundation_id=self.foundation.id)
+        self.assertLess((timezone.now() - change.effective_from).total_seconds(), 60)
