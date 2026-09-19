@@ -25,6 +25,7 @@ import {
   View,
 } from 'react-native';
 import { ParentClinicHistoryScreen } from './ParentClinicHistoryScreen';
+import { ParentPickupScreen } from './ParentPickupScreen';
 import { useLocale } from '../../i18n/LocaleContext';
 import { t } from '../../i18n/strings';
 import {
@@ -92,6 +93,8 @@ export const ParentProfileScreen: React.FC<ParentProfileScreenProps> = ({
 
   // Clinic visit history modal — which child's history is currently shown, if any
   const [clinicHistoryChild, setClinicHistoryChild] = useState<ChildSummary | null>(null);
+  // Pickup authorisation modal — which child's authorisations are being managed, if any
+  const [pickupChild, setPickupChild] = useState<ChildSummary | null>(null);
 
   // Load data on mount
   useEffect(() => {
@@ -242,6 +245,27 @@ export const ParentProfileScreen: React.FC<ParentProfileScreenProps> = ({
                 >
                   <Text style={styles.childName}>{child.full_name}</Text>
                   <Text style={styles.healthLink}>{t('profile.health.view_history', locale)}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        )}
+
+        {/* 2c. Pickup authorisation (ATT-015): who may collect each child */}
+        {allChildren.length > 0 && (
+          <>
+            <Text style={styles.sectionHeader}>{t('profile.section.pickup', locale)}</Text>
+            <View style={styles.card}>
+              {allChildren.map((child) => (
+                <TouchableOpacity
+                  key={child.student_id}
+                  style={styles.healthRow}
+                  onPress={() => setPickupChild(child)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t('profile.pickup.manage', locale)} ${child.full_name}`}
+                >
+                  <Text style={styles.childName}>{child.full_name}</Text>
+                  <Text style={styles.healthLink}>{t('profile.pickup.manage', locale)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -451,6 +475,15 @@ export const ParentProfileScreen: React.FC<ParentProfileScreenProps> = ({
             onClose={() => setClinicHistoryChild(null)}
           />
         )}
+      </Modal>
+
+      <Modal
+        visible={!!pickupChild}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setPickupChild(null)}
+      >
+        {pickupChild && <ParentPickupScreen child={pickupChild} onClose={() => setPickupChild(null)} />}
       </Modal>
 
       <SpendingPinSheet
