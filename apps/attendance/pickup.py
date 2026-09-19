@@ -20,7 +20,7 @@ from django.utils.translation import gettext as _
 
 from apps.attendance.models import PickupAuthorization, PickupEvent, PickupMethod
 from apps.core.services import audit
-from apps.identity.models import GuardianLink
+from apps.identity.models import GuardianLink, School, Student
 from apps.identity.recipients import get_school_admin_users
 
 logger = logging.getLogger(__name__)
@@ -136,7 +136,9 @@ def pickup_qr_token(authorization: PickupAuthorization) -> str:
 
 @transaction.atomic
 def revoke_pickup_authorization(authorization: PickupAuthorization, user, now=None) -> PickupAuthorization:
-    """Withdraw an authorisation. Idempotent; a one-time authorisation that was already used cannot be revoked."""
+    """Withdraw an authorisation. Idempotent; a one-time authorisation that was already used cannot be revoked.
+    When someone other than a linked guardian withdraws it (gate staff), the student's guardians are told, since
+    the QR they handed out has just stopped working."""
     now = now or timezone.now()
     authorization = PickupAuthorization.all_tenants.select_for_update().get(
         id=authorization.id, foundation_id=authorization.foundation_id,
@@ -153,7 +155,16 @@ def revoke_pickup_authorization(authorization: PickupAuthorization, user, now=No
         entity_id=authorization.id, actor_id=str(user.id), foundation_id=authorization.foundation_id,
         school_id=authorization.school_id, diff={'student_id': authorization.student_id},
     )
+    if not _is_linked_guardian(user, authorization):
+        notify_authorization_revoked(authorization)
     return authorization
+
+
+def _is_linked_guardian(user, authorization: PickupAuthorization) -> bool:
+    return GuardianLink.all_tenants.filter(
+        foundation_id=authorization.foundation_id, student_id=authorization.student_id, guardian__user=user,
+        deleted_at__isnull=True, guardian__deleted_at__isnull=True,
+    ).exists()
 
 
 # ── Verification and release (staff side, ATT-014, ATT-016) ────────────────────────────────────────────
@@ -311,6 +322,61 @@ def _record_event(*, staff_user, student, method, picked_up_by, authorization, g
 
 # ── Notification (ATT-017) ──────────────────────────────────────────────────────────────────────────────
 
+def _linked_guardian_recipients(foundation_id, student):
+    """(guardian, user, phone, email) for every guardian linked to the student who can be reached."""
+    links = GuardianLink.all_tenants.filter(
+        foundation_id=foundation_id, student=student, deleted_at__isnull=True, guardian__deleted_at__isnull=True,
+    ).select_related('guardian__person', 'guardian__user')
+    for link in links:
+        guardian = link.guardian
+        user = guardian.user
+        phone = (getattr(user, 'phone_e164', None) or getattr(user, 'phone', '')) if user else ''
+        email = getattr(user, 'email', '') if user else ''
+        if phone or user:
+            yield guardian, user, phone, email
+
+
+def notify_authorization_revoked(authorization: PickupAuthorization) -> int:
+    """Tell every linked guardian that gate staff withdrew a pickup authorisation. Names the authorised person
+    but never their phone. Deduped per authorisation and guardian, so a repeated revoke does not notify twice; a
+    failed delivery never undoes the revoke and its log line carries only the exception type. Returns how many
+    notices were queued."""
+    from apps.notifications.models import NotificationCategory, NotificationPriority
+    from apps.notifications.services import dispatch_intent
+
+    # Loaded unscoped by id: the revoke row was locked without joins, and the ambient tenant may not be set.
+    student = Student.all_tenants.select_related('person').get(id=authorization.student_id)
+    school = School.all_tenants.filter(id=authorization.school_id).first()
+    local_time = timezone.localtime(authorization.revoked_at)
+    queued = 0
+    for guardian, user, phone, email in _linked_guardian_recipients(authorization.foundation_id, student):
+        payload = {
+            'type': NotificationCategory.DEPARTURE,
+            'student_id': student.id,
+            'student_name': student.person.full_name if student.person else 'Siswa',
+            'guardian_name': guardian.person.full_name if guardian.person else 'Wali Murid',
+            'school_name': school.name if school else 'Sekolah',
+            'person_name': authorization.person_name,
+            'time': local_time.strftime('%H:%M'),
+            'date': local_time.strftime('%Y-%m-%d'),
+        }
+        try:
+            dispatch_intent(
+                foundation_id=authorization.foundation_id, school_id=authorization.school_id, recipient_user=user,
+                recipient_phone=phone, recipient_email=email, recipient_name=payload['guardian_name'],
+                category=NotificationCategory.DEPARTURE, template_key='attendance.pickup_revoked', payload=payload,
+                priority=NotificationPriority.HIGH, dedupe_key=f"pickup_revoked:{authorization.id}:{guardian.id}",
+                immediate=True,
+            )
+            queued += 1
+        except Exception as exc:  # noqa: BLE001 - the revoke is committed; one bad recipient must not stop the rest
+            logger.warning(
+                "pickup revoke notice failed for authorization %s guardian %s: %s",
+                authorization.id, guardian.id, type(exc).__name__,
+            )
+    return queued
+
+
 def notify_pickup_completed(event: PickupEvent) -> int:
     """Tell EVERY linked guardian of the student that the pickup happened, including those not involved (ATT-017).
     A failed delivery never undoes the release: it is logged (without names) and the rest still go out.
@@ -322,19 +388,8 @@ def notify_pickup_completed(event: PickupEvent) -> int:
     school = event.school
     template_key = 'attendance.pickup_override' if event.method == PickupMethod.OVERRIDE else 'attendance.pickup'
     local_time = timezone.localtime(event.occurred_at)
-    links = GuardianLink.all_tenants.filter(
-        foundation_id=event.foundation_id, student=student, deleted_at__isnull=True,
-        guardian__deleted_at__isnull=True,
-    ).select_related('guardian__person', 'guardian__user')
-
     queued = 0
-    for link in links:
-        guardian = link.guardian
-        user = guardian.user
-        phone = (getattr(user, 'phone_e164', None) or getattr(user, 'phone', '')) if user else ''
-        email = getattr(user, 'email', '') if user else ''
-        if not phone and not user:
-            continue
+    for guardian, user, phone, email in _linked_guardian_recipients(event.foundation_id, student):
         payload = {
             'type': NotificationCategory.DEPARTURE,
             'student_id': student.id,

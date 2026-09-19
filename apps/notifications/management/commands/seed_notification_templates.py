@@ -96,6 +96,26 @@ CANONICAL_TEMPLATES = [
         'variables': ['actor_name', 'student_name', 'school_name', 'picked_up_by', 'time', 'date', 'reason'],
     },
     {
+        'key': 'attendance.pickup_revoked',
+        'channel': ChannelType.WHATSAPP,
+        'locale': 'id-ID',
+        'subject': 'Otorisasi Penjemputan Dicabut',
+        'body': (
+            'Otorisasi penjemputan untuk {person_name} atas Ananda {student_name} di {school_name} dicabut oleh '
+            'pihak sekolah pada pukul {time} WIB. Kode QR-nya tidak berlaku lagi. Jika bukan Anda yang '
+            'memintanya, hubungi pihak sekolah.'
+        ),
+        'variables': ['student_name', 'school_name', 'person_name', 'time', 'date'],
+    },
+    {
+        'key': 'attendance.pickup_revoked',
+        'channel': ChannelType.PUSH,
+        'locale': 'id-ID',
+        'subject': 'Otorisasi penjemputan dicabut: {student_name}',
+        'body': 'Sekolah mencabut otorisasi {person_name} untuk menjemput {student_name} pukul {time} WIB.',
+        'variables': ['student_name', 'school_name', 'person_name', 'time', 'date'],
+    },
+    {
         'key': 'emergency.alert',
         'channel': ChannelType.WHATSAPP,
         'locale': 'id-ID',
