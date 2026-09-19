@@ -19,6 +19,8 @@ from educore.middleware.tenancy import get_current_foundation_id
 
 from apps.wallet.models import (
     POSEntryMode,
+    POSPaymentPoint,
+    POSQRDecal,
     POSQRSession,
     QRDispute,
     Merchant,
@@ -38,7 +40,11 @@ from apps.wallet.models import (
 from apps.wallet.serializers import (
     MerchantSerializer,
     MerchantSettlementRunSerializer,
+    DecalPrintSerializer,
+    DecalRevokeSerializer,
     MerchantQRChargeSerializer,
+    PaymentPointCreateSerializer,
+    PaymentPointSerializer,
     MerchantSettlementSerializer,
     POSBatchCreateSerializer,
     POSSessionSerializer,
@@ -76,6 +82,15 @@ from apps.wallet.qr_charge import (
     get_qr_session_result,
     resolve_qr_session,
     set_merchant_qr_charge,
+)
+from apps.wallet.qr_decals import (
+    DecalError,
+    close_payment_point,
+    create_payment_point,
+    print_decal,
+    render_decal_pdf,
+    revoke_decal,
+    set_merchant_static_qr,
 )
 from apps.wallet.qr_oversight import (
     QRDisputeError,
@@ -375,6 +390,20 @@ def _get_terminal_in_ceiling(request, foundation_id, terminal_id, permission):
     return qs.first()
 
 
+def _sales_by_payment_point(qs):
+    """QRS-040: totals per printed-decal counter; everything not sold through a decal is one row with a null point."""
+    rows = {}
+    for tx in qs.select_related('qr_decal__payment_point'):
+        point = tx.qr_decal.payment_point if tx.qr_decal_id else None
+        row = rows.setdefault(point.id if point else None, {
+            'payment_point_id': point.id if point else None, 'payment_point_name': point.name if point else None,
+            'count': 0, 'total': Decimal('0.00'),
+        })
+        row['count'] += 1
+        row['total'] += tx.total
+    return [{**r, 'total': str(r['total'])} for r in rows.values()]
+
+
 class TenantScopedCatalogViewSet(viewsets.ModelViewSet):
     """Common tenancy- and school-scoped queryset behaviour for merchant/product/terminal
     catalog data. Subclasses set `school_path` (ORM path from a row to its school id):
@@ -437,9 +466,23 @@ class MerchantViewSet(TenantScopedCatalogViewSet):
         'create': 'school_config.write', 'update': 'school_config.write',
         'partial_update': 'school_config.write', 'destroy': 'school_config.write',
         'sales': 'finance.payment.read', 'settlements': 'finance.payment.read', 'run_settlement': 'finance.payment.write',
-        'qr_charge': 'school_config.write', 'clear_qr_flag': 'school_config.write',
+        'qr_charge': 'school_config.write', 'clear_qr_flag': 'school_config.write', 'static_qr': 'school_config.write',
         'qr_disputes': 'finance.payment.read', 'underpayment_signals': 'finance.payment.read',
     }
+
+    @action(detail=True, methods=['post'], url_path='static-qr')
+    def static_qr(self, request, pk=None):
+        """POST /merchants/:id/static-qr/ — school admin switch for printed decals (QRS-008), off by default."""
+        merchant = self.get_object()
+        payload = MerchantQRChargeSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        try:
+            set_merchant_static_qr(
+                merchant, payload.validated_data['enabled'], payload.validated_data['acknowledged'], request.user,
+            )
+        except DecalError as e:
+            return Response({'error': e.code, 'message': e.message}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(self.get_serializer(merchant).data)
 
     @action(detail=True, methods=['post'], url_path='qr-flag/clear')
     def clear_qr_flag(self, request, pk=None):
@@ -505,6 +548,8 @@ class MerchantViewSet(TenantScopedCatalogViewSet):
             qs = qs.filter(occurred_at__date__gte=date_from)
         if date_to:
             qs = qs.filter(occurred_at__date__lte=date_to)
+        if request.query_params.get('group_by') == 'payment_point':
+            return Response(_sales_by_payment_point(qs))
         return Response(POSTransactionSerializer(qs, many=True).data)
 
     @action(detail=True, methods=['get'], url_path='settlements')
@@ -853,6 +898,121 @@ class QRDisputeResolveView(APIView):
         except WalletNotActiveError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(QRDisputeSerializer(dispute).data)
+
+
+class _PaymentPointView(APIView):
+    """Shared base for static-decal management: `pos.manage`, scoped to the schools the actor holds it in."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'pos.manage'
+
+    def _points(self, request):
+        qs = POSPaymentPoint.objects.filter(
+            foundation_id=get_current_foundation_id(), deleted_at__isnull=True,
+        ).select_related('merchant', 'merchant__school')
+        ceiling = _school_ceiling(request, self.required_permission)
+        return qs if ceiling is None else qs.filter(merchant__school_id__in=ceiling)
+
+    def _decal(self, request, decal_id):
+        qs = POSQRDecal.objects.filter(
+            id=decal_id, foundation_id=get_current_foundation_id(), deleted_at__isnull=True,
+        ).select_related('payment_point', 'payment_point__merchant', 'payment_point__merchant__school')
+        ceiling = _school_ceiling(request, self.required_permission)
+        return (qs if ceiling is None else qs.filter(payment_point__merchant__school_id__in=ceiling)).first()
+
+    @staticmethod
+    def _decal_error(e):
+        return Response({'error': e.code, 'message': e.message}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PaymentPointListCreateView(_PaymentPointView):
+    """GET/POST /pos/payment-points/ (QRS-030): an operator names a counter under a merchant."""
+
+    def get(self, request):
+        qs = self._points(request).order_by('merchant__name', 'name')
+        merchant_id = request.query_params.get('merchant_id')
+        if merchant_id:
+            qs = qs.filter(merchant_id=merchant_id)
+        return Response(PaymentPointSerializer(qs, many=True).data)
+
+    def post(self, request):
+        payload = PaymentPointCreateSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        data = payload.validated_data
+        ceiling = _school_ceiling(request, self.required_permission)
+        merchants = Merchant.objects.filter(
+            id=data['merchant_id'], foundation_id=get_current_foundation_id(), deleted_at__isnull=True,
+        ).select_related('school')
+        if ceiling is not None:
+            merchants = merchants.filter(school_id__in=ceiling)
+        merchant = merchants.first()
+        if not merchant:
+            return Response({'error': _("Merchant tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            point = create_payment_point(merchant, data['name'], data['location'], request.user)
+        except DecalError as e:
+            return self._decal_error(e)
+        return Response(PaymentPointSerializer(point).data, status=status.HTTP_201_CREATED)
+
+
+class PaymentPointCloseView(_PaymentPointView):
+    """POST /pos/payment-points/:id/close/"""
+
+    def post(self, request, point_id):
+        point = self._points(request).filter(id=point_id).first()
+        if not point:
+            return Response({'error': _("Titik pembayaran tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        return Response(PaymentPointSerializer(close_payment_point(point, request.user)).data)
+
+
+class DecalPrintView(_PaymentPointView):
+    """POST /pos/payment-points/:id/decal/ (QRS-030/036): mint a sheet; earlier ones get the grace window."""
+
+    def post(self, request, point_id):
+        payload = DecalPrintSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        point = self._points(request).filter(id=point_id).first()
+        if not point:
+            return Response({'error': _("Titik pembayaran tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            decal = print_decal(point, request.user, payload.validated_data['expires_on'])
+        except DecalError as e:
+            return self._decal_error(e)
+        return Response({
+            'decal_id': decal.id, 'human_id': decal.human_id,
+            'pdf_url': f"/api/v1/pos/decals/{decal.id}/pdf/",
+        }, status=status.HTTP_201_CREATED)
+
+
+class DecalPDFView(_PaymentPointView):
+    """GET /pos/decals/:id/pdf/ (QRS-042): authenticated download by the operator, audit-logged."""
+
+    def get(self, request, decal_id):
+        from django.http import HttpResponse
+        decal = self._decal(request, decal_id)
+        if not decal:
+            return Response({'error': _("Lembar tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            data, content_type = render_decal_pdf(decal, request.user)
+        except DecalError as e:
+            return self._decal_error(e)
+        ext = 'pdf' if content_type == 'application/pdf' else 'html'
+        response = HttpResponse(data, content_type=content_type)
+        response['Content-Disposition'] = f'attachment; filename="{decal.human_id}.{ext}"'
+        response['Cache-Control'] = 'no-store'
+        return response
+
+
+class DecalRevokeView(_PaymentPointView):
+    """POST /pos/decals/:id/revoke/ (QRS-035): instant, and only this sheet."""
+
+    def post(self, request, decal_id):
+        payload = DecalRevokeSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        decal = self._decal(request, decal_id)
+        if not decal:
+            return Response({'error': _("Lembar tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        revoke_decal(decal, request.user, payload.validated_data['reason'])
+        return Response({'decal_id': decal.id, 'status': decal.status})
 
 
 class POSSyncView(APIView):

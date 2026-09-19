@@ -8470,3 +8470,54 @@ msgstr "Voided by operator: wrong amount"
 
 msgid "Batas waktu pembatalan sudah lewat."
 msgstr "The void window has passed."
+
+msgid "QR statis belum diaktifkan untuk merchant ini."
+msgstr "Static QR isn't turned on for this merchant."
+
+msgid "Konfirmasi bahwa lembar QR statis tidak memiliki layar dan batas per transaksinya lebih rendah."
+msgstr "Confirm that printed static QR sheets have no screen and a lower per-transaction cap."
+
+msgid "Titik pembayaran ini sudah ditutup."
+msgstr "This payment point is closed."
+
+msgid "Tanggal kedaluwarsa harus di masa depan."
+msgstr "The expiry date must be in the future."
+
+msgid "Scan dengan aplikasi Astra EduCore"
+msgstr "Scan with the Astra EduCore app"
+
+msgid "Tunjukkan kode 4 huruf ke petugas"
+msgstr "Show the 4-letter code to the operator"
+
+msgid "Bayar pakai Dompet Siswa"
+msgstr "Pay with the Student Wallet"
+
+msgid "Maksimum %(cap)s per transaksi"
+msgstr "Maximum %(cap)s per transaction"
+
+msgid "DICETAK"
+msgstr "PRINTED"
+
+msgid "Hanya lembar aktif yang dapat diunduh."
+msgstr "Only active sheets can be downloaded."
+
+msgid "Lembar ini sudah tidak berlaku. Minta petugas lembar yang terbaru."
+msgstr "This sheet is out of date. Ask staff for the current one."
+
+msgid "Lembar ini sudah kedaluwarsa. Minta petugas lembar yang terbaru."
+msgstr "This sheet has expired. Ask staff for the current one."
+
+msgid "Titik pembayaran ini sedang ditutup."
+msgstr "This payment point is closed."
+
+msgid "Merchant tidak ditemukan."
+msgstr "Merchant not found."
+
+msgid "Titik pembayaran tidak ditemukan."
+msgstr "Payment point not found."
+
+msgid "Lembar tidak ditemukan."
+msgstr "Sheet not found."
+
+msgid "Digantikan"
+msgstr "Superseded"

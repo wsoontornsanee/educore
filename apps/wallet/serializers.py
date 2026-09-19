@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from apps.wallet.models import (
+    POSPaymentPoint,
     QRDispute,
     Merchant,
     MerchantSettlement,
@@ -113,13 +114,20 @@ class MerchantSerializer(serializers.ModelSerializer):
         model = Merchant
         fields = [
             'id', 'foundation_id', 'school', 'name', 'type', 'settlement_account', 'commission_bps', 'is_active',
-            'qr_self_amount_enabled', 'qr_self_amount_ack_at', 'qr_dispute_flagged_at', 'created_at', 'updated_at',
+            'qr_self_amount_enabled', 'qr_self_amount_ack_at', 'static_qr_enabled', 'static_qr_ack_at',
+            'static_qr_max', 'qr_dispute_flagged_at', 'created_at', 'updated_at',
         ]
-        # QR Charge is switched only through POST /merchants/:id/qr-charge/, which records the acknowledgement.
+        # QR Charge and static QR are switched only through POST /merchants/:id/{qr-charge,static-qr}/,
+        # which record the acknowledgement.
         read_only_fields = [
-            'id', 'foundation_id', 'qr_self_amount_enabled', 'qr_self_amount_ack_at', 'qr_dispute_flagged_at',
-            'created_at', 'updated_at',
+            'id', 'foundation_id', 'qr_self_amount_enabled', 'qr_self_amount_ack_at', 'static_qr_enabled',
+            'static_qr_ack_at', 'qr_dispute_flagged_at', 'created_at', 'updated_at',
         ]
+
+    def validate_static_qr_max(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Must be greater than zero.")
+        return value
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -297,3 +305,35 @@ class QRDisputeSerializer(serializers.ModelSerializer):
             'resolution_note', 'refund_amount', 'created_at',
         ]
         read_only_fields = fields
+
+
+class PaymentPointCreateSerializer(serializers.Serializer):
+    merchant_id = serializers.IntegerField()
+    name = serializers.CharField(max_length=128)
+    location = serializers.CharField(max_length=128, required=False, allow_blank=True, default='')
+
+
+class DecalPrintSerializer(serializers.Serializer):
+    expires_on = serializers.DateField(required=False, allow_null=True, default=None)
+
+
+class DecalRevokeSerializer(serializers.Serializer):
+    reason = serializers.CharField(max_length=255, required=False, allow_blank=True, default='')
+
+
+class PaymentPointSerializer(serializers.ModelSerializer):
+    decals = serializers.SerializerMethodField()
+
+    class Meta:
+        model = POSPaymentPoint
+        fields = ['id', 'merchant', 'name', 'location', 'status', 'decals']
+        read_only_fields = fields
+
+    def get_decals(self, obj):
+        return [
+            {
+                'id': d.id, 'human_id': d.human_id, 'status': d.status, 'printed_at': d.printed_at,
+                'expires_on': d.expires_on, 'grace_until': d.grace_until,
+            }
+            for d in obj.decals.filter(deleted_at__isnull=True).order_by('-printed_at')
+        ]

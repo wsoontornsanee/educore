@@ -125,6 +125,14 @@ class Merchant(TenantModel):
         help_text=_("Admin who acknowledged the operator-verifies-amount statement (QRS-001)"),
     )
     qr_self_amount_ack_at = models.DateTimeField(null=True, blank=True)
+    static_qr_enabled = models.BooleanField(
+        default=False, help_text=_("Printed static QR decals accepted at this merchant; separate from QR Charge itself (QRS-008)"),
+    )
+    static_qr_max = MoneyField(
+        default=Decimal('25000.00'), help_text=_("Per-charge cap for static decals; the lower of this and the school cap applies"),
+    )
+    static_qr_ack_by = models.ForeignKey('identity.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    static_qr_ack_at = models.DateTimeField(null=True, blank=True)
     qr_dispute_flagged_at = models.DateTimeField(
         null=True, blank=True,
         help_text=_("Raised when 3+ QR disputes are upheld in 30 days; cleared on school-admin review (QRS-028)"),
@@ -201,7 +209,10 @@ class POSEntryMode(models.TextChoices):
 class POSTransaction(TenantModel):
     """A sale at a POS terminal (spec/07 §5, §6)."""
     merchant = models.ForeignKey(Merchant, on_delete=models.PROTECT, related_name='pos_transactions')
-    terminal = models.ForeignKey(POSTerminal, on_delete=models.PROTECT, related_name='pos_transactions')
+    terminal = models.ForeignKey(
+        POSTerminal, on_delete=models.PROTECT, null=True, blank=True, related_name='pos_transactions',
+        help_text=_("Null for a static-decal charge, which has no terminal (QRS-040 keys it on qr_decal)"),
+    )
     student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name='pos_transactions')
     items = models.JSONField(default=list, help_text=_("List of {sku, name, qty, unit_price}"))
     subtotal = MoneyField()
@@ -218,6 +229,7 @@ class POSTransaction(TenantModel):
     void_reason = models.CharField(max_length=255, blank=True, default='')
     entry_mode = models.CharField(max_length=16, choices=POSEntryMode.choices, default=POSEntryMode.OPERATOR)
     qr_session = models.ForeignKey('POSQRSession', on_delete=models.PROTECT, null=True, blank=True, related_name='+')
+    qr_decal = models.ForeignKey('POSQRDecal', on_delete=models.PROTECT, null=True, blank=True, related_name='+')
     confirmation_code = models.CharField(max_length=4, blank=True, default='')
 
     class Meta:
@@ -259,6 +271,56 @@ class POSQRSession(TenantModel):
 
     def __str__(self):
         return f"QR session {self.pk} @ {self.terminal_id}"
+
+
+class POSPaymentPointStatus(models.TextChoices):
+    ACTIVE = 'ACTIVE', _('Aktif')
+    CLOSED = 'CLOSED', _('Ditutup')
+
+
+class POSPaymentPoint(TenantModel):
+    """A named counter (drinks cart, photocopy desk) that takes static-decal QR payments (spec 18 §3b)."""
+    merchant = models.ForeignKey(Merchant, on_delete=models.PROTECT, related_name='payment_points')
+    name = models.CharField(max_length=128)
+    location = models.CharField(max_length=128, blank=True, default='')
+    status = models.CharField(max_length=8, choices=POSPaymentPointStatus.choices, default=POSPaymentPointStatus.ACTIVE)
+
+    class Meta:
+        db_table = 'pos_payment_points'
+        indexes = [models.Index(fields=['foundation_id', 'merchant_id', 'status'])]
+
+    def __str__(self):
+        return f"{self.name} ({self.merchant.name})"
+
+
+class POSQRDecalStatus(models.TextChoices):
+    ACTIVE = 'ACTIVE', _('Aktif')
+    SUPERSEDED = 'SUPERSEDED', _('Digantikan')
+    REVOKED = 'REVOKED', _('Dicabut')
+
+
+class POSQRDecal(TenantModel):
+    """One printed static QR sheet, bound to exactly one payment point (QRS-031).
+
+    The QR carries a signed token of this row's id and nonce — no amount, student or URL (QRS-034).
+    """
+    payment_point = models.ForeignKey(POSPaymentPoint, on_delete=models.PROTECT, related_name='decals')
+    human_id = models.CharField(max_length=16, help_text=_("Short id printed on the sheet, e.g. KU-03"))
+    nonce = models.CharField(max_length=32)
+    status = models.CharField(max_length=12, choices=POSQRDecalStatus.choices, default=POSQRDecalStatus.ACTIVE)
+    printed_by = models.ForeignKey('identity.User', on_delete=models.PROTECT, related_name='+')
+    printed_at = models.DateTimeField()
+    expires_on = models.DateField(null=True, blank=True)
+    superseded_at = models.DateTimeField(null=True, blank=True)
+    grace_until = models.DateTimeField(null=True, blank=True)
+    revoke_reason = models.CharField(max_length=255, blank=True, default='')
+
+    class Meta:
+        db_table = 'pos_qr_decals'
+        indexes = [models.Index(fields=['foundation_id', 'payment_point_id', 'status'])]
+
+    def __str__(self):
+        return f"{self.human_id} ({self.status})"
 
 
 class QRDisputeStatus(models.TextChoices):
