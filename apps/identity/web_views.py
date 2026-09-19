@@ -18,7 +18,7 @@ from django.views.generic import TemplateView
 from apps.attendance.models import AttendanceDay, AttendanceStatus
 from apps.finance.models import Invoice, InvoiceStatus
 from educore.middleware.tenancy import get_current_foundation_id, set_current_foundation_id, tenant_context
-from .console_access import redirect_denied_to_home
+from .console_access import ConsolePermissionMixin, redirect_denied_to_home
 from .inbox import InboxActionError, get_inbox_for_user, perform_inbox_action
 from .landing import resolve_post_login_redirect
 from .models import RoleAssignment, Student
@@ -523,12 +523,13 @@ def _inbox_foundation_id(request):
     return get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
 
 
-class ConsoleInboxView(LoginRequiredMixin, TemplateView):
+class ConsoleInboxView(ConsolePermissionMixin, TemplateView):
     """GET /web/home/inbox/ — the user's own "Kotak tugas": pending items
-    they can act on, aggregated by apps.identity.inbox. No RBAC gate of its
-    own: every source in get_inbox_for_user applies its own permission /
-    ownership predicate, so a user with nothing to act on just sees the
-    empty state."""
+    they can act on, aggregated by apps.identity.inbox. Open to any staff
+    user (a guardian-only account is sent home): beyond that, every
+    source in get_inbox_for_user applies its own permission / ownership
+    predicate, so a user with nothing to act on just sees the empty state."""
+    staff_access_only = True
     template_name = 'pages/console_inbox.html'
 
     def get_context_data(self, **kwargs):
@@ -538,7 +539,7 @@ class ConsoleInboxView(LoginRequiredMixin, TemplateView):
         return ctx
 
 
-class ConsoleInboxActionView(LoginRequiredMixin, View):
+class ConsoleInboxActionView(ConsolePermissionMixin, View):
     """POST /web/home/inbox/<kind>/<pk>/<action>/ — HTMX: decide one inbox
     item in place, then answer with the refreshed sections fragment.
 
@@ -547,7 +548,9 @@ class ConsoleInboxActionView(LoginRequiredMixin, View):
     so an item the user cannot see cannot be decided by guessing its id. A
     stale or out-of-scope item is reported in the fragment, not as an error
     status, because HTMX does not swap 4xx responses. An unknown kind/action
-    is a tampered URL and 404s."""
+    is a tampered URL and 404s. A guardian-only account is sent home, as on
+    the inbox page itself."""
+    staff_access_only = True
 
     def post(self, request, kind, pk, action):
         foundation_id = _inbox_foundation_id(request)
