@@ -7,8 +7,10 @@ per-role item list drifts from what a role can actually reach (see the
 Notion investigation that found Finance Officer/Canteen Operator/Clinic
 Officer lacked grades.read despite the source mockup's role lists implying
 otherwise). permission=None means "always shown to any authenticated
-staff user" (used only for the task inbox item: every source it lists
-applies its own permission/ownership check, see apps.identity.inbox).
+staff user" (used only for the task inbox item, which declares
+requires_staff_access=True: every source it lists applies its own
+permission/ownership check, see apps.identity.inbox, but a guardian-only
+account must not see the staff console's inbox).
 
 Only 'inbox', the four Operasional items (attendance, permission_slips, canteen,
 exam), the three Keuangan items and the four Administrasi items have real
@@ -34,6 +36,9 @@ nav would show an item that then 404s on click instead of just not showing
 it — reported as a real bug (2026-09-18) against a Teacher-role account
 with no Staff profile.
 
+requires_staff_access=True: see has_staff_access — weaker than
+requires_staff_profile, since a foundation admin need not have a Staff row.
+
 requires_foundation_admin=True is the same idea for pages whose backing API
 gates on is_foundation_admin rather than a permission key (the partner-key
 console): school_admin holds school_config.write too, but the page would only
@@ -41,6 +46,7 @@ redirect them home, so the nav must not show it.
 """
 from django.utils.translation import gettext_lazy as _
 
+from .guardian_access import is_staff_user
 from .models import RoleAssignment, Staff
 from .rbac import get_user_permissions, is_foundation_admin, SCOPE_SCHOOL
 
@@ -48,7 +54,7 @@ COMING_SOON_URL_NAME = "console:coming_soon"
 
 NAV_GROUPS = [
     {"label": _("Beranda"), "items": [
-        {"id": "inbox", "label": _("Kotak tugas"), "permission": None, "url_name": "console-inbox"},
+        {"id": "inbox", "label": _("Kotak tugas"), "permission": None, "url_name": "console-inbox", "requires_staff_access": True},
     ]},
     {"label": _("Akademik"), "items": [
         {"id": "roster", "label": _("Siswa & kelas"), "permission": "student_records.read", "url_name": "academic-class-list-page", "requires_staff_profile": True},
@@ -108,6 +114,13 @@ def has_staff_profile(user, foundation_id):
     ).exists()
 
 
+def has_staff_access(user, foundation_id):
+    """Not a guardian-only account: the user holds a staff role
+    (guardian_access.is_staff_user) or is linked to a Staff row (an inbox
+    source such as a timetable substitution keys off the Staff row alone)."""
+    return is_staff_user(user, foundation_id) or has_staff_profile(user, foundation_id)
+
+
 def get_nav_for_user(user, foundation_id):
     """NAV_GROUPS filtered to items `user` can actually reach and use: the
     item must not be a coming_soon placeholder, they must hold its RBAC
@@ -126,6 +139,10 @@ def get_nav_for_user(user, foundation_id):
         item.get("requires_foundation_admin") for group in NAV_GROUPS for item in group["items"]
     )
     is_admin = is_foundation_admin(user, foundation_id) if needs_admin_check else None
+    needs_access_check = any(
+        item.get("requires_staff_access") for group in NAV_GROUPS for item in group["items"]
+    )
+    staff_access = has_staff_access(user, foundation_id) if needs_access_check else None
 
     result = []
     for group in NAV_GROUPS:
@@ -136,6 +153,7 @@ def get_nav_for_user(user, foundation_id):
             and (item["permission"] is None or item["permission"] in permissions)
             and (not item.get("requires_staff_profile") or has_staff)
             and (not item.get("requires_foundation_admin") or is_admin)
+            and (not item.get("requires_staff_access") or staff_access)
         ]
         if visible_items:
             result.append({"label": group["label"], "items": visible_items})

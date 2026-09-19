@@ -8,7 +8,8 @@ from apps.academic.models import ReportCard, ReportCardStatus, SubstitutionStatu
 from apps.academic.tests.base import build_academic_fixture
 from apps.attendance.models import AbsenceRequest, AbsenceRequestStatus
 from apps.core.models import AuditEvent
-from apps.identity.tests.test_inbox import InboxTestBase, SubstitutionInboxTests
+from apps.identity.rbac import ROLE_PARENT, SCOPE_FOUNDATION
+from apps.identity.tests.test_inbox import InboxTestBase, SubstitutionInboxTests, _user
 from educore.middleware.tenancy import set_current_foundation_id
 
 
@@ -150,6 +151,15 @@ class InboxActionRequestTests(InboxActionTestBase):
         req = self.make_absence()
         res = self.client.post(action_url('absence_request', req.pk, 'approve'))
         self.assertEqual(res.status_code, 302)
+        req.refresh_from_db()
+        self.assertEqual(req.status, AbsenceRequestStatus.PENDING)
+
+    def test_guardian_only_account_cannot_decide_and_nothing_changes(self):
+        req = self.make_absence()
+        parent = _user(self.fx, '+6281290000005', 'Wali', ROLE_PARENT, scope=SCOPE_FOUNDATION)
+        self.client.force_login(parent)
+        res = self.client.post(action_url('absence_request', req.pk, 'approve'))
+        self.assertRedirects(res, reverse('web-console-home'), fetch_redirect_response=False)
         req.refresh_from_db()
         self.assertEqual(req.status, AbsenceRequestStatus.PENDING)
 
