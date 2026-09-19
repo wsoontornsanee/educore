@@ -89,23 +89,23 @@ class FinanceConsoleAccessTests(FinanceConsoleBase):
         for name in PAGES:
             self.assertEqual(self.client.get(reverse(name)).status_code, 200, name)
 
-    def test_user_without_finance_permission_gets_403(self):
+    def test_user_without_finance_permission_is_sent_home(self):
         teacher = make_user(
             self.foundation, '+6281300009002', RoleAssignment.ROLE_TEACHER,
             RoleAssignment.SCOPE_SCHOOL, self.school1.id, staff_school=self.school1, name='Guru',
         )
         self.client.force_login(teacher)
         for name in PAGES:
-            self.assertEqual(self.client.get(reverse(name)).status_code, 403, name)
+            self.assertRedirects(self.client.get(reverse(name)), reverse('web-console-home'), fetch_redirect_response=False, msg_prefix=name)
 
-    def test_finance_permission_without_staff_profile_gets_403(self):
+    def test_finance_permission_without_staff_profile_is_sent_home(self):
         no_staff = make_user(
             self.foundation, '+6281300009003', RoleAssignment.ROLE_FINANCE_OFFICER,
             RoleAssignment.SCOPE_FOUNDATION, self.foundation.id, name='Ortu',
         )
         self.client.force_login(no_staff)
         for name in PAGES:
-            self.assertEqual(self.client.get(reverse(name)).status_code, 403, name)
+            self.assertRedirects(self.client.get(reverse(name)), reverse('web-console-home'), fetch_redirect_response=False, msg_prefix=name)
 
 
 class BillingConsoleTests(FinanceConsoleBase):

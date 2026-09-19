@@ -107,7 +107,7 @@ class DiscrepancyCoverageTests(ActionTestBase):
         self.assertEqual(page.status_code, 200)
         self.assertContains(page, 'EXT-1')
         self.assertNotContains(page, self.url)
-        self.assertEqual(self.client.post(self.url, {'resolution': 'WAIVED'}).status_code, 403)
+        self.assertRedirects(self.client.post(self.url, {'resolution': 'WAIVED'}), reverse('web-console-home'), fetch_redirect_response=False)
 
     def test_manual_settle_settles_the_linked_payment_and_allocates_to_the_invoice(self):
         invoice = make_invoice(self.foundation, self.s1, 'INV/A1/2026/000001')
