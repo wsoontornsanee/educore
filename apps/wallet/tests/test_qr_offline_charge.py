@@ -80,6 +80,29 @@ class OfflineTokenChargeTests(_OfflineBase):
             self.assertRefused('QR_TOKEN_EXPIRED', self.pay, token=token)
         self.assertEqual(self.balance(), Decimal('100000.00'))
 
+    def test_online_charge_window_is_tighter_than_the_sync_tolerance(self):
+        # 120 s TTL + 60 s online tolerance = 3 min. 4 min is still inside the 5 min sync tolerance,
+        # so this pins that the online charge no longer inherits it.
+        token = self.mint()
+        later = timezone.now() + timedelta(minutes=4)
+        with mock.patch('django.utils.timezone.now', return_value=later):
+            self.assertRefused('QR_TOKEN_EXPIRED', self.pay, token=token)
+        self.assertEqual(self.balance(), Decimal('100000.00'))
+
+    def test_online_charge_tolerates_a_slightly_slow_terminal_clock(self):
+        token = self.mint()
+        later = timezone.now() + timedelta(seconds=120 + 30)  # past TTL, inside the 60 s tolerance
+        with mock.patch('django.utils.timezone.now', return_value=later):
+            self.pay('1000', token=token)
+        self.assertEqual(self.balance(), Decimal('99000.00'))
+
+    def test_online_charge_refuses_a_terminal_clock_running_ahead(self):
+        # A token stamped 2 min in the future (fast terminal clock) is beyond the 60 s tolerance.
+        token = mint_offline_session_token(self.key, self.secret)
+        earlier = timezone.now() - timedelta(minutes=2)
+        with mock.patch('django.utils.timezone.now', return_value=earlier):
+            self.assertRefused('QR_TOKEN_EXPIRED', self.pay, token=token)
+
     def test_tampered_and_garbage_tokens_are_invalid(self):
         payload_b64, sig = self.mint().rsplit('.', 1)
         for bad in (f"{payload_b64}.{'0' * len(sig)}", 'nope.nope', 'a.b', '.', 'x' * 40 + '.' + 'y' * 64):

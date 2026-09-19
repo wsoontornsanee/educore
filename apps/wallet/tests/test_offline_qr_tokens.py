@@ -79,6 +79,13 @@ class VerifyOfflineSessionTokenTests(_Base):
         key, _nonce = verify_offline_session_token(self.terminal, token, occurred_at)
         self.assertEqual(key.id, self.key.id)
 
+    def test_custom_skew_tolerance_narrows_the_window(self):
+        token = self.mint(ttl_seconds=60)
+        occurred_at = timezone.now() + timedelta(seconds=90)  # inside the 5 min default
+        with self.assertRaises(OfflineTokenError) as ctx:
+            verify_offline_session_token(self.terminal, token, occurred_at, skew_tolerance=timedelta(seconds=10))
+        self.assertEqual(ctx.exception.code, 'EXPIRED')
+
     def test_revoked_key_outside_grace_period_is_rejected(self):
         revoke_terminal_session_key(self.key)
         self.key.grace_until = timezone.now() - timedelta(days=1)

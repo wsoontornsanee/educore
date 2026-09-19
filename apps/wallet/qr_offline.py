@@ -38,7 +38,14 @@ from apps.core.services import audit
 from apps.wallet.crypto import decrypt_secret, encrypt_secret
 from apps.wallet.models import POSTerminalSessionKey, POSTerminalSessionKeyStatus
 
+# Sync compares the terminal's own scan time with its own mint time, so the slack only has to
+# cover the cashier's delay and drift while offline.
 CLOCK_SKEW_TOLERANCE = timedelta(minutes=5)
+# The student's online charge compares the server clock with the terminal's mint clock, so the slack
+# is the whole terminal/server drift and also stretches the replay window of a photographed QR
+# (120 s TTL + this). Kept tight: a terminal whose clock is off by more than this refuses online
+# charges (QR_TOKEN_EXPIRED) until its clock is fixed; its offline sales still sync.
+ONLINE_CLOCK_SKEW_TOLERANCE = timedelta(seconds=60)
 
 
 class OfflineTokenError(ValidationError):
@@ -146,12 +153,15 @@ def peek_key_id(token: str) -> str:
     return str(_decode(token)[2].get('key_id') or '')
 
 
-def verify_offline_session_token(terminal, token: str, occurred_at) -> tuple:
+def verify_offline_session_token(
+    terminal, token: str, occurred_at, skew_tolerance: timedelta = CLOCK_SKEW_TOLERANCE,
+) -> tuple:
     """Verify a terminal-minted offline token against `terminal` and `occurred_at`:
     the terminal's own clock at scan time when syncing (NOT wall-clock "now" —
     sync can legitimately happen days later), or server "now" on the student's
     online charge. Returns (key, nonce) on success, so the caller can record
-    which key authenticated the sale and enforce single-use (WAL-015).
+    which key authenticated the sale and enforce single-use (WAL-015). `skew_tolerance` widens the
+    [minted_at, expires_at] window on both sides; the online charge passes a tighter one.
     Fail-closed order mirrors qr_charge._load_session."""
     payload_b64, sig_hex, payload = _decode(token)
 
@@ -176,7 +186,7 @@ def verify_offline_session_token(terminal, token: str, occurred_at) -> tuple:
         raise OfflineTokenError('MALFORMED', _("Token QR tidak valid."))
     if expires_at < minted_at:
         raise OfflineTokenError('MALFORMED', _("Token QR tidak valid."))
-    if not (minted_at - CLOCK_SKEW_TOLERANCE <= occurred_at <= expires_at + CLOCK_SKEW_TOLERANCE):
+    if not (minted_at - skew_tolerance <= occurred_at <= expires_at + skew_tolerance):
         raise OfflineTokenError('EXPIRED', _("Token QR sudah kedaluwarsa."))
 
     nonce = payload.get('nonce')
