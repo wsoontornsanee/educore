@@ -1,9 +1,11 @@
+import datetime
 from datetime import timedelta
 from decimal import Decimal
 
 from django.db.models import Count, Sum
 from django.utils import timezone
 
+from apps.core.archiving import policy_for
 from apps.identity.models import School
 from apps.reporting.models import (
     RptAcademicPerformance,
@@ -31,6 +33,19 @@ def _report_start_date(scope: str, since, earliest_date):
     return earliest_date or today
 
 
+def _first_fully_hot_day(*model_labels):
+    """First day the hot tables still hold in full, given NFR-009 archiving.
+
+    Rows up to some day have moved to `<table>_archive`, so rebuilding those days from
+    the hot tables would overwrite a correct rollup with a partial one. Days at or before
+    the newest archived row keep the rollup written while they were still hot.
+    """
+    newest = [t for t in (policy_for(label).archived_through() for label in model_labels) if t]
+    if not newest:
+        return datetime.date.min
+    return timezone.localtime(max(newest)).date() + timedelta(days=1)
+
+
 def refresh_wallet_activity(scope: str, since=None) -> dict:
     """spec/15 §2: rebuild rpt_wallet_activity, one row per school per day.
 
@@ -48,6 +63,7 @@ def refresh_wallet_activity(scope: str, since=None) -> dict:
             type=WalletTransactionType.TOPUP, deleted_at__isnull=True,
         ).order_by('occurred_at').values_list('occurred_at__date', flat=True).first()
     start_date = _report_start_date(scope, since, earliest_topup)
+    start_date = max(start_date, _first_fully_hot_day('wallet.WalletTransaction', 'wallet.POSTransaction'))
 
     rows_written = 0
     for school in School.all_tenants.filter(deleted_at__isnull=True):

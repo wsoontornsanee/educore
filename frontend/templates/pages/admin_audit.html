@@ -48,6 +48,12 @@ Served by apps.foundation.web_views.AuditLogView at /web/admin/audit/.
       <label class="form-label" for="audit-to">{% translate "Sampai tanggal" %}</label>
       <input class="form-input" type="date" id="audit-to" name="to" value="{{ filters.to }}">
     </div>
+    <div class="form-group" style="flex:0 0 auto;align-self:flex-end">
+      <label class="form-label" for="audit-archived" style="display:flex;gap:6px;align-items:center">
+        <input type="checkbox" id="audit-archived" name="archived" value="1"{% if filters.archived == '1' %} checked{% endif %}>
+        {% translate "Arsip (lebih dari 400 hari)" %}
+      </label>
+    </div>
     <div style="flex:0 0 auto"><button type="submit" class="btn btn-primary">{% translate "Terapkan" %}</button></div>
   </form>
 

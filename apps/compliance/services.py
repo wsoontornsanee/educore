@@ -705,15 +705,20 @@ def _erase_subject_photos(subject_type, subject) -> None:
     thread-local tenant context (management commands, services), and the
     queryset is already pinned to this one subject's rows.
     """
-    from apps.attendance.models import GateEvent
+    from apps.attendance.models import GateEvent, GateEventArchive
 
+    # Events past the NFR-009 window live in the archive table, which has no FK to the
+    # subject: match on the id columns, pinned to the subject's foundation.
     if subject_type == DataSubjectRequestSubjectType.STUDENT:
         if getattr(subject, 'photo_key', ''):
             subject.photo_key = ''
             subject.save(update_fields=['photo_key'])
         GateEvent.all_tenants.filter(student=subject).exclude(photo_key='').update(photo_key='')
+        archived = GateEventArchive.objects.filter(foundation_id=subject.foundation_id, student_id=subject.id)
     else:
         GateEvent.all_tenants.filter(staff=subject).exclude(photo_key='').update(photo_key='')
+        archived = GateEventArchive.objects.filter(foundation_id=subject.foundation_id, staff_id=subject.id)
+    archived.exclude(photo_key='').update(photo_key='')
 
 
 def erase_person(subject_type, subject_id, foundation_id, requested_by, requested_by_name) -> DataSubjectRequest:

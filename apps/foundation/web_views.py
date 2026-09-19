@@ -23,7 +23,7 @@ from apps.identity.models import Foundation, School, User
 from apps.identity.rbac import is_foundation_admin
 
 
-AUDIT_FILTER_KEYS = ('module', 'action', 'school', 'from', 'to')
+AUDIT_FILTER_KEYS = ('module', 'action', 'school', 'from', 'to', 'archived')
 
 
 def read_audit_filters(params):
@@ -66,6 +66,7 @@ class AuditLogView(ConsolePermissionMixin, TemplateView):
             from_date=filters['from'] or None,
             to_date=filters['to'] or None,
             school_ids=school_ids,
+            archived=filters['archived'] == '1',
         )
 
         page_obj, query_string = paginate_queryset(self.request, events, per_page=50)
@@ -124,7 +125,7 @@ class AuditExportView(ConsolePermissionMixin, View):
         job_filters = {key: value for key, value in {
             'module': filters['module'], 'action': filters['action'],
             'school': int(filters['school']) if filters['school'].isdigit() else None,
-            'from': filters['from'], 'to': filters['to'],
+            'from': filters['from'], 'to': filters['to'], 'archived': filters['archived'],
         }.items() if value not in ('', None)}
         school_ids = accessible_school_ids(request.user, self.foundation_id, self.required_permission)
         if school_ids is not None:
