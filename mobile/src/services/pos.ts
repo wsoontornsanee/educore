@@ -183,8 +183,14 @@ export async function checkoutPOSTransaction(options: {
   merchantName?: string;
   terminalName?: string;
   currentTime?: Date;
+  /**
+   * The offline QR token the student paid with (QRS-022). A token-paid sale is always queued rather
+   * than posted live: the batch is where the server ties the sale to the token's single-use nonce.
+   */
+  qrToken?: string;
 }): Promise<POSReceipt> {
-  const { terminalId, student, cartItems, forceOffline, currentTime } = options;
+  const { terminalId, student, cartItems, currentTime, qrToken } = options;
+  const forceOffline = options.forceOffline || !!qrToken;
 
   // Validate spend rules first
   const ruleCheck = checkStudentSpendRules(student, cartItems, currentTime || new Date());
@@ -245,6 +251,7 @@ export async function checkoutPOSTransaction(options: {
       total: subtotal,
       occurred_at,
       client_transaction_id,
+      qr_token: qrToken,
     });
   }
 

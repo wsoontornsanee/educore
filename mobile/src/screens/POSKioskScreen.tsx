@@ -41,6 +41,7 @@ import {
   getPendingPosCount,
   syncPendingPosTransactions,
 } from '../services/posOfflineQueue.ts';
+import { OfflineQrModal } from '../components/OfflineQrModal.tsx';
 
 interface POSKioskScreenProps {
   terminalId?: number;
@@ -77,6 +78,7 @@ export const POSKioskScreen: React.FC<POSKioskScreenProps> = ({
   const [receipt, setReceipt] = useState<POSReceipt | null>(null);
   const [lastReceipt, setLastReceipt] = useState<POSReceipt | null>(null);
   const [voidLoading, setVoidLoading] = useState(false);
+  const [showOfflineQr, setShowOfflineQr] = useState(false);
 
   // Bootstrap session
   useEffect(() => {
@@ -209,7 +211,7 @@ export const POSKioskScreen: React.FC<POSKioskScreenProps> = ({
   }, [activeStudent, cart]);
 
   // Rapid Checkout
-  const handleCheckout = async () => {
+  const handleCheckout = async (qrToken?: string) => {
     if (!session) return;
     if (!activeStudent) {
       Alert.alert('Tap Kartu Siswa', 'Silakan tempelkan kartu atau pilih siswa terlebih dahulu.');
@@ -233,6 +235,7 @@ export const POSKioskScreen: React.FC<POSKioskScreenProps> = ({
         cartItems: cart,
         merchantName: session.merchant_name,
         terminalName: session.terminal_name,
+        qrToken,
       });
 
       const elapsedMs = Date.now() - startTime;
@@ -577,7 +580,7 @@ export const POSKioskScreen: React.FC<POSKioskScreenProps> = ({
                 !ruleCheck.allowed ||
                 checkoutLoading
               }
-              onPress={handleCheckout}
+              onPress={() => handleCheckout()}
             >
               {checkoutLoading ? (
                 <ActivityIndicator color={colors.white} />
@@ -587,9 +590,39 @@ export const POSKioskScreen: React.FC<POSKioskScreenProps> = ({
                 </Text>
               )}
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.qrButton,
+                (!activeStudent || cart.length === 0 || !ruleCheck.allowed) &&
+                  styles.qrButtonDisabled,
+              ]}
+              disabled={
+                !activeStudent ||
+                cart.length === 0 ||
+                !ruleCheck.allowed ||
+                checkoutLoading
+              }
+              onPress={() => setShowOfflineQr(true)}
+              accessibilityRole="button"
+            >
+              <Text style={styles.qrButtonText}>Bayar dengan QR (Offline)</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </View>
+
+      {/* Offline QR payment (spec 18 QRS-022/023) */}
+      <OfflineQrModal
+        visible={showOfflineQr}
+        terminalId={session?.terminal_id ?? terminalId}
+        totalLabel={`Rp ${cartSubtotal.toLocaleString('id-ID')}`}
+        onClose={() => setShowOfflineQr(false)}
+        onPaid={(qrToken) => {
+          setShowOfflineQr(false);
+          handleCheckout(qrToken);
+        }}
+      />
 
       {/* Digital Receipt Modal (WAL-020) */}
       <Modal visible={!!receipt} transparent animationType="fade">
@@ -1115,6 +1148,22 @@ const styles = StyleSheet.create({
   },
   checkoutButtonText: {
     color: colors.white,
+    fontSize: typography.fontSize.base,
+    fontWeight: '700',
+  },
+  qrButton: {
+    height: 48,
+    marginTop: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  qrButtonDisabled: {
+    opacity: 0.4,
+  },
+  qrButtonText: {
+    color: colors.primary,
     fontSize: typography.fontSize.base,
     fontWeight: '700',
   },

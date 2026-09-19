@@ -10,7 +10,7 @@ import {
   setCachedSession,
   voidPOSTransaction,
 } from '../src/services/pos.ts';
-import { clearAllPosForTesting, getPendingPosCount } from '../src/services/posOfflineQueue.ts';
+import { clearAllPosForTesting, getPendingPosCount, getPendingPosTransactions } from '../src/services/posOfflineQueue.ts';
 import { apiClient } from '../src/services/api.ts';
 import type { POSCartItem, POSProduct, POSStudent } from '../src/types/index.ts';
 
@@ -117,6 +117,35 @@ describe('POS Service & Spend Rules', () => {
   });
 
   describe('checkoutPOSTransaction', () => {
+    it('queues a token-paid sale without posting it live, carrying the token (QRS-022)', async () => {
+      await clearAllPosForTesting();
+      const student: POSStudent = { ...mockStudent, balance: 50000, spent_today: 0 };
+      const cart: POSCartItem[] = [{ product: mockProductFood, qty: 1, unit_price: 12000 }];
+      const originalPost = apiClient.post;
+      let livePosts = 0;
+      (apiClient as any).post = async () => {
+        livePosts += 1;
+        return { data: { id: 1 } };
+      };
+      try {
+        const receipt = await checkoutPOSTransaction({
+          terminalId: 1,
+          student,
+          cartItems: cart,
+          qrToken: 'payload.sig',
+          currentTime: new Date('2026-09-16T10:00:00'),
+        });
+        assert.strictEqual(receipt.offline_created, true);
+        assert.strictEqual(livePosts, 0);
+        const pending = await getPendingPosTransactions();
+        assert.strictEqual(pending.length, 1);
+        assert.strictEqual(pending[0].qr_token, 'payload.sig');
+      } finally {
+        (apiClient as any).post = originalPost;
+        await clearAllPosForTesting();
+      }
+    });
+
     it('processes online checkout in ≤3s and outputs complete receipt (WAL-018, WAL-020)', async () => {
       const student: POSStudent = { ...mockStudent, balance: 50000, spent_today: 0 };
       const cart: POSCartItem[] = [{ product: mockProductFood, qty: 1, unit_price: 12000 }];

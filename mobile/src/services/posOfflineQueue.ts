@@ -48,9 +48,15 @@ export async function initPosQueueDb(): Promise<void> {
           status TEXT,
           attempts INTEGER,
           created_at TEXT,
-          last_error TEXT
+          last_error TEXT,
+          qr_token TEXT
         );
       `);
+      // Installs created before QR tokens existed have the table without the column.
+      const columns = (sqliteDb.getAllSync?.(`PRAGMA table_info(pos_sync_queue)`) ?? []) as Array<{ name: string }>;
+      if (columns.length > 0 && !columns.some((c) => c.name === 'qr_token')) {
+        sqliteDb.execSync(`ALTER TABLE pos_sync_queue ADD COLUMN qr_token TEXT;`);
+      }
       return;
     } catch {
       // Fallback to memory
@@ -67,6 +73,8 @@ export async function enqueuePosTransaction(data: {
   total: number;
   occurred_at?: string;
   client_transaction_id?: string;
+  /** Terminal-minted offline QR token (QRS-022) the sale was paid with; the server claims its nonce at sync. */
+  qr_token?: string;
 }): Promise<POSOfflineTransaction> {
   const id = generateUUID();
   const client_transaction_id = data.client_transaction_id || `pos-offline-${generateUUID()}`;
@@ -87,6 +95,7 @@ export async function enqueuePosTransaction(data: {
     attempts: 0,
     created_at,
     last_error: null,
+    qr_token: data.qr_token || null,
   };
 
   if (sqliteDb && typeof sqliteDb.runSync === 'function') {
@@ -95,8 +104,8 @@ export async function enqueuePosTransaction(data: {
       sqliteDb.runSync(
         `INSERT INTO pos_sync_queue (
           id, client_transaction_id, terminal_id, student_id, student_name,
-          items_json, subtotal, total, occurred_at, status, attempts, created_at, last_error
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          items_json, subtotal, total, occurred_at, status, attempts, created_at, last_error, qr_token
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           item.id,
           item.client_transaction_id,
@@ -111,6 +120,7 @@ export async function enqueuePosTransaction(data: {
           item.attempts,
           item.created_at,
           item.last_error || '',
+          item.qr_token || '',
         ]
       );
       return item;
@@ -145,6 +155,7 @@ export async function getPendingPosTransactions(): Promise<POSOfflineTransaction
         attempts: Number(r.attempts),
         created_at: r.created_at,
         last_error: r.last_error || null,
+        qr_token: r.qr_token || null,
       }));
     } catch {
       // Fallback to memory
@@ -193,6 +204,25 @@ export async function updatePosItemStatus(
   }
 }
 
+/** The body of POST /pos/transactions/batch/. `qr_token` is sent only for sales paid with an offline QR. */
+export function buildPosBatchPayload(terminalId: number, items: POSOfflineTransaction[]) {
+  return {
+    terminal_id: terminalId,
+    transactions: items.map((t) => ({
+      client_transaction_id: t.client_transaction_id,
+      student_id: t.student_id,
+      items: t.items.map((i) => ({
+        sku: i.sku,
+        name: i.name,
+        qty: i.qty,
+        unit_price: String(i.unit_price),
+      })),
+      occurred_at: t.occurred_at,
+      ...(t.qr_token ? { qr_token: t.qr_token } : {}),
+    })),
+  };
+}
+
 export async function syncPendingPosTransactions(
   terminalId: number
 ): Promise<{ succeeded: number; failed: number; errors: string[] }> {
@@ -210,20 +240,7 @@ export async function syncPendingPosTransactions(
     await updatePosItemStatus(item.id, 'SYNCING');
   }
 
-  const batchPayload = {
-    terminal_id: terminalId,
-    transactions: itemsToSync.map((t) => ({
-      client_transaction_id: t.client_transaction_id,
-      student_id: t.student_id,
-      items: t.items.map((i) => ({
-        sku: i.sku,
-        name: i.name,
-        qty: i.qty,
-        unit_price: String(i.unit_price),
-      })),
-      occurred_at: t.occurred_at,
-    })),
-  };
+  const batchPayload = buildPosBatchPayload(terminalId, itemsToSync);
 
   try {
     const response = await apiClient.post<{ created: number; skipped: number }>(
