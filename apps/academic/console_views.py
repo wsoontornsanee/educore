@@ -33,6 +33,7 @@ from apps.academic.models import (
     TimetableSubstitution,
 )
 from apps.academic.services import compute_descriptor, get_homework_grading_queue, render_report_card_html
+from apps.academic.class_scope import ClassScope
 from apps.academic.console_actions import permitted_school_ids
 from apps.identity.console_access import StaffConsoleMixin
 from apps.identity.models import Staff
@@ -63,7 +64,9 @@ class ClassListPageView(StaffConsoleMixin, APIView):
         selected_year_id = request.query_params.get('academic_year', '')
         selected_year_id = int(selected_year_id) if selected_year_id.isdigit() else None
 
-        class_groups = ClassGroup.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True)
+        class_groups = ClassScope(request.user, foundation_id).class_groups(
+            ClassGroup.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True)
+        )
         if selected_year_id:
             class_groups = class_groups.filter(academic_year_id=selected_year_id)
         else:
@@ -96,9 +99,9 @@ class ClassDetailPageView(StaffConsoleMixin, APIView):
             return Response({'error': NO_STAFF_PROFILE_MESSAGE}, status=status.HTTP_404_NOT_FOUND)
 
         foundation_id = get_current_foundation_id()
-        class_group = ClassGroup.objects.filter(
+        class_group = ClassScope(request.user, foundation_id).class_groups(ClassGroup.objects.filter(
             id=class_group_id, foundation_id=foundation_id, deleted_at__isnull=True,
-        ).select_related('school', 'academic_year', 'homeroom_teacher__person').first()
+        )).select_related('school', 'academic_year', 'homeroom_teacher__person').first()
         if class_group is None:
             return Response({'error': _("Kelas tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
@@ -177,10 +180,11 @@ class TimetablePageView(StaffConsoleMixin, APIView):
             return Response({'error': NO_STAFF_PROFILE_MESSAGE}, status=status.HTTP_404_NOT_FOUND)
 
         foundation_id = get_current_foundation_id()
+        scope = ClassScope(request.user, foundation_id)
         class_groups = list(
-            ClassGroup.objects.filter(
+            scope.class_groups(ClassGroup.objects.filter(
                 foundation_id=foundation_id, deleted_at__isnull=True, academic_year__is_active=True,
-            ).select_related('school').order_by('school__name', 'grade_level', 'name')
+            )).select_related('school').order_by('school__name', 'grade_level', 'name')
         )
         teachers = list(
             Staff.objects.filter(
@@ -200,14 +204,16 @@ class TimetablePageView(StaffConsoleMixin, APIView):
             date__range=(week_start, week_end), date__iso_week_day=F('slot__day_of_week'),
         ).exclude(status=SubstitutionStatus.DECLINED)
 
-        slots = TimetableSlot.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True)
+        slots = TimetableSlot.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True).filter(
+            scope.q('class_subject__class_group_id', 'class_subject__class_group__school_id')
+        )
         title = None
         grid = build_timetable_grid([])
         if lens is not None:
             kind, object_id = lens
             if kind == 'class':
-                selected = next((c for c in class_groups if c.id == object_id), None) or ClassGroup.objects.filter(
-                    id=object_id, foundation_id=foundation_id, deleted_at__isnull=True,
+                selected = next((c for c in class_groups if c.id == object_id), None) or scope.class_groups(
+                    ClassGroup.objects.filter(id=object_id, foundation_id=foundation_id, deleted_at__isnull=True)
                 ).first()
                 title = selected.name if selected else None
                 slots = slots.filter(class_subject__class_group_id=object_id)
@@ -268,7 +274,13 @@ class GradingQueuePageView(StaffConsoleMixin, APIView):
         raw_class_subject = request.query_params.get('class_subject', '')
         selected_class_subject_id = int(raw_class_subject) if raw_class_subject.isdigit() else None
 
-        queue = get_homework_grading_queue(foundation_id, class_subject_id=selected_class_subject_id)
+        scope = ClassScope(request.user, foundation_id)
+        queue = get_homework_grading_queue(foundation_id, class_subject_id=selected_class_subject_id).filter(
+            scope.q(
+                'homework__class_subject__class_group_id',
+                'homework__class_subject__class_group__school_id',
+            )
+        )
         total_count = queue.count()
         late_count = queue.filter(status=HomeworkSubmissionStatus.LATE).count()
         submissions = list(queue[:GRADING_QUEUE_PAGE_SIZE])
@@ -278,7 +290,7 @@ class GradingQueuePageView(StaffConsoleMixin, APIView):
 
         class_subjects = ClassSubject.objects.filter(
             foundation_id=foundation_id, deleted_at__isnull=True, class_group__academic_year__is_active=True,
-        ).select_related('subject', 'class_group').order_by('class_group__name', 'subject__name')
+        ).filter(scope.q('class_group_id', 'class_group__school_id')).select_related('subject', 'class_group').order_by('class_group__name', 'subject__name')
 
         return render(request, 'pages/academic_grading_queue.html', {
             'submissions': submissions,
@@ -322,10 +334,11 @@ class ReportCardListPageView(StaffConsoleMixin, APIView):
             Term.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True)
             .select_related('academic_year__school').order_by('-start_date', 'academic_year__school__name')
         )
+        scope = ClassScope(request.user, foundation_id)
         class_groups = list(
-            ClassGroup.objects.filter(
+            scope.class_groups(ClassGroup.objects.filter(
                 foundation_id=foundation_id, deleted_at__isnull=True, academic_year__is_active=True,
-            ).select_related('school').order_by('school__name', 'grade_level', 'name')
+            )).select_related('school').order_by('school__name', 'grade_level', 'name')
         )
 
         raw_term = request.query_params.get('term')
@@ -337,7 +350,9 @@ class ReportCardListPageView(StaffConsoleMixin, APIView):
         raw_class = request.query_params.get('class_group', '')
         selected_class_group_id = int(raw_class) if raw_class.isdigit() else None
 
-        cards = ReportCard.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True, is_current=True)
+        cards = ReportCard.objects.filter(
+            foundation_id=foundation_id, deleted_at__isnull=True, is_current=True,
+        ).filter(scope.q('class_group_id', 'class_group__school_id'))
         if selected_term_id:
             cards = cards.filter(term_id=selected_term_id)
         if selected_class_group_id:
@@ -376,8 +391,11 @@ class _ReportCardAccessMixin(StaffConsoleMixin):
         """The report card, or None for a missing Staff profile / unknown / cross-tenant id."""
         if self._resolve_staff(request) is None:
             return None
+        foundation_id = get_current_foundation_id()
         return ReportCard.objects.filter(
-            id=report_card_id, foundation_id=get_current_foundation_id(), deleted_at__isnull=True,
+            id=report_card_id, foundation_id=foundation_id, deleted_at__isnull=True,
+        ).filter(
+            ClassScope(request.user, foundation_id).q('class_group_id', 'class_group__school_id')
         ).select_related(
             'student__person', 'term', 'class_group__school', 'class_group__homeroom_teacher__person',
         ).first()

@@ -17,6 +17,7 @@ from django.utils.translation import gettext as _
 from django.utils.translation import gettext_lazy as _lazy
 from rest_framework.views import APIView
 
+from apps.academic.class_scope import ClassScope
 from apps.academic.models import (
     ClassGroup,
     HomeworkSubmission,
@@ -78,7 +79,9 @@ class _SubmissionAction(_ConsoleWriteAction):
         submission = HomeworkSubmission.objects.filter(
             id=submission_id, foundation_id=get_current_foundation_id(), deleted_at__isnull=True,
             homework__class_subject__class_group__school_id__in=self.write_school_ids(request),
-        ).select_related('student__person', 'homework').first()
+        ).filter(ClassScope(request.user, get_current_foundation_id()).q(
+            'homework__class_subject__class_group_id', 'homework__class_subject__class_group__school_id',
+        )).select_related('student__person', 'homework').first()
         if submission is None:
             raise Http404
         return submission
@@ -135,10 +138,10 @@ class ReportCardGenerateView(_ConsoleWriteAction):
         foundation_id = get_current_foundation_id()
         url = reverse('academic-report-card-list-page')
         raw_class, raw_term = request.data.get('class_group', ''), request.data.get('term', '')
-        class_group = ClassGroup.objects.filter(
+        class_group = ClassScope(request.user, foundation_id).class_groups(ClassGroup.objects.filter(
             id=raw_class if str(raw_class).isdigit() else 0, foundation_id=foundation_id, deleted_at__isnull=True,
             school_id__in=self.write_school_ids(request),
-        ).first()
+        )).first()
         term = Term.objects.filter(
             id=raw_term if str(raw_term).isdigit() else 0, foundation_id=foundation_id, deleted_at__isnull=True,
         ).first()
@@ -160,6 +163,8 @@ class _ReportCardAction(_ConsoleWriteAction):
         report_card = ReportCard.objects.filter(
             id=report_card_id, foundation_id=get_current_foundation_id(), deleted_at__isnull=True,
             class_group__school_id__in=self.write_school_ids(request),
+        ).filter(
+            ClassScope(request.user, get_current_foundation_id()).q('class_group_id', 'class_group__school_id')
         ).first()
         if report_card is None:
             raise Http404

@@ -75,7 +75,7 @@ class ReportCardConsoleTests(TestCase):
         )
         old_class = ClassGroup.objects.create(
             foundation_id=self.foundation.id, school=self.school, academic_year=old_year,
-            grade_level=9, name='IX Lama',
+            grade_level=9, name='IX Lama', homeroom_teacher=self.teacher,
         )
         person = Person.all_tenants.create(foundation_id=self.foundation.id, full_name='Siswa Lama')
         student = Student.all_tenants.create(
