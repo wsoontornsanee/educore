@@ -2,7 +2,8 @@
 {% load i18n console_format %}
 
 {% comment %}
-Page: Kantin & dompet (spec/07 §5, §6). Read-only school-side monitor.
+Page: Kantin & dompet (spec/07 §5, §6). School-side monitor plus, for
+finance.payment.write holders, the refund and reconciliation work queues.
 Served by apps.wallet.web_views.CanteenConsolePageView at /web/wallet/canteen/.
 All money totals are computed server-side (CUR-026); this page only formats them.
 {% endcomment %}
@@ -20,7 +21,108 @@ All money totals are computed server-side (CUR-026); this page only formats them
     {% include "components/_console_school_select.html" with schools=schools school=school %}
   </div>
 
+  {% include "components/_console_flash.html" %}
+
   {% if snapshot %}
+    {% if can_act %}
+    <section class="cn-section" aria-labelledby="canteen-refunds-h">
+      <h2 id="canteen-refunds-h">{% translate "Refund saldo dompet" %} · {{ refunds|length }}</h2>
+      {% if refunds %}
+        <div class="cn-table-wrap">
+          <table class="cn-table">
+            <thead><tr>
+              <th>{% translate "Siswa" %}</th><th class="cn-num">{% translate "Saldo" %}</th><th>{% translate "Diminta" %}</th><th>{% translate "Tindakan" %}</th>
+            </tr></thead>
+            <tbody>
+              {% for r in refunds %}
+                <tr>
+                  <td>{{ r.student_name }}</td>
+                  <td class="cn-num">{{ r.amount|money:r.currency }}</td>
+                  <td class="cn-num">{{ r.requested_at|slice:":10" }}</td>
+                  <td>
+                    <details>
+                      <summary class="cn-link" style="cursor:pointer">{% translate "Bayar ke rekening wali" %}</summary>
+                      <form method="post" action="{% url 'canteen-refund-paid' r.id %}?school_id={{ school.id }}" style="display:flex;flex-direction:column;gap:6px;margin-top:8px;max-width:320px"
+                            onsubmit="return confirm('{% translate "Tandai refund ini sudah dibayar? Dompet akan ditutup." %}')">
+                        {% csrf_token %}
+                        <input class="cn-select" name="bank_name" placeholder="{% translate 'Bank' %}" maxlength="64" required>
+                        <input class="cn-select" name="account_number" placeholder="{% translate 'Nomor rekening' %}" maxlength="64" required>
+                        <input class="cn-select" name="account_holder_name" placeholder="{% translate 'Nama pemilik rekening' %}" maxlength="128" required>
+                        <input class="cn-select" name="reference" placeholder="{% translate 'Referensi transfer (opsional)' %}" maxlength="200">
+                        <button type="submit" class="btn btn-primary">{% translate "Tandai dibayar" %}</button>
+                      </form>
+                    </details>
+                    <details style="margin-top:6px">
+                      <summary class="cn-link" style="cursor:pointer">{% translate "Donasikan ke sekolah" %}</summary>
+                      <form method="post" action="{% url 'canteen-refund-donated' r.id %}?school_id={{ school.id }}" style="display:flex;flex-direction:column;gap:6px;margin-top:8px;max-width:320px"
+                            onsubmit="return confirm('{% translate "Donasikan saldo ini? Dompet akan ditutup dan tindakan ini tidak dapat dibatalkan." %}')">
+                        {% csrf_token %}
+                        <label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" name="donation_consent" required> <span>{% translate "Wali menyetujui secara eksplisit donasi saldo ini." %}</span></label>
+                        <button type="submit" class="btn btn-secondary">{% translate "Donasikan" %}</button>
+                      </form>
+                    </details>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="cn-empty">{% translate "Tidak ada refund yang menunggu." %}</div>
+      {% endif %}
+    </section>
+
+    <section class="cn-section" aria-labelledby="canteen-recon-h">
+      <h2 id="canteen-recon-h">{% translate "Rekonsiliasi kekurangan saldo" %} · {{ reconciliations|length }} · {% translate "eksposur" %} {{ exposure|money:snapshot.currency }}</h2>
+      {% if reconciliations %}
+        <div class="cn-table-wrap">
+          <table class="cn-table">
+            <thead><tr>
+              <th>{% translate "Siswa" %}</th><th>{% translate "Kelas" %}</th><th class="cn-num">{% translate "Kekurangan" %}</th><th class="cn-num">{% translate "Usia (jam)" %}</th><th>{% translate "Tindakan" %}</th>
+            </tr></thead>
+            <tbody>
+              {% for c in reconciliations %}
+                <tr>
+                  <td>{{ c.student_name }}</td>
+                  <td>{{ c.class_name|default:"—" }}</td>
+                  <td class="cn-num">{{ c.shortfall|money:c.currency }}</td>
+                  <td class="cn-num">{{ c.age_hours }}</td>
+                  <td>
+                    <details>
+                      <summary class="cn-link" style="cursor:pointer">{% translate "Lunasi tunai" %}</summary>
+                      <form method="post" action="{% url 'canteen-recon-cash' c.id %}?school_id={{ school.id }}" style="display:flex;flex-direction:column;gap:6px;margin-top:8px;max-width:320px"
+                            onsubmit="return confirm('{% translate "Catat pelunasan tunai ini?" %}')">
+                        {% csrf_token %}
+                        <input class="cn-select" name="amount" inputmode="decimal" value="{{ c.shortfall }}" required>
+                        <input class="cn-select" name="reference" placeholder="{% translate 'Referensi (opsional)' %}" maxlength="200">
+                        <button type="submit" class="btn btn-primary">{% translate "Catat tunai" %}</button>
+                      </form>
+                    </details>
+                    <details style="margin-top:6px">
+                      <summary class="cn-link" style="cursor:pointer">{% translate "Hapus buku" %}</summary>
+                      <form method="post" action="{% url 'canteen-recon-writeoff' c.id %}?school_id={{ school.id }}" style="display:flex;flex-direction:column;gap:6px;margin-top:8px;max-width:320px"
+                            onsubmit="return confirm('{% translate "Hapus buku kekurangan ini? Saldo dompet dipulihkan dan tindakan ini tercatat di jejak audit." %}')">
+                        {% csrf_token %}
+                        <input class="cn-select" name="reason" placeholder="{% translate 'Alasan' %}" maxlength="255" required>
+                        <button type="submit" class="btn btn-secondary">{% translate "Hapus buku" %}</button>
+                      </form>
+                    </details>
+                    <div style="display:flex;gap:12px;margin-top:6px">
+                      <form method="post" action="{% url 'canteen-recon-invoice' c.id %}?school_id={{ school.id }}" onsubmit="return confirm('{% translate "Tagihkan kekurangan ini ke wali sekarang?" %}')">{% csrf_token %}<button type="submit" class="cn-link" style="background:none;border:0;padding:0;cursor:pointer">{% translate "Tagihkan" %}</button></form>
+                      <form method="post" action="{% url 'canteen-recon-resend' c.id %}?school_id={{ school.id }}">{% csrf_token %}<button type="submit" class="cn-link" style="background:none;border:0;padding:0;cursor:pointer">{% translate "Kirim ulang pemberitahuan" %}</button></form>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="cn-empty">{% translate "Tidak ada kasus rekonsiliasi terbuka." %}</div>
+      {% endif %}
+    </section>
+    {% endif %}
+
     <div class="cn-kpis">
       <div class="cn-card"><span class="cn-eyebrow">{% translate "Penjualan hari ini" %}</span><span class="cn-kpi-value">{{ snapshot.sales_total|money:snapshot.currency }}</span></div>
       <div class="cn-card"><span class="cn-eyebrow">{% translate "Transaksi hari ini" %}</span><span class="cn-kpi-value">{{ snapshot.sales_count }}</span></div>
