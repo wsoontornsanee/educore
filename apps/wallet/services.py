@@ -720,7 +720,13 @@ def generate_settlement_statement_pdf(settlement: MerchantSettlement) -> str:
     return stored_file.key
 
 
+@transaction.atomic
 def mark_settlement_paid(settlement: MerchantSettlement) -> MerchantSettlement:
+    """Freeze a settlement as PAID. Takes the merchant lock ``run_merchant_settlement`` takes, then re-reads the
+    row, so a run in flight finishes first (the paid totals are its final ones) and a run that starts after
+    this is refused. The re-read also stops a stale copy from marking an already paid settlement a second time."""
+    Merchant.all_tenants.select_for_update().get(id=settlement.merchant_id, foundation_id=settlement.foundation_id)
+    settlement.refresh_from_db()
     if settlement.status == MerchantSettlementStatus.PAID:
         return settlement
     settlement.status = MerchantSettlementStatus.PAID
