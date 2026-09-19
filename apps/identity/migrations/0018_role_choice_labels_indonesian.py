@@ -18,6 +18,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='roleassignment',
             name='role',
-            field=models.CharField(choices=[('foundation_admin', 'Admin Yayasan'), ('school_admin', 'Admin Sekolah'), ('finance_officer', 'Bendahara'), ('teacher', 'Guru'), ('counsellor', 'Konselor'), ('canteen_operator', 'Operator Kantin'), ('clinic_officer', 'Petugas UKS'), ('parent', 'Wali Murid')], db_index=True, max_length=32),
+            field=models.CharField(choices=[('foundation_admin', 'Admin Yayasan'), ('school_admin', 'Admin Sekolah'), ('finance_officer', 'Bendahara'), ('teacher', 'Guru'), ('counsellor', 'Guru BK'), ('canteen_operator', 'Operator Kantin'), ('clinic_officer', 'Petugas UKS'), ('parent', 'Wali Murid')], db_index=True, max_length=32),
         ),
     ]

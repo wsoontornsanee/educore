@@ -368,7 +368,7 @@ class RoleAssignment(TenantModel):
         (ROLE_SCHOOL_ADMIN, _('Admin Sekolah')),
         (ROLE_FINANCE_OFFICER, _('Bendahara')),
         (ROLE_TEACHER, _('Guru')),
-        (ROLE_COUNSELLOR, _('Konselor')),
+        (ROLE_COUNSELLOR, _('Guru BK')),
         (ROLE_CANTEEN_OPERATOR, _('Operator Kantin')),
         (ROLE_CLINIC_OFFICER, _('Petugas UKS')),
         (ROLE_PARENT, _('Wali Murid')),
