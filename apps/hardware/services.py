@@ -148,7 +148,9 @@ def check_device_health(timeout_minutes: int = 15) -> dict:
                         },
                         school_id=device.school_id,
                         recipient_user=recipient,
-                        dedupe_key=f"device_offline:{device.id}:{now.date().isoformat()}",
+                        # Per recipient: dispatch_intent dedupes on the key alone, so a key without the
+                        # recipient would reach only the first admin and silently skip the rest.
+                        dedupe_key=f"device_offline:{device.id}:{recipient.id}:{now.date().isoformat()}",
                     )
                     alerts_dispatched += 1
             elif is_critical_gate:

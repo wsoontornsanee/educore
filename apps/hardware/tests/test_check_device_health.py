@@ -80,6 +80,22 @@ class CheckDeviceHealthTests(TestCase):
         intent = NotificationIntent.objects.get(category=NotificationCategory.DEVICE_OFFLINE)
         self.assertEqual(intent.recipient_user_id, self.admin_user.id)
 
+    def test_every_school_admin_is_alerted_not_just_the_first(self):
+        second = User.objects.create(
+            foundation_id=self.foundation.id, phone_e164="+6281200000002",
+            email="admin2@nusantara.sch.id", full_name="Admin Dua",
+        )
+        RoleAssignment.objects.create(
+            foundation_id=self.foundation.id, user=second, role=RoleAssignment.ROLE_SCHOOL_ADMIN,
+            scope_type=RoleAssignment.SCOPE_SCHOOL, scope_id=self.school.id,
+        )
+        self._make_device(minutes_ago=30)
+        with patch('apps.hardware.services.timezone.now', return_value=FIXED_NOON_WIB):
+            check_device_health(timeout_minutes=15)
+        intents = NotificationIntent.all_tenants.filter(category=NotificationCategory.DEVICE_OFFLINE)
+        self.assertEqual({i.recipient_user_id for i in intents}, {self.admin_user.id, second.id})
+        self.assertEqual(intents.count(), 2)
+
     def test_does_not_alert_for_non_critical_device_class(self):
         self._make_device(device_class=DeviceClass.KIOSK, minutes_ago=30)
         with patch('apps.hardware.services.timezone.now', return_value=FIXED_NOON_WIB):
