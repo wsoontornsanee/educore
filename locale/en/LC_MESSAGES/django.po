@@ -8699,3 +8699,33 @@ msgstr "PIN temporarily locked. Try again later."
 
 msgid "PIN salah."
 msgstr "Wrong PIN."
+
+msgid "Cara input"
+msgstr "Entry mode"
+
+msgid "Diinput siswa (QR)"
+msgstr "Student-entered (QR)"
+
+msgid "Petugas"
+msgstr "Operator"
+
+msgid "Sanggahan selesai (30 hari)"
+msgstr "Resolved disputes (30 days)"
+
+msgid "Hasil"
+msgstr "Outcome"
+
+msgid "Belum ada sanggahan yang diselesaikan dalam 30 hari terakhir."
+msgstr "No disputes resolved in the last 30 days."
+
+msgid "Laporan harian"
+msgstr "Daily report"
+
+msgid "Penjualan per titik pembayaran"
+msgstr "Sales by payment point"
+
+msgid "Titik pembayaran"
+msgstr "Payment point"
+
+msgid "Kasir / terminal (bukan lembar QR)"
+msgstr "Cashier / terminal (not a QR sheet)"

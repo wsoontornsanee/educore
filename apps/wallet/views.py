@@ -90,6 +90,7 @@ from apps.wallet.qr_decals import (
     close_payment_point,
     create_payment_point,
     get_counter_feed,
+    get_sales_by_payment_point,
     print_decal,
     render_decal_pdf,
     revoke_decal,
@@ -394,17 +395,7 @@ def _get_terminal_in_ceiling(request, foundation_id, terminal_id, permission):
 
 
 def _sales_by_payment_point(qs):
-    """QRS-040: totals per printed-decal counter; everything not sold through a decal is one row with a null point."""
-    rows = {}
-    for tx in qs.select_related('qr_decal__payment_point'):
-        point = tx.qr_decal.payment_point if tx.qr_decal_id else None
-        row = rows.setdefault(point.id if point else None, {
-            'payment_point_id': point.id if point else None, 'payment_point_name': point.name if point else None,
-            'count': 0, 'total': Decimal('0.00'),
-        })
-        row['count'] += 1
-        row['total'] += tx.total
-    return [{**r, 'total': str(r['total'])} for r in rows.values()]
+    return [{**r, 'total': str(r['total'])} for r in get_sales_by_payment_point(qs)]
 
 
 class TenantScopedCatalogViewSet(viewsets.ModelViewSet):

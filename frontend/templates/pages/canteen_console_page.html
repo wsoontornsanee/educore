@@ -161,12 +161,12 @@ All money totals are computed server-side (CUR-026); this page only formats them
     </section>
 
     {% if can_qr_manage or qr_terminals or can_qr_points %}
-    <section class="cn-section" aria-labelledby="canteen-qr-h">
+    <section class="cn-section" aria-labelledby="canteen-qr-h" style="padding-bottom:8px">
       <h2 id="canteen-qr-h">{% translate "QR Charge" %}</h2>
-      {% if can_qr_manage %}<p><a class="cn-link" href="{% url 'canteen-qr-page' %}?school_id={{ school.id }}">{% translate "Pengaturan, sanggahan, dan sinyal QR Charge" %}</a></p>{% endif %}
-      {% if can_qr_points %}<p><a class="cn-link" href="{% url 'canteen-qr-points' %}?school_id={{ school.id }}">{% translate "Titik pembayaran & lembar QR tercetak" %}</a></p>{% endif %}
+      {% if can_qr_manage %}<p style="margin:8px 16px"><a class="cn-link" href="{% url 'canteen-qr-page' %}?school_id={{ school.id }}">{% translate "Pengaturan, sanggahan, dan sinyal QR Charge" %}</a></p>{% endif %}
+      {% if can_qr_points %}<p style="margin:8px 16px"><a class="cn-link" href="{% url 'canteen-qr-points' %}?school_id={{ school.id }}">{% translate "Titik pembayaran & lembar QR tercetak" %}</a></p>{% endif %}
       {% for t in qr_terminals %}
-        <p><a class="cn-link" href="{% url 'canteen-qr-terminal' t.id %}?school_id={{ school.id }}">{% translate "Buka layar QR" %}: {{ t.merchant.name }} · {{ t.name|default:t.device_id }}</a></p>
+        <p style="margin:8px 16px"><a class="cn-link" href="{% url 'canteen-qr-terminal' t.id %}?school_id={{ school.id }}">{% translate "Buka layar QR" %}: {{ t.merchant.name }} · {{ t.name|default:t.device_id }}</a></p>
       {% endfor %}
     </section>
     {% endif %}
@@ -177,7 +177,7 @@ All money totals are computed server-side (CUR-026); this page only formats them
         <div class="cn-table-wrap">
           <table class="cn-table">
             <thead><tr>
-              <th>{% translate "Waktu" %}</th><th>{% translate "Siswa" %}</th><th>{% translate "Merchant" %}</th><th>{% translate "Status" %}</th><th class="cn-num">{% translate "Total" %}</th>
+              <th>{% translate "Waktu" %}</th><th>{% translate "Siswa" %}</th><th>{% translate "Merchant" %}</th><th>{% translate "Cara input" %}</th><th>{% translate "Status" %}</th><th class="cn-num">{% translate "Total" %}</th>
             </tr></thead>
             <tbody>
               {% for t in snapshot.recent_transactions %}
@@ -185,6 +185,13 @@ All money totals are computed server-side (CUR-026); this page only formats them
                   <td class="cn-num">{{ t.occurred_at|date:"d M H:i" }}</td>
                   <td>{{ t.student.person.full_name|default:t.student.nis }}</td>
                   <td>{{ t.merchant.name }}</td>
+                  <td>
+                    {% if t.entry_mode == 'SELF_ENTERED' %}
+                      <span class="cn-badge is-warn">{% translate "Diinput siswa (QR)" %}</span>
+                      {% if t.qr_decal_id %}<div class="text-caption">{{ t.qr_decal.payment_point.name }}</div>{% endif %}
+                      {% if t.confirmation_code %}<div class="text-caption" style="font-family:'IBM Plex Mono',monospace;letter-spacing:.12em">{{ t.confirmation_code }}</div>{% endif %}
+                    {% else %}<span class="text-caption">{% translate "Petugas" %}</span>{% endif %}
+                  </td>
                   <td>
                     <span class="cn-badge{% if t.status == 'COMPLETED' %} is-ok{% elif t.status == 'REJECTED' %} is-danger{% else %} is-warn{% endif %}">{{ t.get_status_display }}</span>
                     {% if t.offline_created %}<span class="cn-badge">{% translate "Offline" %}</span>{% endif %}

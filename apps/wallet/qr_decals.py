@@ -7,7 +7,7 @@ and an audit-logged, operator-only PDF.
 """
 import re
 import secrets
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Optional, Tuple
 
@@ -290,3 +290,30 @@ def get_counter_feed(point: POSPaymentPoint, now=None) -> dict:
             for tx in rows
         ],
     }
+
+
+# --- console reporting (QRS-003, QRS-040) --------------------------------------------------------
+
+def local_day_bounds(school, day: Optional[date] = None):
+    """(day, start, end) of the school's local day; ``day`` defaults to today there."""
+    from apps.attendance.services import get_school_timezone
+
+    tz = get_school_timezone(school)
+    day = day or timezone.now().astimezone(tz).date()
+    start = datetime.combine(day, time.min, tzinfo=tz)
+    return day, start, start + timedelta(days=1)
+
+
+def get_sales_by_payment_point(transactions) -> list:
+    """QRS-040: COMPLETED sales grouped by printed-decal counter. Anything not sold through a decal (card-tap and
+    terminal-QR sales) is one row whose payment point is None. Totals are summed here in Decimal."""
+    rows = {}
+    for tx in transactions.select_related('qr_decal__payment_point'):
+        point = tx.qr_decal.payment_point if tx.qr_decal_id else None
+        row = rows.setdefault(point.id if point else None, {
+            'payment_point_id': point.id if point else None, 'payment_point_name': point.name if point else None,
+            'count': 0, 'total': Decimal('0.00'),
+        })
+        row['count'] += 1
+        row['total'] += tx.total
+    return sorted(rows.values(), key=lambda r: (r['payment_point_name'] is None, r['payment_point_name'] or ''))
