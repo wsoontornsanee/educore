@@ -3,6 +3,7 @@ from datetime import timedelta
 from decimal import Decimal
 from unittest import mock
 
+from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -152,7 +153,7 @@ class OfflineTokenChargeTests(_OfflineBase):
         token = self.mint()
         self.assertRefused('INSUFFICIENT_BALANCE', self.pay, '10001', key='big', token=token)
         rejected = POSTransaction.objects.get(status=POSTransactionStatus.REJECTED)
-        self.assertEqual(rejected.qr_offline_nonce, '')
+        self.assertIsNone(rejected.qr_offline_nonce)
         self.assertEqual(rejected.reject_reason, 'INSUFFICIENT_BALANCE')
         # A rejected attempt must not claim the nonce: the same QR still works for a valid amount.
         self.pay('1000', key='ok', token=token)
@@ -262,3 +263,26 @@ class BatchApiCarriesQrTokenTests(_OfflineBase):
     def test_entry_without_token_still_requires_student_and_items(self):
         res = self.post([{'client_transaction_id': 'api-qr-3'}])
         self.assertEqual(res.status_code, 400)
+
+
+class NonceConstraintTests(_OfflineBase):
+    """The nonce's uniqueness must be a real database constraint: MySQL silently skips conditional ones
+    (models.W036), which left replay/race protection to an application pre-check."""
+
+    def _sale(self, client_id, nonce):
+        return POSTransaction.objects.create(
+            foundation_id=self.fx['foundation'].id, merchant=self.merchant, terminal=self.terminal, student=self.student,
+            items=[], subtotal=Decimal('1000.00'), commission=Decimal('0.00'), total=Decimal('1000.00'),
+            occurred_at=timezone.now(), status=POSTransactionStatus.COMPLETED, client_transaction_id=client_id,
+            qr_offline_nonce=nonce,
+        )
+
+    def test_same_nonce_on_one_terminal_is_rejected_by_the_database(self):
+        self._sale('a', 'nonce-1')
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            self._sale('b', 'nonce-1')
+
+    def test_rows_without_a_nonce_never_collide(self):
+        for n in range(3):
+            self._sale(f'plain-{n}', None)
+        self.assertEqual(POSTransaction.objects.filter(qr_offline_nonce__isnull=True).count(), 3)

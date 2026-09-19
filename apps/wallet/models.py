@@ -285,8 +285,10 @@ class POSTransaction(TenantModel):
         POSTerminalSessionKey, on_delete=models.PROTECT, null=True, blank=True, related_name='+',
         help_text=_("Set when this sale was authenticated by an offline-minted QR session token"),
     )
+    # NULL, not '', marks "no offline token": MySQL has no conditional unique constraints (models.W036),
+    # and NULLs never collide in a plain unique constraint, so the single-use rule is enforced on every engine.
     qr_offline_nonce = models.CharField(
-        max_length=64, blank=True, default='',
+        max_length=64, null=True, blank=True, default=None,
         help_text=_("Nonce from the offline-minted QR token; unique per terminal to reject replays (WAL-015)"),
     )
     reject_reason = models.CharField(
@@ -306,7 +308,6 @@ class POSTransaction(TenantModel):
             ),
             models.UniqueConstraint(
                 fields=['foundation_id', 'terminal', 'qr_offline_nonce'],
-                condition=~models.Q(qr_offline_nonce=''),
                 name='unique_pos_transaction_qr_offline_nonce_per_terminal',
             ),
         ]

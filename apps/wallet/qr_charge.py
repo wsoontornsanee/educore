@@ -189,7 +189,7 @@ class _Target:
     session: Optional[POSQRSession] = None
     decal: Optional[POSQRDecal] = None
     offline_key: Optional[POSTerminalSessionKey] = None
-    offline_nonce: str = ''
+    offline_nonce: Optional[str] = None
 
     @property
     def is_static(self) -> bool:

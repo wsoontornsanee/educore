@@ -1005,7 +1005,7 @@ def process_offline_pos_batch(terminal, transactions: list) -> dict:
 
         # QRS-022/024: a terminal-signed token the student already spent online was debited server-side
         # at that moment. Syncing it is a reconciliation, never a second sale.
-        qr_offline_key, qr_offline_nonce = None, ''
+        qr_offline_key, qr_offline_nonce = None, None
         qr_token = tx_data.get('qr_token')
         occurred_at = tx_data.get('occurred_at') or timezone.now()
         if qr_token:
