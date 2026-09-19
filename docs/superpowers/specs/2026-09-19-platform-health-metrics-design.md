@@ -14,7 +14,7 @@ Out of scope, logged as Notion Todos: the other RPT-013 metrics (collection rate
 Nothing records that a user was active: login is not audited and JWT refresh is stateless.
 
 - `identity.User.last_activity_date` (`DateField`, null): the gate.
-- `identity.UserActivityDay` (`foundation_id`, `user_id`, `date`; unique on the three): the history WAU is computed from. Ids and dates only, no PII (RPT-015). Not a `TenantModel` soft-delete table: append-only, never edited.
+- `identity.UserActivityDay` (`foundation_id`, `user_id`, `date`; unique on the three): the history WAU is computed from. Ids and dates only, no PII (RPT-015). A `TenantModel` with the soft-delete uniqueness marker like the other tenant tables (append-only in practice).
 - `EduCoreJWTAuthentication.authenticate` already loads the user on each request. After the tenant context is set, if `user.last_activity_date != today` (Asia/Jakarta calendar date) it runs `User.all_tenants.filter(pk=user.pk).exclude(last_activity_date=today).update(last_activity_date=today)`. Only a request whose update matches a row (`== 1`) inserts the `UserActivityDay` row, so concurrent first requests of a day insert once. Cost: no extra read; at most two writes per user per day.
 - Recording failure must never fail the request: wrapped so an exception is logged and swallowed.
 - Recorded for every authenticated user (parents, staff); WAU filters to parents at read time.
@@ -26,7 +26,7 @@ Nothing records that a user was active: login is not audited and JWT refresh is 
 - `active_parents` = distinct users with a `UserActivityDay` in `[week_start, week_start+6]` who hold an active `GuardianLink` to an active student of that school.
 - `enrolled_students` = students with status `ACTIVE` at that school at refresh time.
 - WAU% = `active_parents / enrolled_students` (spec wording: accounts over students, so it can exceed 100% when two parents share a child; raw counts are stored so it can be re-derived). A school with 0 enrolled students has no percentage.
-- New refresher `refresh_parent_weekly_activity(scope, since=None)` registered in `REFRESHERS`. `dashboard` recomputes the current week. A week is frozen once it has ended and has been computed after its end (mirrors RPT-008: past student status cannot be reconstructed, so the denominator must be captured at the time). `full` also backfills missing past weeks from `UserActivityDay`, using the current denominator, only when no row exists.
+- New refresher `refresh_parent_weekly_activity(scope)` registered in `REFRESHERS`. `dashboard` recomputes the current week. A week is frozen once it has ended and has been computed after its end (mirrors RPT-008: past student status cannot be reconstructed, so the denominator must be captured at the time). `full` also backfills missing past weeks from `UserActivityDay`, using the current denominator, only when no row exists.
 
 ## 3. At-risk flag (RPT-014)
 
