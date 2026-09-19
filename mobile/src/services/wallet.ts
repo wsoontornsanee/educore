@@ -58,7 +58,25 @@ export function formatRupiah(amount: number | string | null | undefined): string
   if (amount === null || amount === undefined || amount === '') return 'Rp 0';
   const num = typeof amount === 'string' ? parseFloat(amount) : amount;
   if (isNaN(num)) return 'Rp 0';
-  return 'Rp ' + Math.round(num).toLocaleString('id-ID');
+  const rounded = Math.round(num);
+  // The sign goes before the currency ("-Rp 18.000"), not between it and the digits ("Rp -18.000").
+  return (rounded < 0 ? '-' : '') + 'Rp ' + Math.abs(rounded).toLocaleString('id-ID');
+}
+
+/**
+ * Whether a ledger row adds to the balance. TOPUP and REFUND are credits and PURCHASE is a debit whatever sign the
+ * amount carries; ADJUSTMENT can go either way, so it follows its amount.
+ */
+export function isCreditTransaction(type: string, amount: number | string | null | undefined): boolean {
+  if (type === 'TOPUP' || type === 'REFUND') return true;
+  if (type === 'PURCHASE') return false;
+  return Number(amount) >= 0;
+}
+
+/** A ledger amount for a history row: its magnitude with the direction as an explicit +/- (never "-Rp -18.000"). */
+export function formatSignedRupiah(type: string, amount: number | string | null | undefined): string {
+  const magnitude = formatRupiah(Math.abs(Number(amount) || 0));
+  return `${isCreditTransaction(type, amount) ? '+' : '-'}${magnitude}`;
 }
 
 /**

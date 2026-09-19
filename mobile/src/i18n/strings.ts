@@ -274,6 +274,14 @@ export const strings: StringMap = {
   'clinic.outcome.SENT_HOME':    { 'id-ID': 'Dipulangkan',                'en-US': 'Sent Home' },
   'clinic.outcome.REFERRED':     { 'id-ID': 'Dirujuk',                    'en-US': 'Referred' },
 
+  // ── Wallet history row labels ─────────────────────────────────────
+  'wallet.tx.TOPUP':             { 'id-ID': 'Isi saldo',                  'en-US': 'Top-up' },
+  'wallet.tx.PURCHASE':          { 'id-ID': 'Belanja',                    'en-US': 'Purchase' },
+  'wallet.tx.REFUND':            { 'id-ID': 'Pengembalian',               'en-US': 'Refund' },
+  'wallet.tx.ADJUSTMENT':        { 'id-ID': 'Penyesuaian',                'en-US': 'Adjustment' },
+  'wallet.tx.default_topup':     { 'id-ID': 'Top-up saldo',               'en-US': 'Balance top-up' },
+  'wallet.tx.default_purchase':  { 'id-ID': 'Belanja kantin',             'en-US': 'Canteen purchase' },
+
   // ── Pickup authorisation (parent app, ATT-015) ────────────────────
   'profile.section.pickup':      { 'id-ID': 'Penjemputan',                'en-US': 'Pickup' },
   'profile.pickup.manage':       { 'id-ID': 'Kelola penjemputan',         'en-US': 'Manage pickup' },

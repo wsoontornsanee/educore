@@ -130,6 +130,17 @@ export const ParentShell: React.FC<ParentShellProps> = ({ activeTab, onTabChange
   // for a single frame while onTabChange('HOME') propagates back up to App.tsx.
   const invoicesBlocked = activeTab === 'INVOICES' && !showInvoicesTab;
 
+  const tabs: Array<{ key: ParentTab; label: string }> = [
+    { key: 'HOME', label: t('tab.home', locale) },
+    { key: 'ATTENDANCE', label: t('tab.attendance', locale) },
+    { key: 'ACADEMIC', label: t('tab.academic', locale) },
+    { key: 'MESSAGES', label: t('tab.messages', locale) },
+    { key: 'WALLET', label: t('tab.wallet', locale) },
+    { key: 'NUTRITION', label: t('tab.nutrition', locale) },
+    ...(showInvoicesTab ? [{ key: 'INVOICES' as ParentTab, label: t('tab.invoices', locale) }] : []),
+    { key: 'PROFILE', label: t('tab.profile', locale) },
+  ];
+
   return (
     <SafeAreaView style={styles.root}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.childSwitcher} contentContainerStyle={styles.childSwitcherContent}>
@@ -149,32 +160,26 @@ export const ParentShell: React.FC<ParentShellProps> = ({ activeTab, onTabChange
       <View style={styles.content}>{invoicesBlocked ? null : children({ selectedChild, allChildren })}</View>
 
       <View style={styles.tabBar} accessibilityRole="tabbar">
-        <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('HOME')} accessibilityRole="tab" accessibilityState={{ selected: activeTab === 'HOME' }} accessibilityLabel={t('tab.home', locale)}>
-          <Text style={[styles.tabLabel, activeTab === 'HOME' && styles.tabLabelActive]}>{t('tab.home', locale)}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('ATTENDANCE')} accessibilityRole="tab" accessibilityState={{ selected: activeTab === 'ATTENDANCE' }} accessibilityLabel={t('tab.attendance', locale)}>
-          <Text style={[styles.tabLabel, activeTab === 'ATTENDANCE' && styles.tabLabelActive]}>{t('tab.attendance', locale)}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('ACADEMIC')} accessibilityRole="tab" accessibilityState={{ selected: activeTab === 'ACADEMIC' }} accessibilityLabel={t('tab.academic', locale)}>
-          <Text style={[styles.tabLabel, activeTab === 'ACADEMIC' && styles.tabLabelActive]}>{t('tab.academic', locale)}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('MESSAGES')} accessibilityRole="tab" accessibilityState={{ selected: activeTab === 'MESSAGES' }} accessibilityLabel={t('tab.messages', locale)}>
-          <Text style={[styles.tabLabel, activeTab === 'MESSAGES' && styles.tabLabelActive]}>{t('tab.messages', locale)}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('WALLET')} accessibilityRole="tab" accessibilityState={{ selected: activeTab === 'WALLET' }} accessibilityLabel={t('tab.wallet', locale)}>
-          <Text style={[styles.tabLabel, activeTab === 'WALLET' && styles.tabLabelActive]}>{t('tab.wallet', locale)}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('NUTRITION')} accessibilityRole="tab" accessibilityState={{ selected: activeTab === 'NUTRITION' }} accessibilityLabel={t('tab.nutrition', locale)}>
-          <Text style={[styles.tabLabel, activeTab === 'NUTRITION' && styles.tabLabelActive]}>{t('tab.nutrition', locale)}</Text>
-        </TouchableOpacity>
-        {showInvoicesTab && (
-          <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('INVOICES')} accessibilityRole="tab" accessibilityState={{ selected: activeTab === 'INVOICES' }} accessibilityLabel={t('tab.invoices', locale)}>
-            <Text style={[styles.tabLabel, activeTab === 'INVOICES' && styles.tabLabelActive]}>{t('tab.invoices', locale)}</Text>
+        {tabs.map(({ key, label }) => (
+          <TouchableOpacity
+            key={key}
+            style={styles.tabItem}
+            onPress={() => onTabChange(key)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeTab === key }}
+            accessibilityLabel={label}
+          >
+            {/* Up to eight tabs share the width: a long word shrinks to fit instead of wrapping mid-word. */}
+            <Text
+              style={[styles.tabLabel, activeTab === key && styles.tabLabelActive]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
+            >
+              {label}
+            </Text>
           </TouchableOpacity>
-        )}
-        <TouchableOpacity style={styles.tabItem} onPress={() => onTabChange('PROFILE')} accessibilityRole="tab" accessibilityState={{ selected: activeTab === 'PROFILE' }} accessibilityLabel={t('tab.profile', locale)}>
-          <Text style={[styles.tabLabel, activeTab === 'PROFILE' && styles.tabLabelActive]}>{t('tab.profile', locale)}</Text>
-        </TouchableOpacity>
+        ))}
       </View>
 
     </SafeAreaView>
@@ -194,7 +199,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary, borderRadius: radius.button, marginBottom: spacing.sm,
   },
   retryText: { color: colors.white, fontWeight: typography.fontWeight.bold, lineHeight: typography.lineHeight.base },
-  childSwitcher: { backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.border },
+  // A horizontal ScrollView defaults to flexGrow: 1, so in this column it shares the free height with `content`
+  // and the chip row grew to about half the screen. It must size to its chips.
+  childSwitcher: { flexGrow: 0, backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.border },
   childSwitcherContent: { paddingHorizontal: spacing.base, paddingVertical: spacing.sm },
   // PAR-016: chip is a primary control (child switcher) — keep it >= 44dp tall.
   childChip: {

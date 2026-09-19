@@ -19,8 +19,10 @@ import {
   Modal,
   Alert,
   ActivityIndicator,
+  SafeAreaView,
   useWindowDimensions,
 } from 'react-native';
+import { categoryLabel } from '../constants/posCategories.ts';
 import { colors, typography, spacing } from '../theme/tokens.ts';
 import type {
   POSCartItem,
@@ -306,6 +308,10 @@ export const POSKioskScreen: React.FC<POSKioskScreenProps> = ({
   }
 
   return (
+    <>
+      {/* The red header runs up under the status bar / dynamic island, so the top inset is painted in its colour. */}
+      <SafeAreaView style={styles.safeTop} />
+      <SafeAreaView style={styles.safeArea}>
     <View style={styles.container}>
       {/* Top Header */}
       <View style={styles.header}>
@@ -384,7 +390,7 @@ export const POSKioskScreen: React.FC<POSKioskScreenProps> = ({
                       selectedCategory === cat && styles.categoryTabTextActive,
                     ]}
                   >
-                    {cat}
+                    {categoryLabel(cat)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -719,10 +725,14 @@ export const POSKioskScreen: React.FC<POSKioskScreenProps> = ({
         </View>
       </Modal>
     </View>
+      </SafeAreaView>
+    </>
   );
 };
 
 const styles = StyleSheet.create({
+  safeTop: { flex: 0, backgroundColor: colors.primary },
+  safeArea: { flex: 1, backgroundColor: colors.surface },
   container: {
     flex: 1,
     backgroundColor: colors.surface,
