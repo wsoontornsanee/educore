@@ -41,6 +41,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'library.read',
         'payroll.read', 'payroll.write',
         'hardware.read', 'hardware.write',
+        'pos.manage', 'pos.collect',
         'audit_log.read',
         'reporting.read',
         'analytics.event.write',
@@ -58,6 +59,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'library.read', 'library.write',
         'payroll.read',
         'hardware.read', 'hardware.write',
+        'pos.manage', 'pos.collect',
         'audit_log.read',
         'reporting.read',
         'analytics.event.write',
@@ -93,6 +95,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'student_records.read',
         'wallet.topup.read',
         'wallet.topup.write',
+        'pos.manage', 'pos.collect',
         'analytics.event.write',
     },
     ROLE_CLINIC_OFFICER: {

@@ -10,6 +10,7 @@ import hmac
 import secrets
 from datetime import timedelta
 from decimal import ROUND_HALF_UP, Decimal
+from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 import segno
@@ -22,6 +23,9 @@ from django.utils.translation import gettext as _
 from apps.core.services import audit
 from apps.wallet.models import (
     POSEntryMode,
+    POSPaymentPointStatus,
+    POSQRDecal,
+    POSQRDecalStatus,
     POSQRSession,
     POSTerminalStatus,
     POSTransaction,
@@ -40,6 +44,7 @@ from apps.wallet.services import (
 
 QR_SESSION_TTL_SECONDS = 120  # QRS-005 default `qr_session_ttl_seconds`
 _TOKEN_SALT = 'wallet.qr.session'
+DECAL_TOKEN_SALT = 'wallet.qr.decal'
 # No 0/O/1/I so an operator can match the code by eye across a counter.
 _CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
@@ -75,6 +80,9 @@ _REFUSAL_TEXT = {
     'QR_MODE_REQUIRES_ITEMISED': lambda: _(
         "Bayar QR dimatikan karena wali kamu memblokir beberapa item. Tap kartumu."
     ),
+    'QR_DECAL_REVOKED': lambda: _("Lembar ini sudah tidak berlaku. Minta petugas lembar yang terbaru."),
+    'QR_DECAL_EXPIRED': lambda: _("Lembar ini sudah kedaluwarsa. Minta petugas lembar yang terbaru."),
+    'PAYMENT_POINT_CLOSED': lambda: _("Titik pembayaran ini sedang ditutup."),
     'AMOUNT_INVALID': lambda: _("Jumlah harus lebih dari nol."),
     'WALLET_FROZEN': lambda: _("Dompetmu sedang dibekukan. Hubungi wali atau sekolah."),
     'CURRENCY_MISMATCH': lambda: _("Mata uang dompet tidak sesuai dengan kantin ini."),
@@ -152,17 +160,56 @@ def cancel_qr_session(session: POSQRSession) -> POSQRSession:
     return session
 
 
-def _load_session(token: str, student, lock: bool = False) -> POSQRSession:
-    """Resolve ``token`` to its session and fail closed, in order: signature, tenant/school, use, expiry.
+def effective_cap(merchant, static: bool = False) -> Decimal:
+    """QRS-004/008: the school cap, and for a printed decal the lower of it and ``static_qr_max``."""
+    cap = merchant.school.qr_self_amount_max
+    return min(cap, merchant.static_qr_max) if static else cap
 
-    Tenant/school is checked before use/expiry so a foreign scan learns nothing (QRS-009).
-    """
-    try:
-        payload = signing.loads(token, salt=_TOKEN_SALT)
-        session_id, nonce = int(payload['s']), str(payload['n'])
-    except (signing.BadSignature, KeyError, TypeError, ValueError):
-        raise _refuse('QR_TOKEN_INVALID')
 
+@dataclass
+class _Target:
+    """What a scanned token points at: a terminal session (single use) or a printed decal (reusable)."""
+    session: Optional[POSQRSession] = None
+    decal: Optional[POSQRDecal] = None
+
+    @property
+    def is_static(self) -> bool:
+        return self.decal is not None
+
+    @property
+    def merchant(self):
+        return self.decal.payment_point.merchant if self.decal else self.session.merchant
+
+    @property
+    def terminal(self):
+        return None if self.decal else self.session.terminal
+
+    @property
+    def nonce(self) -> str:
+        return (self.decal or self.session).nonce
+
+    @property
+    def foundation_id(self) -> int:
+        return (self.decal or self.session).foundation_id
+
+    @property
+    def label(self) -> str:
+        if self.decal:
+            return self.decal.payment_point.name
+        return self.session.terminal.name or self.session.terminal.device_id
+
+
+def _parse_token(token: str):
+    for kind, salt, key in (('SESSION', _TOKEN_SALT, 's'), ('DECAL', DECAL_TOKEN_SALT, 'd')):
+        try:
+            payload = signing.loads(token, salt=salt)
+            return kind, int(payload[key]), str(payload['n'])
+        except (signing.BadSignature, KeyError, TypeError, ValueError):
+            continue
+    raise _refuse('QR_TOKEN_INVALID')
+
+
+def _load_session(session_id: int, nonce: str, student, lock: bool) -> POSQRSession:
     # all_tenants: the scanning student's tenant is authoritative, not the ambient context.
     qs = POSQRSession.all_tenants.select_related('merchant', 'merchant__school', 'terminal')
     if lock:
@@ -179,9 +226,41 @@ def _load_session(token: str, student, lock: bool = False) -> POSQRSession:
     return session
 
 
-def _check_mode_allowed(student, merchant) -> None:
-    """QRS-001/002/017: merchant and guardian switches, and the itemised-blocks refusal."""
-    if not merchant.is_active or not merchant.qr_self_amount_enabled:
+def _load_decal(decal_id: int, nonce: str, student) -> POSQRDecal:
+    decal = POSQRDecal.all_tenants.select_related(
+        'payment_point', 'payment_point__merchant', 'payment_point__merchant__school',
+    ).filter(id=decal_id, deleted_at__isnull=True).first()
+    if decal is None or not hmac.compare_digest(decal.nonce, nonce):
+        raise _refuse('QR_TOKEN_INVALID')
+    merchant = decal.payment_point.merchant
+    if decal.foundation_id != student.foundation_id or merchant.school_id != student.school_id:
+        raise _refuse('MERCHANT_FOREIGN_TENANT')
+    now = timezone.now()
+    if decal.status == POSQRDecalStatus.REVOKED or (
+        decal.status == POSQRDecalStatus.SUPERSEDED and (decal.grace_until is None or decal.grace_until <= now)
+    ):
+        raise _refuse('QR_DECAL_REVOKED')
+    if decal.expires_on is not None and decal.expires_on < timezone.localdate():
+        raise _refuse('QR_DECAL_EXPIRED')
+    if decal.payment_point.status != POSPaymentPointStatus.ACTIVE:
+        raise _refuse('PAYMENT_POINT_CLOSED')
+    return decal
+
+
+def _load_target(token: str, student, lock: bool = False) -> _Target:
+    """Resolve ``token`` and fail closed, in order: signature, tenant/school, then state.
+
+    Tenant/school is checked before use/expiry so a foreign scan learns nothing (QRS-009).
+    """
+    kind, target_id, nonce = _parse_token(token)
+    if kind == 'SESSION':
+        return _Target(session=_load_session(target_id, nonce, student, lock))
+    return _Target(decal=_load_decal(target_id, nonce, student))
+
+
+def _check_mode_allowed(student, merchant, static: bool = False) -> None:
+    """QRS-001/002/008/017: merchant and guardian switches, and the itemised-blocks refusal."""
+    if not merchant.is_active or not merchant.qr_self_amount_enabled or (static and not merchant.static_qr_enabled):
         raise _refuse('QR_MODE_DISABLED_BY_MERCHANT')
     rule = SpendRule.objects.filter(foundation_id=student.foundation_id, student=student).first()
     if rule is None:
@@ -193,21 +272,24 @@ def _check_mode_allowed(student, merchant) -> None:
 
 
 def resolve_qr_session(token: str, student) -> Dict[str, Any]:
-    """QRS-011: what the app shows before the keypad — stall, own balance, and the cap."""
-    session = _load_session(token, student)
-    merchant = session.merchant
-    _check_mode_allowed(student, merchant)
+    """QRS-011/037: what the app shows before the keypad — stall or counter, own balance, and the cap."""
+    target = _load_target(token, student)
+    merchant = target.merchant
+    _check_mode_allowed(student, merchant, static=target.is_static)
     wallet = get_or_create_wallet(student)
     if wallet.status != WalletStatus.ACTIVE:
         raise _refuse('WALLET_FROZEN')
     return {
-        'session_id': session.id,
+        'type': 'STATIC' if target.is_static else 'SESSION',
+        'session_id': target.session.id if target.session else None,
         'merchant_name': merchant.name,
-        'terminal_name': session.terminal.name or session.terminal.device_id,
+        'terminal_name': target.label,
+        'payment_point_name': target.decal.payment_point.name if target.decal else None,
+        'payment_point_location': target.decal.payment_point.location if target.decal else None,
         'balance': wallet.balance,
         'currency': wallet.currency,
-        'max_amount': merchant.school.qr_self_amount_max,
-        'expires_at': session.expires_at,
+        'max_amount': effective_cap(merchant, target.is_static),
+        'expires_at': target.session.expires_at if target.session else None,
     }
 
 
@@ -227,11 +309,12 @@ def _existing_charge(student, client_transaction_id: str) -> Optional[POSTransac
     ).first()
 
 
-def _log_rejection(session: POSQRSession, student, amount: Decimal, client_transaction_id: str) -> None:
+def _log_rejection(target: _Target, student, amount: Decimal, client_transaction_id: str) -> None:
     POSTransaction.objects.create(
-        foundation_id=session.foundation_id, merchant=session.merchant, terminal=session.terminal, student=student,
+        foundation_id=target.foundation_id, merchant=target.merchant, terminal=target.terminal, student=student,
         items=[], subtotal=amount, commission=Decimal('0.00'), total=amount, occurred_at=timezone.now(),
-        status=POSTransactionStatus.REJECTED, entry_mode=POSEntryMode.SELF_ENTERED, qr_session=session,
+        status=POSTransactionStatus.REJECTED, entry_mode=POSEntryMode.SELF_ENTERED,
+        qr_session=target.session, qr_decal=target.decal,
         # REJECTED rows must not occupy the idempotency slot: the student may retry the same key.
         client_transaction_id=f"{client_transaction_id}:rej:{secrets.token_hex(4)}"[:128],
     )
@@ -241,8 +324,9 @@ def charge_qr_session(token: str, student, amount, idempotency_key: str) -> POST
     """QRS-012/016..020: debit the student's own wallet for a self-entered amount.
 
     Idempotent on ``idempotency_key``: a retry returns the original sale and never a second debit.
-    Every check runs under the session and wallet row locks, so two phones on one token yield one
-    charge and the limit/balance checks see a fresh balance.
+    Every check runs under the session and wallet row locks, so two phones on one terminal token yield
+    one charge and the limit/balance checks see a fresh balance. A static decal is reusable, so it is
+    never consumed; the wallet row lock and idempotency key alone serialise a student's charges.
     """
     amount = _quantize(amount)
     client_transaction_id = f"qr:{student.id}:{idempotency_key}"[:128]
@@ -251,23 +335,24 @@ def charge_qr_session(token: str, student, amount, idempotency_key: str) -> POST
     if existing:
         return existing
 
-    session = None
+    target = None
     try:
         with transaction.atomic():
-            session = _load_session(token, student, lock=True)
-            merchant = session.merchant
-            _check_mode_allowed(student, merchant)
+            target = _load_target(token, student, lock=True)
+            merchant = target.merchant
+            _check_mode_allowed(student, merchant, static=target.is_static)
 
             if amount <= Decimal('0.00'):
                 raise _refuse('AMOUNT_INVALID')
+            cap = effective_cap(merchant, target.is_static)
             school = merchant.school
-            if amount > school.qr_self_amount_max:
-                raise _above_cap_error(school.qr_self_amount_max, school.base_currency)
+            if amount > cap:
+                raise _above_cap_error(cap, school.base_currency)
 
             wallet = _get_locked_wallet(get_or_create_wallet(student).id, student.foundation_id)
             if wallet.status != WalletStatus.ACTIVE:
                 raise _refuse('WALLET_FROZEN')
-            if wallet.currency != merchant.school.base_currency:
+            if wallet.currency != school.base_currency:
                 raise _refuse('CURRENCY_MISMATCH')
 
             check = check_spend_allowed(wallet, amount)
@@ -286,29 +371,34 @@ def charge_qr_session(token: str, student, amount, idempotency_key: str) -> POST
 
             commission = (amount * merchant.commission_bps / Decimal('10000')).quantize(Decimal('0.01'))
             pos_tx = POSTransaction.objects.create(
-                foundation_id=session.foundation_id, merchant=merchant, terminal=session.terminal, student=student,
+                foundation_id=target.foundation_id, merchant=merchant, terminal=target.terminal, student=student,
                 items=[], subtotal=amount, commission=commission, total=amount, occurred_at=occurred_at,
                 status=POSTransactionStatus.COMPLETED, client_transaction_id=client_transaction_id,
-                wallet_transaction=wallet_tx, entry_mode=POSEntryMode.SELF_ENTERED, qr_session=session,
+                wallet_transaction=wallet_tx, entry_mode=POSEntryMode.SELF_ENTERED,
+                qr_session=target.session, qr_decal=target.decal,
             )
-            pos_tx.confirmation_code = derive_confirmation_code(pos_tx.id, session.nonce)
+            pos_tx.confirmation_code = derive_confirmation_code(pos_tx.id, target.nonce)
             pos_tx.save(update_fields=['confirmation_code', 'updated_at'])
 
-            session.consumed_at = occurred_at
-            session.consumed_by_student = student
-            session.save(update_fields=['consumed_at', 'consumed_by_student', 'updated_at'])
+            if target.session:
+                target.session.consumed_at = occurred_at
+                target.session.consumed_by_student = student
+                target.session.save(update_fields=['consumed_at', 'consumed_by_student', 'updated_at'])
 
             audit(
                 action='wallet.pos_transaction.completed',
                 entity_type='POSTransaction',
                 entity_id=pos_tx.id,
-                foundation_id=session.foundation_id,
-                diff={'merchant': merchant.name, 'total': str(amount), 'entry_mode': POSEntryMode.SELF_ENTERED},
+                foundation_id=target.foundation_id,
+                diff={
+                    'merchant': merchant.name, 'total': str(amount), 'entry_mode': POSEntryMode.SELF_ENTERED,
+                    'static': target.is_static,
+                },
             )
             return pos_tx
     except QRChargeError as exc:
-        if session is not None and exc.code in _LOGGED_REJECTIONS:
-            _log_rejection(session, student, amount, client_transaction_id)
+        if target is not None and exc.code in _LOGGED_REJECTIONS:
+            _log_rejection(target, student, amount, client_transaction_id)
         raise
 
 

@@ -155,7 +155,7 @@ def render_pos_receipt(pos_tx, width: int = WIDTH_58MM) -> bytes:
 
     b.centered(school.name if school else 'Kantin Sekolah')
     b.centered(pos_tx.merchant.name)
-    if pos_tx.terminal.name:
+    if pos_tx.terminal and pos_tx.terminal.name:
         b.centered(pos_tx.terminal.name)
 
     occurred = timezone.localtime(pos_tx.occurred_at)
