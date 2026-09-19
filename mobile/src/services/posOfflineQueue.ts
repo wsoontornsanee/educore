@@ -6,6 +6,7 @@
  * POST /pos/transactions/batch/.
  */
 import { apiClient } from './api.ts';
+import { classifyBatchResults, type ServerBatchResult } from './posAdapter.ts';
 import type { POSOfflineTransaction } from '../types/index.ts';
 
 // In-memory store fallback for node/jest environment
@@ -225,15 +226,11 @@ export function buildPosBatchPayload(terminalId: number, items: POSOfflineTransa
 
 export async function syncPendingPosTransactions(
   terminalId: number
-): Promise<{ succeeded: number; failed: number; errors: string[] }> {
+): Promise<{ succeeded: number; reconciled: number; failed: number; errors: string[] }> {
   const pending = await getPendingPosTransactions();
-  if (pending.length === 0) {
-    return { succeeded: 0, failed: 0, errors: [] };
-  }
-
   const itemsToSync = pending.filter((t) => t.terminal_id === terminalId);
   if (itemsToSync.length === 0) {
-    return { succeeded: 0, failed: 0, errors: [] };
+    return { succeeded: 0, reconciled: 0, failed: 0, errors: [] };
   }
 
   for (const item of itemsToSync) {
@@ -243,19 +240,27 @@ export async function syncPendingPosTransactions(
   const batchPayload = buildPosBatchPayload(terminalId, itemsToSync);
 
   try {
-    const response = await apiClient.post<{ created: number; skipped: number }>(
+    const response = await apiClient.post<{ results: ServerBatchResult[] }>(
       '/pos/transactions/batch/',
       batchPayload
     );
+    const outcome = classifyBatchResults(
+      itemsToSync.map((t) => t.client_transaction_id),
+      response.data.results ?? [],
+    );
 
+    // A sale the server refused stays in the queue as FAILED with the reason; it is never marked synced.
+    const reasons = new Map(outcome.rejected.map((r) => [r.id, r.reason]));
     for (const item of itemsToSync) {
-      await updatePosItemStatus(item.id, 'SYNCED');
+      const reason = reasons.get(item.client_transaction_id);
+      await updatePosItemStatus(item.id, reason ? 'FAILED' : 'SYNCED', reason);
     }
 
     return {
-      succeeded: response.data.created + (response.data.skipped || 0),
-      failed: 0,
-      errors: [],
+      succeeded: outcome.accepted.length,
+      reconciled: outcome.reconciled,
+      failed: outcome.rejected.length,
+      errors: outcome.rejected.map((r) => r.reason),
     };
   } catch (error: any) {
     const errorMsg = error?.response?.data?.error || error?.message || 'Network sync error';
@@ -264,6 +269,7 @@ export async function syncPendingPosTransactions(
     }
     return {
       succeeded: 0,
+      reconciled: 0,
       failed: itemsToSync.length,
       errors: [errorMsg],
     };

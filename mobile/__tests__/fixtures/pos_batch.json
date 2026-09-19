@@ -1,0 +1,22 @@
+{
+  "results": [
+    {
+      "client_transaction_id": "pos-a",
+      "status": "COMPLETED",
+      "receipt_escpos_base64": "G0A="
+    },
+    {
+      "client_transaction_id": "pos-b",
+      "status": "COMPLETED",
+      "reconciled": true,
+      "confirmation_code": "F6TV",
+      "total": "28000.00",
+      "receipt_escpos_base64": "G0A="
+    },
+    {
+      "client_transaction_id": "pos-c",
+      "status": "OFFLINE_FLOOR_EXCEEDED",
+      "receipt_escpos_base64": "G0A="
+    }
+  ]
+}
