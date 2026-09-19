@@ -11,6 +11,13 @@ otherwise silently poison unrelated later tests hitting the same endpoint.
 import pytest
 
 
+def pytest_configure(config):
+    # Django's default PBKDF2 hasher costs ~0.1s per password; tests create and check thousands.
+    # Test-only: production and local settings keep the real hasher.
+    from django.conf import settings
+    settings.PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
+
+
 @pytest.fixture(autouse=True)
 def _reset_cache_between_tests():
     from django.core.cache import cache
