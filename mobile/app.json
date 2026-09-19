@@ -33,9 +33,16 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "EduCore memakai kamera untuk memindai kode QR pembayaran kantin."
+          "cameraPermission": "EduCore memakai kamera untuk memindai kode QR pembayaran kantin.",
+          "recordAudioAndroid": false
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "68d7a971-c1e9-4c74-aa01-dc4f588f486e"
+      }
+    },
+    "owner": "nat.wutti"
   }
 }
