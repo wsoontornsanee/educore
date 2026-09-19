@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import PlatformRoleAssignment
+from .models import ModulePrice, PlatformRoleAssignment
 
 
 @admin.register(PlatformRoleAssignment)
@@ -19,3 +19,12 @@ class PlatformRoleAssignmentAdmin(admin.ModelAdmin):
         """
         qs = super().get_queryset(request)
         return qs.select_related('user')
+
+
+@admin.register(ModulePrice)
+class ModulePriceAdmin(admin.ModelAdmin):
+    """EduCore's subscription price list (RPT-010). Add a row with a later `effective_from` to change a
+    price; do not edit an old one, since closed months were charged at it."""
+    list_display = ('plan_tier', 'module_key', 'currency', 'unit_price', 'effective_from')
+    list_filter = ('plan_tier', 'module_key', 'currency')
+    ordering = ('plan_tier', 'module_key', '-effective_from')

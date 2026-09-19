@@ -1,6 +1,12 @@
 """Feature Entitlements Engine (spec/02 §6, IAM-023, IAM-024)."""
+import calendar
+import datetime
 from typing import Optional
-from .models import FoundationEntitlement
+from zoneinfo import ZoneInfo
+
+from django.db.models import Q
+
+from .models import EntitlementChange, Foundation, FoundationEntitlement
 
 # Canonical Module Keys (spec/02 §6, IAM-025)
 MODULE_ACADEMIC = FoundationEntitlement.MODULE_ACADEMIC
@@ -91,3 +97,43 @@ def set_module_entitlement(
         }
     )
     return entitlement
+
+
+def entitled_days_in_month(foundation_id: int, school_id: int, month: datetime.date) -> dict[str, int]:
+    """For each module, the number of days of `month` it was entitled for one school (RPT-010).
+
+    Rebuilt from `EntitlementChange`, resolving each day exactly as `is_module_entitled` does now: the
+    school's own value, else the foundation-wide one, else enabled. A day counts when the module was
+    entitled at the END of that day in the foundation's timezone, so switching a module off part way
+    through a day still bills that day, and switching it on part way through does too. Changes are read
+    from the whole history up to the end of the month, so a value set months ago carries forward.
+    """
+    month = month.replace(day=1)
+    days_in_month = calendar.monthrange(month.year, month.month)[1]
+    tz = ZoneInfo(Foundation.objects.values_list('timezone', flat=True).get(pk=foundation_id))
+    last_day = month.replace(day=days_in_month)
+
+    # (scope school id or None, module) -> value in force, None = no own value
+    state: dict[tuple[Optional[int], str], Optional[bool]] = {}
+    changes = [
+        (change.effective_from.astimezone(tz).date(), change)
+        for change in EntitlementChange.all_tenants.filter(
+            Q(school_id__isnull=True) | Q(school_id=school_id), foundation_id=foundation_id,
+        ).order_by('effective_from', 'id')
+    ]
+    changes = [(day, change) for day, change in changes if day <= last_day]
+
+    days = {module: 0 for module in ALL_MODULES}
+    position = 0
+    for offset in range(days_in_month):
+        day = month + datetime.timedelta(days=offset)
+        while position < len(changes) and changes[position][0] <= day:
+            change = changes[position][1]
+            state[(change.school_id, change.module_key)] = change.enabled
+            position += 1
+        for module in ALL_MODULES:
+            own = state.get((school_id, module))
+            value = own if own is not None else state.get((None, module))
+            if value is None or value:
+                days[module] += 1
+    return days
