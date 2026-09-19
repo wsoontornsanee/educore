@@ -39,6 +39,10 @@ class ActionTestBase(TestCase):
             RoleAssignment.SCOPE_SCHOOL, self.school1.id, staff_school=self.school1, name='Scoped',
         )
 
+    def tearDown(self):
+        # Views set the tenant thread-local; don't leak it into neighbouring test modules.
+        clear_current_foundation_id()
+
 
 class DiscrepancyResolveTests(ActionTestBase):
     def setUp(self):

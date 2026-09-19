@@ -8276,3 +8276,5 @@ msgstr "Confirm that the student types the amount and the operator must verify i
 
 msgid "Sesi QR tidak ditemukan."
 msgstr "QR session not found."
+msgid "Terjadi kesalahan saat memproses permintaan. Silakan coba lagi."
+msgstr "Something went wrong while processing the request. Please try again."

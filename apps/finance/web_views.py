@@ -14,6 +14,7 @@ approving/rejecting discounts and write-offs, cash entry) are POST-only views
 message and redirect back to the page. Approve/reject authority (foundation
 admin) is enforced by the services, not by the views.
 """
+import logging
 import re
 from decimal import Decimal
 
@@ -56,6 +57,8 @@ from apps.identity.models import Student
 from apps.identity.nav import has_staff_profile
 from apps.identity.rbac import has_permission_in_any_scope, is_foundation_admin
 from educore.middleware.tenancy import get_current_foundation_id, tenant_context
+
+logger = logging.getLogger(__name__)
 
 PAGE_SIZE = 25
 RECENT_PAYMENTS = 20
@@ -165,6 +168,11 @@ class FinanceActionView(FinanceConsoleGateMixin, View):
             messages.error(request, ' '.join(exc.messages))
         except ValueError as exc:
             messages.error(request, str(exc))
+        except Exception:
+            # The atomic block already rolled back. Never leak the raw error
+            # text (may contain data) to the page; the traceback is logged.
+            logger.exception('finance console action failed: %s', type(self).__name__)
+            messages.error(request, _('Terjadi kesalahan saat memproses permintaan. Silakan coba lagi.'))
         else:
             messages.success(request, message)
         return redirect(self.redirect_url(obj))
@@ -374,7 +382,10 @@ class ReceivablesConsoleView(FinanceConsoleView):
             'debtors': debtors,
             'pending_discounts': list(pending_discounts),
             'pending_write_offs': list(pending_write_offs),
-            'can_decide': is_foundation_admin(self.request.user, self.foundation_id),
+            'can_decide': (
+                is_foundation_admin(self.request.user, self.foundation_id)
+                and has_permission_in_any_scope(self.request.user, 'finance.invoice.write', self.foundation_id)
+            ),
         }
 
 
