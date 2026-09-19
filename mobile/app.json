@@ -20,11 +20,7 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#C8102E"
-      },
-      "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
-      ]
+      }
     },
     "plugins": [
       [
@@ -37,7 +33,8 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "EduCore memakai kamera untuk memindai kode QR pembayaran kantin."
+          "cameraPermission": "EduCore memakai kamera untuk memindai kode QR pembayaran kantin.",
+          "recordAudioAndroid": false
         }
       ]
     ],
