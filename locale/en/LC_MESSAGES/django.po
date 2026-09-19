@@ -8903,3 +8903,11 @@ msgstr "Refund currency (%(currency)s) does not match the payment currency (%(pa
 #, python-format
 msgid "Total pengembalian dana (%(total)s) melebihi nominal pembayaran yang diselesaikan (%(amount)s)."
 msgstr "Total refunded (%(total)s) exceeds the settled payment amount (%(amount)s)."
+
+#: apps/reporting/models.py
+msgid "Ids of the students counted, in ascending order"
+msgstr "Ids of the students counted, in ascending order"
+
+#: apps/reporting/models.py
+msgid "When the roster was taken (same instant as the count)"
+msgstr "When the roster was taken (same instant as the count)"

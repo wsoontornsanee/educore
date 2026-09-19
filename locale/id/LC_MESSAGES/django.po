@@ -4260,3 +4260,11 @@ msgstr ""
 #: apps/wallet/qr_oversight.py
 msgid "Pembayaran ini sudah dibatalkan dan dikembalikan penuh, sehingga sanggahan tidak dapat dikabulkan."
 msgstr ""
+
+#: apps/reporting/models.py
+msgid "Ids of the students counted, in ascending order"
+msgstr ""
+
+#: apps/reporting/models.py
+msgid "When the roster was taken (same instant as the count)"
+msgstr ""
