@@ -16,6 +16,7 @@ admin) is enforced by the services, not by the views.
 """
 import logging
 import re
+import secrets
 from decimal import Decimal
 
 from django.contrib import messages
@@ -178,6 +179,29 @@ class FinanceActionView(FinanceConsoleGateMixin, View):
         return redirect(self.redirect_url(obj))
 
 
+FORM_TOKENS_SESSION_KEY = 'finance_console_form_tokens'
+MAX_FORM_TOKENS = 20
+
+
+def issue_form_token(session):
+    """Single-use token for a money-moving form, kept in the caller's session.
+    Each page load issues its own token so several open tabs all work; the
+    oldest are dropped past MAX_FORM_TOKENS so the session stays small."""
+    token = secrets.token_urlsafe(16)
+    session[FORM_TOKENS_SESSION_KEY] = (session.get(FORM_TOKENS_SESSION_KEY, []) + [token])[-MAX_FORM_TOKENS:]
+    return token
+
+
+def consume_form_token(session, token):
+    """True exactly once per issued token (back+resubmit, retries and replays get False)."""
+    tokens = session.get(FORM_TOKENS_SESSION_KEY, [])
+    if not token or token not in tokens:
+        return False
+    tokens.remove(token)
+    session[FORM_TOKENS_SESSION_KEY] = tokens
+    return True
+
+
 class BillingConsoleView(FinanceConsoleView):
     """Tagihan & pembayaran: filterable invoice list + latest payments."""
     template_name = 'pages/finance_billing.html'
@@ -227,12 +251,14 @@ class BillingConsoleView(FinanceConsoleView):
             badge, label = PAYMENT_BADGES[payment.status]
             payments.append({'payment': payment, 'badge': badge, 'badge_label': label})
 
+        can_record_cash = has_permission_in_any_scope(self.request.user, 'finance.invoice.write', self.foundation_id)
         return {
             'rows': rows,
             'page': page,
             'totals': totals,
             'payments': payments,
-            'can_record_cash': has_permission_in_any_scope(self.request.user, 'finance.invoice.write', self.foundation_id),
+            'can_record_cash': can_record_cash,
+            'cash_token': issue_form_token(self.request.session) if can_record_cash else None,
             'status_choices': [(value, INVOICE_BADGES[value][1]) for value in InvoiceStatus.values],
             'filters': {'status': status, 'period': period, 'q': q},
             'filter_querystring': '&'.join(
@@ -280,6 +306,9 @@ class CashPaymentView(FinanceActionView):
         return matches[0]
 
     def perform(self, obj):
+        # Single-use form token: a replayed/resubmitted form must never record a second payment.
+        if not consume_form_token(self.request.session, self.request.POST.get('form_token', '')):
+            raise ValueError(_('Formulir ini sudah dikirim atau kedaluwarsa. Muat ulang halaman lalu coba lagi.'))
         amount = self._parse_amount(self.request.POST.get('amount', ''))
         student = self._find_student(self.request.POST.get('nis', '').strip())
         payment = record_cash_payment(

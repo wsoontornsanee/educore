@@ -8278,3 +8278,6 @@ msgid "Sesi QR tidak ditemukan."
 msgstr "QR session not found."
 msgid "Terjadi kesalahan saat memproses permintaan. Silakan coba lagi."
 msgstr "Something went wrong while processing the request. Please try again."
+
+msgid "Formulir ini sudah dikirim atau kedaluwarsa. Muat ulang halaman lalu coba lagi."
+msgstr "This form was already submitted or has expired. Reload the page and try again."
