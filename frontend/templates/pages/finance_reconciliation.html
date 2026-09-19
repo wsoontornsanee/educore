@@ -65,7 +65,7 @@
                 {% csrf_token %}
                 <select name="resolution" required aria-label="{% translate 'Penyelesaian' %}">
                   <option value="" selected disabled>{% translate "Pilih tindakan" %}</option>
-                  <option value="MANUAL_SETTLED">{% translate "Selesaikan manual" %}</option>
+                  {% if d.payment_id %}<option value="MANUAL_SETTLED">{% translate "Selesaikan manual" %}</option>{% endif %}
                   <option value="WAIVED">{% translate "Abaikan" %}</option>
                   <option value="ESCALATED">{% translate "Teruskan ke tim keuangan" %}</option>
                 </select>

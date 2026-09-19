@@ -17,6 +17,8 @@ import logging
 from decimal import Decimal
 
 from django.db import transaction
+from django.db.models import CharField, Exists, OuterRef
+from django.db.models.functions import Cast
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
@@ -25,7 +27,9 @@ from apps.finance.models import (
     DiscrepancyResolution,
     DiscrepancyType,
     GatewaySettlementBatch,
+    LedgerJournal,
     Payment,
+    PaymentAllocation,
     PaymentDiscrepancy,
     PaymentStatus,
     SettlementBatchStatus,
@@ -357,6 +361,7 @@ def resolve_discrepancy(
     """Manually resolve a PaymentDiscrepancy (called by API view).
 
     Allowed transitions: PENDING -> MANUAL_SETTLED | WAIVED | ESCALATED.
+    MANUAL_SETTLED needs a linked Payment (a MISSING_IN_SYSTEM discrepancy has none).
     Raises ValueError on invalid state or resolution value.
     """
     valid_resolutions = {
@@ -376,6 +381,14 @@ def resolve_discrepancy(
             _("Selisih #%(id)s sudah berstatus %(resolution)s dan tidak dapat diselesaikan ulang.") % {
                 'id': discrepancy_id, 'resolution': discrepancy.get_resolution_display(),
             }
+        )
+    if resolution == DiscrepancyResolution.MANUAL_SETTLED and discrepancy.payment_id is None:
+        # MISSING_IN_SYSTEM: the gateway holds money EduCore has no Payment for. There is
+        # nothing to settle, allocate or journal, so "resolving" it as settled would only
+        # record a claim that no books back. Waive or escalate it instead.
+        raise ValueError(
+            _("Selisih #%(id)s tidak memiliki pembayaran terkait sehingga tidak dapat diselesaikan manual. "
+              "Pilih Abaikan atau Teruskan ke tim keuangan.") % {'id': discrepancy_id}
         )
 
     with transaction.atomic():
@@ -455,3 +468,56 @@ def _batch_summary(batch: 'GatewaySettlementBatch', dry_run: bool) -> dict:
         'mismatch': batch.mismatch_count,
         'dry_run': dry_run,
     }
+
+
+def find_settled_payments_missing_books(foundation_id=None, school_id=None):
+    """Read-only data-repair report: SETTLED payments whose settlement never fully
+    reached the books — the ones the old status-only reconciliation paths produced.
+
+    Flags per payment:
+      NO_JOURNAL     no LedgerJournal(ref_type=PAYMENT) — the money never hit the ledger
+                     (the definite defect);
+      NO_ALLOCATION  no PaymentAllocation — legitimate for a pure overpayment/credit,
+                     so a review flag, not proof of a defect;
+      NO_RECEIPT     no receipt number.
+    Only payments with at least one flag are returned, oldest settlement first.
+    Nothing is written; fixing them is a separate, confirmed step.
+    """
+    payments = Payment.all_tenants.filter(status=PaymentStatus.SETTLED, deleted_at__isnull=True)
+    if foundation_id is not None:
+        payments = payments.filter(foundation_id=foundation_id)
+    if school_id is not None:
+        payments = payments.filter(school_id=school_id)
+    payments = payments.annotate(
+        has_journal=Exists(LedgerJournal.all_tenants.filter(
+            foundation_id=OuterRef('foundation_id'), ref_type='PAYMENT',
+            ref_id=Cast(OuterRef('id'), CharField()),
+        )),
+        has_allocation=Exists(PaymentAllocation.all_tenants.filter(
+            foundation_id=OuterRef('foundation_id'), payment_id=OuterRef('id'), deleted_at__isnull=True,
+        )),
+    ).order_by('settled_at', 'id')
+
+    rows = []
+    for payment in payments.iterator():
+        flags = []
+        if not payment.has_journal:
+            flags.append('NO_JOURNAL')
+        if not payment.has_allocation:
+            flags.append('NO_ALLOCATION')
+        if not payment.receipt_number:
+            flags.append('NO_RECEIPT')
+        if flags:
+            rows.append({
+                'payment_id': payment.id,
+                'foundation_id': payment.foundation_id,
+                'school_id': payment.school_id,
+                'student_id': payment.student_id,
+                'reference': payment.reference,
+                'channel': payment.channel,
+                'amount': payment.amount,
+                'currency': payment.currency,
+                'settled_at': payment.settled_at,
+                'flags': flags,
+            })
+    return rows

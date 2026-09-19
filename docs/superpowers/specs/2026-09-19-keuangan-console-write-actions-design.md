@@ -118,3 +118,7 @@ New user-facing strings use `gettext`/`{% translate %}` with Indonesian source t
 ## Rollout
 
 Additive: three URL registrations, view classes, template partial, and small template changes. No migrations. No feature flag; the actions are gated by the same RBAC permissions as the API.
+
+## Update: MISSING_IN_SYSTEM and the data-repair report
+
+`resolve_discrepancy(MANUAL_SETTLED)` now refuses a discrepancy with no linked Payment (a MISSING_IN_SYSTEM record): there is nothing to allocate or journal, so recording it as settled would claim money the books do not hold. It raises an id-ID `ValueError` before any state change (the console flashes it, the API returns 400). WAIVED and ESCALATED still work, and the console no longer offers "Selesaikan manual" on payment-less rows. `manage.py report_unbooked_settled_payments` is a read-only report of SETTLED payments missing a ledger journal, allocation or receipt number (the leftovers of the old status-only paths); it never writes. AMOUNT_MISMATCH settling at the system amount still awaits finance sign-off.

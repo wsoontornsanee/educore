@@ -157,12 +157,43 @@ class ManualSettleTests(ReconFixture):
         self.payment.refresh_from_db()
         self.assertEqual(self.payment.status, PaymentStatus.PENDING)
 
-    def test_discrepancy_without_a_linked_payment_only_records_the_resolution(self):
+    def test_manual_settle_of_a_discrepancy_without_a_payment_is_refused(self):
+        """MISSING_IN_SYSTEM: the gateway holds money EduCore has no Payment for. Nothing can
+        be allocated or journalled, so 'settled' must not be recorded as if it had been."""
         discrepancy = self._discrepancy()
         PaymentDiscrepancy.all_tenants.filter(pk=discrepancy.pk).update(payment=None)
-        result = self._resolve(discrepancy)
-        self.assertEqual(result.resolution, DiscrepancyResolution.MANUAL_SETTLED)
+        with self.assertRaisesMessage(ValueError, 'tidak memiliki pembayaran terkait'):
+            self._resolve(discrepancy)
+        discrepancy.refresh_from_db()
+        self.assertEqual(discrepancy.resolution, DiscrepancyResolution.PENDING)  # untouched, still open
+        self.assertIsNone(discrepancy.resolved_at)
         self.assertFalse(LedgerJournal.objects.filter(ref_type='PAYMENT').exists())
+        self.assertFalse(AuditEvent.objects.filter(
+            action='finance.reconciliation.discrepancy_resolved', entity_id=str(discrepancy.id)).exists())
+
+    def test_waive_and_escalate_still_work_without_a_payment(self):
+        for resolution in (DiscrepancyResolution.WAIVED, DiscrepancyResolution.ESCALATED):
+            discrepancy = self._discrepancy()
+            PaymentDiscrepancy.all_tenants.filter(pk=discrepancy.pk).update(payment=None)
+            self.assertEqual(self._resolve(discrepancy, resolution).resolution, resolution)
+
+    def test_api_returns_400_for_manual_settle_without_a_payment(self):
+        from rest_framework.test import APIClient
+        from apps.identity.models import RoleAssignment
+        RoleAssignment.all_tenants.create(
+            foundation_id=self.foundation.id, user=self.user, role='finance_officer',
+            scope_type=RoleAssignment.SCOPE_FOUNDATION, scope_id=self.foundation.id,
+        )
+        discrepancy = self._discrepancy()
+        PaymentDiscrepancy.all_tenants.filter(pk=discrepancy.pk).update(payment=None)
+        client = APIClient()
+        client.force_authenticate(user=self.user)
+        res = client.post(
+            f'/api/v1/finance/reconciliation/discrepancies/{discrepancy.id}/resolve/',
+            {'resolution': 'MANUAL_SETTLED'}, format='json',
+        )
+        self.assertEqual(res.status_code, 400, res.content)
+        self.assertIn('pembayaran terkait', res.json()['error'])
 
 
 class AutoSettleTests(ReconFixture):
