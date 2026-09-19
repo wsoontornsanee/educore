@@ -113,7 +113,7 @@ class ReconciliationActionTests(CanteenActionTestBase):
 
     def test_user_without_finance_payment_write_is_denied_and_nothing_changes(self):
         response = self.post('canteen-recon-writeoff', self.case.id, {'reason': 'x'}, user=self.canteen_op)
-        self.assertEqual(response.status_code, 403)
+        self.assertRedirects(response, reverse('web-console-home'), fetch_redirect_response=False)
         self.assertEqual(self.case_status(), WalletReconciliationStatus.OPEN)
 
     def test_anonymous_is_denied(self):
@@ -137,7 +137,7 @@ class ReconciliationActionTests(CanteenActionTestBase):
         url = f"{reverse('canteen-recon-writeoff', args=[self.case.id])}?school_id={school_b.id}"
         self.assertEqual(self.client.post(url, {'reason': 'x'}).status_code, 404)
         url = f"{reverse('canteen-recon-writeoff', args=[self.case.id])}?school_id={self.school.id}"
-        self.assertIn(self.client.post(url, {'reason': 'x'}).status_code, (403, 404))
+        self.assertIn(self.client.post(url, {'reason': 'x'}).status_code, (302, 404))
         self.assertEqual(self.case_status(), WalletReconciliationStatus.OPEN)
 
     def test_another_foundations_case_is_a_404(self):
@@ -201,7 +201,7 @@ class RefundActionTests(CanteenActionTestBase):
 
     def test_user_without_finance_payment_write_cannot_act(self):
         response = self.post('canteen-refund-paid', self.refund.id, {'bank_name': 'BCA'}, user=self.canteen_op)
-        self.assertEqual(response.status_code, 403)
+        self.assertRedirects(response, reverse('web-console-home'), fetch_redirect_response=False)
         self.assertEqual(self.refund_row().status, WalletRefundStatus.PENDING)
 
     def test_another_schools_refund_is_a_404(self):
@@ -213,7 +213,7 @@ class RefundActionTests(CanteenActionTestBase):
         url = f"{reverse('canteen-refund-paid', args=[self.refund.id])}?school_id={school_b.id}"
         self.assertEqual(self.client.post(url, {'bank_name': 'BCA'}).status_code, 404)
         url = f"{reverse('canteen-refund-paid', args=[self.refund.id])}?school_id={self.school.id}"
-        self.assertIn(self.client.post(url, {'bank_name': 'BCA'}).status_code, (403, 404))
+        self.assertIn(self.client.post(url, {'bank_name': 'BCA'}).status_code, (302, 404))
         self.assertEqual(self.refund_row().status, WalletRefundStatus.PENDING)
 
     def test_foundation_admin_can_act_in_any_school(self):
