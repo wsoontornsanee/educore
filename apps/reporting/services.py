@@ -639,3 +639,50 @@ def refresh_ar_aging(scope: str, since=None) -> dict:
             rows_written += 1
 
     return {'rows_written': rows_written, 'as_of': str(today), 'scope': scope}
+
+
+METERING_OPEN = 'OPEN'                  # current month: the count is still being refreshed
+METERING_FROZEN = 'FROZEN'              # month ended and a row exists: immutable (RPT-008), the invoice basis
+METERING_NOT_COMPUTED = 'NOT_COMPUTED'  # no row for this school and month
+
+
+def get_metering_statement(foundation_id, month, school_ids=None, today=None) -> dict:
+    """RPT-009: the counted students per school for one month, as the invoice basis would read them.
+
+    Reads `RptActiveStudent` only; it never recomputes (the count's single definition stays in
+    `refresh_active_students`, RPT-007). `school_ids=None` means every school of the foundation;
+    otherwise only those ids, so a school-scoped caller never sees another school's count.
+    A school with no row for the month is listed as NOT_COMPUTED rather than as zero, because a
+    missing count and a count of zero are different facts on an invoice dispute. `complete` says
+    whether every listed school has a count, so `total_active` is never mistaken for the whole.
+    """
+    today = today or timezone.now().date()
+    month = month.replace(day=1)
+    schools = School.all_tenants.filter(foundation_id=foundation_id, deleted_at__isnull=True).order_by('name', 'id')
+    if school_ids is not None:
+        schools = schools.filter(id__in=school_ids)
+    counts = {
+        row.school_id: row for row in RptActiveStudent.all_tenants.filter(
+            foundation_id=foundation_id, month=month, deleted_at__isnull=True,
+        )
+    }
+    closed = _month_is_closed(month, today)
+    entries = []
+    for school in schools:
+        row = counts.get(school.id)
+        if row is None:
+            state, active_count, computed_at = METERING_NOT_COMPUTED, None, None
+        else:
+            state = METERING_FROZEN if closed else METERING_OPEN
+            active_count, computed_at = row.active_count, row.computed_at
+        entries.append({
+            'school_id': school.id, 'school_name': school.name, 'is_active': school.is_active,
+            'state': state, 'active_count': active_count, 'computed_at': computed_at,
+        })
+    counted = [e['active_count'] for e in entries if e['active_count'] is not None]
+    return {
+        'month': month.strftime('%Y-%m'),
+        'schools': entries,
+        'total_active': sum(counted),
+        'complete': len(counted) == len(entries),
+    }

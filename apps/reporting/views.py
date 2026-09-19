@@ -1,9 +1,11 @@
 import datetime as _dt
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.identity.console_access import accessible_school_ids
 from apps.identity.models import School
 from apps.identity.permissions import HasRequiredPermission
 from apps.reporting.models import (
@@ -20,6 +22,7 @@ from apps.reporting.serializers import (
     RptDailyFinanceSerializer,
     RptWalletActivitySerializer,
 )
+from apps.reporting.services import get_metering_statement
 from educore.middleware.tenancy import get_current_foundation_id
 
 
@@ -178,3 +181,36 @@ class DailyFinanceReportView(APIView):
 
         rows = rows.order_by('date')
         return Response({'rows': RptDailyFinanceSerializer(rows, many=True).data})
+
+
+class MeteringStatementView(APIView):
+    """GET /metering/statements/?month=YYYY-MM[&foundation_id=] (spec/15 §4, §6, RPT-009).
+
+    The counted students per school for a month, as the subscription invoice basis reads them.
+    The foundation is always the caller's own: `foundation_id` is accepted only because the spec
+    lists it, and a value other than the caller's foundation is a 404 (never trusted, ARC-004).
+    A school-scoped caller sees only their own schools.
+    """
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'reporting.read'
+
+    def get(self, request):
+        foundation_id = get_current_foundation_id()
+
+        requested = request.query_params.get('foundation_id')
+        if requested and str(requested) != str(foundation_id):
+            return Response({'error': _("Yayasan tidak valid.")}, status=status.HTTP_404_NOT_FOUND)
+
+        raw_month = request.query_params.get('month')
+        if raw_month:
+            try:
+                month = _dt.datetime.strptime(raw_month, '%Y-%m').date()
+            except ValueError:
+                return Response(
+                    {'error': _("Format bulan tidak valid (YYYY-MM).")}, status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            month = timezone.now().date().replace(day=1)  # same 'current month' as the rollup
+
+        ceiling = accessible_school_ids(request.user, foundation_id, self.required_permission)
+        return Response(get_metering_statement(foundation_id, month, school_ids=ceiling))

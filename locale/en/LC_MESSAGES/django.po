@@ -8808,3 +8808,7 @@ msgstr "Short id printed on the sheet, e.g. KU-03"
 #: apps/wallet/models.py:444
 msgid "Upheld-dispute deductions absorbed by this run; net = gross - commission - adjustments_total"
 msgstr "Upheld-dispute deductions absorbed by this run; net = gross - commission - adjustments_total"
+
+#: apps/reporting/views.py
+msgid "Format bulan tidak valid (YYYY-MM)."
+msgstr "Invalid month format (YYYY-MM)."

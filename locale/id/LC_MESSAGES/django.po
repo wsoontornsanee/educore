@@ -4244,3 +4244,7 @@ msgstr ""
 #: frontend/templates/rest_framework/base.html:177
 msgid "response info"
 msgstr ""
+
+#: apps/reporting/views.py
+msgid "Format bulan tidak valid (YYYY-MM)."
+msgstr ""
