@@ -511,10 +511,10 @@ def _handle_post_settlement_credit_balance(payment: Payment, resolved_by) -> Non
                 actor_role='MANUAL_RECONCILIATION', actor_id=str(resolved_by.id) if resolved_by is not None else None,
             )
         else:
-            _alert_negative_reconcile_balance(payment.student, credit.balance)
+            _alert_negative_reconcile_balance(payment.student, credit.balance, credit.currency)
 
 
-def _alert_negative_reconcile_balance(student, balance: Decimal) -> None:
+def _alert_negative_reconcile_balance(student, balance: Decimal, currency: str = 'IDR') -> None:
     """One-time PAYMENT_DUE-category notice: a reconciliation shortfall left
     the student owing more than their open invoices show (spec/06 FIN-024).
     Reuses PAYMENT_DUE rather than a new category (finance.payment_due's own
@@ -543,7 +543,7 @@ def _alert_negative_reconcile_balance(student, balance: Decimal) -> None:
             payload={
                 'guardian_name': guardian.person.full_name if guardian.person else '',
                 'student_name': student.person.full_name if student.person else '',
-                'amount': str(-balance),
+                'amount': _format_shortfall(-balance, currency),
             },
             recipient_user=guardian.user,
             recipient_phone=getattr(guardian.user, 'phone_e164', ''),
@@ -552,6 +552,13 @@ def _alert_negative_reconcile_balance(student, balance: Decimal) -> None:
             dedupe_key=f"reconcile_balance_negative:{student.id}:{timezone.localdate().isoformat()}",
             priority=NotificationPriority.NORMAL,
         )
+
+
+def _format_shortfall(amount: Decimal, currency: str) -> str:
+    """Guardian-facing amount, same shape as the arrears ladder: "Rp 20.000" / "USD 20,000.00"."""
+    if currency == 'IDR':
+        return f"Rp {amount:,.0f}".replace(',', '.')
+    return f"{currency} {amount:,.2f}"
 
 
 def _batch_summary(batch: 'GatewaySettlementBatch', dry_run: bool) -> dict:
