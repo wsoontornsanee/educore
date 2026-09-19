@@ -1,3 +1,4 @@
+import datetime
 from django.test import TestCase
 from rest_framework.test import APIClient
 from apps.identity.models import (
@@ -183,13 +184,20 @@ class GuardianAccessUnitAndApiTest(TestCase):
         self.assertEqual(resp_detail_other.status_code, 404)
 
     def test_student_viewset_dual_role(self):
-        # Teacher at School A, Parent at School B
+        # Teacher at School A, Parent at School B. Per-teacher class scope: the teacher role
+        # shows only the students of the teacher's own classes at School A.
+        from apps.academic.tests.base import enroll_in_class_of
+        from apps.identity.models import Staff
+        staff = Staff.all_tenants.create(
+            foundation_id=self.foundation.id, person=self.p_dual, user=self.user_dual, school=self.school_a,
+            join_date=datetime.date(2020, 1, 1),
+        )
+        enroll_in_class_of(staff, self.student_1)
         self.client.force_authenticate(user=self.user_dual)
         resp = self.client.get('/api/v1/students/')
         self.assertEqual(resp.status_code, 200)
         returned_ids = {item['id'] for item in resp.data['results']}
-        # Sees all students in School A (student_1, student_2) because of teacher role
-        self.assertIn(self.student_1.id, returned_ids)
-        self.assertIn(self.student_2.id, returned_ids)
+        self.assertIn(self.student_1.id, returned_ids)      # in the teacher's own class
+        self.assertNotIn(self.student_2.id, returned_ids)   # School A, but not in one of their classes
         # Sees own child in School B (student_3)
         self.assertIn(self.student_3.id, returned_ids)

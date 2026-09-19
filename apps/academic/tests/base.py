@@ -106,3 +106,28 @@ def build_academic_fixture(foundation_name="Yayasan Cendekia Mandiri"):
         'class_subject': class_subject,
         'student': student,
     }
+
+
+def enroll_in_class_of(staff, student, name='Kelas Uji'):
+    """Put `student` in a class that `staff` is homeroom teacher of, so a
+    teacher-only user sees them under the per-teacher class scope."""
+    from apps.academic.models import AcademicYear, ClassEnrollment, ClassGroup
+
+    foundation_id = student.foundation_id
+    year = AcademicYear.all_tenants.filter(foundation_id=foundation_id, school_id=student.school_id).first()
+    if year is None:
+        year = AcademicYear.all_tenants.create(
+            foundation_id=foundation_id, school_id=student.school_id, name='2026/2027',
+            start_date=datetime.date(2026, 7, 1), end_date=datetime.date(2027, 6, 30),
+        )
+    class_group = ClassGroup.all_tenants.filter(
+        foundation_id=foundation_id, school_id=student.school_id, homeroom_teacher=staff, name=name,
+    ).first() or ClassGroup.all_tenants.create(
+        foundation_id=foundation_id, school_id=student.school_id, academic_year=year, grade_level=10,
+        name=name, homeroom_teacher=staff,
+    )
+    ClassEnrollment.all_tenants.create(
+        foundation_id=foundation_id, student=student, class_group=class_group,
+        enrolled_at=datetime.date(2026, 7, 1), is_active=True,
+    )
+    return class_group

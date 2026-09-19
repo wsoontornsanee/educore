@@ -563,6 +563,9 @@ class AttendanceDayViewSet(viewsets.ModelViewSet):
             else:
                 return qs.none()
 
+        from apps.academic.class_scope import ClassScope
+        qs = qs.filter(ClassScope(user, foundation_id).student_q('student_id', 'school_id'))
+
         school_param = self.request.query_params.get('school_id')
         if school_param:
             qs = qs.filter(school_id=school_param)
@@ -1015,6 +1018,9 @@ class AbsenceRequestStaffViewSet(viewsets.ReadOnlyModelViewSet):
             foundation_id=foundation_id,
             deleted_at__isnull=True
         ).select_related('student', 'student__person', 'requested_by', 'decided_by', 'school').order_by('-created_at', '-id')
+
+        from apps.academic.class_scope import ClassScope
+        qs = qs.filter(ClassScope(self.request.user, foundation_id).student_q('student_id', 'school_id'))
 
         school_id = self.request.query_params.get('school_id')
         if school_id:

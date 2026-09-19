@@ -122,6 +122,9 @@ class AbsenceRequestTestCase(TestCase):
             status=Staff.STATUS_ACTIVE,
         )
         assign_role(self.teacher_user, RoleAssignment.ROLE_TEACHER, RoleAssignment.SCOPE_SCHOOL, self.school.id)
+        # Per-teacher class scope: the teacher sees this student only through a class of theirs.
+        from apps.academic.tests.base import enroll_in_class_of
+        enroll_in_class_of(self.teacher_staff, self.student)
 
         # Second Foundation for cross-tenant checks
         self.other_foundation = Foundation.objects.create(

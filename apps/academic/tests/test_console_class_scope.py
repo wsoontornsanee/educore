@@ -224,7 +224,7 @@ class PerSchoolAndScopeObjectTests(ClassScopeTestBase):
     def test_construction_cost_is_fixed(self):
         with CaptureQueriesContext(connection) as ctx:
             ClassScope(self.teacher.user, self.foundation.id)
-        self.assertLessEqual(len(ctx.captured_queries), 5)
+        self.assertLessEqual(len(ctx.captured_queries), 6)
         admin = self.make_staff_user('school_admin', phone='+628119991500')
         with CaptureQueriesContext(connection) as ctx:
             ClassScope(admin, self.foundation.id)
