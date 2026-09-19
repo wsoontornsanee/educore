@@ -290,6 +290,12 @@ EDUCORE_COUNSELLING_FERNET_KEY = os.environ.get('EDUCORE_COUNSELLING_FERNET_KEY'
 # dev/test-only.
 EDUCORE_WALLET_FERNET_KEY = os.environ.get('EDUCORE_WALLET_FERNET_KEY', '')
 
+# Spending-PIN pepper (spec 18 QRS-029): a secret HMAC key applied to the Argon2id digest so a leaked
+# database alone cannot be brute-forced offline (a 6-digit PIN has only 10^6 values). Keep it in the
+# environment / secret store, never in the DB. Production MUST set an explicit value; the SECRET_KEY-derived
+# fallback is dev/test-only. Changing it invalidates every stored PIN (users reset via OTP).
+EDUCORE_PIN_PEPPER = os.environ.get('EDUCORE_PIN_PEPPER', '')
+
 # Status page subscriber incident email (Notion: "Status page: subscriber
 # email delivery") — Django's built-in SMTP backend, not a provider SDK.
 # Defaults to the console backend so local/dev/test never attempts a real
