@@ -68,6 +68,19 @@ class RunSettlementTests(TestCase):
         with self.assertRaises(SettlementStateError):
             run_merchant_settlement(self.merchant, self.today, self.today)
 
+    def test_marking_paid_from_a_stale_copy_keeps_the_first_paid_at_and_audits_once(self):
+        from apps.core.models import AuditEvent
+        from apps.wallet.models import MerchantSettlement
+        self._checkout('tx-6b')
+        settlement = run_merchant_settlement(self.merchant, self.today, self.today)
+        stale = MerchantSettlement.objects.get(id=settlement.id)  # still says PENDING
+        paid_at = mark_settlement_paid(settlement).paid_at
+        again = mark_settlement_paid(stale)
+        self.assertEqual(again.status, MerchantSettlementStatus.PAID)
+        self.assertEqual(again.paid_at, paid_at)
+        events = AuditEvent.objects.filter(action='wallet.merchant_settlement.paid', entity_id=str(settlement.id))
+        self.assertEqual(events.count(), 1)
+
     def test_generate_statement_produces_pdf_key(self):
         self._checkout('tx-7')
         settlement = run_merchant_settlement(self.merchant, self.today, self.today)

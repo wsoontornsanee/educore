@@ -25,7 +25,7 @@ from apps.wallet.models import (
     QRDisputeStatus,
     WalletTransactionType,
 )
-from apps.wallet.services import record_wallet_transaction
+from apps.wallet.services import _get_locked_wallet, record_wallet_transaction
 
 DISPUTE_WINDOW_DAYS = 7  # QRS-026
 DISPUTE_FLAG_THRESHOLD = 3  # QRS-028: upheld disputes...
@@ -76,7 +76,9 @@ def resolve_qr_dispute(
     if dispute.status != QRDisputeStatus.OPEN:
         raise QRDisputeError('DISPUTE_NOT_OPEN', _("Sanggahan ini sudah diselesaikan."))
 
-    # Lock the sale (before the wallet, as void does) so a void cannot slip in between the status check and the refund.
+    # Lock the wallet, then the sale (the order void and charge use), so a void cannot slip in between the
+    # status check and the refund.
+    _get_locked_wallet(dispute.pos_transaction.wallet_transaction.wallet_id, dispute.foundation_id)
     pos_tx = POSTransaction.all_tenants.select_for_update().get(
         id=dispute.pos_transaction_id, foundation_id=dispute.foundation_id,
     )
