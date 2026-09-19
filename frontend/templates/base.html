@@ -42,6 +42,7 @@
     <div style="display: flex; align-items: center; gap: 16px;">
       {% if request.user.is_authenticated %}
         <span class="text-body-sm text-ink-700 font-mono">{{ request.user.full_name|default:request.user.phone_e164 }}</span>
+        {% if header_roles %}<span class="text-body-sm text-ink-500" data-testid="header-roles">{{ header_roles|join:", " }}</span>{% endif %}
       {% endif %}
       <form action="{% url 'set_language' %}" method="post" style="display: flex; align-items: center; gap: 4px;">
         {% csrf_token %}

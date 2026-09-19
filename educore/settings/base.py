@@ -107,6 +107,7 @@ TEMPLATES = [
                 'django.template.context_processors.i18n',
                 'educore.context_processors.static_version',
                 'apps.identity.context_processors.console_nav',
+                'apps.identity.context_processors.header_roles',
             ],
         },
     },
