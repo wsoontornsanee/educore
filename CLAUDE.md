@@ -46,3 +46,4 @@ python manage.py <job_command>
 - **3-layer tenancy (`TenantModel`, `TenantManager`, cross-tenant 404 test).**
 - **Money: `core.fields.MoneyField` (`DECIMAL(18,2)`), double-entry ledger, round-half-up.**
 - **`id-ID` first.**
+- **PR lifecycle: merge automatically once CI passes (`--admin` only if the required review is the sole blocker); deploy only on explicit instruction (`AGENTS.md` §4 stage 5).**
