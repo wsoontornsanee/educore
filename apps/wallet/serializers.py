@@ -115,7 +115,7 @@ class MerchantSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'foundation_id', 'school', 'name', 'type', 'settlement_account', 'commission_bps', 'is_active',
             'qr_self_amount_enabled', 'qr_self_amount_ack_at', 'static_qr_enabled', 'static_qr_ack_at',
-            'static_qr_max', 'qr_dispute_flagged_at', 'created_at', 'updated_at',
+            'static_qr_max', 'operating_start', 'operating_end', 'static_decal_daily_alert', 'qr_dispute_flagged_at', 'created_at', 'updated_at',
         ]
         # QR Charge and static QR are switched only through POST /merchants/:id/{qr-charge,static-qr}/,
         # which record the acknowledgement.
@@ -128,6 +128,14 @@ class MerchantSerializer(serializers.ModelSerializer):
         if value <= 0:
             raise serializers.ValidationError("Must be greater than zero.")
         return value
+
+    def validate(self, attrs):
+        # Out-of-hours alerts need both ends of the window (QRS-041): set both or neither.
+        start = attrs.get('operating_start', getattr(self.instance, 'operating_start', None))
+        end = attrs.get('operating_end', getattr(self.instance, 'operating_end', None))
+        if (start is None) != (end is None):
+            raise serializers.ValidationError("operating_start and operating_end must be set together.")
+        return attrs
 
 
 class ProductSerializer(serializers.ModelSerializer):

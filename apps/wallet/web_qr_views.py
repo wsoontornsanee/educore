@@ -319,6 +319,36 @@ class MerchantStaticQRSwitchView(_MerchantAction):
         self.success_message = _("QR statis diaktifkan.") if enabled else _("QR statis dinonaktifkan.")
 
 
+class MerchantAlertSettingsView(_MerchantAction):
+    """POST /web/wallet/canteen/qr/merchants/<id>/alerts/ — operating hours and the daily volume threshold (QRS-041)."""
+    success_message = _lazy("Pengaturan peringatan disimpan.")
+
+    @staticmethod
+    def _parse_time(raw):
+        raw = (raw or '').strip()
+        if not raw:
+            return None
+        try:
+            return datetime.strptime(raw, '%H:%M').time()
+        except ValueError:
+            raise QRChargeError('INVALID_TIME', _("Jam tidak valid (HH:MM)."))
+
+    def perform(self, request, merchant):
+        start = self._parse_time(request.POST.get('operating_start'))
+        end = self._parse_time(request.POST.get('operating_end'))
+        if (start is None) != (end is None):
+            raise QRChargeError('INVALID_HOURS', _("Isi jam buka dan jam tutup, atau kosongkan keduanya."))
+        try:
+            threshold = int(request.POST.get('static_decal_daily_alert', ''))
+        except ValueError:
+            threshold = 0
+        if threshold < 1:
+            raise QRChargeError('INVALID_THRESHOLD', _("Ambang harian harus berupa angka minimal 1."))
+        merchant.operating_start, merchant.operating_end = start, end
+        merchant.static_decal_daily_alert = threshold
+        merchant.save(update_fields=['operating_start', 'operating_end', 'static_decal_daily_alert', 'updated_at'])
+
+
 # --- payment points, sheets and the operator Counter (spec 18 §3b) ----------------------------------
 
 POINTS_PERMISSION = 'pos.manage'

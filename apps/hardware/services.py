@@ -86,30 +86,10 @@ def _is_within_operational_hours(now: datetime.datetime, school) -> bool:
 
 
 def _get_school_admin_recipients(school) -> list:
-    """Resolves who counts as "the school admin" for HW-013's offline alert:
-    whoever currently holds `school_admin` at that school's scope, or
-    `foundation_admin` at the foundation scope - mirrors
-    `apps.academic.services._get_principal_staff`'s role-assignment-is-the-
-    source-of-truth pattern, generalized to possibly several recipients.
-    """
-    from apps.identity.models import RoleAssignment, User
+    """HW-013's "school admin": see apps.identity.recipients.get_school_admin_users."""
+    from apps.identity.recipients import get_school_admin_users
 
-    user_ids = set(RoleAssignment.all_tenants.filter(
-        foundation_id=school.foundation_id,
-        role=RoleAssignment.ROLE_SCHOOL_ADMIN,
-        scope_type=RoleAssignment.SCOPE_SCHOOL,
-        scope_id=school.id,
-        deleted_at__isnull=True,
-    ).values_list('user_id', flat=True))
-    user_ids |= set(RoleAssignment.all_tenants.filter(
-        foundation_id=school.foundation_id,
-        role=RoleAssignment.ROLE_FOUNDATION_ADMIN,
-        scope_type=RoleAssignment.SCOPE_FOUNDATION,
-        deleted_at__isnull=True,
-    ).values_list('user_id', flat=True))
-    if not user_ids:
-        return []
-    return list(User.all_tenants.filter(id__in=user_ids, deleted_at__isnull=True))
+    return get_school_admin_users(school)
 
 
 def check_device_health(timeout_minutes: int = 15) -> dict:
