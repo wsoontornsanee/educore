@@ -117,3 +117,19 @@ class OpsPageJobHealthTests(_Base):
         self.assertContains(response, 'Kesehatan job terjadwal')
         self.assertContains(response, 'send_digests')
         self.assertContains(response, 'Terlambat')
+
+
+class OperatorWithoutEmailTests(_Base):
+    def test_operator_without_email_does_not_burn_the_dedupe_key(self):
+        self.operator(email=None)
+        self.stale_job()
+        self.assertEqual(dispatch_job_alerts(evaluate_job_health()), 0)
+        self.operator(phone='+6281200000203', email='real@example.com')  # a reachable operator appears later
+        self.assertEqual(dispatch_job_alerts(evaluate_job_health()), 1)
+
+    def test_only_reachable_operators_are_enqueued(self):
+        self.operator(email=None)
+        reachable = self.operator(phone='+6281200000203', email='real@example.com')
+        self.stale_job()
+        dispatch_job_alerts(evaluate_job_health())
+        self.assertEqual([t.payload['user_id'] for t in self.alert_tasks()], [reachable.id])

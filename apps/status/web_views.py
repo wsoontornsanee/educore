@@ -13,7 +13,7 @@ from apps.core.job_health import evaluate_job_health
 from apps.identity.permissions import HasRequiredPermission
 from .forms import IncidentCreateForm
 from .models import ServiceComponent, StatusIncident
-from .services import create_incident, update_incident
+from .services import classify_platform_operators, create_incident, update_incident
 
 
 class StatusManageAccessMixin:
@@ -30,10 +30,13 @@ class StatusManagePageView(StatusManageAccessMixin, APIView):
     def get(self, request):
         components = ServiceComponent.objects.all()
         incidents = StatusIncident.objects.all()
+        reachable, unreachable = classify_platform_operators()
         return render(request, 'status/manage.html', {
             'components': components,
             'incidents': incidents,
             'jobs': evaluate_job_health(),
+            'alert_recipient_count': len(reachable),
+            'unreachable_operators': unreachable,
         })
 
 

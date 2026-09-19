@@ -9,7 +9,7 @@ from django.db.models import Avg
 from django.utils import timezone
 
 from apps.core.services import audit, enqueue_task
-from apps.identity.models import PlatformRoleAssignment
+from apps.identity.models import PlatformRoleAssignment, User
 from educore.middleware.tenancy import tenant_context
 
 from .models import ComponentHeartbeat, DailyComponentStatus, ServiceComponent, StatusIncident, StatusSubscriber
@@ -284,6 +284,22 @@ def _job_alert_key(row) -> str:
     return f"job_health_alert:{row.job_name}:{row.state}:{last_success}"
 
 
+def classify_platform_operators() -> tuple[list[User], list[User]]:
+    """Split platform operators into (can receive a job alert, cannot).
+
+    An operator can be alerted only with an active account and an email address. The alert emailer skips
+    anyone else, so without this split an operator missing an email address would look like a working
+    recipient while every alert went nowhere.
+    """
+    operators = User.all_tenants.filter(
+        platform_role_assignments__role=PlatformRoleAssignment.ROLE_PLATFORM_OPERATOR,
+    ).distinct().order_by('id')
+    reachable, unreachable = [], []
+    for user in operators:
+        (reachable if user.is_active and user.email else unreachable).append(user)
+    return reachable, unreachable
+
+
 def dispatch_job_alerts(rows) -> int:
     """Email platform operators about scheduled jobs that need attention (ARC-008).
 
@@ -296,13 +312,15 @@ def dispatch_job_alerts(rows) -> int:
     unhealthy = [row for row in rows if row.needs_alert]
     if not unhealthy:
         return 0
-    recipient_ids = list(
-        PlatformRoleAssignment.objects.filter(role=PlatformRoleAssignment.ROLE_PLATFORM_OPERATOR)
-        .values_list('user_id', flat=True).distinct()
-    )
-    if not recipient_ids:
-        logger.warning("%d scheduled job(s) need attention but no platform operator is assigned", len(unhealthy))
+    reachable, unreachable = classify_platform_operators()
+    if not reachable:
+        logger.warning(
+            "%d scheduled job(s) need attention but no platform operator can receive the alert "
+            "(%d assigned, none with an active account and an email address)",
+            len(unhealthy), len(unreachable),
+        )
         return 0
+    recipient_ids = [user.id for user in reachable]
     fresh = [row for row in unhealthy if cache.add(_job_alert_key(row), 1, timeout=JOB_ALERT_REPEAT_SECONDS)]
     if not fresh:
         return 0
