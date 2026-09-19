@@ -153,7 +153,7 @@ export const ParentInvoicesScreen: React.FC<ParentInvoicesScreenProps> = ({ chil
 
   const handleShareReceipt = async (item: PaymentReceiptItem) => {
     try {
-      const studentName = child.name || item.student_name || 'Siswa';
+      const studentName = child.full_name || item.student_name || 'Siswa';
       const receiptNo = item.receipt_number || `RCP/${item.id}`;
       const amountStr = formatCurrency(item.amount, item.currency);
       const paidDate = formatDate(item.paid_at || item.settled_at || item.created_at);
@@ -456,7 +456,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   receiptNumber: {
-    fontSize: typography.fontSize.md,
+    fontSize: typography.fontSize.base,
     fontWeight: typography.fontWeight.bold,
     color: colors.heading,
   },

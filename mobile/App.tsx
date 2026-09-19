@@ -34,7 +34,7 @@ import { POSKioskScreen } from './src/screens/POSKioskScreen';
 import { ParentNutritionDashboardScreen } from './src/screens/ParentNutritionDashboardScreen';
 import { initPosQueueDb } from './src/services/posOfflineQueue';
 import { colors } from './src/theme/tokens';
-import { UserProfile } from './src/types';
+import { TimetableSlotItem, UserProfile } from './src/types';
 
 
 export default function App() {
@@ -45,6 +45,8 @@ export default function App() {
   const [nutritionMode, setNutritionMode] = useState(false);
   const [deepLinkChildId, setDeepLinkChildId] = useState<number | null>(null);
   const [deepLinkDate, setDeepLinkDate] = useState<string | null>(null);
+  // SUBSTITUTE_ASSIGNED tap: TeacherShell owns the modal, App only hands it the slot.
+  const [substitutionDeepLinkSlot, setSubstitutionDeepLinkSlot] = useState<TimetableSlotItem | null>(null);
   // PAR-018: biometric gate — true means we need biometric auth before showing the shell
   const [biometricBlocked, setBiometricBlocked] = useState(false);
   const [biometricChecked, setBiometricChecked] = useState(false);
@@ -68,8 +70,7 @@ export default function App() {
       if (subId) {
         try {
           const slotItem = await fetchSubstitutionSlot(subId);
-          setActiveSlot(null);
-          setSubModalSlot(slotItem);
+          setSubstitutionDeepLinkSlot(slotItem);
         } catch (err) {
           console.warn('Failed to fetch substitution slot for modal auto-open:', err);
         }
@@ -164,7 +165,7 @@ export default function App() {
     await deactivatePushTokenAsync();
     await logout();
     setCurrentUser(null);
-    setActiveSlot(null);
+    setSubstitutionDeepLinkSlot(null);
   };
 
 
@@ -234,8 +235,8 @@ export default function App() {
                   linkedStudents={allChildren.map((c) => ({
                     id: c.student_id,
                     full_name: c.full_name,
-                    nis: c.nis,
-                    nisn: c.nisn,
+                    nis: c.nis ?? '',
+                    nisn: c.nisn ?? '',
                     class_name: c.class_name,
                     school_name: c.school_name,
                   }))}
@@ -269,6 +270,8 @@ export default function App() {
           <TeacherShell
             user={currentUser}
             onLogout={handleLogout}
+            substitutionDeepLinkSlot={substitutionDeepLinkSlot}
+            onSubstitutionDeepLinkHandled={() => setSubstitutionDeepLinkSlot(null)}
           />
         )}
       </View>

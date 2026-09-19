@@ -13,7 +13,10 @@ export type AnalyticsEventName =
   | 'pay_intent_created'
   | 'pay_completed'
   | 'topup_completed'
-  | 'notification_opened';
+  | 'notification_opened'
+  | 'grades_view'
+  | 'report_card_view'
+  | 'absence_submitted';
 
 export function track(eventName: AnalyticsEventName, schoolId: number | null = null): void {
   enqueueEvent(eventName, schoolId)

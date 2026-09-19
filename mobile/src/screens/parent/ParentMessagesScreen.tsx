@@ -158,15 +158,15 @@ export const ParentMessagesScreen: React.FC<ParentMessagesScreenProps> = ({ chil
 
     return (
       <View style={styles.card} accessibilityLabel={`Izin: ${item.title}`}>
-        <View style={styles.cardTopRow}>
+        <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>{item.title}</Text>
           <View style={[styles.badge, { backgroundColor: statusCfg.bg }]}>
             <Text style={[styles.badgeText, { color: statusCfg.text }]}>{statusLabel}</Text>
           </View>
         </View>
 
-        {!!item.class_group_name && <Text style={styles.cardClass}>{item.class_group_name}</Text>}
-        {!!item.description && <Text style={styles.cardDesc}>{item.description}</Text>}
+        {!!item.class_group_name && <Text style={styles.cardMeta}>{item.class_group_name}</Text>}
+        {!!item.description && <Text style={styles.cardBody}>{item.description}</Text>}
 
         {!!item.event_date && (
           <Text style={styles.cardMeta}>{t('messages.event_date')} {item.event_date}</Text>
