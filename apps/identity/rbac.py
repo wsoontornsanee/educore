@@ -47,6 +47,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'analytics.event.write',
     },
     ROLE_SCHOOL_ADMIN: {
+        'pickup.override',  # ATT-018: release a student to an unauthorised person, with a written reason
         'school_config.read', 'school_config.write',
         'student_records.read', 'student_records.write',
         'grades.read', 'grades.write',
@@ -104,6 +105,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         'analytics.event.write',
     },
     ROLE_PARENT: {
+        'pickup.authorize',  # ATT-015: a guardian authorises a named person to collect their child
         'student_records.read',
         'grades.read',
         'attendance.read',

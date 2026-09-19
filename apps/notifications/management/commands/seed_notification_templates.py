@@ -41,6 +41,42 @@ CANONICAL_TEMPLATES = [
         'variables': ['student_name', 'school_name', 'gate_name', 'time', 'date'],
     },
     {
+        'key': 'attendance.pickup',
+        'channel': ChannelType.WHATSAPP,
+        'locale': 'id-ID',
+        'subject': 'Penjemputan Siswa',
+        'body': 'Ananda {student_name} telah dijemput oleh {picked_up_by} dari {school_name} pada pukul {time} WIB.',
+        'variables': ['student_name', 'school_name', 'picked_up_by', 'time', 'date'],
+    },
+    {
+        'key': 'attendance.pickup',
+        'channel': ChannelType.PUSH,
+        'locale': 'id-ID',
+        'subject': 'Penjemputan: {student_name}',
+        'body': '{student_name} dijemput oleh {picked_up_by} pukul {time} WIB.',
+        'variables': ['student_name', 'school_name', 'picked_up_by', 'time', 'date'],
+    },
+    {
+        'key': 'attendance.pickup_override',
+        'channel': ChannelType.WHATSAPP,
+        'locale': 'id-ID',
+        'subject': 'Penjemputan Siswa oleh Penjemput Tidak Terdaftar',
+        'body': (
+            'PERHATIAN: Ananda {student_name} dijemput dari {school_name} pada pukul {time} WIB oleh {picked_up_by}, '
+            'yang tidak terdaftar sebagai penjemput. Admin sekolah mengizinkannya dengan alasan tertulis. '
+            'Jika ini tidak sesuai, segera hubungi pihak sekolah.'
+        ),
+        'variables': ['student_name', 'school_name', 'picked_up_by', 'time', 'date'],
+    },
+    {
+        'key': 'attendance.pickup_override',
+        'channel': ChannelType.PUSH,
+        'locale': 'id-ID',
+        'subject': 'PERHATIAN: penjemput tidak terdaftar',
+        'body': '{student_name} dijemput oleh {picked_up_by} (tidak terdaftar) pukul {time} WIB. Hubungi sekolah bila tidak sesuai.',
+        'variables': ['student_name', 'school_name', 'picked_up_by', 'time', 'date'],
+    },
+    {
         'key': 'emergency.alert',
         'channel': ChannelType.WHATSAPP,
         'locale': 'id-ID',

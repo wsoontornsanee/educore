@@ -9046,3 +9046,63 @@ msgstr "There is no list yet because this month has not been counted."
 #: frontend/templates/pages/admin_metering_roster.html
 msgid "Daftar siswa tidak tersedia untuk bulan ini: jumlahnya dibekukan sebelum daftar mulai disimpan, dan masa lalu tidak dapat direkonstruksi."
 msgstr "The student list is not available for this month: its count was frozen before lists were stored, and the past cannot be reconstructed."
+
+#: apps/attendance
+msgid "Nama penjemput wajib diisi."
+msgstr "The name of the person collecting is required."
+
+#: apps/attendance
+msgid "Hanya wali murid siswa ini yang berhak menjemput yang dapat membuat otorisasi penjemputan."
+msgstr "Only a guardian of this student who is allowed to pick up can create a pickup authorisation."
+
+#: apps/attendance
+msgid "Masa berlaku tidak valid: harus berakhir di masa depan, setelah waktu mulai, dan paling lama 366 hari."
+msgstr "Invalid validity period: it must end in the future, after it starts, and last at most 366 days."
+
+#: apps/attendance
+msgid "Otorisasi penjemputan sekali pakai ini sudah digunakan."
+msgstr "This one-time pickup authorisation has already been used."
+
+#: apps/attendance
+msgid "Kode QR penjemputan tidak valid."
+msgstr "The pickup QR code is not valid."
+
+#: apps/attendance
+msgid "Otorisasi penjemputan ini sudah dicabut."
+msgstr "This pickup authorisation has been revoked."
+
+#: apps/attendance
+msgid "Kode QR penjemputan di luar masa berlakunya."
+msgstr "The pickup QR code is outside its validity period."
+
+#: apps/attendance
+msgid "Penjemput tidak terdaftar. Hanya admin sekolah yang dapat mengizinkan dengan alasan tertulis."
+msgstr "This person is not registered to pick up. Only a school admin can allow it, with a written reason."
+
+#: apps/attendance
+msgid "Alasan pengecualian wajib diisi."
+msgstr "A reason for the exception is required."
+
+#: apps/attendance
+msgid "Kirim salah satu: qr_token atau authorization_id."
+msgstr "Send exactly one of: qr_token or authorization_id."
+
+#: apps/attendance
+msgid "Kirim qr_token/authorization_id, atau student_id bersama guardian_id."
+msgstr "Send qr_token/authorization_id, or student_id together with guardian_id."
+
+#: apps/attendance
+msgid "student_id wajib diisi."
+msgstr "student_id is required."
+
+#: apps/attendance
+msgid "QR penjemputan (QR pickup)"
+msgstr "QR penjemputan (QR pickup)"
+
+#: apps/attendance
+msgid "Wali terdaftar (Registered guardian)"
+msgstr "Wali terdaftar (Registered guardian)"
+
+#: apps/attendance
+msgid "Pengecualian admin sekolah (School admin override)"
+msgstr "Pengecualian admin sekolah (School admin override)"

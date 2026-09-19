@@ -4336,3 +4336,63 @@ msgstr ""
 #: frontend/templates/pages/admin_metering_roster.html
 msgid "Daftar siswa tidak tersedia untuk bulan ini: jumlahnya dibekukan sebelum daftar mulai disimpan, dan masa lalu tidak dapat direkonstruksi."
 msgstr ""
+
+#: apps/attendance
+msgid "Nama penjemput wajib diisi."
+msgstr ""
+
+#: apps/attendance
+msgid "Hanya wali murid siswa ini yang berhak menjemput yang dapat membuat otorisasi penjemputan."
+msgstr ""
+
+#: apps/attendance
+msgid "Masa berlaku tidak valid: harus berakhir di masa depan, setelah waktu mulai, dan paling lama 366 hari."
+msgstr ""
+
+#: apps/attendance
+msgid "Otorisasi penjemputan sekali pakai ini sudah digunakan."
+msgstr ""
+
+#: apps/attendance
+msgid "Kode QR penjemputan tidak valid."
+msgstr ""
+
+#: apps/attendance
+msgid "Otorisasi penjemputan ini sudah dicabut."
+msgstr ""
+
+#: apps/attendance
+msgid "Kode QR penjemputan di luar masa berlakunya."
+msgstr ""
+
+#: apps/attendance
+msgid "Penjemput tidak terdaftar. Hanya admin sekolah yang dapat mengizinkan dengan alasan tertulis."
+msgstr ""
+
+#: apps/attendance
+msgid "Alasan pengecualian wajib diisi."
+msgstr ""
+
+#: apps/attendance
+msgid "Kirim salah satu: qr_token atau authorization_id."
+msgstr ""
+
+#: apps/attendance
+msgid "Kirim qr_token/authorization_id, atau student_id bersama guardian_id."
+msgstr ""
+
+#: apps/attendance
+msgid "student_id wajib diisi."
+msgstr ""
+
+#: apps/attendance
+msgid "QR penjemputan (QR pickup)"
+msgstr ""
+
+#: apps/attendance
+msgid "Wali terdaftar (Registered guardian)"
+msgstr ""
+
+#: apps/attendance
+msgid "Pengecualian admin sekolah (School admin override)"
+msgstr ""
