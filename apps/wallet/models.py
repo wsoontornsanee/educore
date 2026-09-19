@@ -292,6 +292,7 @@ class POSTransaction(TenantModel):
     reject_reason = models.CharField(
         max_length=32, blank=True, default='', help_text=_("Spec-18 error code for a REJECTED self-entered charge"),
     )
+    qr_offline_nonce_uniq_marker = soft_delete_uniqueness_marker(extra_condition=~models.Q(qr_offline_nonce=''))
 
     class Meta:
         db_table = 'pos_transactions'
@@ -304,9 +305,12 @@ class POSTransaction(TenantModel):
                 fields=['foundation_id', 'terminal', 'client_transaction_id'],
                 name='unique_pos_transaction_client_id_per_terminal',
             ),
+            # Not condition=: MySQL silently drops conditional unique constraints (system
+            # check W036), which left this single-use claim unenforced on the database
+            # the app actually runs on. The marker is 0 only for live rows that carry a
+            # nonce and NULL otherwise, so an ordinary unique index does the same job.
             models.UniqueConstraint(
-                fields=['foundation_id', 'terminal', 'qr_offline_nonce'],
-                condition=~models.Q(qr_offline_nonce=''),
+                fields=['foundation_id', 'terminal', 'qr_offline_nonce', 'qr_offline_nonce_uniq_marker'],
                 name='unique_pos_transaction_qr_offline_nonce_per_terminal',
             ),
         ]
