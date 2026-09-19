@@ -8,7 +8,7 @@ import logging
 from datetime import datetime as dt_datetime, time as dt_time, timedelta
 from decimal import Decimal
 
-from apps.core.models import AuditEvent, ExportJob
+from apps.core.models import AuditEvent, AuditEventArchive, DomainEventArchive, ExportJob
 from apps.core.services import (
     register_export_formats,
     register_export_notifier,
@@ -265,12 +265,17 @@ def _get_foundation_enrolment_pipeline_impl(
     accepted_student_ids = set()
 
     # A. Status change events PROSPECT -> ACTIVE
-    status_events = DomainEvent.objects.filter(
-        foundation_id=foundation_id,
-        name='identity.student.status_changed',
-        occurred_at__date__gte=from_date,
-        occurred_at__date__lte=to_date,
-    )
+    # Events past the NFR-009 retention window live in the archive table, not the hot one.
+    status_events = [
+        ev
+        for model in (DomainEvent, DomainEventArchive)
+        for ev in model.objects.filter(
+            foundation_id=foundation_id,
+            name='identity.student.status_changed',
+            occurred_at__date__gte=from_date,
+            occurred_at__date__lte=to_date,
+        )
+    ]
     for ev in status_events:
         p = ev.payload or {}
         if p.get('new_status') == Student.STATUS_ACTIVE and p.get('old_status') == Student.STATUS_PROSPECT:
@@ -548,6 +553,7 @@ def _day_start(date_value):
 def filter_foundation_audit_events(
     foundation_id, actor=None, school_id=None, module=None, action=None,
     entity_type=None, entity_id=None, from_date=None, to_date=None, school_ids=None,
+    archived=False,
 ):
     """FND-010 Audit Explorer filter, shared by the live cursor-paginated list
     view, the web console viewer and the CSV export renderer below. `module`
@@ -555,8 +561,10 @@ def filter_foundation_audit_events(
     'finance.invoice.issue'). `school_ids` (an iterable, possibly empty)
     restricts to those schools' events — a school-scoped viewer's ceiling,
     which `school_id` alone can narrow but never widen; None means no
-    restriction."""
-    queryset = AuditEvent.objects.filter(foundation_id=foundation_id)
+    restriction. `archived` reads core.AuditEventArchive instead: events older than the
+    NFR-009 retention window live there (same columns, so every filter applies as-is)
+    and are never in the hot table too."""
+    queryset = (AuditEventArchive if archived else AuditEvent).objects.filter(foundation_id=foundation_id)
     if school_ids is not None:
         queryset = queryset.filter(school_id__in=list(school_ids))
     if actor:
@@ -610,6 +618,7 @@ def render_foundation_audit_export(job: ExportJob):
         from_date=filters.get('from'),
         to_date=filters.get('to'),
         school_ids=filters.get('school_ids'),
+        archived=bool(filters.get('archived')),
     )[:AUDIT_EXPORT_MAX_ROWS]
 
     buffer = io.StringIO()

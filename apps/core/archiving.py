@@ -12,8 +12,9 @@ Archive models are cloned from their source model, so a column added to the hot 
 produces an archive migration on the next `makemigrations` instead of silently losing
 data; `archive_batch` refuses to run if the two ever disagree.
 
-Only the write path is covered. Code that reads history older than the retention window
-(reporting aggregates, the audit viewer, DSAR erasure) still sees hot rows only.
+Readers that need history past the retention window query the archive model explicitly
+(audit explorer `archived`, funnel report, DSAR erasure, photo purge) or, for the rpt_*
+rollups, stop rebuilding days the archive already holds (`ArchivePolicy.archived_through`).
 """
 from dataclasses import dataclass
 from datetime import timedelta
@@ -73,6 +74,14 @@ class ArchivePolicy:
     def archive(self):
         return apps.get_model(self.source._meta.app_label, f'{self.source.__name__}Archive')
 
+    def archived_through(self):
+        """Newest `time_field` value already moved to the archive, or None if nothing was.
+
+        Days up to and including this instant are split between hot and archive tables, so
+        an aggregate rebuilt from the hot table alone would understate them.
+        """
+        return self.archive.objects.aggregate(newest=models.Max(self.time_field))['newest']
+
 
 # Retention is bounded below by what still reads the table live:
 #   gate_events        — ATT-007 debounce and the gate feed look back hours, not months.
@@ -94,6 +103,10 @@ POLICIES = (
     ArchivePolicy('core.AuditEvent', 'timestamp', 400),
     ArchivePolicy('core.DomainEvent', 'occurred_at', 400),
 )
+
+
+def policy_for(model_label):
+    return next(p for p in POLICIES if p.model_label == model_label)
 
 
 def eligible_rows(policy, retention_days=None, now=None):
