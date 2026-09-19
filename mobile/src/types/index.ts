@@ -289,6 +289,8 @@ export interface POSOfflineTransaction {
   attempts: number;
   created_at: string;
   last_error?: string | null;
+  /** Offline QR token this sale was paid with (spec 18 QRS-022); absent for card/cash sales. */
+  qr_token?: string | null;
 }
 
 export interface POSSessionData {

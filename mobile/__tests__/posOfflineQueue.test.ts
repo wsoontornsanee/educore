@@ -4,6 +4,7 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildPosBatchPayload,
   clearAllPosForTesting,
   enqueuePosTransaction,
   getPendingPosCount,
@@ -125,5 +126,20 @@ describe('POS Offline Queue', () => {
     } finally {
       (apiClient as any).post = originalPost;
     }
+  });
+  it('carries the offline QR token through the queue and into the batch payload', async () => {
+    const items = [{ sku: 'NASI-01', name: 'Nasi Goreng', qty: 1, unit_price: '15000.00' }];
+    await enqueuePosTransaction({
+      terminal_id: 7, student_id: 201, items, subtotal: 15000, total: 15000, qr_token: 'payload.sig',
+    });
+    await enqueuePosTransaction({ terminal_id: 7, student_id: 202, items, subtotal: 15000, total: 15000 });
+
+    const pending = await getPendingPosTransactions();
+    assert.strictEqual(pending[0].qr_token, 'payload.sig');
+    assert.strictEqual(pending[1].qr_token ?? null, null);
+
+    const { transactions } = buildPosBatchPayload(7, pending);
+    assert.strictEqual(transactions[0].qr_token, 'payload.sig');
+    assert.ok(!('qr_token' in transactions[1]), 'card/cash sales must not send a token');
   });
 });
