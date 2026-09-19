@@ -1,6 +1,8 @@
 """QR Charge Counter feed and the payment-point / printed-sheet console pages (spec 18 §3b, QRS-030..042)."""
 import datetime
+import sys
 from decimal import Decimal
+from unittest import mock
 
 from django.test import TestCase
 from django.utils import timezone
@@ -144,6 +146,24 @@ class PointsPageTests(CounterBase):
         self.assertEqual(new_decal.status, POSQRDecalStatus.REVOKED)
         self.decal.refresh_from_db()
         self.assertEqual(self.decal.status, POSQRDecalStatus.ACTIVE)  # other counters untouched
+
+    def test_download_says_so_when_pdf_falls_back_to_html(self):
+        self.as_user(self.operator)
+        with mock.patch.dict(sys.modules, {'weasyprint': None}), self.assertLogs('apps.wallet.qr_decals', level='WARNING'):
+            res = self.client.get(f'{PAGE}decals/{self.decal.id}/pdf/')
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res['Content-Type'].startswith('text/html'))
+        self.assertNotIn('attachment', res.get('Content-Disposition', ''))  # shown in the tab, not a silent .html file
+        body = res.content.decode()
+        self.assertIn('PDF belum tersedia', body)
+        self.assertIn('@media print', body)  # the notice never prints
+        self.assertIn(self.decal.human_id, body)
+
+    def test_download_carries_no_notice_when_pdf_renders(self):
+        self.as_user(self.operator)
+        res = self.client.get(f'{PAGE}decals/{self.decal.id}/pdf/')
+        if res['Content-Type'] == 'application/pdf':
+            self.assertNotIn(b'PDF belum tersedia', res.content)
 
     def test_reprint_supersedes_previous_sheet(self):
         self.as_user(self.operator)

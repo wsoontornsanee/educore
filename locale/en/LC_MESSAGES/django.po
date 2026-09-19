@@ -8493,6 +8493,9 @@ msgstr "PRINTED"
 msgid "Hanya lembar aktif yang dapat diunduh."
 msgstr "Only active sheets can be downloaded."
 
+msgid "PDF belum tersedia di server ini, jadi lembar ditampilkan sebagai halaman cetak. Cetak dengan Ctrl/Cmd+P (kertas A4, tanpa margin) atau hubungi admin."
+msgstr "PDF is not available on this server, so the sheet is shown as a printable page. Print it with Ctrl/Cmd+P (A4 paper, no margins) or contact your admin."
+
 msgid "Lembar ini sudah tidak berlaku. Minta petugas lembar yang terbaru."
 msgstr "This sheet is out of date. Ask staff for the current one."
 
