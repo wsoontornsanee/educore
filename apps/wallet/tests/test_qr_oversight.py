@@ -23,7 +23,7 @@ from apps.wallet.qr_oversight import (
     open_qr_dispute,
     resolve_qr_dispute,
 )
-from apps.wallet.services import process_pos_transaction, topup_wallet
+from apps.wallet.services import process_pos_transaction, topup_wallet, void_pos_transaction
 from apps.wallet.tests.test_qr_charge import QRFixtureMixin, make_guardian
 from apps.wallet.models import QRDispute, WalletTransaction
 from educore.middleware.tenancy import set_current_foundation_id
@@ -92,6 +92,16 @@ class DisputeTests(QRFixtureMixin, TestCase):
         self.assertEqual(dispute.resolution_transaction.type, WalletTransactionType.ADJUSTMENT)
         pos_tx.refresh_from_db()
         self.assertEqual(pos_tx.status, POSTransactionStatus.COMPLETED)
+
+    def test_upholding_a_dispute_on_an_already_voided_sale_is_refused_and_never_refunds_twice(self):
+        pos_tx = self.pay('18000')
+        dispute = open_qr_dispute(pos_tx, self.guardian, 'x')
+        void_pos_transaction(pos_tx, 'salah input')  # the void already refunded the guardian
+        self.assertDisputeError('DISPUTE_NOT_ELIGIBLE', resolve_qr_dispute, dispute, 'UPHELD', self.staff)
+        self.wallet.refresh_from_db()
+        self.assertEqual(self.wallet.balance, Decimal('100000.00'))
+        dispute.refresh_from_db()
+        self.assertEqual(dispute.status, QRDisputeStatus.OPEN)
 
     def test_refund_amount_bounds(self):
         pos_tx = self.pay('18000')

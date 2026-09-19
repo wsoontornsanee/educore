@@ -541,9 +541,16 @@ def process_pos_transaction(terminal, student, items, client_transaction_id, occ
     return pos_tx
 
 
+@transaction.atomic
 def void_pos_transaction(pos_transaction: POSTransaction, reason: str, actor=None,
                           void_window_minutes=DEFAULT_VOID_WINDOW_MINUTES) -> POSTransaction:
-    """WAL-025: operator void within the window reverses the purchase and restores balance."""
+    """WAL-025: operator void within the window reverses the purchase and restores balance.
+
+    Locks the sale row first (before the wallet row, the same order dispute resolution uses), so a second
+    void or an upheld dispute on the same sale queues behind this one and then sees it already refunded."""
+    pos_transaction = POSTransaction.all_tenants.select_for_update().get(
+        id=pos_transaction.id, foundation_id=pos_transaction.foundation_id,
+    )
     if pos_transaction.status != POSTransactionStatus.COMPLETED:
         raise ValueError(f"INVALID_STATE: transaction is {pos_transaction.status}, not COMPLETED.")
 
@@ -588,7 +595,10 @@ def run_merchant_settlement(merchant, period_start, period_end) -> MerchantSettl
     ``gross - commission``. A line that does not fit waits for a later run, so net never goes negative and a
     PAID settlement is never touched.
     """
-    existing = MerchantSettlement.objects.filter(
+    # Runs for one merchant queue on its row: two concurrent first runs of a period would otherwise both
+    # miss `existing` and the loser would die on the per-period unique key.
+    Merchant.objects.select_for_update().get(id=merchant.id, foundation_id=merchant.foundation_id)
+    existing = MerchantSettlement.objects.select_for_update().filter(
         foundation_id=merchant.foundation_id, merchant=merchant,
         period_start=period_start, period_end=period_end, deleted_at__isnull=True,
     ).first()

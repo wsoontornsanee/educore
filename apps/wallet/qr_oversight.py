@@ -76,8 +76,14 @@ def resolve_qr_dispute(
     if dispute.status != QRDisputeStatus.OPEN:
         raise QRDisputeError('DISPUTE_NOT_OPEN', _("Sanggahan ini sudah diselesaikan."))
 
-    pos_tx = dispute.pos_transaction
+    # Lock the sale (before the wallet, as void does) so a void cannot slip in between the status check and the refund.
+    pos_tx = POSTransaction.all_tenants.select_for_update().get(
+        id=dispute.pos_transaction_id, foundation_id=dispute.foundation_id,
+    )
     if outcome == QRDisputeStatus.UPHELD:
+        if pos_tx.status != POSTransactionStatus.COMPLETED:
+            # A void already refunded this sale in full; upholding would credit the guardian a second time.
+            raise QRDisputeError('DISPUTE_NOT_ELIGIBLE', _("Hanya pembayaran QR yang diinput siswa dan masih berlaku yang dapat disanggah."))
         amount = pos_tx.total if refund_amount is None else Decimal(str(refund_amount)).quantize(Decimal('0.01'))
         if amount <= Decimal('0.00') or amount > pos_tx.total:
             raise QRDisputeError('DISPUTE_INVALID_AMOUNT', _("Jumlah pengembalian harus lebih dari nol dan tidak melebihi pembayaran."))
