@@ -3,6 +3,7 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from apps.core.archiving import build_archive_model
 from apps.core.fields import soft_delete_uniqueness_marker
 from apps.core.models import TenantModel
 
@@ -386,6 +387,9 @@ class GateEvent(TenantModel):
     def __str__(self):
         holder = self.student.person.full_name if self.student else (self.staff.person.full_name if self.staff else self.raw_uid)
         return f"{self.direction} - {holder} @ {self.occurred_at.strftime('%Y-%m-%d %H:%M:%S')} [{self.status}]"
+
+
+GateEventArchive = build_archive_model(GateEvent)  # NFR-009
 
 
 class PeriodAttendanceSource(models.TextChoices):

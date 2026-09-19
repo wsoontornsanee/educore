@@ -3,6 +3,7 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from apps.core.archiving import build_archive_model
 from apps.core.fields import MoneyField
 from apps.core.fields import soft_delete_uniqueness_marker
 from apps.core.models import TenantModel
@@ -82,6 +83,9 @@ class WalletTransaction(TenantModel):
 
     def __str__(self):
         return f"{self.wallet.student.nis} - {self.type} {self.amount} @ {self.occurred_at}"
+
+
+WalletTransactionArchive = build_archive_model(WalletTransaction)  # NFR-009
 
 
 class SpendRule(TenantModel):
@@ -320,6 +324,9 @@ class POSTransaction(TenantModel):
 
     def __str__(self):
         return f"{self.student.nis} @ {self.merchant.name}: {self.total} ({self.status})"
+
+
+POSTransactionArchive = build_archive_model(POSTransaction)  # NFR-009
 
 
 class POSQRSession(TenantModel):
