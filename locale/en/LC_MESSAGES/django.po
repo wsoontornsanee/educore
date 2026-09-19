@@ -8825,7 +8825,7 @@ msgid "Bendahara"
 msgstr "Finance Officer"
 
 #: apps/identity/models.py
-msgid "Konselor"
+msgid "Guru BK"
 msgstr "Counsellor"
 
 #: apps/identity/models.py

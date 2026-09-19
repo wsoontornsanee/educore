@@ -10,7 +10,7 @@ EXPECTED = {
     'school_admin': ('Admin Sekolah', 'School Admin'),
     'finance_officer': ('Bendahara', 'Finance Officer'),
     'teacher': ('Guru', 'Teacher'),
-    'counsellor': ('Konselor', 'Counsellor'),
+    'counsellor': ('Guru BK', 'Counsellor'),
     'canteen_operator': ('Operator Kantin', 'Canteen Operator'),
     'clinic_officer': ('Petugas UKS', 'Clinic Officer'),
     'parent': ('Wali Murid', 'Parent'),
