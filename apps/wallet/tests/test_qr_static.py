@@ -1,6 +1,8 @@
 """Printed static QR decals: payment points, sheets, static charges, PDF (spec 18 §3b, QRS-030..042)."""
 import datetime
+import sys
 from decimal import Decimal
+from unittest import mock
 
 from django.core import signing
 from django.test import TestCase
@@ -268,6 +270,15 @@ class DecalSheetTests(StaticFixture, TestCase):
             self.assertTrue(data.startswith(b'%PDF'))
         event = AuditEvent.objects.get(action='wallet.decal.downloaded')
         self.assertEqual(str(event.entity_id), str(decal.id))
+
+    def test_pdf_falls_back_to_html_and_logs_when_weasyprint_is_unusable(self):
+        decal = self.decal()
+        with mock.patch.dict(sys.modules, {'weasyprint': None}):
+            with self.assertLogs('apps.wallet.qr_decals', level='WARNING') as logs:
+                data, content_type = render_decal_pdf(decal, self.operator)
+        self.assertTrue(content_type.startswith('text/html'))
+        self.assertIn(decal.human_id.encode(), data)
+        self.assertIn('weasyprint unavailable', logs.output[0])
 
     def test_non_active_sheet_cannot_be_downloaded(self):
         old = self.decal()

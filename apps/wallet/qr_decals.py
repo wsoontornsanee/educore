@@ -5,6 +5,7 @@ countdown and no live channel, so the compensating controls live here: its own s
 token, a lower cap (see ``qr_charge``), instant revoke, rotation with a grace window,
 and an audit-logged, operator-only PDF.
 """
+import logging
 import re
 import secrets
 from datetime import date, datetime, time, timedelta
@@ -25,6 +26,8 @@ from apps.wallet.models import (
     POSQRDecalStatus,
 )
 from apps.wallet.qr_charge import DECAL_TOKEN_SALT, effective_cap, refusal_message, render_qr_svg
+
+logger = logging.getLogger(__name__)
 
 DECAL_GRACE = timedelta(hours=24)  # QRS-036 default rotation grace
 
@@ -241,6 +244,7 @@ def render_decal_pdf(decal: POSQRDecal, actor) -> Tuple[bytes, str]:
         from weasyprint import HTML
         data, content_type = HTML(string=html).write_pdf(), 'application/pdf'
     except Exception:
+        logger.warning("weasyprint unavailable, falling back to HTML decal sheet", exc_info=True)
         data, content_type = html.encode('utf-8'), 'text/html; charset=utf-8'
     audit(
         action='wallet.decal.downloaded', entity_type='POSQRDecal', entity_id=decal.id,
