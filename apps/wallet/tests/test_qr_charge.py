@@ -8,6 +8,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.identity.models import Guardian, GuardianLink, Person, RoleAssignment, School, Student, User
+from apps.identity.pin import set_pin
 from apps.identity.rbac import ROLE_PARENT, SCOPE_SCHOOL, assign_role
 from apps.wallet.models import (
     Merchant,
@@ -33,6 +34,9 @@ from apps.wallet.tests.test_wallet_core import build_wallet_fixture
 from educore.middleware.tenancy import set_current_foundation_id
 
 
+GUARDIAN_PIN = '482913'
+
+
 def make_guardian(fx, student=None, nik='3471010101017777'):
     student = student or fx['student']
     person = Person.all_tenants.create(foundation_id=fx['foundation'].id, nik=nik, full_name="Ibu Wali")
@@ -48,6 +52,7 @@ def make_guardian(fx, student=None, nik='3471010101017777'):
         user=user, role=ROLE_PARENT, scope_type=SCOPE_SCHOOL, scope_id=fx['school'].id,
         foundation_id=fx['foundation'].id,
     )
+    set_pin(user, GUARDIAN_PIN)
     return user
 
 
@@ -337,7 +342,7 @@ class QRApiTests(QRFixtureMixin, TestCase):
         self.assertEqual(res.json()['max_amount'], '50000.00')
 
         res = self.client.post('/api/v1/wallet/qr/charge/', {
-            'token': minted['token'], 'student_id': self.student.id, 'amount': '18000.00', 'idempotency_key': 'abc',
+            'token': minted['token'], 'student_id': self.student.id, 'amount': '18000.00', 'idempotency_key': 'abc', 'pin': GUARDIAN_PIN,
         }, format='json')
         self.assertEqual(res.status_code, 201, res.content)
         body = res.json()
@@ -353,8 +358,9 @@ class QRApiTests(QRFixtureMixin, TestCase):
 
     def test_operator_cannot_charge_a_student_by_qr(self):
         minted = self._mint_via_api()
+        set_pin(self.operator, '739105')  # even with a valid PIN of their own, staff are not guardians
         res = self.client.post('/api/v1/wallet/qr/charge/', {
-            'token': minted['token'], 'student_id': self.student.id, 'amount': '5000.00', 'idempotency_key': 'x',
+            'token': minted['token'], 'student_id': self.student.id, 'amount': '5000.00', 'idempotency_key': 'x', 'pin': '739105',
         }, format='json')
         self.assertEqual(res.status_code, 404)
         self.wallet.refresh_from_db()
@@ -373,7 +379,7 @@ class QRApiTests(QRFixtureMixin, TestCase):
         minted = self._mint_via_api()
         self.client.force_authenticate(user=self.guardian_user)
         res = self.client.post('/api/v1/wallet/qr/charge/', {
-            'token': minted['token'], 'student_id': self.student.id, 'amount': '50001.00', 'idempotency_key': 'z',
+            'token': minted['token'], 'student_id': self.student.id, 'amount': '50001.00', 'idempotency_key': 'z', 'pin': GUARDIAN_PIN,
         }, format='json')
         self.assertEqual(res.status_code, 400)
         self.assertEqual(res.json()['error'], 'AMOUNT_ABOVE_CAP')

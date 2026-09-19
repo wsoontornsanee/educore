@@ -286,6 +286,7 @@ class QRStudentTokenSerializer(serializers.Serializer):
 class QRChargeSerializer(QRStudentTokenSerializer):
     amount = serializers.DecimalField(max_digits=18, decimal_places=2)
     idempotency_key = serializers.CharField(max_length=100)
+    pin = serializers.CharField(max_length=12, write_only=True)  # QRS-029: the guardian's spending PIN
 
 
 class MerchantQRChargeSerializer(serializers.Serializer):

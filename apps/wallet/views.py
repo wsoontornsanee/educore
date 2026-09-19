@@ -15,6 +15,7 @@ from apps.core.pagination import StandardCursorPagination
 from apps.core.services import build_signed_download
 from apps.identity.models import School, Student
 from apps.identity.permissions import HasRequiredPermission
+from apps.identity.pin import PinError, check_pin, pin_error_response
 from educore.middleware.tenancy import get_current_foundation_id
 
 from apps.wallet.models import (
@@ -869,12 +870,18 @@ class QRResolveView(_QRStudentView):
 
 
 class QRChargeView(_QRStudentView):
-    """POST /wallet/qr/charge/: the student-entered debit (QRS-012)."""
+    """POST /wallet/qr/charge/: the student-entered debit (QRS-012), confirmed with the guardian's PIN (QRS-029)."""
 
     def post(self, request):
         payload = QRChargeSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
         data = payload.validated_data
+        # PIN first, before the QR token is even parsed: a locked or wrong-PIN caller must learn nothing
+        # about whether the QR was valid (QRS-029). Business refusals below never touch the PIN counter.
+        try:
+            check_pin(request.user, data['pin'])
+        except PinError as e:
+            return pin_error_response(e)
         student = self._guardian_student(request, data['student_id'])
         if not student:
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)

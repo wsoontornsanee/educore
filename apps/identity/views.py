@@ -46,6 +46,58 @@ class CurrentUserView(views.APIView):
         serializer = UserProfileSerializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+class SpendingPinView(views.APIView):
+    """/api/v1/me/pin/ — the guardian's 6-digit spending PIN (spec 18 QRS-029).
+
+    GET  -> {is_set, locked_until, requires_otp_reset}
+    POST {pin}                      first-time setup
+    PUT  {current_pin, new_pin}     change (the current PIN counts against the attempt limit)
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from . import pin as pin_service
+        return Response(pin_service.get_pin_status(request.user))
+
+    def post(self, request):
+        from . import pin as pin_service
+        try:
+            pin_service.set_pin(request.user, str(request.data.get('pin', '')))
+        except pin_service.PinError as e:
+            return pin_service.pin_error_response(e)
+        return Response(pin_service.get_pin_status(request.user), status=status.HTTP_201_CREATED)
+
+    def put(self, request):
+        from . import pin as pin_service
+        try:
+            pin_service.change_pin(
+                request.user, str(request.data.get('current_pin', '')), str(request.data.get('new_pin', '')),
+            )
+        except pin_service.PinError as e:
+            return pin_service.pin_error_response(e)
+        return Response(pin_service.get_pin_status(request.user))
+
+
+class SpendingPinResetView(views.APIView):
+    """POST /api/v1/me/pin/reset/ {challenge_id, code, new_pin} — forgotten or locked-out PIN, proven by a
+    fresh OTP to the account's own phone (request one via /auth/otp/request/)."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        from . import pin as pin_service
+        try:
+            challenge_id = int(request.data.get('challenge_id'))
+        except (TypeError, ValueError):
+            return Response({'error': 'OTP_INVALID'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            pin_service.reset_pin_with_otp(
+                request.user, challenge_id, str(request.data.get('code', '')), str(request.data.get('new_pin', '')),
+            )
+        except pin_service.PinError as e:
+            return pin_service.pin_error_response(e)
+        return Response(pin_service.get_pin_status(request.user))
+
+
 class FoundationEntitlementViewSet(viewsets.ModelViewSet):
     """Manage foundation and per-school module entitlements (spec/02 §6, spec/03 §3, FND-012).
     

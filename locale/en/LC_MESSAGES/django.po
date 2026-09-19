@@ -8675,3 +8675,27 @@ msgstr "School admins are notified when a sheet passes this threshold or is used
 
 msgid "Peringatan Lembar QR (QR Decal Alert)"
 msgstr "QR Decal Alert"
+
+msgid "PIN harus terdiri dari 6 angka."
+msgstr "The PIN must be exactly 6 digits."
+
+msgid "PIN terlalu mudah ditebak. Pilih kombinasi angka lain."
+msgstr "That PIN is too easy to guess. Choose a different combination."
+
+msgid "PIN sudah dibuat. Gunakan ubah PIN atau atur ulang lewat OTP."
+msgstr "A PIN already exists. Change it, or reset it with an OTP."
+
+msgid "Kode OTP tidak valid."
+msgstr "Invalid OTP code."
+
+msgid "Buat PIN dulu sebelum membayar dengan QR."
+msgstr "Create a PIN before paying by QR."
+
+msgid "PIN diblokir. Atur ulang PIN dengan kode OTP."
+msgstr "PIN blocked. Reset it with an OTP code."
+
+msgid "PIN dikunci sementara. Coba lagi nanti."
+msgstr "PIN temporarily locked. Try again later."
+
+msgid "PIN salah."
+msgstr "Wrong PIN."

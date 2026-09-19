@@ -3,6 +3,8 @@ from django.urls import path
 from apps.core.routers import EduCoreRouter
 from .views import (
     CurrentUserView,
+    SpendingPinResetView,
+    SpendingPinView,
     EduCoreTokenObtainPairView,
     EduCoreTokenRefreshView,
     FoundationEntitlementViewSet,
@@ -40,6 +42,8 @@ urlpatterns = [
     path('auth/sso/links/', SocialLinksListView.as_view(), name='sso-links'),
     path('auth/sso/microsoft-tenant/', MicrosoftTenantConfigView.as_view(), name='sso-microsoft-tenant'),
     path('me', CurrentUserView.as_view(), name='current-user'),
+    path('me/pin/', SpendingPinView.as_view(), name='me-pin'),
+    path('me/pin/reset/', SpendingPinResetView.as_view(), name='me-pin-reset'),
     path('me/children/', GuardianChildrenView.as_view(), name='guardian-children'),
 ] + router.urls
 
