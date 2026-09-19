@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 from apps.identity.console_access import accessible_school_ids, accessible_school_ids_for_all
 from apps.identity.models import School
 from apps.identity.permissions import HasRequiredPermission
+from apps.reporting.health import get_health_metrics
 from apps.reporting.models import (
     RptAcademicPerformance,
     RptActiveStudent,
@@ -251,3 +252,23 @@ class MeteringRosterView(APIView):
         if school is None or (allowed is not None and school.id not in allowed):
             return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
         return Response(get_metering_roster(foundation_id, school, month))
+
+
+class HealthMetricsView(APIView):
+    """GET /internal/health-metrics/?foundation_id= (spec/15 §6, RPT-012, RPT-014; platform role only).
+
+    Deliberately not a tenant-derived viewset: the platform role has no tenant context and reads
+    every foundation (or one, via `foundation_id`) through `all_tenants` in the read model, so the
+    cross-tenant-404 harness does not apply. Access is gated by the platform permission alone.
+    """
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'platform.health.read'
+
+    def get(self, request):
+        raw = request.query_params.get('foundation_id')
+        foundation_id = None
+        if raw not in (None, ''):
+            if not raw.isdigit():
+                return Response({'error': _("Parameter foundation_id tidak valid.")}, status=status.HTTP_400_BAD_REQUEST)
+            foundation_id = int(raw)
+        return Response({'schools': get_health_metrics(foundation_id=foundation_id)})
