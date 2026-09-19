@@ -10,6 +10,20 @@ from apps.attendance.pickup_views import (
     PickupVerifyView,
 )
 
+from apps.attendance.transport_views import (
+    BusEventsView,
+    BusLiveView,
+    BusRouteDetailView,
+    BusRouteListView,
+    BusRouteStopsView,
+    BusRunEndView,
+    BusRunPositionView,
+    BusRunStartView,
+    BusStopDetailView,
+    BusStopStudentDetailView,
+    BusStopStudentsView,
+)
+
 from apps.attendance.views import (
     AbsenceRequestStaffViewSet,
     AttendanceDayViewSet,
@@ -49,5 +63,17 @@ urlpatterns = [
     path('pickup/release/', PickupReleaseView.as_view(), name='pickup-release'),
     path('pickup/override/', PickupOverrideView.as_view(), name='pickup-override'),
     path('pickup/authorizations/<int:authorization_id>/revoke/', PickupStaffRevokeView.as_view(), name='pickup-staff-revoke'),
+    # School transport (spec/05 §6, §8)
+    path('bus/routes/', BusRouteListView.as_view(), name='bus-routes'),
+    path('bus/routes/<int:route_id>/', BusRouteDetailView.as_view(), name='bus-route-detail'),
+    path('bus/routes/<int:route_id>/stops/', BusRouteStopsView.as_view(), name='bus-route-stops'),
+    path('bus/routes/<int:route_id>/runs/', BusRunStartView.as_view(), name='bus-run-start'),
+    path('bus/routes/<int:route_id>/live/', BusLiveView.as_view(), name='bus-route-live'),
+    path('bus/stops/<int:stop_id>/', BusStopDetailView.as_view(), name='bus-stop-detail'),
+    path('bus/stops/<int:stop_id>/students/', BusStopStudentsView.as_view(), name='bus-stop-students'),
+    path('bus/stops/<int:stop_id>/students/<int:student_id>/', BusStopStudentDetailView.as_view(), name='bus-stop-student'),
+    path('bus/runs/<int:run_id>/position/', BusRunPositionView.as_view(), name='bus-run-position'),
+    path('bus/runs/<int:run_id>/end/', BusRunEndView.as_view(), name='bus-run-end'),
+    path('bus/events/', BusEventsView.as_view(), name='bus-events'),
 ] + router.urls
 

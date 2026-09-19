@@ -53,11 +53,14 @@ def ingest_device_events(school_id=None, limit: int = 200) -> dict:
         checked += 1
         try:
             with tenant_context(row.foundation_id):
-                ingest_gate_events(
-                    foundation_id=row.foundation_id,
-                    school_id=row.school_id,
-                    events_data=[row.payload],
-                )
+                if row.payload.get('bus_run_id') is not None:
+                    _apply_bus_event(row)
+                else:
+                    ingest_gate_events(
+                        foundation_id=row.foundation_id,
+                        school_id=row.school_id,
+                        events_data=[row.payload],
+                    )
             row.status = DeviceEventStagingStatus.APPLIED
             row.applied_at = timezone.now()
             row.save(update_fields=['status', 'applied_at', 'updated_at'])
@@ -70,6 +73,22 @@ def ingest_device_events(school_id=None, limit: int = 200) -> dict:
             logger.warning("ingest_device_events: staging row %s failed: %s", row.id, exc)
 
     return {'checked': checked, 'applied': applied, 'failed': failed}
+
+
+def _apply_bus_event(row) -> None:
+    """A staged handheld tap that names a bus run is a board/alight event (ATT-019), not a gate scan. A refusal
+    (unknown card, run of another school) fails the row with its reason, so it shows in the staging table
+    instead of vanishing; a duplicate is fine (a retry)."""
+    from apps.attendance.transport import apply_bus_events
+
+    payload = row.payload
+    [result] = apply_bus_events(
+        foundation_id=row.foundation_id,
+        events=[{**payload, 'run_id': payload['bus_run_id'], 'device_id': payload.get('device_id')}],
+        allowed_school_ids={row.school_id},
+    )
+    if result['status'] == 'REJECTED':
+        raise ValueError(f"bus event rejected: {result['reason']}")
 
 
 def _is_within_operational_hours(now: datetime.datetime, school) -> bool:

@@ -4400,3 +4400,67 @@ msgstr ""
 #: apps/notifications/models.py
 msgid "Penjemputan oleh Penjemput Tidak Terdaftar (Pickup Override)"
 msgstr ""
+
+#: apps/attendance
+msgid "Data tidak ditemukan."
+msgstr ""
+
+#: apps/attendance
+msgid "Kirim raw_uid (kartu) atau student_id."
+msgstr ""
+
+#: apps/attendance
+msgid "Nama rute wajib diisi."
+msgstr ""
+
+#: apps/attendance
+msgid "Nama titik wajib diisi."
+msgstr ""
+
+#: apps/attendance
+msgid "Perjalanan ini sudah selesai."
+msgstr ""
+
+#: apps/attendance
+msgid "Rute ini sudah memiliki perjalanan yang sedang berjalan."
+msgstr ""
+
+#: apps/attendance
+msgid "Rute ini tidak aktif."
+msgstr ""
+
+#: apps/attendance
+msgid "Rute tidak ditemukan."
+msgstr ""
+
+#: apps/attendance
+msgid "Siswa bukan dari sekolah rute ini."
+msgstr ""
+
+#: apps/attendance
+msgid "Sudah ada rute dengan nama itu di sekolah ini."
+msgstr ""
+
+#: apps/attendance
+msgid "Berangkat ke sekolah (To school)"
+msgstr ""
+
+#: apps/attendance
+msgid "Pulang dari sekolah (From school)"
+msgstr ""
+
+#: apps/attendance
+msgid "Berjalan (Active)"
+msgstr ""
+
+#: apps/attendance
+msgid "Naik (Board)"
+msgstr ""
+
+#: apps/attendance
+msgid "Turun (Alight)"
+msgstr ""
+
+#: apps/notifications/models.py
+msgid "Bus Sekolah Mendekat (Bus Approaching)"
+msgstr ""

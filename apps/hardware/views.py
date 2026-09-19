@@ -277,6 +277,13 @@ class DeviceEventIngestView(views.APIView):
                 'photo_key': item.get('photo_key', ''),
                 'replayed': item.get('replayed', False),
             }
+            if item.get('bus_run_id') is not None:
+                payload.update({
+                    'bus_run_id': item['bus_run_id'],
+                    'kind': item.get('kind'),
+                    'latitude': str(item['latitude']) if item.get('latitude') is not None else None,
+                    'longitude': str(item['longitude']) if item.get('longitude') is not None else None,
+                })
             DeviceEventStaging.objects.create(
                 foundation_id=foundation_id,
                 school_id=school_id,

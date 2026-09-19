@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from rest_framework import serializers
 
 from apps.hardware.models import Device, DeviceClass, DeviceDirection, DeviceEventStaging, DeviceStatus
@@ -80,6 +82,11 @@ class DeviceEventItemSerializer(serializers.Serializer):
     confidence = serializers.DecimalField(max_digits=5, decimal_places=4, required=False, allow_null=True)
     photo_key = serializers.CharField(max_length=255, required=False, allow_blank=True, default='')
     replayed = serializers.BooleanField(default=False)
+    # School bus (ATT-019): a handheld card tap on a run is a board/alight event, not a gate scan.
+    bus_run_id = serializers.IntegerField(required=False, allow_null=True)
+    kind = serializers.ChoiceField(choices=[('BOARD', 'BOARD'), ('ALIGHT', 'ALIGHT')], required=False, allow_null=True)
+    latitude = serializers.DecimalField(max_digits=9, decimal_places=6, min_value=Decimal('-90'), max_value=Decimal('90'), required=False, allow_null=True)
+    longitude = serializers.DecimalField(max_digits=9, decimal_places=6, min_value=Decimal('-180'), max_value=Decimal('180'), required=False, allow_null=True)
 
 
 class DeviceEventBatchSerializer(serializers.Serializer):

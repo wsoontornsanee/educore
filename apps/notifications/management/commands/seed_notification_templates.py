@@ -116,6 +116,91 @@ CANONICAL_TEMPLATES = [
         'variables': ['student_name', 'school_name', 'person_name', 'time', 'date'],
     },
     {
+        'key': 'attendance.bus_approaching_pickup',
+        'channel': ChannelType.WHATSAPP,
+        'locale': 'id-ID',
+        'subject': 'Bus Sekolah Segera Tiba',
+        'body': (
+            'Bus sekolah ({route_name}) diperkirakan tiba di titik jemput {stop_name} sekitar {minutes} menit lagi '
+            'untuk menjemput Ananda {student_name}. Mohon siapkan Ananda.'
+        ),
+        'variables': ['student_name', 'school_name', 'route_name', 'stop_name', 'minutes', 'time', 'date'],
+    },
+    {
+        'key': 'attendance.bus_approaching_pickup',
+        'channel': ChannelType.PUSH,
+        'locale': 'id-ID',
+        'subject': 'Bus segera tiba: {stop_name}',
+        'body': 'Bus {route_name} tiba di {stop_name} sekitar {minutes} menit lagi untuk menjemput {student_name}.',
+        'variables': ['student_name', 'school_name', 'route_name', 'stop_name', 'minutes', 'time', 'date'],
+    },
+    {
+        'key': 'attendance.bus_approaching_dropoff',
+        'channel': ChannelType.WHATSAPP,
+        'locale': 'id-ID',
+        'subject': 'Bus Sekolah Segera Tiba',
+        'body': (
+            'Bus sekolah ({route_name}) diperkirakan tiba di titik turun {stop_name} sekitar {minutes} menit lagi '
+            'mengantar Ananda {student_name}. Mohon jemput Ananda di titik tersebut.'
+        ),
+        'variables': ['student_name', 'school_name', 'route_name', 'stop_name', 'minutes', 'time', 'date'],
+    },
+    {
+        'key': 'attendance.bus_approaching_dropoff',
+        'channel': ChannelType.PUSH,
+        'locale': 'id-ID',
+        'subject': 'Bus segera tiba: {stop_name}',
+        'body': 'Bus {route_name} tiba di {stop_name} sekitar {minutes} menit lagi mengantar {student_name}.',
+        'variables': ['student_name', 'school_name', 'route_name', 'stop_name', 'minutes', 'time', 'date'],
+    },
+    {
+        'key': 'attendance.bus_unaccounted',
+        'channel': ChannelType.WHATSAPP,
+        'locale': 'id-ID',
+        'subject': 'PERINGATAN: Siswa Belum Tercatat Turun dari Bus',
+        'body': (
+            'PERINGATAN: Ananda {student_name} ({school_name}) tercatat naik bus ({route_name}) tetapi belum '
+            'tercatat turun saat perjalanan berakhir pukul {time} WIB. Pihak sekolah sedang memastikan keberadaan '
+            'Ananda. Hubungi sekolah jika Anda mengetahui keberadaannya.'
+        ),
+        'variables': ['student_name', 'school_name', 'route_name', 'time', 'date'],
+    },
+    {
+        'key': 'attendance.bus_unaccounted',
+        'channel': ChannelType.PUSH,
+        'locale': 'id-ID',
+        'subject': 'PERINGATAN: {student_name} belum tercatat turun',
+        'body': '{student_name} tercatat naik bus {route_name} tetapi belum tercatat turun (pukul {time} WIB). Sekolah sedang memastikan.',
+        'variables': ['student_name', 'school_name', 'route_name', 'time', 'date'],
+    },
+    {
+        'key': 'attendance.bus_unaccounted',
+        'channel': ChannelType.SMS,
+        'locale': 'id-ID',
+        'subject': 'PERINGATAN BUS',
+        'body': 'PERINGATAN: {student_name} naik bus {route_name} tapi belum tercatat turun. Hubungi {school_name}.',
+        'variables': ['student_name', 'school_name', 'route_name', 'time', 'date'],
+    },
+    {
+        'key': 'attendance.bus_unaccounted_admin',
+        'channel': ChannelType.WHATSAPP,
+        'locale': 'id-ID',
+        'subject': 'PERINGATAN: Siswa Belum Tercatat Turun dari Bus',
+        'body': (
+            'PERINGATAN: {count} siswa tercatat naik bus ({route_name}, {school_name}) tetapi belum tercatat turun '
+            'saat perjalanan berakhir pukul {time} WIB: {student_names}. Segera periksa bus dan hubungi pengemudi.'
+        ),
+        'variables': ['count', 'student_names', 'school_name', 'route_name', 'time', 'date'],
+    },
+    {
+        'key': 'attendance.bus_unaccounted_admin',
+        'channel': ChannelType.PUSH,
+        'locale': 'id-ID',
+        'subject': 'PERINGATAN: {count} siswa belum tercatat turun',
+        'body': 'Bus {route_name}: {student_names} belum tercatat turun (pukul {time} WIB). Segera periksa bus.',
+        'variables': ['count', 'student_names', 'school_name', 'route_name', 'time', 'date'],
+    },
+    {
         'key': 'emergency.alert',
         'channel': ChannelType.WHATSAPP,
         'locale': 'id-ID',

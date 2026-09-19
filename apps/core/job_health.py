@@ -24,7 +24,7 @@ from apps.core.models import JobRun
 # command writes to JobRun.job_name: the command name, except refresh_reporting which suffixes its scope.
 CADENCE_TIERS = {
     'every minute': (timedelta(minutes=15), [
-        'drain_tasks', 'ingest_device_events', 'auto_submit_expired_exam_attempts',
+        'drain_tasks', 'ingest_device_events', 'auto_submit_expired_exam_attempts', 'check_unaccounted_students',
     ]),
     'every 5 minutes': (timedelta(minutes=30), [
         'refresh_reporting_dashboard', 'sync_payment_status', 'check_service_health',
