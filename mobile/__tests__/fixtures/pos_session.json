@@ -1,0 +1,36 @@
+{
+  "roster": [
+    {
+      "student_id": 1,
+      "name": "Dimas",
+      "photo_key": "",
+      "wallet_balance": "100000.00",
+      "daily_limit": null,
+      "wallet_status": "ACTIVE"
+    }
+  ],
+  "catalog": [
+    {
+      "sku": "NASI-01",
+      "name": "Nasi Goreng",
+      "price": "15000.00",
+      "category": "FOOD",
+      "is_active": true
+    }
+  ],
+  "rules": [
+    {
+      "student_id": 1,
+      "daily_limit": "25000.00",
+      "blocked_categories": [
+        "SNACK"
+      ],
+      "blocked_products": [
+        "GUM-01"
+      ],
+      "allowed_window_start": "09:30:00",
+      "allowed_window_end": "13:30:00"
+    }
+  ],
+  "cursor": "2026-09-19T11:45:50.383491+00:00"
+}
