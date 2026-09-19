@@ -1,0 +1,151 @@
+{% extends "base_console.html" %}
+{% load i18n console_format %}
+
+{% comment %}
+Page: QR Charge terminal screen (spec 18 §4, QRS-007/013/014/025). A tablet propped facing the
+student: mode choice -> QR + countdown -> PAID/verify screen (amount at 48px, held until Done).
+Served by apps.wallet.web_qr_views.QRTerminalPageView; the JS below talks only to that app's
+session/result/void endpoints. All text is set with textContent, never innerHTML, except the
+server-rendered QR SVG.
+{% endcomment %}
+
+{% block title %}{% translate "Layar QR kasir — EduCore" %}{% endblock %}
+
+{% block console_content %}
+{% include "components/_console_ui.html" %}
+<style>
+  .qt { max-width: 720px; margin: 0 auto; padding: 24px 16px; text-align: center; display: flex; flex-direction: column; gap: 20px; }
+  .qt-qr { background: #fff; padding: 12px; margin: 0 auto; width: min(320px, 80vw); border: 1px solid #E5DDD9; }
+  .qt-qr svg { width: 100%; height: auto; display: block; }
+  .qt-big { font-size: 20px; font-weight: 700; }
+  .qt-amount { font-size: 64px; line-height: 1.05; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .qt-code { font-family: 'IBM Plex Mono', monospace; font-size: 32px; letter-spacing: .2em; font-weight: 700; }
+  .qt-paid { background: #ECFDF5; border: 2px solid #047857; padding: 24px 16px; display: flex; flex-direction: column; gap: 12px; }
+  .qt-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .qt .btn { min-height: 56px; font-size: 20px; padding: 0 28px; }
+  [hidden] { display: none !important; }
+</style>
+<main class="qt" id="qt"
+      data-session-url="{% url 'canteen-qr-terminal-session' terminal.id %}"
+      data-query="?school_id={{ merchant.school_id }}"
+      data-ttl="{{ ttl }}" data-csrf="{{ csrf_token }}" data-currency="{{ currency }}"
+      data-msg-expired="{% translate 'Kode kedaluwarsa. Tekan Buat ulang.' %}"
+      data-msg-confirm-void="{% translate 'Batalkan pembayaran ini? Saldo siswa dikembalikan; lalu buat pembayaran baru.' %}"
+      data-msg-voided="{% translate 'Dibatalkan. Minta siswa membayar ulang.' %}">
+  <div>
+    <span class="cn-eyebrow">{{ merchant.name }} · {{ terminal.name|default:terminal.device_id }}</span>
+    <h1 class="cn-title">{% translate "QR Charge" %}</h1>
+  </div>
+
+  {% if not enabled %}
+    <div class="cn-empty">{% translate "QR Charge belum diaktifkan untuk kantin ini. Hubungi admin sekolah." %}</div>
+  {% else %}
+  <section id="qt-choose">
+    <p class="qt-big">{% translate "Sebutkan total, lalu tampilkan QR." %}</p>
+    <p class="text-caption">{% blocktranslate with cap=cap|money:currency %}Batas per transaksi {{ cap }}.{% endblocktranslate %}</p>
+    <div class="qt-actions"><button type="button" class="btn btn-primary" id="qt-start">{% translate "Tampilkan QR" %}</button></div>
+  </section>
+
+  <section id="qt-qr" hidden>
+    <p class="qt-big">{% translate "Pindai untuk membayar" %} · {{ merchant.name }}</p>
+    <div class="qt-qr" id="qt-svg" role="img" aria-label="{% translate 'Kode QR pembayaran' %}"></div>
+    <p class="qt-big">{% translate "Masukkan jumlah yang disebut petugas" %}</p>
+    <p class="text-body" aria-live="polite">{% translate "Kedaluwarsa dalam" %} <strong id="qt-count">–</strong> {% translate "detik" %}</p>
+    <div class="qt-actions">
+      <button type="button" class="btn btn-secondary" id="qt-regen">{% translate "Buat ulang" %}</button>
+      <button type="button" class="btn btn-secondary" id="qt-cancel">{% translate "Batal" %}</button>
+    </div>
+  </section>
+
+  <section id="qt-paid" class="qt-paid" hidden aria-live="assertive">
+    <span class="cn-eyebrow">{% translate "LUNAS · PERIKSA JUMLAHNYA" %}</span>
+    <div class="qt-big" id="qt-name"></div>
+    <div class="text-caption" id="qt-nis"></div>
+    <div class="qt-amount" id="qt-amount"></div>
+    <div><span class="cn-eyebrow">{% translate "KODE" %}</span><div class="qt-code" id="qt-codeval"></div></div>
+    <div class="qt-actions">
+      <button type="button" class="btn btn-primary" id="qt-done">{% translate "Selesai" %}</button>
+      <button type="button" class="btn btn-secondary" id="qt-void">{% translate "Batalkan" %}</button>
+    </div>
+    <p class="text-caption" id="qt-voidmsg" role="status"></p>
+  </section>
+
+  <p class="text-body" id="qt-error" role="alert" hidden></p>
+  {% endif %}
+</main>
+
+<script>
+(function () {
+  var root = document.getElementById('qt');
+  if (!root || !document.getElementById('qt-start')) return;
+  var sessionUrl = root.dataset.sessionUrl, csrf = root.dataset.csrf, currency = root.dataset.currency;
+  var qs = root.dataset.query;
+  var el = function (id) { return document.getElementById(id); };
+  var panels = ['qt-choose', 'qt-qr', 'qt-paid'];
+  var state = { id: null, expires: 0, timer: null, poll: null };
+
+  function url(id, tail) { return sessionUrl + id + '/' + tail + '/' + qs; }
+  function show(name) { panels.forEach(function (p) { el(p).hidden = (p !== name); }); }
+  function fail(msg) { var e = el('qt-error'); e.textContent = msg; e.hidden = !msg; }
+  function stop() { clearInterval(state.timer); clearInterval(state.poll); state.timer = state.poll = null; }
+  function money(v) {
+    var n = Math.round(parseFloat(v));
+    return currency === 'IDR' ? 'Rp ' + String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.') : currency + ' ' + parseFloat(v).toFixed(2);
+  }
+  function api(u, method, body) {
+    return fetch(u, {
+      method: method, credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+      body: body ? JSON.stringify(body) : undefined,
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, data: j }; }); });
+  }
+  function tick() {
+    var left = Math.max(0, Math.round((state.expires - Date.now()) / 1000));
+    el('qt-count').textContent = left;
+    if (left === 0) { stop(); fail(root.dataset.msgExpired); }
+  }
+  function pollResult() {
+    fetch(url(state.id, 'result'), { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.status !== 'PAID' || !d.transaction) return;
+        stop();
+        el('qt-name').textContent = d.transaction.student_name;
+        el('qt-nis').textContent = 'NIS ' + d.transaction.student_nis;
+        el('qt-amount').textContent = money(d.transaction.amount);
+        el('qt-codeval').textContent = d.transaction.confirmation_code;
+        el('qt-voidmsg').textContent = '';
+        el('qt-void').disabled = false;
+        show('qt-paid');
+      }).catch(function () {});
+  }
+  function start(previous) {
+    fail(''); stop();
+    api(sessionUrl + qs, 'POST', previous ? { previous_session_id: previous } : {}).then(function (r) {
+      if (!r.ok) { fail(r.data.message || r.data.error); return; }
+      state.id = r.data.session_id; state.expires = Date.parse(r.data.expires_at);
+      el('qt-svg').innerHTML = r.data.qr_svg;  // server-rendered SVG of the signed token; no user input
+      show('qt-qr'); tick();
+      state.timer = setInterval(tick, 1000);
+      state.poll = setInterval(pollResult, 2000);
+    });
+  }
+  function reset() { stop(); state.id = null; show('qt-choose'); fail(''); }
+
+  el('qt-start').onclick = function () { start(null); };
+  el('qt-regen').onclick = function () { start(state.id); };
+  el('qt-cancel').onclick = function () {
+    var id = state.id; reset();
+    if (id) api(url(id, 'cancel'), 'POST');
+  };
+  el('qt-done').onclick = reset;
+  el('qt-void').onclick = function () {
+    if (!confirm(root.dataset.msgConfirmVoid)) return;
+    api(url(state.id, 'void'), 'POST').then(function (r) {
+      el('qt-voidmsg').textContent = r.ok ? root.dataset.msgVoided : (r.data.error || '');
+      if (r.ok) el('qt-void').disabled = true;
+    });
+  };
+})();
+</script>
+{% endblock %}

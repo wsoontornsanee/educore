@@ -8321,3 +8321,152 @@ msgstr "Invoice currency (%(invoice)s) does not match the payment currency (%(pa
 
 msgid "Jumlah pembayaran tunai harus lebih dari nol."
 msgstr "Cash payment amount must be greater than zero."
+msgid "QR Charge — EduCore"
+msgstr "QR Charge — EduCore"
+
+msgid "QR Charge"
+msgstr "QR Charge"
+
+msgid "Status QR"
+msgstr "QR status"
+
+msgid "Layar kasir"
+msgstr "Cashier screen"
+
+msgid "Perlu ditinjau: banyak sanggahan"
+msgstr "Needs review: many disputes"
+
+msgid "Dikonfirmasi"
+msgstr "Acknowledged"
+
+msgid "Belum ada terminal aktif."
+msgstr "No active terminals yet."
+
+msgid "Nonaktifkan QR Charge untuk merchant ini?"
+msgstr "Turn off QR Charge for this merchant?"
+
+msgid "Saya memahami bahwa jumlah diketik sendiri oleh siswa dan petugas bertanggung jawab memeriksanya."
+msgstr "I understand the student types the amount themselves and the operator is responsible for checking it."
+
+msgid "Aktifkan QR Charge"
+msgstr "Turn on QR Charge"
+
+msgid "Tutup tanda tinjauan"
+msgstr "Close review flag"
+
+msgid "Sanggahan terbuka"
+msgstr "Open disputes"
+
+msgid "Alasan wali"
+msgstr "Guardian's reason"
+
+msgid "Jumlah pengembalian (kosong = penuh)"
+msgstr "Refund amount (empty = full)"
+
+msgid "Kabulkan sanggahan dan kembalikan saldo?"
+msgstr "Uphold the dispute and refund the balance?"
+
+msgid "Kabulkan"
+msgstr "Uphold"
+
+msgid "Tidak ada sanggahan terbuka."
+msgstr "No open disputes."
+
+msgid "Sinyal pembayaran terlalu kecil"
+msgstr "Underpayment signals"
+
+msgid "Pembayaran QR di bawah persentil ke-10 keranjang belanja merchant. Untuk dibicarakan, bukan untuk dihukum."
+msgstr "QR payments below the 10th percentile of the merchant's baskets. For a conversation, not a punishment."
+
+msgid "Belum cukup data penjualan itemised (30 hari, minimal 10 transaksi) untuk menghitung sinyal."
+msgstr "Not enough itemised sales data (30 days, at least 10 transactions) to compute signals."
+
+msgid "Jumlah transaksi"
+msgstr "Transactions"
+
+msgid "Tidak ada sinyal pada tanggal ini."
+msgstr "No signals on this date."
+
+msgid "Siswa memindai QR di layar kasir dan mengetik jumlahnya sendiri. Petugas wajib membaca jumlah di layar sebelum menyerahkan barang. Batas per transaksi: %(cap)s."
+msgstr "Students scan the QR on the cashier screen and type the amount themselves. The operator must read the amount on screen before handing over goods. Per-transaction cap: %(cap)s."
+
+msgid "Layar QR kasir — EduCore"
+msgstr "Cashier QR screen — EduCore"
+
+msgid "Kode kedaluwarsa. Tekan Buat ulang."
+msgstr "Code expired. Tap Regenerate."
+
+msgid "Batalkan pembayaran ini? Saldo siswa dikembalikan; lalu buat pembayaran baru."
+msgstr "Void this payment? The student's balance is restored; then take a new payment."
+
+msgid "Dibatalkan. Minta siswa membayar ulang."
+msgstr "Voided. Ask the student to pay again."
+
+msgid "QR Charge belum diaktifkan untuk kantin ini. Hubungi admin sekolah."
+msgstr "QR Charge isn't turned on for this canteen. Contact the school admin."
+
+msgid "Sebutkan total, lalu tampilkan QR."
+msgstr "Say the total, then show the QR."
+
+msgid "Tampilkan QR"
+msgstr "Show QR"
+
+msgid "Pindai untuk membayar"
+msgstr "Scan to pay"
+
+msgid "Kode QR pembayaran"
+msgstr "Payment QR code"
+
+msgid "Masukkan jumlah yang disebut petugas"
+msgstr "Enter the amount the operator said"
+
+msgid "Kedaluwarsa dalam"
+msgstr "Expires in"
+
+msgid "detik"
+msgstr "seconds"
+
+msgid "Buat ulang"
+msgstr "Regenerate"
+
+msgid "LUNAS · PERIKSA JUMLAHNYA"
+msgstr "PAID · CHECK THE AMOUNT"
+
+msgid "KODE"
+msgstr "CODE"
+
+msgid "Batalkan"
+msgstr "Void"
+
+msgid "Batas per transaksi %(cap)s."
+msgstr "Per-transaction cap %(cap)s."
+
+msgid "Pengaturan, sanggahan, dan sinyal QR Charge"
+msgstr "QR Charge settings, disputes and signals"
+
+msgid "Buka layar QR"
+msgstr "Open QR screen"
+
+msgid "QR Charge diaktifkan."
+msgstr "QR Charge turned on."
+
+msgid "QR Charge dinonaktifkan."
+msgstr "QR Charge turned off."
+
+msgid "Tanda sanggahan ditutup."
+msgstr "Dispute flag closed."
+
+msgid "Jumlah pengembalian tidak valid."
+msgstr "Invalid refund amount."
+
+msgid "Sanggahan dikabulkan."
+msgstr "Dispute upheld."
+
+msgid "Sanggahan ditolak."
+msgstr "Dispute rejected."
+
+msgid "Dibatalkan petugas: jumlah salah"
+msgstr "Voided by operator: wrong amount"
+
+msgid "Batas waktu pembatalan sudah lewat."
+msgstr "The void window has passed."

@@ -1,0 +1,157 @@
+{% extends "base_console.html" %}
+{% load i18n console_format %}
+
+{% comment %}
+Page: QR Charge (spec 18). School-admin switch per merchant, open disputes, and the
+daily underpayment signals. Served by apps.wallet.web_qr_views.CanteenQRPageView at
+/web/wallet/canteen/qr/. Money is formatted only; totals and percentiles are server-side.
+{% endcomment %}
+
+{% block title %}{% translate "QR Charge — EduCore" %}{% endblock %}
+
+{% block console_content %}
+{% include "components/_console_ui.html" %}
+<main class="cn-page">
+  <div class="cn-head">
+    <div>
+      <span class="cn-eyebrow">{% translate "Kantin & dompet" %}</span>
+      <h1 class="cn-title">{% translate "QR Charge" %}</h1>
+    </div>
+    {% include "components/_console_school_select.html" with schools=schools school=school %}
+  </div>
+
+  {% include "components/_console_flash.html" %}
+
+  {% if school %}
+    <p class="text-body">{% blocktranslate with cap=cap|money:currency %}Siswa memindai QR di layar kasir dan mengetik jumlahnya sendiri. Petugas wajib membaca jumlah di layar sebelum menyerahkan barang. Batas per transaksi: {{ cap }}.{% endblocktranslate %}</p>
+
+    <section class="cn-section" aria-labelledby="qr-merchants-h">
+      <h2 id="qr-merchants-h">{% translate "Merchant" %}</h2>
+      {% if merchants %}
+        <div class="cn-table-wrap">
+          <table class="cn-table">
+            <thead><tr>
+              <th>{% translate "Nama" %}</th><th>{% translate "Status QR" %}</th><th>{% translate "Layar kasir" %}</th>{% if can_admin %}<th>{% translate "Tindakan" %}</th>{% endif %}
+            </tr></thead>
+            <tbody>
+              {% for m in merchants %}
+                <tr>
+                  <td>{{ m.name }}
+                    {% if m.qr_dispute_flagged_at %}<span class="cn-badge is-danger">{% translate "Perlu ditinjau: banyak sanggahan" %}</span>{% endif %}
+                  </td>
+                  <td>
+                    {% if m.qr_self_amount_enabled %}<span class="cn-badge is-ok">{% translate "Aktif" %}</span>
+                      {% if m.qr_self_amount_ack_at %}<div class="text-caption">{% translate "Dikonfirmasi" %} {{ m.qr_self_amount_ack_at|date:"d M Y H:i" }}</div>{% endif %}
+                    {% else %}<span class="cn-badge">{% translate "Nonaktif" %}</span>{% endif %}
+                  </td>
+                  <td>
+                    {% if m.qr_self_amount_enabled %}
+                      {% for t in m.terminals_list %}<div><a class="cn-link" href="{% url 'canteen-qr-terminal' t.id %}?school_id={{ school.id }}">{{ t.name|default:t.device_id }}</a></div>
+                      {% empty %}<span class="text-caption">{% translate "Belum ada terminal aktif." %}</span>{% endfor %}
+                    {% else %}—{% endif %}
+                  </td>
+                  {% if can_admin %}
+                  <td>
+                    {% if m.qr_self_amount_enabled %}
+                      <form method="post" action="{% url 'canteen-qr-switch' m.id %}?school_id={{ school.id }}"
+                            onsubmit="return confirm('{% translate "Nonaktifkan QR Charge untuk merchant ini?" %}')">
+                        {% csrf_token %}<input type="hidden" name="enabled" value="0">
+                        <button type="submit" class="btn btn-secondary">{% translate "Nonaktifkan" %}</button>
+                      </form>
+                    {% else %}
+                      <form method="post" action="{% url 'canteen-qr-switch' m.id %}?school_id={{ school.id }}" style="display:flex;flex-direction:column;gap:6px;max-width:340px">
+                        {% csrf_token %}<input type="hidden" name="enabled" value="1">
+                        <label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" name="acknowledged" required>
+                          <span>{% translate "Saya memahami bahwa jumlah diketik sendiri oleh siswa dan petugas bertanggung jawab memeriksanya." %}</span></label>
+                        <button type="submit" class="btn btn-primary">{% translate "Aktifkan QR Charge" %}</button>
+                      </form>
+                    {% endif %}
+                    {% if m.qr_dispute_flagged_at %}
+                      <form method="post" action="{% url 'canteen-qr-flag-clear' m.id %}?school_id={{ school.id }}" style="margin-top:6px">
+                        {% csrf_token %}<button type="submit" class="cn-link" style="background:none;border:0;padding:0;cursor:pointer">{% translate "Tutup tanda tinjauan" %}</button>
+                      </form>
+                    {% endif %}
+                  </td>
+                  {% endif %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="cn-empty">{% translate "Belum ada merchant terdaftar untuk sekolah ini." %}</div>
+      {% endif %}
+    </section>
+
+    <section class="cn-section" aria-labelledby="qr-disputes-h">
+      <h2 id="qr-disputes-h">{% translate "Sanggahan terbuka" %} · {{ disputes|length }}</h2>
+      {% if disputes %}
+        <div class="cn-table-wrap">
+          <table class="cn-table">
+            <thead><tr>
+              <th>{% translate "Siswa" %}</th><th>{% translate "Merchant" %}</th><th class="cn-num">{% translate "Jumlah" %}</th><th>{% translate "Alasan wali" %}</th>{% if can_admin %}<th>{% translate "Tindakan" %}</th>{% endif %}
+            </tr></thead>
+            <tbody>
+              {% for d in disputes %}
+                <tr>
+                  <td>{{ d.student.person.full_name|default:d.student.nis }}</td>
+                  <td>{{ d.merchant.name }}</td>
+                  <td class="cn-num">{{ d.pos_transaction.total|money:currency }}</td>
+                  <td>{{ d.reason }}</td>
+                  {% if can_admin %}
+                  <td>
+                    <form method="post" action="{% url 'canteen-qr-dispute-resolve' d.id %}?school_id={{ school.id }}" style="display:flex;flex-direction:column;gap:6px;max-width:320px">
+                      {% csrf_token %}
+                      <input class="cn-select" name="refund_amount" inputmode="decimal" placeholder="{% translate 'Jumlah pengembalian (kosong = penuh)' %}">
+                      <input class="cn-select" name="note" placeholder="{% translate 'Catatan' %}" maxlength="500">
+                      <div style="display:flex;gap:8px">
+                        <button type="submit" name="outcome" value="UPHELD" class="btn btn-primary" onclick="return confirm('{% translate "Kabulkan sanggahan dan kembalikan saldo?" %}')">{% translate "Kabulkan" %}</button>
+                        <button type="submit" name="outcome" value="REJECTED" class="btn btn-secondary">{% translate "Tolak" %}</button>
+                      </div>
+                    </form>
+                  </td>
+                  {% endif %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="cn-empty">{% translate "Tidak ada sanggahan terbuka." %}</div>
+      {% endif %}
+    </section>
+
+    <section class="cn-section" aria-labelledby="qr-signals-h">
+      <h2 id="qr-signals-h">{% translate "Sinyal pembayaran terlalu kecil" %}</h2>
+      <form method="get" style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+        <input type="hidden" name="school_id" value="{{ school.id }}">
+        <label for="qr-date" class="cn-eyebrow">{% translate "Tanggal" %}</label>
+        <input id="qr-date" type="date" name="date" class="cn-select" value="{{ signals_date }}">
+        <button type="submit" class="btn btn-secondary">{% translate "Tampilkan" %}</button>
+      </form>
+      <p class="text-caption">{% translate "Pembayaran QR di bawah persentil ke-10 keranjang belanja merchant. Untuk dibicarakan, bukan untuk dihukum." %}</p>
+      {% for m in merchants %}{% if m.signals %}
+        <h3>{{ m.name }} · {{ m.signals.date }}</h3>
+        {% if m.signals.insufficient_baseline %}
+          <div class="cn-empty">{% translate "Belum cukup data penjualan itemised (30 hari, minimal 10 transaksi) untuk menghitung sinyal." %}</div>
+        {% elif m.signals.students %}
+          <div class="cn-table-wrap">
+            <table class="cn-table">
+              <thead><tr><th>{% translate "Siswa" %}</th><th class="cn-num">{% translate "Jumlah transaksi" %}</th><th class="cn-num">{% translate "Total" %}</th></tr></thead>
+              <tbody>
+                {% for s in m.signals.students %}
+                  <tr><td>{{ s.student_name }} <span class="text-caption">{{ s.student_nis }}</span></td><td class="cn-num">{{ s.count }}</td><td class="cn-num">{{ s.total|money:currency }}</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="cn-empty">{% translate "Tidak ada sinyal pada tanggal ini." %}</div>
+        {% endif %}
+      {% endif %}{% endfor %}
+    </section>
+  {% else %}
+    <div class="cn-section"><div class="cn-empty">{% translate "Belum ada sekolah yang dapat Anda akses." %}</div></div>
+  {% endif %}
+</main>
+{% endblock %}

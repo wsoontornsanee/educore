@@ -12,6 +12,7 @@ from datetime import timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Dict, Optional
 
+import segno
 from django.conf import settings
 from django.core import signing
 from django.db import transaction
@@ -118,6 +119,15 @@ def set_merchant_qr_charge(merchant, enabled: bool, acknowledged: bool, actor) -
         foundation_id=merchant.foundation_id,
         diff={'enabled': enabled},
     )
+
+
+def render_qr_svg(token: str) -> str:
+    """Inline SVG of ``token`` for the terminal screen (QRS-007): black on white, 4-module quiet zone.
+
+    Rendered server-side so the page needs no third-party QR script and the token never
+    leaves our own response.
+    """
+    return segno.make(token, error='m').svg_inline(scale=8, border=4, dark='#000', light='#fff', omitsize=True)
 
 
 def create_qr_session(terminal) -> Dict[str, Any]:
