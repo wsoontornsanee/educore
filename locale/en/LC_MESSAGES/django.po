@@ -134,7 +134,7 @@ msgstr "Declined"
 #: frontend/templates/components/exam_proctor_console.html:353
 #: frontend/templates/components/homework_completion_bar.html:86
 msgid "Terkumpul"
-msgstr ""
+msgstr "Submitted"
 
 #: apps/academic/models.py:376 apps/campus/models.py:216
 #: frontend/templates/components/homework_completion_bar.html:97
@@ -143,10 +143,8 @@ msgstr "Late"
 
 #: apps/academic/models.py:377
 #: frontend/templates/components/homework_completion_bar.html:75
-#, fuzzy
-#| msgid "Nilai"
 msgid "Dinilai"
-msgstr "Grade"
+msgstr "Graded"
 
 #: apps/academic/models.py:378 apps/campus/models.py:215
 msgid "Dikembalikan"
@@ -352,7 +350,7 @@ msgstr "Academic Calendar Sync Policies"
 #: apps/academic/services.py:1226
 #: frontend/templates/components/teacher_agenda.html:271
 msgid "Alasan penolakan wajib diisi."
-msgstr ""
+msgstr "A decline reason is required."
 
 #: apps/academic/views.py:286
 #, python-format
@@ -575,8 +573,6 @@ msgid "Hadir (Present)"
 msgstr "Hadir (Present)"
 
 #: apps/attendance/models.py:143
-#, fuzzy
-#| msgid "Terlambat"
 msgid "Terlambat (Late)"
 msgstr "Late"
 
@@ -978,7 +974,7 @@ msgstr "Resolved"
 #: apps/wallet/models.py:14
 #: frontend/templates/components/_permission_slip_list.html:27
 msgid "Ditutup"
-msgstr ""
+msgstr "Closed"
 
 #: apps/campus/models.py:35
 msgid ""
@@ -1037,7 +1033,7 @@ msgstr "Equipment"
 #: frontend/templates/components/gradebook_grid.html:282
 #: frontend/templates/components/grading_queue.html:100
 msgid "Siswa"
-msgstr ""
+msgstr "Student"
 
 #: apps/campus/models.py:210 apps/compliance/models.py:173
 #: apps/hardware/models.py:130
@@ -1285,7 +1281,7 @@ msgstr "Last time the download link was retrieved"
 #: frontend/templates/components/exam_proctor_console.html:302
 #: frontend/templates/components/exam_proctor_console.html:360
 msgid "Selesai"
-msgstr ""
+msgstr "Completed"
 
 #: apps/compliance/models.py:184
 msgid "Pendaftaran Biometrik"
@@ -2261,7 +2257,7 @@ msgstr "Bidirectional"
 #: frontend/templates/components/pos_kiosk.html:46
 #: frontend/templates/components/teacher_agenda.html:36
 msgid "Online"
-msgstr ""
+msgstr "Online"
 
 #: apps/hardware/models.py:25
 msgid "Offline"
@@ -2880,10 +2876,8 @@ msgstr "All"
 
 #: apps/marketing/views.py:212 apps/marketing/views.py:226
 #: apps/marketing/views.py:251
-#, fuzzy
-#| msgid "Kunci sandbox Partner API"
 msgid "Partner API"
-msgstr "Partner API sandbox key"
+msgstr "Partner API"
 
 #: apps/marketing/views.py:213 apps/marketing/views.py:263
 msgid "Portal web"
@@ -3434,7 +3428,7 @@ msgstr "List of {sku, name, qty, unit_price}"
 #: apps/wallet/models.py:218 apps/wallet/models.py:305
 #: frontend/templates/components/_permission_slip_roster.html:30
 msgid "Menunggu"
-msgstr ""
+msgstr "Pending"
 
 #: apps/wallet/models.py:219 apps/wallet/models.py:306
 msgid "Dibayar"
@@ -3457,10 +3451,8 @@ msgid "Dihapusbukukan"
 msgstr "Written Off"
 
 #: apps/wallet/models.py:261
-#, fuzzy
-#| msgid "Tagihan"
 msgid "Ditagihkan"
-msgstr "Invoice"
+msgstr "Invoiced"
 
 #: apps/wallet/models.py:273
 msgid "Absolute value of the negative balance at detection (REC-002)"
@@ -8753,3 +8745,63 @@ msgstr "This QR token does not belong to this terminal."
 
 msgid "Token QR sudah kedaluwarsa."
 msgstr "The QR token has expired."
+
+#: apps/wallet/models.py:96
+msgid "Guardian switch for student-entered QR Charge (QRS-002)"
+msgstr "Guardian switch for student-entered QR Charge (QRS-002)"
+
+#: apps/wallet/models.py:122
+msgid "Student-entered QR Charge accepted at this merchant (QRS-001)"
+msgstr "Student-entered QR Charge accepted at this merchant (QRS-001)"
+
+#: apps/wallet/models.py:126
+msgid "Admin who acknowledged the operator-verifies-amount statement (QRS-001)"
+msgstr "Admin who acknowledged the operator-verifies-amount statement (QRS-001)"
+
+#: apps/wallet/models.py:130
+msgid "Printed static QR decals accepted at this merchant; separate from QR Charge itself (QRS-008)"
+msgstr "Printed static QR decals accepted at this merchant; separate from QR Charge itself (QRS-008)"
+
+#: apps/wallet/models.py:133
+msgid "Per-charge cap for static decals; the lower of this and the school cap applies"
+msgstr "Per-charge cap for static decals; the lower of this and the school cap applies"
+
+#: apps/wallet/models.py:135
+msgid "Opening time in the school's timezone; with operating_end enables the out-of-hours decal alert (QRS-041)"
+msgstr "Opening time in the school's timezone; with operating_end enables the out-of-hours decal alert (QRS-041)"
+
+#: apps/wallet/models.py:138
+msgid "A decal with more charges than this in a day raises an operations alert (QRS-041)"
+msgstr "A decal with more charges than this in a day raises an operations alert (QRS-041)"
+
+#: apps/wallet/models.py:144
+msgid "Raised when 3+ QR disputes are upheld in 30 days; cleared on school-admin review (QRS-028)"
+msgstr "Raised when 3+ QR disputes are upheld in 30 days; cleared on school-admin review (QRS-028)"
+
+#: apps/wallet/models.py:241
+msgid "Revoked key still verifies until this time"
+msgstr "Revoked key still verifies until this time"
+
+#: apps/wallet/models.py:264
+msgid "Null for a static-decal charge, which has no terminal (QRS-040 keys it on qr_decal)"
+msgstr "Null for a static-decal charge, which has no terminal (QRS-040 keys it on qr_decal)"
+
+#: apps/wallet/models.py:286
+msgid "Set when this sale was authenticated by an offline-minted QR session token"
+msgstr "Set when this sale was authenticated by an offline-minted QR session token"
+
+#: apps/wallet/models.py:290
+msgid "Nonce from the offline-minted QR token; unique per terminal to reject replays (WAL-015)"
+msgstr "Nonce from the offline-minted QR token; unique per terminal to reject replays (WAL-015)"
+
+#: apps/wallet/models.py:293
+msgid "Spec-18 error code for a REJECTED self-entered charge"
+msgstr "Spec-18 error code for a REJECTED self-entered charge"
+
+#: apps/wallet/models.py:374
+msgid "Short id printed on the sheet, e.g. KU-03"
+msgstr "Short id printed on the sheet, e.g. KU-03"
+
+#: apps/wallet/models.py:444
+msgid "Upheld-dispute deductions absorbed by this run; net = gross - commission - adjustments_total"
+msgstr "Upheld-dispute deductions absorbed by this run; net = gross - commission - adjustments_total"
