@@ -3,7 +3,7 @@
  *
  * Enqueues canteen POS purchases when offline with client UUID transaction IDs,
  * stores local transaction records, and replays them in FIFO order to
- * POST /api/v1/pos/transactions/batch/.
+ * POST /pos/transactions/batch/.
  */
 import { apiClient } from './api.ts';
 import type { POSOfflineTransaction } from '../types/index.ts';
@@ -244,7 +244,7 @@ export async function syncPendingPosTransactions(
 
   try {
     const response = await apiClient.post<{ created: number; skipped: number }>(
-      '/api/v1/pos/transactions/batch/',
+      '/pos/transactions/batch/',
       batchPayload
     );
 

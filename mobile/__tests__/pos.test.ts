@@ -8,6 +8,7 @@ import {
   checkoutPOSTransaction,
   clearCachedSession,
   setCachedSession,
+  syncPosDeltas,
   voidPOSTransaction,
 } from '../src/services/pos.ts';
 import { clearAllPosForTesting, getPendingPosCount, getPendingPosTransactions } from '../src/services/posOfflineQueue.ts';
@@ -153,7 +154,7 @@ describe('POS Service & Spend Rules', () => {
       let postedData: any = null;
       const originalPost = apiClient.post;
       (apiClient as any).post = async (url: string, data: any) => {
-        if (url === '/api/v1/pos/transactions/') {
+        if (url === '/pos/transactions/') {
           postedData = data;
           return { data: { id: 999, status: 'COMPLETED' } };
         }
@@ -216,7 +217,7 @@ describe('POS Service & Spend Rules', () => {
       let voidCalled = false;
       const originalPost = apiClient.post;
       (apiClient as any).post = async (url: string, data: any) => {
-        if (url === '/api/v1/pos/transactions/123/void/') {
+        if (url === '/pos/transactions/123/void/') {
           assert.strictEqual(data.reason, 'Salah pilih item');
           voidCalled = true;
           return { data: { status: 'VOIDED' } };
@@ -231,6 +232,36 @@ describe('POS Service & Spend Rules', () => {
       } finally {
         (apiClient as any).post = originalPost;
       }
+    });
+  });
+
+  describe('syncPosDeltas', () => {
+    // apiClient prefixes the base URL (.../api/v1) itself, so a path carrying /api/v1 would 404,
+    // and it has no `params` option, so terminal_id/cursor must already be in the path.
+    const captureSyncUrl = async (cursor?: string): Promise<string> => {
+      let seen = '';
+      const originalGet = apiClient.get;
+      (apiClient as any).get = async (url: string) => {
+        seen = url;
+        return { data: { roster: [], catalog: [] } };
+      };
+      try {
+        await syncPosDeltas(7, cursor);
+      } finally {
+        (apiClient as any).get = originalGet;
+      }
+      return seen;
+    };
+
+    it('requests a relative path carrying terminal_id', async () => {
+      assert.strictEqual(await captureSyncUrl(), '/pos/sync/?terminal_id=7');
+    });
+
+    it('sends the cursor URL-encoded', async () => {
+      assert.strictEqual(
+        await captureSyncUrl('2026-09-19T02:00:00+07:00'),
+        '/pos/sync/?terminal_id=7&cursor=2026-09-19T02%3A00%3A00%2B07%3A00',
+      );
     });
   });
 });
