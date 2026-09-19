@@ -271,7 +271,8 @@ export interface POSProductNutrition {
 }
 
 export interface POSProduct {
-  id: number;
+  /** The server's catalog has no numeric id: a product is identified by its SKU (unique per merchant). */
+  id?: number;
   sku: string;
   name: string;
   price: string | number;
@@ -294,6 +295,8 @@ export interface POSStudent {
   blocked_categories?: string[];
   allowed_window_start?: string | null; // e.g. "09:30"
   allowed_window_end?: string | null;   // e.g. "13:30"
+  blocked_products?: string[];          // product SKUs
+  wallet_status?: string;
 }
 
 export interface POSCartItem {

@@ -154,21 +154,20 @@ export const POSKioskScreen: React.FC<POSKioskScreenProps> = ({
   // Cart Management
   const handleAddToCart = (product: POSProduct) => {
     setCart((prev) => {
-      const existingIndex = prev.findIndex((i) => i.product.id === product.id);
+      // A product is identified by SKU: the server's catalog has no numeric id.
+      const existingIndex = prev.findIndex((i) => i.product.sku === product.sku);
       if (existingIndex >= 0) {
-        const updated = [...prev];
-        updated[existingIndex].qty += 1;
-        return updated;
+        return prev.map((item, index) => (index === existingIndex ? { ...item, qty: item.qty + 1 } : item));
       }
       return [...prev, { product, qty: 1, unit_price: Number(product.price) }];
     });
   };
 
-  const handleUpdateQty = (productId: number, delta: number) => {
+  const handleUpdateQty = (sku: string, delta: number) => {
     setCart((prev) => {
       return prev
         .map((item) => {
-          if (item.product.id === productId) {
+          if (item.product.sku === sku) {
             const newQty = item.qty + delta;
             return newQty > 0 ? { ...item, qty: newQty } : null;
           }
@@ -405,7 +404,7 @@ export const POSKioskScreen: React.FC<POSKioskScreenProps> = ({
               const isHealthy = product.nutrition?.is_healthy;
               return (
                 <TouchableOpacity
-                  key={product.id}
+                  key={product.sku}
                   style={styles.productCard}
                   onPress={() => handleAddToCart(product)}
                   activeOpacity={0.7}
@@ -445,16 +444,16 @@ export const POSKioskScreen: React.FC<POSKioskScreenProps> = ({
               <View style={styles.studentInfoRow}>
                 <View style={styles.avatarBox}>
                   <Text style={styles.avatarText}>
-                    {activeStudent.full_name.charAt(0)}
+                    {(activeStudent.full_name || '?').charAt(0)}
                   </Text>
                 </View>
                 <View style={styles.studentDetails}>
                   <Text style={styles.studentName} numberOfLines={1}>
                     {activeStudent.full_name}
                   </Text>
-                  <Text style={styles.studentNis}>
-                    NIS: {activeStudent.nis || activeStudent.nisn || '-'}
-                  </Text>
+                  {!!(activeStudent.nis || activeStudent.nisn) && (
+                    <Text style={styles.studentNis}>NIS: {activeStudent.nis || activeStudent.nisn}</Text>
+                  )}
                   <View style={styles.balanceRow}>
                     <Text style={styles.balanceLabel}>Saldo:</Text>
                     <Text style={styles.balanceValue}>
@@ -526,7 +525,7 @@ export const POSKioskScreen: React.FC<POSKioskScreenProps> = ({
               </View>
             ) : (
               cart.map((item) => (
-                <View key={item.product.id} style={styles.cartItemRow}>
+                <View key={item.product.sku} style={styles.cartItemRow}>
                   <View style={styles.cartItemInfo}>
                     <Text style={styles.cartItemName} numberOfLines={1}>
                       {item.product.name}
@@ -537,14 +536,14 @@ export const POSKioskScreen: React.FC<POSKioskScreenProps> = ({
                   </View>
                   <View style={styles.qtyControlRow}>
                     <TouchableOpacity
-                      onPress={() => handleUpdateQty(item.product.id, -1)}
+                      onPress={() => handleUpdateQty(item.product.sku, -1)}
                       style={styles.qtyBtn}
                     >
                       <Text style={styles.qtyBtnText}>-</Text>
                     </TouchableOpacity>
                     <Text style={styles.qtyValue}>{item.qty}</Text>
                     <TouchableOpacity
-                      onPress={() => handleUpdateQty(item.product.id, 1)}
+                      onPress={() => handleUpdateQty(item.product.sku, 1)}
                       style={styles.qtyBtn}
                     >
                       <Text style={styles.qtyBtnText}>+</Text>
@@ -708,7 +707,7 @@ export const POSKioskScreen: React.FC<POSKioskScreenProps> = ({
                   <View>
                     <Text style={styles.rosterStudentName}>{s.full_name}</Text>
                     <Text style={styles.rosterStudentNis}>
-                      NIS: {s.nis || '-'} • Saldo: Rp{' '}
+                      {s.nis ? `NIS: ${s.nis} • ` : ''}Saldo: Rp{' '}
                       {Number(s.balance).toLocaleString('id-ID')}
                     </Text>
                   </View>
