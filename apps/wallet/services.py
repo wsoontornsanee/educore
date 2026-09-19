@@ -981,6 +981,8 @@ def _roster_payload(students) -> list:
         {
             'student_id': s.id,
             'name': s.person.full_name if s.person else '',
+            'nis': s.nis or None,
+            'nisn': s.nisn or None,
             'photo_key': s.photo_key,
             'wallet_balance': str(s.wallet.balance),
             'daily_limit': str(s.wallet.daily_limit) if s.wallet.daily_limit is not None else None,

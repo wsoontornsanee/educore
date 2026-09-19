@@ -74,7 +74,14 @@ describe('POS Offline Queue', () => {
     (apiClient as any).post = async (url: string, data: any) => {
       if (url === '/pos/transactions/batch/') {
         sentPayload = data;
-        return { data: { created: 2, skipped: 0 } };
+        return {
+          data: {
+            results: [
+              { client_transaction_id: 'tx-offline-1', status: 'COMPLETED' },
+              { client_transaction_id: 'tx-offline-2', status: 'RECONCILE_REQUIRED' },
+            ],
+          },
+        };
       }
       return originalPost(url, data);
     };
@@ -127,6 +134,39 @@ describe('POS Offline Queue', () => {
       (apiClient as any).post = originalPost;
     }
   });
+  it('keeps a sale the server refused in the queue as FAILED, and never marks it synced', async () => {
+    const items = [{ sku: 'NASI-01', name: 'Nasi Goreng', qty: 1, unit_price: '15000.00' }];
+    await enqueuePosTransaction({ terminal_id: 9, student_id: 301, items, subtotal: 15000, total: 15000, client_transaction_id: 'ok-1' });
+    await enqueuePosTransaction({
+      terminal_id: 9, student_id: 302, items, subtotal: 15000, total: 15000, client_transaction_id: 'bad-1', qr_token: 'p.s',
+    });
+
+    const originalPost = apiClient.post;
+    (apiClient as any).post = async () => ({
+      data: {
+        results: [
+          { client_transaction_id: 'ok-1', status: 'COMPLETED', reconciled: true },
+          { client_transaction_id: 'bad-1', status: 'QR_TOKEN_EXPIRED' },
+        ],
+      },
+    });
+    try {
+      const result = await syncPendingPosTransactions(9);
+      assert.strictEqual(result.succeeded, 1);
+      assert.strictEqual(result.reconciled, 1);
+      assert.strictEqual(result.failed, 1);
+      assert.deepStrictEqual(result.errors, ['QR_TOKEN_EXPIRED']);
+
+      const pending = await getPendingPosTransactions();
+      assert.strictEqual(pending.length, 1);
+      assert.strictEqual(pending[0].client_transaction_id, 'bad-1');
+      assert.strictEqual(pending[0].status, 'FAILED');
+      assert.strictEqual(pending[0].last_error, 'QR_TOKEN_EXPIRED');
+    } finally {
+      (apiClient as any).post = originalPost;
+    }
+  });
+
   it('carries the offline QR token through the queue and into the batch payload', async () => {
     const items = [{ sku: 'NASI-01', name: 'Nasi Goreng', qty: 1, unit_price: '15000.00' }];
     await enqueuePosTransaction({

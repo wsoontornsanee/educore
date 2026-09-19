@@ -12,6 +12,7 @@ import {
   adaptRosterEntry,
   adaptSession,
   applyRules,
+  classifyBatchResults,
   toClockMinutes,
 } from '../src/services/posAdapter.ts';
 import { checkStudentSpendRules, mergeCatalogDeltas, mergeRosterDeltas } from '../src/services/pos.ts';
@@ -155,5 +156,35 @@ describe('helpers', () => {
   it('a rule for a student who is not on the roster is ignored', () => {
     const students: POSStudent[] = [adaptRosterEntry({ student_id: 1, name: 'A' })];
     assert.deepStrictEqual(applyRules(students, [{ student_id: 99, blocked_categories: ['X'] }]), students);
+  });
+});
+
+describe('roster NIS/NISN (lookup by NIS works because the server sends them)', () => {
+  it('maps nis and nisn from the real roster row', () => {
+    const student = adaptSession(fixture('pos_session.json'), 7).roster[0];
+    assert.strictEqual(student.nis, 'SD-001');
+    assert.strictEqual(student.nisn, '1234567890');
+  });
+});
+
+describe('batch report (real POST /pos/transactions/batch/ output)', () => {
+  const results = fixture('pos_batch.json').results;
+  const sent = ['pos-a', 'pos-b', 'pos-c', 'pos-d'];
+
+  it('splits accepted, reconciled and refused sales per client id', () => {
+    const out = classifyBatchResults(sent, results);
+    assert.deepStrictEqual(out.accepted, ['pos-a', 'pos-b']);
+    assert.strictEqual(out.reconciled, 1);
+    assert.deepStrictEqual(out.rejected.map((r) => r.id), ['pos-c', 'pos-d']);
+  });
+
+  it('keeps the reason a sale was refused, and treats one missing from the report as refused', () => {
+    const out = classifyBatchResults(sent, results);
+    assert.deepStrictEqual(out.rejected.map((r) => r.reason), ['OFFLINE_FLOOR_EXCEEDED', 'NO_RESULT']);
+  });
+
+  it('counts an accepted overspend (RECONCILE_REQUIRED) as synced', () => {
+    const out = classifyBatchResults(['x'], [{ client_transaction_id: 'x', status: 'RECONCILE_REQUIRED' }]);
+    assert.deepStrictEqual(out.accepted, ['x']);
   });
 });

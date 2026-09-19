@@ -118,10 +118,10 @@ export const POSKioskScreen: React.FC<POSKioskScreenProps> = ({
       const res = await syncPendingPosTransactions(session.terminal_id);
       await syncPosDeltas(session.terminal_id, session.sync_cursor);
       await updatePendingCount();
-      Alert.alert(
-        'Sinkronisasi Selesai',
-        `Berhasil menyinkronkan ${res.succeeded} transaksi offline.`
-      );
+      const lines = [`${res.succeeded} transaksi offline tersinkron.`];
+      if (res.reconciled > 0) lines.push(`${res.reconciled} di antaranya sudah dibayar siswa lewat QR (dicocokkan, tidak dipotong dua kali).`);
+      if (res.failed > 0) lines.push(`${res.failed} ditolak server dan tetap di antrean: ${res.errors.join(', ')}.`);
+      Alert.alert(res.failed > 0 ? 'Sinkronisasi Sebagian' : 'Sinkronisasi Selesai', lines.join('\n'));
     } catch (e: any) {
       Alert.alert('Gagal Sinkronisasi', e?.message || 'Koneksi jaringan bermasalah.');
     } finally {
@@ -486,6 +486,9 @@ export const POSKioskScreen: React.FC<POSKioskScreenProps> = ({
                     value={cardInput}
                     onChangeText={setCardInput}
                     onSubmitEditing={() => handleCardTap(cardInput)}
+                    // An ID, not prose: the keyboard must not "correct" QA-001 into a word.
+                    autoCorrect={false}
+                    autoCapitalize="characters"
                     placeholderTextColor={colors.subtle}
                   />
                   <TouchableOpacity
