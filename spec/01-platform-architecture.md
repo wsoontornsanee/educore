@@ -137,7 +137,7 @@ MySQL has no row-level security, so tenancy is enforced in **three** layers:
 0 22 * * *     educore enforce_retention --dry-run=false
 0 23 * * *     educore backup_database
 25 2 25 * *    educore generate_invoices --next-period
-0 3 1 * *      educore close_metering_month
+0 3 1 * *      educore close_fiscal_periods               # FIN-025b: previous month, after the last reconcile_payments/run_arrears_ladder
 0 4 * * 0      educore settle_merchants
 ```
 
