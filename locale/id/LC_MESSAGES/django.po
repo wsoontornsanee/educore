@@ -4268,3 +4268,71 @@ msgstr ""
 #: apps/reporting/models.py
 msgid "When the roster was taken (same instant as the count)"
 msgstr ""
+
+#: frontend/templates/pages/admin_metering.html
+msgid "Daftar siswa"
+msgstr ""
+
+#: frontend/templates/pages/admin_metering.html
+msgid "Lihat daftar"
+msgstr ""
+
+#: frontend/templates/pages/admin_metering.html
+msgid "Tidak tersedia"
+msgstr ""
+
+#: frontend/templates/pages/admin_metering.html
+msgid "Daftar siswa yang dihitung disimpan bersama jumlahnya. Bulan yang sudah dibekukan sebelum daftar mulai disimpan hanya memiliki jumlah dan tidak dapat direkonstruksi."
+msgstr ""
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Daftar siswa terhitung — EduCore"
+msgstr ""
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Kembali ke ringkasan"
+msgstr ""
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Bulan ini sudah dibekukan dan tidak berubah lagi."
+msgstr ""
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Bulan ini masih berjalan; daftar diperbarui setiap kali jumlah dihitung ulang."
+msgstr ""
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Bulan ini belum dihitung untuk sekolah ini."
+msgstr ""
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Daftar diambil pada"
+msgstr ""
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Status sekarang"
+msgstr ""
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Lulus"
+msgstr ""
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Pindah keluar"
+msgstr ""
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Calon siswa"
+msgstr ""
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Status sekarang adalah status siswa saat ini, bukan saat dihitung: siswa yang sudah pindah atau lulus tetap tercantum karena mereka termasuk dalam hitungan bulan ini. NISN tidak ditampilkan."
+msgstr ""
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Belum ada daftar karena bulan ini belum dihitung."
+msgstr ""
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Daftar siswa tidak tersedia untuk bulan ini: jumlahnya dibekukan sebelum daftar mulai disimpan, dan masa lalu tidak dapat direkonstruksi."
+msgstr ""

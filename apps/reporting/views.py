@@ -5,7 +5,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.identity.console_access import accessible_school_ids
+from apps.identity.console_access import accessible_school_ids, accessible_school_ids_for_all
 from apps.identity.models import School
 from apps.identity.permissions import HasRequiredPermission
 from apps.reporting.models import (
@@ -223,17 +223,6 @@ def _parse_metering_month(request):
         )
 
 
-def _schools_allowed_for_all(user, foundation_id, *permissions):
-    """School ids where `user` holds EVERY permission; None means every school of the foundation."""
-    allowed = None
-    for permission in permissions:
-        ceiling = accessible_school_ids(user, foundation_id, permission)
-        if ceiling is None:
-            continue
-        allowed = set(ceiling) if allowed is None else allowed & set(ceiling)
-    return allowed
-
-
 class MeteringRosterView(APIView):
     """GET /metering/statements/roster/?school_id=&month=YYYY-MM (spec/15 RPT-009).
 
@@ -257,7 +246,7 @@ class MeteringRosterView(APIView):
         if error:
             return error
 
-        allowed = _schools_allowed_for_all(request.user, foundation_id, 'reporting.read', 'student_records.read')
+        allowed = accessible_school_ids_for_all(request.user, foundation_id, 'reporting.read', 'student_records.read')
         school = School.objects.filter(id=school_id, foundation_id=foundation_id).first() if str(school_id).isdigit() else None
         if school is None or (allowed is not None and school.id not in allowed):
             return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
