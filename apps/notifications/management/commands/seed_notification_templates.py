@@ -160,6 +160,22 @@ CANONICAL_TEMPLATES = [
         'variables': ['student_name', 'shortfall', 'deadline_date'],
     },
     {
+        'key': 'wallet.auto_topup.triggered',
+        'channel': ChannelType.WHATSAPP,
+        'locale': 'id-ID',
+        'subject': 'Top-up Otomatis Dompet Kantin',
+        'body': 'Saldo dompet kantin {student_name} di bawah batas yang ditetapkan. Permintaan top-up otomatis sebesar Rp {topup_amount} sudah dibuat: {payment_instruction}. Saldo bertambah setelah pembayaran diterima.',
+        'variables': ['student_name', 'topup_amount', 'payment_instruction'],
+    },
+    {
+        'key': 'wallet.auto_topup.triggered',
+        'channel': ChannelType.PUSH,
+        'locale': 'id-ID',
+        'subject': 'Top-up Otomatis Dompet',
+        'body': 'Saldo dompet {student_name} menipis. Top-up Rp {topup_amount}: {payment_instruction}.',
+        'variables': ['student_name', 'topup_amount', 'payment_instruction'],
+    },
+    {
         'key': 'wallet.recon.settled',
         'channel': ChannelType.PUSH,
         'locale': 'id-ID',
