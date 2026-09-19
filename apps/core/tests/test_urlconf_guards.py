@@ -10,7 +10,16 @@ so a new endpoint cannot ship without them:
    ``get_queryset()`` returns rows filtered to foundation B (or is empty). This is a
    structural check on the query, so it needs no per-model fixtures; a queryset that
    bypasses ``TenantManager`` (``all_tenants``, a raw manager) fails it.
+3. Tenancy bypasses in any view: a plain ``APIView`` has no generic queryset to inspect, so
+   ``ViewTenantBypassTests`` reads the view source and requires every deliberate bypass of
+   ``TenantManager`` to name the foundation in the same expression. Row-level 404s on the
+   generic routes are exercised in ``test_cross_tenant_rows``.
 """
+import ast
+import inspect
+import textwrap
+
+from django.apps import apps
 from django.core.exceptions import EmptyResultSet
 from django.test import RequestFactory, SimpleTestCase, TestCase
 from django.urls import URLPattern, URLResolver, get_resolver
@@ -18,6 +27,7 @@ from rest_framework.generics import GenericAPIView
 from rest_framework.request import Request
 from rest_framework.views import APIView
 
+from apps.core.models import TenantModel
 from apps.identity.models import Foundation, RoleAssignment, School, User
 from apps.identity.permissions import HasRequiredPermission
 from educore.middleware.tenancy import tenant_context
@@ -210,3 +220,76 @@ class ViewsetTenantScopingTests(TestCase):
         self.assertEqual(
             unscoped, [],
             'These generic views return querysets not filtered by the caller\'s foundation_id.')
+
+
+# Views that bypass TenantManager without naming a foundation in the expression, and why that is safe.
+UNSCOPED_BYPASS_ALLOWLIST = {
+    'apps.identity.views.VerifyOtpView': 'guardian login: the phone number is looked up before any foundation is known',
+    'apps.foundation.views.FxRateViewSet': 'class-level queryset only; get_queryset() re-filters by foundation_id (covered above)',
+}
+
+# @api_view function views compile to a class with no source of its own to read.
+SOURCELESS_VIEWS = {'apps.notifications.views.whatsapp_webhook_status': 'signature-verified provider webhook'}
+
+# Attribute names that read rows without the thread-local foundation filter.
+BYPASS_ATTRIBUTES = {'all_tenants', '_base_manager', '_default_manager', 'raw'}
+
+
+def foundation_unmanaged_models():
+    """Models carrying foundation_id but not TenantManager-scoped (audit, queue, archives...)."""
+    return {
+        m.__name__ for m in apps.get_models()
+        if not issubclass(m, TenantModel) and any(f.attname == 'foundation_id' for f in m._meta.concrete_fields)
+    }
+
+
+def tenancy_bypasses(cls, unmanaged):
+    """[(kind, expression)] for each bypass of the tenant filter in ``cls``'s own source."""
+    tree = ast.parse(textwrap.dedent(inspect.getsource(cls)))
+    parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+    found = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Attribute):
+            continue
+        if node.attr in BYPASS_ATTRIBUTES:
+            kind = node.attr
+        elif node.attr == 'objects' and isinstance(node.value, ast.Name) and node.value.id in unmanaged:
+            kind = f'{node.value.id}.objects'
+        else:
+            continue
+        top = node  # climb to the whole call chain: X.all_tenants.filter(...).order_by(...)
+        while True:
+            parent = parents.get(top)
+            if (isinstance(parent, ast.Attribute) and parent.value is top) or \
+               (isinstance(parent, ast.Call) and parent.func is top) or \
+               (isinstance(parent, ast.Subscript) and parent.value is top):
+                top = parent
+            else:
+                break
+        found.append((kind, ast.unparse(top)))
+    return found
+
+
+class ViewTenantBypassTests(SimpleTestCase):
+    def test_every_bypass_of_the_tenant_filter_names_the_foundation(self):
+        unmanaged = foundation_unmanaged_models()
+        classes = {k for cls in view_classes() for k in _own_classes(cls) if inspect.isclass(k)
+                   and _dotted(k) not in SOURCELESS_VIEWS}
+        offenders = sorted(
+            f'{_dotted(k)}: {expr[:90]}'
+            for k in classes if _dotted(k) not in UNSCOPED_BYPASS_ALLOWLIST
+            for _, expr in tenancy_bypasses(k, unmanaged)
+            if 'foundation' not in expr)
+        self.assertEqual(
+            offenders, [],
+            'These views read rows without the tenant filter and never name a foundation. '
+            'Filter by the caller\'s foundation_id, or add to UNSCOPED_BYPASS_ALLOWLIST with a reason.')
+
+    def test_bypass_allowlist_is_not_stale(self):
+        unmanaged = foundation_unmanaged_models()
+        by_name = {_dotted(k): k for cls in view_classes() for k in _own_classes(cls) if inspect.isclass(k)}
+        stale = sorted(
+            name for name in UNSCOPED_BYPASS_ALLOWLIST
+            if name not in by_name
+            or not any('foundation' not in expr for _, expr in tenancy_bypasses(by_name[name], unmanaged)))
+        self.assertEqual(stale, [], 'Remove these from UNSCOPED_BYPASS_ALLOWLIST: they no longer bypass unscoped.')
