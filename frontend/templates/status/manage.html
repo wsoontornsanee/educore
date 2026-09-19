@@ -29,6 +29,13 @@
 
   <h2>Kesehatan job terjadwal</h2>
   <p>Job dianggap terlambat bila belum ada keberhasilan dalam batas waktunya (ARC-008). Dihitung saat halaman dibuka.</p>
+  {% if not alert_recipient_count %}
+  <p><strong>Tidak ada operator yang dapat menerima peringatan job.</strong> Operator harus berakun aktif dan punya alamat email; job yang berhenti tidak akan diberitahukan ke siapa pun.</p>
+  {% endif %}
+  {% if unreachable_operators %}
+  <p>Operator tanpa email atau nonaktif, tidak menerima peringatan:
+    {% for u in unreachable_operators %}{{ u.full_name }}{% if not forloop.last %}, {% endif %}{% endfor %}.</p>
+  {% endif %}
   <table>
     <tr><th>Job</th><th>Status</th><th>Jadwal</th><th>Batas</th><th>Sukses terakhir</th><th>Run terakhir</th><th>Kesalahan terakhir</th></tr>
     {% for j in jobs %}
