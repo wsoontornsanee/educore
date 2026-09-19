@@ -113,6 +113,10 @@ Expect a version and `b'%PDF'`. An `OSError`/`ImportError` about `libpango`/`lib
 To find out whether production has been silently degraded, grep for the fallback:
 `journalctl -u gunicorn-educore | grep "weasyprint unavailable"`.
 
+## Provisioning a rebuilt host
+
+Everything outside the repo that a fresh droplet needs, beyond `requirements.txt`: the apt packages under "System packages" (weasyprint native libraries), the `.env` and deploy key described under Prerequisites, the nginx vhost/certbot cert, the `gunicorn-educore` systemd unit and the crontab (see "Syncing cron"). There is no Dockerfile or provisioning script; this skill is the record.
+
 ## Syncing cron (only when `deploy/crontab` changed)
 
 The live root crontab is **not** derived from `deploy/crontab` automatically — it was hand-translated once and must be re-synced manually when the source file changes.

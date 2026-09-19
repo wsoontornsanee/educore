@@ -7,7 +7,8 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Never cancel a run on main: back-to-back merges would otherwise cancel each other's MySQL job.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
@@ -61,8 +62,12 @@ jobs:
           python-version: "3.12"
           cache: pip
       - name: System libraries
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libmysqlclient-dev pkg-config libpango-1.0-0 libpangoft2-1.0-0 libgdk-pixbuf-2.0-0
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libmysqlclient-dev pkg-config libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
       - run: pip install -r requirements.txt
+      - name: PDF stack smoke check
+        # The decal/report-card/settlement renderers silently fall back to HTML when weasyprint's
+        # native libraries are missing; fail loudly here instead. Same check as the prd-deploy skill.
+        run: python -c "import weasyprint; assert weasyprint.HTML(string='<p>x</p>').write_pdf().startswith(b'%PDF-')"
       - run: pytest -q --create-db
 
   test-mysql:
@@ -96,7 +101,7 @@ jobs:
           python-version: "3.12"
           cache: pip
       - name: System libraries
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libmysqlclient-dev pkg-config libpango-1.0-0 libpangoft2-1.0-0 libgdk-pixbuf-2.0-0
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libmysqlclient-dev pkg-config libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
       - run: pip install -r requirements.txt
       - run: pytest -q --create-db apps/wallet apps/finance apps/identity
 
