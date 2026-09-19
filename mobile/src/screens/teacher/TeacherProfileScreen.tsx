@@ -8,6 +8,7 @@ import React from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors, radius, spacing, typography } from '../../theme/tokens';
 import { useLocale } from '../../i18n/LocaleContext';
+import { rolesLabel } from '../../services/roleLabels';
 import type { UserProfile } from '../../types';
 
 interface TeacherProfileScreenProps {
@@ -18,19 +19,8 @@ interface TeacherProfileScreenProps {
 export const TeacherProfileScreen: React.FC<TeacherProfileScreenProps> = ({ user, onLogout }) => {
   const { t, locale } = useLocale();
 
-  const primaryRole = user.roles?.[0]?.role ?? 'teacher';
-  const roleLabel =
-    primaryRole === 'foundation_admin'
-      ? 'Admin Yayasan'
-      : primaryRole === 'school_admin'
-      ? 'Admin Sekolah'
-      : primaryRole === 'finance_officer'
-      ? 'Bendahara'
-      : primaryRole === 'teacher'
-      ? 'Guru'
-      : primaryRole === 'counsellor'
-      ? 'Guru BK'
-      : 'Staf';
+  // All held roles, senior first: a teacher who is also a guardian shows both, not whichever the API listed first.
+  const roleLabel = rolesLabel(user.roles, locale);
 
   return (
     <SafeAreaView style={styles.safeArea}>
