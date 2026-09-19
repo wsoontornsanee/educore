@@ -33,5 +33,5 @@ def record_activity(user) -> None:
             if claimed:
                 UserActivityDay.all_tenants.create(foundation_id=foundation_id, user_id=user.pk, date=today)
         user.last_activity_date = today
-    except Exception:
-        logger.exception("Could not record user activity")
+    except Exception as exc:
+        logger.warning("Could not record user activity for user %s: %r", user.pk, exc)

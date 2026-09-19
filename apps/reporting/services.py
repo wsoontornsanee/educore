@@ -344,18 +344,20 @@ def refresh_active_students(scope: str, since=None) -> dict:
 def refresh_parent_weekly_activity(scope: str) -> dict:
     """RPT-012: rebuild rpt_parent_weekly_activity, one row per school per week.
 
-    scope='dashboard' refreshes only the current week; scope='full' also covers the previous
-    PARENT_ACTIVITY_BACKFILL_WEEKS - 1 weeks (backfilling missing ones from UserActivityDay).
+    scope='dashboard' (every 5 minutes) does nothing; scope='full' (nightly) refreshes the current
+    week and covers the previous PARENT_ACTIVITY_BACKFILL_WEEKS - 1 weeks (backfilling missing ones
+    from UserActivityDay).
     A week whose row was computed after the week ended is frozen (mirrors RPT-008): the denominator
     cannot be reconstructed later, so it is captured once and never rewritten.
     """
     from apps.identity.models import GuardianLink, UserActivityDay
 
+    if scope != 'full':
+        return {'rows_written': 0, 'scope': scope}  # weekly metric: the nightly full run is enough
+
     now = timezone.now()
     current_week = _week_start(timezone.localdate(now))
-    weeks = [current_week]
-    if scope == 'full':
-        weeks += [current_week - timedelta(weeks=n) for n in range(1, PARENT_ACTIVITY_BACKFILL_WEEKS)]
+    weeks = [current_week] + [current_week - timedelta(weeks=n) for n in range(1, PARENT_ACTIVITY_BACKFILL_WEEKS)]
 
     enrolled_ids = _active_enrolled_student_ids()
     rows_written = 0

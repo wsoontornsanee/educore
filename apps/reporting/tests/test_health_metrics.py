@@ -86,3 +86,17 @@ class GetHealthMetricsTests(TestCase):
     def test_weeks_older_than_the_window_are_left_out(self):
         self._week(9, 5)
         self.assertEqual(get_health_metrics(today=self.TODAY), [])
+
+    def test_latest_wau_pct_is_none_when_the_previous_week_is_missing(self):
+        self._week(3, 4)
+        self.assertIsNone(self._result()['latest_wau_pct'])
+
+    def test_latest_wau_pct_is_the_previous_week_not_the_in_progress_one(self):
+        self._week(1, 4)
+        self._week(0, 9)
+        self.assertEqual(self._result()['latest_wau_pct'], 40.0)
+
+    def test_a_soft_deleted_school_is_left_out(self):
+        self._week(1, 4)
+        self.fx['school'].delete()
+        self.assertEqual(get_health_metrics(today=self.TODAY), [])

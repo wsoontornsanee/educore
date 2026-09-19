@@ -59,7 +59,8 @@ class RecordActivityTests(TestCase):
     def test_a_recording_failure_is_swallowed_and_leaves_the_gate_open(self):
         broken = mock.MagicMock()
         broken.all_tenants.create.side_effect = DatabaseError('boom')
-        with mock.patch('apps.identity.activity.UserActivityDay', broken):
+        with mock.patch('apps.identity.activity.UserActivityDay', broken), \
+                self.assertLogs('apps.identity.activity', level='WARNING'):
             record_activity(self.user)  # must not raise
         self.assertIsNone(User.all_tenants.get(pk=self.user.pk).last_activity_date)
         record_activity(User.all_tenants.get(pk=self.user.pk))  # retry succeeds

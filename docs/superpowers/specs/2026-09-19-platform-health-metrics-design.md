@@ -26,7 +26,7 @@ Nothing records that a user was active: login is not audited and JWT refresh is 
 - `active_parents` = distinct users with a `UserActivityDay` in `[week_start, week_start+6]` who hold an active `GuardianLink` to an active student of that school.
 - `enrolled_students` = students with status `ACTIVE` at that school at refresh time.
 - WAU% = `active_parents / enrolled_students` (spec wording: accounts over students, so it can exceed 100% when two parents share a child; raw counts are stored so it can be re-derived). A school with 0 enrolled students has no percentage.
-- New refresher `refresh_parent_weekly_activity(scope)` registered in `REFRESHERS`. `dashboard` recomputes the current week. A week is frozen once it has ended and has been computed after its end (mirrors RPT-008: past student status cannot be reconstructed, so the denominator must be captured at the time). `full` also backfills missing past weeks from `UserActivityDay`, using the current denominator, only when no row exists.
+- New refresher `refresh_parent_weekly_activity(scope)` registered in `REFRESHERS`. `dashboard` (every 5 minutes) does nothing; the nightly `full` run refreshes the current week and backfills the previous seven. A week is frozen once it has ended and has been computed after its end (mirrors RPT-008: past student status cannot be reconstructed, so the denominator must be captured at the time). `full` also backfills missing past weeks from `UserActivityDay`, using the current denominator, only when no row exists.
 
 ## 3. At-risk flag (RPT-014)
 

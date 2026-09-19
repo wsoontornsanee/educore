@@ -56,6 +56,10 @@ class HealthMetricsEndpointTests(TestCase):
         self._auth(self.operator)
         self.assertEqual(self.client.get(URL, {'foundation_id': 'abc'}).status_code, 400)
 
+    def test_a_non_ascii_digit_foundation_id_is_a_400(self):
+        self._auth(self.operator)
+        self.assertEqual(self.client.get(URL, {'foundation_id': '\u00b2'}).status_code, 400)
+
     def test_foundation_admin_is_forbidden(self):
         self._auth(self.admin)
         self.assertEqual(self.client.get(URL).status_code, 403)

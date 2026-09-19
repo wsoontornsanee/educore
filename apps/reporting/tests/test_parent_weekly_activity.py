@@ -50,20 +50,20 @@ class RefreshParentWeeklyActivityTests(TestCase):
 
     def test_counts_a_linked_parent_active_this_week(self):
         self._active(self.parent, self.today)
-        refresh_parent_weekly_activity(scope='dashboard')
+        refresh_parent_weekly_activity(scope='full')
         row = self._row()
         self.assertEqual((row.active_parents, row.enrolled_students), (1, 1))
 
     def test_staff_activity_is_not_counted(self):
         self._active(self.fx['teacher_user'], self.today)
-        refresh_parent_weekly_activity(scope='dashboard')
+        refresh_parent_weekly_activity(scope='full')
         self.assertEqual(self._row().active_parents, 0)
 
     def test_parent_of_an_inactive_student_is_not_counted_and_denominator_drops(self):
         self.fx['student'].status = Student.STATUS_INACTIVE
         self.fx['student'].save()
         self._active(self.parent, self.today)
-        refresh_parent_weekly_activity(scope='dashboard')
+        refresh_parent_weekly_activity(scope='full')
         row = self._row()
         self.assertEqual((row.active_parents, row.enrolled_students), (0, 0))
 
@@ -81,7 +81,7 @@ class RefreshParentWeeklyActivityTests(TestCase):
             foundation_id=self.fid, guardian=self.guardian, student=sibling,
         )
         self._active(self.parent, self.today)
-        refresh_parent_weekly_activity(scope='dashboard')
+        refresh_parent_weekly_activity(scope='full')
         row = self._row()
         self.assertEqual((row.active_parents, row.enrolled_students), (1, 2))
 
@@ -91,9 +91,10 @@ class RefreshParentWeeklyActivityTests(TestCase):
         self.assertEqual(self._row().active_parents, 0)
         self.assertEqual(self._row(self.week - datetime.timedelta(weeks=1)).active_parents, 1)
 
-    def test_dashboard_scope_touches_only_the_current_week(self):
-        refresh_parent_weekly_activity(scope='dashboard')
-        self.assertEqual(RptParentWeeklyActivity.all_tenants.count(), 1)
+    def test_dashboard_scope_writes_nothing(self):
+        result = refresh_parent_weekly_activity(scope='dashboard')
+        self.assertEqual(RptParentWeeklyActivity.all_tenants.count(), 0)
+        self.assertEqual(result['rows_written'], 0)
 
     def test_full_scope_backfills_the_last_eight_weeks(self):
         refresh_parent_weekly_activity(scope='full')

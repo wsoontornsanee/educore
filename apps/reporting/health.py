@@ -36,7 +36,7 @@ def get_health_metrics(foundation_id=None, today=None) -> list:
     oldest = current_week - timedelta(weeks=HISTORY_WEEKS)
 
     rows = RptParentWeeklyActivity.all_tenants.filter(
-        week_start__gte=oldest, week_start__lte=current_week,
+        week_start__gte=oldest, week_start__lte=current_week, school__deleted_at__isnull=True,
     ).select_related('school').order_by('week_start')
     if foundation_id is not None:
         rows = rows.filter(foundation_id=foundation_id)
@@ -45,17 +45,17 @@ def get_health_metrics(foundation_id=None, today=None) -> list:
     for row in rows:
         by_school.setdefault(row.school_id, []).append(row)
 
+    previous_week = current_week - timedelta(weeks=1)
     expected = [current_week - timedelta(weeks=n) for n in range(DECLINE_STREAK + 1, 0, -1)]
     result = []
     for school_rows in by_school.values():
         by_week = {r.week_start: r for r in school_rows}
-        completed = [r for r in school_rows if r.week_start < current_week]
         ratios = [_ratio(by_week[w]) if w in by_week else None for w in expected]
         result.append({
             'foundation_id': school_rows[0].foundation_id,
             'school_id': school_rows[0].school_id,
             'school_name': school_rows[0].school.name,
-            'latest_wau_pct': _pct(_ratio(completed[-1])) if completed else None,
+            'latest_wau_pct': _pct(_ratio(by_week[previous_week])) if previous_week in by_week else None,
             'at_risk': is_declining(ratios),
             'weeks': [{
                 'week_start': r.week_start.isoformat(),

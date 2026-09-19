@@ -268,7 +268,7 @@ class HealthMetricsView(APIView):
         raw = request.query_params.get('foundation_id')
         foundation_id = None
         if raw not in (None, ''):
-            if not raw.isdigit():
+            if not (raw.isascii() and raw.isdigit()):
                 return Response({'error': _("Parameter foundation_id tidak valid.")}, status=status.HTTP_400_BAD_REQUEST)
             foundation_id = int(raw)
         return Response({'schools': get_health_metrics(foundation_id=foundation_id)})
