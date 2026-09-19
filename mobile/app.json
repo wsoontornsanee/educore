@@ -28,6 +28,12 @@
           "icon": "./assets/notification-icon.png",
           "color": "#C8102E"
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "EduCore memakai kamera untuk memindai kode QR pembayaran kantin."
+        }
       ]
     ],
     "extra": {

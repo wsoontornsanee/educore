@@ -30,6 +30,14 @@ import {
   View,
 } from 'react-native';
 import { StaleOfflineBanner } from '../../components/StaleOfflineBanner';
+import { ParentQrChargeScreen } from './ParentQrChargeScreen';
+import {
+  canDisputeTransaction,
+  describeQrError,
+  getDisputedTransactionIds,
+  openQrDispute,
+  setQrChargeEnabled,
+} from '../../services/qrCharge';
 import {
   CATEGORY_BLOCK_CHOICES,
   DAILY_LIMIT_INCREMENT,
@@ -111,6 +119,16 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
   const [copySuccess, setCopySuccess] = useState(false);
   const [topupError, setTopupError] = useState<string | null>(null);
 
+  // Canteen QR Charge (spec 18): pay flow, guardian switch, and dispute-from-history
+  const [qrModalVisible, setQrModalVisible] = useState(false);
+  const [savingQrSwitch, setSavingQrSwitch] = useState(false);
+  const [qrMsg, setQrMsg] = useState<string | null>(null);
+  const [disputedIds, setDisputedIds] = useState<number[]>([]);
+  const [disputeTx, setDisputeTx] = useState<WalletTransactionItem | null>(null);
+  const [disputeReason, setDisputeReason] = useState('');
+  const [submittingDispute, setSubmittingDispute] = useState(false);
+  const [disputeError, setDisputeError] = useState<string | null>(null);
+
   const pollingRef = useRef<boolean>(false);
 
   // Load all wallet data
@@ -128,6 +146,7 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
 
       setWallet(walletRes.wallet);
       setTransactions(txRes.transactions);
+      setDisputedIds(await getDisputedTransactionIds(child.student_id));
       setSpendRule(rulesRes.rules);
       setAutoTopup(autoRes.config);
 
@@ -220,6 +239,8 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
       const payload = {
         daily_limit: noDailyLimit ? null : dailyLimitNum.toFixed(2),
         blocked_categories: blockedCats,
+        // The PUT replaces the whole rule; itemised blocks set elsewhere (console) must survive this save.
+        blocked_products: spendRule?.blocked_products ?? [],
         allowed_window_start: enableTimeWindow ? `${windowStart}:00` : null,
         allowed_window_end: enableTimeWindow ? `${windowEnd}:00` : null,
       };
@@ -231,6 +252,40 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
       alert(err?.message || 'Gagal menyimpan aturan belanja.');
     } finally {
       setSavingRules(false);
+    }
+  };
+
+  // QRS-017: guardian QR switch, saved on toggle
+  const handleToggleQrCharge = async (enabled: boolean) => {
+    setSavingQrSwitch(true);
+    setQrMsg(null);
+    try {
+      const updated = await setQrChargeEnabled(child.student_id, spendRule, enabled);
+      setSpendRule(updated);
+      setQrMsg(t('qr.controls_saved'));
+      setTimeout(() => setQrMsg(null), 4000);
+    } catch (err: any) {
+      alert(describeQrError(err).message);
+    } finally {
+      setSavingQrSwitch(false);
+    }
+  };
+
+  const handleSubmitDispute = async () => {
+    if (!disputeTx || !disputeReason.trim()) return;
+    setSubmittingDispute(true);
+    setDisputeError(null);
+    try {
+      await openQrDispute(child.student_id, disputeTx.id, disputeReason);
+      setDisputedIds((prev) => (prev.includes(disputeTx.id) ? prev : [...prev, disputeTx.id]));
+      setDisputeTx(null);
+      setDisputeReason('');
+      setQrMsg(t('qr.dispute_sent'));
+      setTimeout(() => setQrMsg(null), 4000);
+    } catch (err) {
+      setDisputeError(describeQrError(err).message);
+    } finally {
+      setSubmittingDispute(false);
     }
   };
 
@@ -443,6 +498,19 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
               </Text>
             </View>
           </View>
+
+          {/* Canteen QR Charge: pay flow entry (spec 18). Off unless the guardian switch is on and no itemised blocks. */}
+          <TouchableOpacity
+            style={[
+              styles.qrPayBtn,
+              (isFrozen || spendRule?.qr_charge_available === false) && styles.actionBtnDisabled,
+            ]}
+            onPress={() => setQrModalVisible(true)}
+            disabled={isFrozen || spendRule?.qr_charge_available === false}
+            accessibilityRole="button"
+          >
+            <Text style={styles.qrPayBtnText}>{t('qr.pay_btn')}</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Nutrition Quick-Glance Shortcut Card (PAR-010) */}
@@ -614,6 +682,34 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
           </TouchableOpacity>
         </View>
 
+        {/* Canteen QR Charge guardian switch (QRS-017) */}
+        <View style={styles.sectionCard}>
+          <View style={styles.switchRow}>
+            <View style={styles.switchLabelContainer}>
+              <Text style={styles.switchTitle}>{t('qr.controls_title')}</Text>
+              <Text style={styles.switchDesc}>{t('qr.controls_desc')}</Text>
+            </View>
+            <Switch
+              value={!!spendRule?.qr_charge_enabled}
+              onValueChange={handleToggleQrCharge}
+              disabled={savingQrSwitch}
+              trackColor={{ false: colors.borderDark, true: colors.hadirLight }}
+              thumbColor={spendRule?.qr_charge_enabled ? colors.hadir : colors.surfaceAlt}
+              accessibilityLabel={t('qr.controls_title')}
+            />
+          </View>
+          {spendRule?.qr_charge_enabled && spendRule.qr_charge_available === false && (
+            <View style={styles.frozenNoticeBox}>
+              <Text style={styles.frozenNoticeText}>{t('qr.controls_itemised')}</Text>
+            </View>
+          )}
+          {qrMsg && (
+            <View style={styles.successBox}>
+              <Text style={styles.successText}>✓ {qrMsg}</Text>
+            </View>
+          )}
+        </View>
+
         {/* Auto Top-up Configuration (WAL-005, WAL-006) */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Top-Up Otomatis (Auto Top-Up)</Text>
@@ -725,6 +821,26 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
                       {tx.reference || (tx.type === 'TOPUP' ? 'Top-up Saldo' : 'Belanja Kantin')}
                     </Text>
                     <Text style={styles.txDate}>{formattedDate}</Text>
+                    {tx.entry_mode === 'SELF_ENTERED' && (
+                      <Text style={styles.txQrTag}>{t('qr.dispute_badge')}</Text>
+                    )}
+                    {disputedIds.includes(tx.id) ? (
+                      <Text style={styles.txDisputed}>{t('qr.dispute_open')}</Text>
+                    ) : (
+                      canDisputeTransaction(tx) && (
+                        <TouchableOpacity
+                          style={styles.txDisputeBtn}
+                          onPress={() => {
+                            setDisputeError(null);
+                            setDisputeReason('');
+                            setDisputeTx(tx);
+                          }}
+                          accessibilityRole="button"
+                        >
+                          <Text style={styles.txDisputeBtnText}>{t('qr.dispute_btn')}</Text>
+                        </TouchableOpacity>
+                      )
+                    )}
                   </View>
 
                   <View style={styles.txRight}>
@@ -1008,6 +1124,72 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
           </View>
         </SafeAreaView>
       </Modal>
+
+      {/* Canteen QR Charge pay flow (spec 18) */}
+      <ParentQrChargeScreen
+        visible={qrModalVisible}
+        child={child}
+        onClose={() => setQrModalVisible(false)}
+        onPaid={() => loadData(true)}
+      />
+
+      {/* QR dispute sheet (QRS-026) */}
+      <Modal
+        visible={disputeTx !== null}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setDisputeTx(null)}
+      >
+        <SafeAreaView style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{t('qr.dispute_title')}</Text>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => setDisputeTx(null)}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.close')}
+              >
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={styles.modalBody} keyboardShouldPersistTaps="handled">
+              {disputeTx && (
+                <Text style={styles.switchTitle}>
+                  {formatRupiah(disputeTx.amount)} ·{' '}
+                  {new Date(disputeTx.occurred_at).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' })}
+                </Text>
+              )}
+              <Text style={styles.switchDesc}>{t('qr.dispute_desc')}</Text>
+              <Text style={styles.modalLabel}>{t('qr.dispute_reason')}</Text>
+              <TextInput
+                style={styles.disputeInput}
+                value={disputeReason}
+                onChangeText={setDisputeReason}
+                multiline
+                maxLength={500}
+                accessibilityLabel={t('qr.dispute_reason')}
+              />
+              {disputeError && <Text style={styles.disputeError}>{disputeError}</Text>}
+              <TouchableOpacity
+                style={[
+                  styles.saveRulesBtn,
+                  (submittingDispute || !disputeReason.trim()) && styles.actionBtnDisabled,
+                ]}
+                onPress={handleSubmitDispute}
+                disabled={submittingDispute || !disputeReason.trim()}
+                accessibilityRole="button"
+              >
+                {submittingDispute ? (
+                  <ActivityIndicator size="small" color={colors.white} />
+                ) : (
+                  <Text style={styles.saveRulesBtnText}>{t('qr.dispute_submit')}</Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -1145,6 +1327,61 @@ const styles = StyleSheet.create({
   },
   actionBtnDisabled: {
     opacity: 0.5,
+  },
+  qrPayBtn: {
+    marginTop: spacing.md,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: radius.button,
+  },
+  qrPayBtnText: {
+    color: colors.primary,
+    fontSize: typography.fontSize.base,
+    fontWeight: typography.fontWeight.bold,
+  },
+  txQrTag: {
+    alignSelf: 'flex-start',
+    marginTop: spacing.xs,
+    paddingHorizontal: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+    fontSize: typography.fontSize.xs,
+    color: colors.muted,
+  },
+  txDisputeBtn: {
+    alignSelf: 'flex-start',
+    marginTop: spacing.xs,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  txDisputeBtnText: {
+    color: colors.primary,
+    fontSize: typography.fontSize.sm,
+    fontWeight: typography.fontWeight.bold,
+  },
+  txDisputed: {
+    marginTop: spacing.xs,
+    fontSize: typography.fontSize.sm,
+    color: colors.izin,
+    fontWeight: typography.fontWeight.medium,
+  },
+  disputeInput: {
+    minHeight: 96,
+    borderWidth: 1,
+    borderColor: colors.borderDark,
+    padding: spacing.md,
+    fontSize: typography.fontSize.base,
+    color: colors.heading,
+    textAlignVertical: 'top',
+    marginBottom: spacing.md,
+  },
+  disputeError: {
+    color: colors.alpa,
+    fontSize: typography.fontSize.sm,
+    marginBottom: spacing.sm,
   },
   primaryActionBtnText: {
     color: colors.white,

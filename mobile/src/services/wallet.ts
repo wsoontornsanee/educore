@@ -155,8 +155,12 @@ export async function updateSpendRules(
   payload: {
     daily_limit: string | null;
     blocked_categories: string[];
+    // PUT replaces the whole rule server-side: anything omitted here is reset, so callers that
+    // only edit part of the rule must resend the rest (see setQrChargeEnabled).
+    blocked_products?: number[];
     allowed_window_start?: string | null;
     allowed_window_end?: string | null;
+    qr_charge_enabled?: boolean;
   }
 ): Promise<WalletSpendRule> {
   const cacheKey = `${CACHE_PREFIX}:rules:${studentId}`;

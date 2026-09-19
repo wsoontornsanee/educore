@@ -400,6 +400,8 @@ export interface WalletTransactionItem {
   reference: string;
   occurred_at: string;
   status: string;
+  /** QRS-003: SELF_ENTERED = the student typed the amount after scanning a QR (disputable, QRS-026). */
+  entry_mode?: 'SELF_ENTERED' | 'OPERATOR';
 }
 
 export interface WalletSpendRule {
@@ -411,6 +413,10 @@ export interface WalletSpendRule {
   blocked_products?: number[];
   allowed_window_start?: string | null;
   allowed_window_end?: string | null;
+  /** QRS-017: guardian switch for QR Charge. */
+  qr_charge_enabled?: boolean;
+  /** Read-only: enabled AND no itemised blocks (categories/products) set. */
+  qr_charge_available?: boolean;
   created_at?: string;
   updated_at?: string;
 }
