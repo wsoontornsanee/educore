@@ -103,7 +103,7 @@ class DiscrepancyResolveTests(ActionTestBase):
         response = self._post(resolution='ESCALATED')
         self.discrepancy.refresh_from_db()
         self.assertEqual(self.discrepancy.resolution, DiscrepancyResolution.WAIVED)
-        self.assertIn('already', flashes(response)[0])
+        self.assertIn('sudah', flashes(response)[0])
 
     def test_get_is_405(self):
         self.client.force_login(self.officer)

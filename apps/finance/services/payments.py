@@ -2,6 +2,7 @@ from datetime import timedelta
 from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
+from django.utils.translation import gettext
 
 from apps.core.services import audit, record_domain_event
 
@@ -194,7 +195,9 @@ def allocate_payment_to_invoices(
     for inv in target_invoices:
         if inv.currency != payment.currency:
             raise CurrencyMismatchError(
-                f"CURRENCY_MISMATCH: Invoice currency {inv.currency} != Payment currency {payment.currency}"
+                gettext("Mata uang tagihan (%(invoice)s) tidak sama dengan mata uang pembayaran (%(payment)s).") % {
+                    'invoice': inv.currency, 'payment': payment.currency,
+                }
             )
 
     remaining = payment.amount
@@ -738,7 +741,7 @@ def record_cash_payment(
     FIN-019: Cash payment desk receipt generation with unique receipt number and receiving officer.
     """
     if amount <= Decimal('0.00'):
-        raise InvalidPaymentError("Cash payment amount must be positive.")
+        raise InvalidPaymentError(gettext("Jumlah pembayaran tunai harus lebih dari nol."))
 
     reference = get_next_payment_reference(school)
     receipt_number = get_next_receipt_number(school)

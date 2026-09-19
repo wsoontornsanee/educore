@@ -8310,3 +8310,14 @@ msgstr "Transaction not found."
 
 msgid "Sanggahan tidak ditemukan."
 msgstr "Dispute not found."
+
+#, python-format
+msgid "Selisih #%(id)s sudah berstatus %(resolution)s dan tidak dapat diselesaikan ulang."
+msgstr "Discrepancy #%(id)s is already %(resolution)s and cannot be resolved again."
+
+#, python-format
+msgid "Mata uang tagihan (%(invoice)s) tidak sama dengan mata uang pembayaran (%(payment)s)."
+msgstr "Invoice currency (%(invoice)s) does not match the payment currency (%(payment)s)."
+
+msgid "Jumlah pembayaran tunai harus lebih dari nol."
+msgstr "Cash payment amount must be greater than zero."
