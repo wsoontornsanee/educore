@@ -4248,3 +4248,15 @@ msgstr ""
 #: apps/reporting/views.py
 msgid "Format bulan tidak valid (YYYY-MM)."
 msgstr ""
+
+#: apps/wallet/models.py
+msgid "Selesai (pembayaran dibatalkan)"
+msgstr ""
+
+#: apps/wallet/qr_oversight.py
+msgid "Pembayaran dibatalkan; dana dikembalikan penuh."
+msgstr ""
+
+#: apps/wallet/qr_oversight.py
+msgid "Pembayaran ini sudah dibatalkan dan dikembalikan penuh, sehingga sanggahan tidak dapat dikabulkan."
+msgstr ""

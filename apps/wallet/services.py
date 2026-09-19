@@ -587,7 +587,7 @@ def void_pos_transaction(pos_transaction: POSTransaction, reason: str, actor=Non
         )
 
     wallet = pos_transaction.wallet_transaction.wallet
-    record_wallet_transaction(
+    refund_transaction = record_wallet_transaction(
         wallet, WalletTransactionType.REFUND, pos_transaction.subtotal,
         f"void:{pos_transaction.client_transaction_id}",
         reference=f"VOID:{pos_transaction.merchant.name}",
@@ -597,6 +597,10 @@ def void_pos_transaction(pos_transaction: POSTransaction, reason: str, actor=Non
     pos_transaction.voided_at = timezone.now()
     pos_transaction.void_reason = reason
     pos_transaction.save(update_fields=['status', 'voided_at', 'void_reason', 'updated_at'])
+
+    # The guardian is whole again, so a dispute still open on this sale has nothing left to decide.
+    from apps.wallet.qr_oversight import close_disputes_for_voided_sale
+    close_disputes_for_voided_sale(pos_transaction, refund_transaction, actor=actor)
 
     audit(
         action='wallet.pos_transaction.voided',

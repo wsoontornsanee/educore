@@ -25,6 +25,7 @@ from apps.wallet.models import (
     POSEntryMode,
     POSTransaction,
     POSTransactionStatus,
+    QRDispute,
     QRDisputeStatus,
     Wallet,
     WalletTransaction,
@@ -163,6 +164,66 @@ class MoneyPathConcurrencyTests(QRFixtureMixin, TransactionTestCase):
         self.assertEqual(sum(error is None for _result, error in outcomes), 1, outcomes)
         for _result, error in outcomes:
             self.assertTrue(error is None or isinstance(error, (ValueError, QRDisputeError)), repr(error))
+        self.assertEqual(self._balance(), START_BALANCE)
+        self._assert_ledger_balances()
+
+    # -- dispute vs void -----------------------------------------------------------------------------
+
+    def test_two_concurrent_opens_for_one_sale_create_one_dispute(self):
+        sale = self._sale()
+        guardian = make_guardian(self.fx)
+        outcomes = _run_together(
+            self.foundation_id,
+            lambda: open_qr_dispute(POSTransaction.objects.get(id=sale.id), guardian, 'a'),
+            lambda: open_qr_dispute(POSTransaction.objects.get(id=sale.id), guardian, 'b'),
+        )
+        winners = [result for result, error in outcomes if error is None]
+        losers = [error for _result, error in outcomes if error is not None]
+        self.assertEqual((len(winners), len(losers)), (1, 1), outcomes)
+        self.assertIsInstance(losers[0], QRDisputeError)
+        self.assertEqual(losers[0].code, 'DISPUTE_EXISTS')
+        self.assertEqual(QRDispute.all_tenants.filter(pos_transaction_id=sale.id).count(), 1)
+
+    def test_an_open_racing_a_void_never_leaves_an_open_dispute_on_a_voided_sale(self):
+        # Whichever order wins: the open lands first and the void closes it as VOIDED, or the void lands
+        # first and the open is refused as not eligible. Never an OPEN dispute on a VOIDED sale.
+        guardian = make_guardian(self.fx)
+        rounds = 8
+        for i in range(rounds):
+            sale = self._sale(key=f'race-{i}')
+            outcomes = _run_together(
+                self.foundation_id,
+                lambda sale=sale: open_qr_dispute(POSTransaction.objects.get(id=sale.id), guardian, 'x'),
+                lambda sale=sale: void_pos_transaction(POSTransaction.objects.get(id=sale.id), 'salah input'),
+            )
+            for _result, error in outcomes:
+                self.assertTrue(error is None or isinstance(error, (ValueError, QRDisputeError)), (i, repr(error)))
+            sale.refresh_from_db()
+            self.assertEqual(sale.status, POSTransactionStatus.VOIDED, (i, outcomes))
+            self.assertFalse(
+                QRDispute.all_tenants.filter(pos_transaction_id=sale.id, status=QRDisputeStatus.OPEN).exists(), (i, outcomes),
+            )
+        self.assertEqual(self._balance(), START_BALANCE)
+        self._assert_ledger_balances()
+
+    def test_void_and_resolve_of_one_disputed_sale_never_deadlock_over_many_rounds(self):
+        # Void closes the sale's open dispute, resolve takes the same three locks (wallet, sale, dispute) in the
+        # same order. A regression to dispute-first shows up here as InnoDB 1213.
+        guardian = make_guardian(self.fx)
+        staff = self.fx['finance_user']
+        rounds = 8
+        for i in range(rounds):
+            sale = self._sale(key=f'dv-{i}')
+            dispute = open_qr_dispute(sale, guardian, 'x')
+            outcomes = _run_together(
+                self.foundation_id,
+                lambda sale=sale: void_pos_transaction(POSTransaction.objects.get(id=sale.id), 'salah input'),
+                lambda dispute=dispute: resolve_qr_dispute(dispute, QRDisputeStatus.REJECTED, staff, 'x'),
+            )
+            for _result, error in outcomes:
+                self.assertTrue(error is None or isinstance(error, (ValueError, QRDisputeError)), (i, repr(error)))
+            dispute = QRDispute.all_tenants.get(id=dispute.id)
+            self.assertIn(dispute.status, (QRDisputeStatus.VOIDED, QRDisputeStatus.REJECTED), (i, outcomes))
         self.assertEqual(self._balance(), START_BALANCE)
         self._assert_ledger_balances()
 

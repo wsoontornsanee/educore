@@ -4,6 +4,10 @@ Nothing here reverses a sale automatically. A guardian opens a dispute
 (QRS-026); school staff resolve it, and an upheld outcome is its own
 REFUND/ADJUSTMENT ledger line. Underpayment is surfaced as a report for a
 conversation, not enforced (QRS-027).
+
+Lock order for anything that touches a disputed sale: the student's wallet, then the sale, then the
+sale's dispute. Charge and void already take wallet then sale; dispute paths add the dispute last, so a
+void that closes an open dispute and a staff resolution of it queue behind each other instead of deadlocking.
 """
 import math
 from collections import defaultdict
@@ -41,9 +45,21 @@ class QRDisputeError(ValueError):
         self.message = message
 
 
+@transaction.atomic
 def open_qr_dispute(pos_transaction: POSTransaction, opened_by, reason: str) -> QRDispute:
-    """QRS-026: a guardian contests a self-entered charge within 7 days. One dispute per charge."""
-    if pos_transaction.entry_mode != POSEntryMode.SELF_ENTERED or pos_transaction.status != POSTransactionStatus.COMPLETED:
+    """QRS-026: a guardian contests a self-entered charge within 7 days. One dispute per charge.
+
+    Runs under the wallet and sale locks (see the module docstring), so two concurrent opens for one sale
+    are serialised and the second sees the first (DISPUTE_EXISTS), and an open cannot slip in between a
+    void's status check and its close of open disputes: it either sees the sale still COMPLETED before the
+    void or already VOIDED after it."""
+    if pos_transaction.entry_mode != POSEntryMode.SELF_ENTERED:
+        raise QRDisputeError('DISPUTE_NOT_ELIGIBLE', _("Hanya pembayaran QR yang diinput siswa dan masih berlaku yang dapat disanggah."))
+    _get_locked_wallet(pos_transaction.wallet_transaction.wallet_id, pos_transaction.foundation_id)
+    pos_transaction = POSTransaction.all_tenants.select_for_update().get(
+        id=pos_transaction.id, foundation_id=pos_transaction.foundation_id,
+    )
+    if pos_transaction.status != POSTransactionStatus.COMPLETED:
         raise QRDisputeError('DISPUTE_NOT_ELIGIBLE', _("Hanya pembayaran QR yang diinput siswa dan masih berlaku yang dapat disanggah."))
     if timezone.now() - pos_transaction.occurred_at > timedelta(days=DISPUTE_WINDOW_DAYS):
         raise QRDisputeError('DISPUTE_WINDOW_CLOSED', _("Batas waktu sanggahan 7 hari sudah lewat."))
@@ -72,20 +88,24 @@ def resolve_qr_dispute(
     settlement. The sale itself stays COMPLETED either way."""
     if outcome not in (QRDisputeStatus.UPHELD, QRDisputeStatus.REJECTED):
         raise QRDisputeError('DISPUTE_INVALID_OUTCOME', _("Hasil sanggahan tidak valid."))
-    dispute = QRDispute.objects.select_for_update().get(id=dispute.id, foundation_id=dispute.foundation_id)
-    if dispute.status != QRDisputeStatus.OPEN:
-        raise QRDisputeError('DISPUTE_NOT_OPEN', _("Sanggahan ini sudah diselesaikan."))
-
-    # Lock the wallet, then the sale (the order void and charge use), so a void cannot slip in between the
-    # status check and the refund.
+    # Wallet, then sale, then the dispute (see the module docstring): the order void and charge use, so a
+    # void cannot slip in between the status check and the refund, and a void closing this very dispute
+    # queues behind us rather than deadlocking. The unlocked read only finds the wallet to lock first.
+    dispute = QRDispute.objects.select_related('pos_transaction__wallet_transaction').get(
+        id=dispute.id, foundation_id=dispute.foundation_id,
+    )
     _get_locked_wallet(dispute.pos_transaction.wallet_transaction.wallet_id, dispute.foundation_id)
     pos_tx = POSTransaction.all_tenants.select_for_update().get(
         id=dispute.pos_transaction_id, foundation_id=dispute.foundation_id,
     )
+    dispute = QRDispute.objects.select_for_update().get(id=dispute.id, foundation_id=dispute.foundation_id)
+    if dispute.status != QRDisputeStatus.OPEN:
+        raise QRDisputeError('DISPUTE_NOT_OPEN', _("Sanggahan ini sudah diselesaikan."))
     if outcome == QRDisputeStatus.UPHELD:
         if pos_tx.status != POSTransactionStatus.COMPLETED:
             # A void already refunded this sale in full; upholding would credit the guardian a second time.
-            raise QRDisputeError('DISPUTE_NOT_ELIGIBLE', _("Hanya pembayaran QR yang diinput siswa dan masih berlaku yang dapat disanggah."))
+            # Voiding now closes the sale's open dispute itself, so this only meets cases left OPEN before that.
+            raise QRDisputeError('DISPUTE_SALE_VOIDED', _("Pembayaran ini sudah dibatalkan dan dikembalikan penuh, sehingga sanggahan tidak dapat dikabulkan."))
         amount = pos_tx.total if refund_amount is None else Decimal(str(refund_amount)).quantize(Decimal('0.01'))
         if amount <= Decimal('0.00') or amount > pos_tx.total:
             raise QRDisputeError('DISPUTE_INVALID_AMOUNT', _("Jumlah pengembalian harus lebih dari nol dan tidak melebihi pembayaran."))
@@ -111,6 +131,33 @@ def resolve_qr_dispute(
     if outcome == QRDisputeStatus.UPHELD:
         _flag_merchant_if_needed(dispute.merchant)
     return dispute
+
+
+def close_disputes_for_voided_sale(pos_tx: POSTransaction, refund_transaction, actor=None) -> int:
+    """Close the sale's OPEN dispute(s) as VOIDED: the void just refunded the guardian in full, so there is
+    nothing left for staff to decide. Not UPHELD: no second refund, no settlement adjustment (the void already
+    reverses the merchant's side) and no count toward the merchant flag (QRS-028).
+
+    Called by `void_pos_transaction` with the wallet and the sale already locked; takes the dispute last.
+    Returns how many disputes were closed.
+    """
+    disputes = list(QRDispute.objects.select_for_update().filter(
+        foundation_id=pos_tx.foundation_id, pos_transaction=pos_tx, status=QRDisputeStatus.OPEN,
+        deleted_at__isnull=True,
+    ))
+    now = timezone.now()
+    for dispute in disputes:
+        dispute.status = QRDisputeStatus.VOIDED
+        dispute.resolved_by = actor if getattr(actor, 'pk', None) else None
+        dispute.resolved_at = now
+        dispute.resolution_note = _("Pembayaran dibatalkan; dana dikembalikan penuh.")
+        dispute.resolution_transaction = refund_transaction
+        dispute.save()
+        audit(
+            action='wallet.qr_dispute.closed_by_void', entity_type='QRDispute', entity_id=dispute.id,
+            foundation_id=dispute.foundation_id, diff={'pos_transaction': pos_tx.id},
+        )
+    return len(disputes)
 
 
 def _record_settlement_adjustment(dispute: QRDispute, pos_tx: POSTransaction) -> MerchantSettlementAdjustment:

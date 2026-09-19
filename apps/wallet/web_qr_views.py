@@ -115,7 +115,7 @@ class CanteenQRPageView(StaffConsoleMixin, APIView):
                 ).select_related('merchant', 'student', 'student__person', 'pos_transaction').order_by('created_at'))
                 resolved_disputes = list(QRDispute.objects.filter(
                     foundation_id=foundation_id, merchant__in=merchants, deleted_at__isnull=True,
-                    status__in=[QRDisputeStatus.UPHELD, QRDisputeStatus.REJECTED],
+                    status__in=[QRDisputeStatus.UPHELD, QRDisputeStatus.REJECTED, QRDisputeStatus.VOIDED],
                     resolved_at__gte=timezone.now() - timedelta(days=RESOLVED_DISPUTE_DAYS),
                 ).select_related('merchant', 'student', 'student__person', 'pos_transaction').order_by('-resolved_at')[:50])
             ctx.update({

@@ -8847,3 +8847,15 @@ msgstr "Platform Operator"
 #: apps/reporting/views.py
 msgid "Format bulan tidak valid (YYYY-MM)."
 msgstr "Invalid month format (YYYY-MM)."
+
+#: apps/wallet/models.py
+msgid "Selesai (pembayaran dibatalkan)"
+msgstr "Closed (payment voided)"
+
+#: apps/wallet/qr_oversight.py
+msgid "Pembayaran dibatalkan; dana dikembalikan penuh."
+msgstr "Payment voided; the amount was refunded in full."
+
+#: apps/wallet/qr_oversight.py
+msgid "Pembayaran ini sudah dibatalkan dan dikembalikan penuh, sehingga sanggahan tidak dapat dikabulkan."
+msgstr "This payment was already voided and refunded in full, so the dispute can no longer be upheld."
