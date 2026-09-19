@@ -38,4 +38,13 @@ describe('release config', () => {
       assert.ok(existsSync(new URL(`../${rel}`, import.meta.url)), rel);
     }
   });
+
+  it('vendors the SQLite source expo-sqlite would download at build time', () => {
+    // sqlite.org is intermittently unreachable from EAS workers; the post-install hook seeds Gradle's download cache.
+    const gradle = readFileSync(new URL('../node_modules/expo-sqlite/android/build.gradle', import.meta.url), 'utf8');
+    const version = /def SQLITE_VERSION = '(\d+)'/.exec(gradle)?.[1];
+    assert.ok(version, 'SQLITE_VERSION not found in expo-sqlite build.gradle');
+    assert.ok(existsSync(new URL(`../vendor/sqlite/sqlite-amalgamation-${version}.zip`, import.meta.url)), version);
+    assert.match(pkg.scripts['eas-build-post-install'], /vendor\/sqlite\/\*\.zip/);
+  });
 });
