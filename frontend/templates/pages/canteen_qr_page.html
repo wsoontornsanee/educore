@@ -11,6 +11,10 @@ daily underpayment signals. Served by apps.wallet.web_qr_views.CanteenQRPageView
 
 {% block console_content %}
 {% include "components/_console_ui.html" %}
+<style>
+  /* Section bodies that are not tables/empty states need the same side gutter as the table cells. */
+  .cn-section > form, .cn-section > h3, .cn-section > p { margin-left: 16px; margin-right: 16px; }
+</style>
 <main class="cn-page">
   <div class="cn-head">
     <div>
@@ -153,14 +157,62 @@ daily underpayment signals. Served by apps.wallet.web_qr_views.CanteenQRPageView
       {% endif %}
     </section>
 
-    <section class="cn-section" aria-labelledby="qr-signals-h">
-      <h2 id="qr-signals-h">{% translate "Sinyal pembayaran terlalu kecil" %}</h2>
+    <section class="cn-section" aria-labelledby="qr-resolved-h">
+      <h2 id="qr-resolved-h">{% translate "Sanggahan selesai (30 hari)" %} · {{ resolved_disputes|length }}</h2>
+      {% if resolved_disputes %}
+        <div class="cn-table-wrap">
+          <table class="cn-table">
+            <thead><tr>
+              <th>{% translate "Diselesaikan" %}</th><th>{% translate "Siswa" %}</th><th>{% translate "Merchant" %}</th><th>{% translate "Hasil" %}</th><th class="cn-num">{% translate "Dikembalikan" %}</th><th>{% translate "Catatan" %}</th>
+            </tr></thead>
+            <tbody>
+              {% for d in resolved_disputes %}
+                <tr>
+                  <td class="cn-num">{{ d.resolved_at|date:"d M H:i" }}</td>
+                  <td>{{ d.student.person.full_name|default:d.student.nis }}</td>
+                  <td>{{ d.merchant.name }}</td>
+                  <td><span class="cn-badge{% if d.status == 'UPHELD' %} is-warn{% else %} is-ok{% endif %}">{{ d.get_status_display }}</span></td>
+                  <td class="cn-num">{% if d.refund_amount %}{{ d.refund_amount|money:currency }}{% else %}—{% endif %}</td>
+                  <td>{{ d.resolution_note|default:"—" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="cn-empty">{% translate "Belum ada sanggahan yang diselesaikan dalam 30 hari terakhir." %}</div>
+      {% endif %}
+    </section>
+
+    <section class="cn-section" aria-labelledby="qr-daily-h">
+      <h2 id="qr-daily-h">{% translate "Laporan harian" %}</h2>
       <form method="get" style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
         <input type="hidden" name="school_id" value="{{ school.id }}">
         <label for="qr-date" class="cn-eyebrow">{% translate "Tanggal" %}</label>
         <input id="qr-date" type="date" name="date" class="cn-select" value="{{ signals_date }}">
         <button type="submit" class="btn btn-secondary">{% translate "Tampilkan" %}</button>
       </form>
+      {% for m in merchants %}{% if m.sales_by_point %}
+        <h3>{% translate "Penjualan per titik pembayaran" %} · {{ m.name }}</h3>
+        <div class="cn-table-wrap">
+          <table class="cn-table">
+            <thead><tr><th>{% translate "Titik pembayaran" %}</th><th class="cn-num">{% translate "Transaksi" %}</th><th class="cn-num">{% translate "Total" %}</th></tr></thead>
+            <tbody>
+              {% for r in m.sales_by_point %}
+                <tr>
+                  <td>{% if r.payment_point_name %}{{ r.payment_point_name }}{% else %}{% translate "Kasir / terminal (bukan lembar QR)" %}{% endif %}</td>
+                  <td class="cn-num">{{ r.count }}</td>
+                  <td class="cn-num">{{ r.total|money:currency }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}{% endfor %}
+    </section>
+
+    <section class="cn-section" aria-labelledby="qr-signals-h">
+      <h2 id="qr-signals-h">{% translate "Sinyal pembayaran terlalu kecil" %}</h2>
       <p class="text-caption">{% translate "Pembayaran QR di bawah persentil ke-10 keranjang belanja merchant. Untuk dibicarakan, bukan untuk dihukum." %}</p>
       {% for m in merchants %}{% if m.signals %}
         <h3>{{ m.name }} · {{ m.signals.date }}</h3>

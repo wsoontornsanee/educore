@@ -1815,7 +1815,7 @@ def get_canteen_console_snapshot(foundation_id, school, now=None) -> Dict[str, A
 
     recent = list(POSTransaction.objects.filter(
         foundation_id=foundation_id, merchant__in=merchants, deleted_at__isnull=True,
-    ).select_related('merchant', 'student__person').order_by('-occurred_at')[:RECENT_POS_TRANSACTION_LIMIT])
+    ).select_related('merchant', 'student__person', 'qr_decal__payment_point').order_by('-occurred_at')[:RECENT_POS_TRANSACTION_LIMIT])
 
     return {
         'currency': school.base_currency,
