@@ -39,8 +39,15 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "EduCore memakai kamera untuk memindai kode QR pembayaran kantin.",
+          "cameraPermission": "EduCore memakai kamera untuk memindai kode QR pembayaran kantin dan memotret orang yang Anda otorisasi untuk menjemput.",
           "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "EduCore memakai kamera untuk memindai kode QR pembayaran kantin dan memotret orang yang Anda otorisasi untuk menjemput.",
+          "photosPermission": "EduCore membaca foto yang Anda pilih sebagai foto orang yang Anda otorisasi untuk menjemput."
         }
       ]
     ],
