@@ -8904,6 +8904,73 @@ msgstr "Refund currency (%(currency)s) does not match the payment currency (%(pa
 msgid "Total pengembalian dana (%(total)s) melebihi nominal pembayaran yang diselesaikan (%(amount)s)."
 msgstr "Total refunded (%(total)s) exceeds the settled payment amount (%(amount)s)."
 
+#: frontend/templates/pages/admin_metering.html
+msgid "Siswa terhitung — EduCore"
+msgstr "Counted students — EduCore"
+
+#: frontend/templates/pages/admin_metering.html
+msgid "Siswa terhitung"
+msgstr "Counted students"
+
+#: frontend/templates/pages/admin_metering.html
+msgid "Jumlah siswa aktif per sekolah yang menjadi dasar tagihan langganan EduCore. Bulan yang sudah berakhir dibekukan dan tidak berubah lagi."
+msgstr "Active students per school that form the basis of the EduCore subscription invoice. A month that has ended is frozen and no longer changes."
+
+#: frontend/templates/pages/admin_metering.html
+msgid "Format bulan tidak valid (gunakan YYYY-MM); menampilkan bulan ini."
+msgstr "Invalid month format (use YYYY-MM); showing the current month."
+
+#: frontend/templates/pages/admin_metering.html
+msgid "Bulan"
+msgstr "Month"
+
+#: frontend/templates/pages/admin_metering.html
+msgid "Bulan sebelumnya"
+msgstr "Previous month"
+
+#: frontend/templates/pages/admin_metering.html
+msgid "Bulan berikutnya"
+msgstr "Next month"
+
+#: frontend/templates/pages/admin_metering.html
+msgid "Ringkasan"
+msgstr "Summary"
+
+#: frontend/templates/pages/admin_metering.html
+msgid "Total siswa terhitung"
+msgstr "Total counted students"
+
+#: frontend/templates/pages/admin_metering.html
+msgid "Dihitung pada"
+msgstr "Counted at"
+
+#: frontend/templates/pages/admin_metering.html
+msgid "nonaktif"
+msgstr "inactive"
+
+#: frontend/templates/pages/admin_metering.html
+msgid "Berjalan"
+msgstr "In progress"
+
+#: frontend/templates/pages/admin_metering.html
+msgid "Belum dihitung"
+msgstr "Not counted yet"
+
+#: frontend/templates/pages/admin_metering.html
+msgid "Yang tertulis di sini adalah jumlah siswa, bukan daftar nama. Daftar siswa yang dihitung untuk bulan yang dibekukan belum tersedia."
+msgstr "This page shows counts, not names. The list of students counted for a frozen month is not available yet."
+
+#: frontend/templates/pages/admin_metering.html
+msgid "Belum ada sekolah yang dapat ditampilkan."
+msgstr "No schools to show."
+
+#: frontend/templates/pages/admin_metering.html
+#, python-format
+msgid "Total ini belum lengkap: %(n)s sekolah belum dihitung untuk bulan ini."
+msgid_plural "Total ini belum lengkap: %(n)s sekolah belum dihitung untuk bulan ini."
+msgstr[0] "This total is incomplete: %(n)s school has not been counted for this month."
+msgstr[1] "This total is incomplete: %(n)s schools have not been counted for this month."
+
 #: apps/reporting/models.py
 msgid "Ids of the students counted, in ascending order"
 msgstr "Ids of the students counted, in ascending order"
