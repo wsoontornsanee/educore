@@ -54,3 +54,32 @@ Computed at read time, not stored. Take the last four **completed** weeks of a s
 - A week's `enrolled_students` is the value at freeze time, not a historical truth (repo keeps no status history).
 - Hooking `authenticate` touches every authenticated API request; the gate makes the steady-state cost one date comparison on an already-loaded user.
 - No platform operator exists on PRD (separate Notion item), so the endpoint has no caller there until one is assigned.
+
+# Slice 2: collection rate, attendance-submission compliance, gate uptime, canteen adoption (RPT-013)
+
+Notion: "Platform health metrics slice 2 ... (RPT-013)". Definitions below are decisions (additive, reversible; the item said "define"). Parent WAU% (the fifth RPT-013 metric) is slice 1.
+
+## Storage
+
+The metrics are extra columns on `rpt_parent_weekly_activity` (one row per school per week), each a numerator and a denominator so the percentage is derived at read time and a definition tweak needs no rewrite of stored ratios. All nullable: null means "not computed yet".
+
+| Metric | Columns | Definition |
+|---|---|---|
+| Collection rate | `collection_billed`, `collection_collected` | IDR invoices whose `due_date` is in the week (status ISSUED, PARTIALLY_PAID, PAID or WRITTEN_OFF; drafts and cancelled are not receivables) vs the sum of `PaymentAllocation` on them from SETTLED payments settled on or before the week's last day. An on-time collection rate: a payment after the week never rewrites it, so the week is stable and can freeze. Other currencies are excluded (a ratio across currencies is meaningless). |
+| Attendance-submission compliance | `attendance_expected_periods`, `attendance_submitted_periods` | Expected = `TimetableSlot` periods of the school on each day of the week that is before today, inside the class subject's term and not excused by an `affects_attendance` calendar event (`attendance.services.find_calendar_exemption`, the same rule the teacher agenda uses). Submitted = those (slot, date) pairs with any `PeriodAttendance` row, whoever submitted. Sundays and holidays fall out because no slot or an exempting event covers them. |
+| Gate uptime | `gate_samples`, `gate_up_samples` | Sum of `hardware.DeviceUptimeDay` over the week. New: `check_device_health` (every 10 min) ends with `record_gate_uptime_sample`, one sample per GATE_READER/FACE_TERMINAL device that is not RETIRED, only inside the school's operational hours (06:00-18:00 local, not Sunday); up = ONLINE or DEGRADED after the stale sweep. The repo only keeps the latest heartbeat per device, so history has to be sampled; a school with no gate devices has no percentage. |
+| Canteen adoption | `canteen_active_students` (denominator `enrolled_students`) | Distinct counted students with a COMPLETED `POSTransaction` at a CANTEEN merchant of the school in the week, over the row's `enrolled_students` (the same RPT-007 population as WAU). |
+
+## Refresh and freezing
+
+Same nightly `full` refresher (`refresh_parent_weekly_activity`), same eight-week window. The row now has two independently frozen parts: WAU (`computed_at`) and health (`health_computed_at`); each freezes once computed after the week ended. Reason for freezing the health part: POS sales are archived after 400 days and uptime samples are day counters, so a late recompute must not overwrite the week with less. Weeks written by slice 1 have a null `health_computed_at` and get the health part on the first run after deploy (WAU part untouched); their attendance/collection/canteen values are rebuilt from source data, their gate uptime is empty because sampling starts at deploy.
+
+## Endpoint and RPT-014
+
+`GET /internal/health-metrics/` weeks gain `collection_rate_pct`, `attendance_compliance_pct`, `gate_uptime_pct`, `canteen_adoption_pct` (null when the week has no data or a zero base). RPT-014 applies to **every** metric, each judged on its own by the slice-1 rule (four completed weeks, three strict drops). A school is `at_risk` when any metric is declining, and the new `declining_metrics` array names which (`wau_pct`, `collection_rate_pct`, ...). A metric with a missing week or no data never flags.
+
+## Risks
+
+- Collection and attendance are rebuilt from today's data for weeks that predate the columns (invoices, timetable and calendar are edited in place); acceptable, they are only ever computed once per week.
+- Uptime of the first weeks after deploy is partial (sampling begins at deploy); a school appears at 100% if its only samples are healthy ones.
+- Periods for a school with timetables but no teacher using the feature score 0%, by design: that is the at-risk signal.

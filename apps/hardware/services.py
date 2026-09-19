@@ -8,12 +8,13 @@ import datetime
 import logging
 import zoneinfo
 
-from django.db.models import Q
+from django.db import transaction
+from django.db.models import F, Q
 from django.utils import timezone
 
 from apps.core.services import audit
 from apps.hardware.crypto import encrypt_template
-from apps.hardware.models import BiometricTemplate, BiometricTemplateStatus, DeviceClass
+from apps.hardware.models import BiometricTemplate, BiometricTemplateStatus, DeviceClass, DeviceUptimeDay
 
 logger = logging.getLogger(__name__)
 
@@ -91,14 +92,17 @@ def _apply_bus_event(row) -> None:
         raise ValueError(f"bus event rejected: {result['reason']}")
 
 
-def _is_within_operational_hours(now: datetime.datetime, school) -> bool:
+def _school_local_now(now: datetime.datetime, school) -> datetime.datetime:
     school_tz_str = getattr(school, 'timezone', None) or 'Asia/Jakarta'
     try:
         school_tz = zoneinfo.ZoneInfo(school_tz_str)
     except Exception:
         school_tz = zoneinfo.ZoneInfo('Asia/Jakarta')
+    return now.astimezone(school_tz)
 
-    now_local = now.astimezone(school_tz)
+
+def _is_within_operational_hours(now: datetime.datetime, school) -> bool:
+    now_local = _school_local_now(now, school)
     if now_local.weekday() == 6:  # Sunday (ATT-005's own non-school-day convention)
         return False
     return OPERATIONAL_HOURS_START <= now_local.time() < OPERATIONAL_HOURS_END
@@ -182,7 +186,48 @@ def check_device_health(timeout_minutes: int = 15) -> dict:
                     device.id,
                 )
 
+    record_gate_uptime_sample(now)
+
     return {'checked': checked, 'marked_offline': marked_offline, 'alerts_dispatched': alerts_dispatched}
+
+
+GATE_DEVICE_CLASSES = (DeviceClass.GATE_READER, DeviceClass.FACE_TERMINAL)
+
+
+def record_gate_uptime_sample(now: datetime.datetime) -> int:
+    """RPT-013: add one availability sample per gate/face device in its school's operational hours.
+
+    Runs at the end of `check_device_health`, after stale heartbeats were swept to OFFLINE, so a device
+    counts as up only when it is ONLINE or DEGRADED right now. RETIRED devices are not gates any more
+    and are skipped. Returns the number of device samples recorded. The caller holds the
+    `check_device_health` advisory lock, so two runs never increment the same row at once.
+    """
+    from apps.hardware.models import Device, DeviceStatus
+
+    per_school = {}  # (foundation_id, school_id) -> [date, samples, up_samples]
+    devices = Device.all_tenants.filter(
+        deleted_at__isnull=True, device_class__in=GATE_DEVICE_CLASSES,
+    ).exclude(status=DeviceStatus.RETIRED).select_related('school')
+    for device in devices:
+        if not _is_within_operational_hours(now, device.school):
+            continue
+        entry = per_school.setdefault(
+            (device.foundation_id, device.school_id), [_school_local_now(now, device.school).date(), 0, 0],
+        )
+        entry[1] += 1
+        entry[2] += device.status in (DeviceStatus.ONLINE, DeviceStatus.DEGRADED)
+
+    recorded = 0
+    for (foundation_id, school_id), (day, samples, up_samples) in per_school.items():
+        with transaction.atomic():
+            row, _created = DeviceUptimeDay.all_tenants.get_or_create(
+                foundation_id=foundation_id, school_id=school_id, date=day,
+            )
+            DeviceUptimeDay.all_tenants.filter(pk=row.pk).update(
+                samples=F('samples') + samples, up_samples=F('up_samples') + up_samples,
+            )
+        recorded += samples
+    return recorded
 
 
 # --- Biometric enrollment & consent-linked deletion (spec/12 §6, spec/14 CMP-009/010/012) ---

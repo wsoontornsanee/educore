@@ -32,6 +32,7 @@ class HealthMetricsEndpointTests(TestCase):
         RptParentWeeklyActivity.all_tenants.create(
             foundation_id=self.fid, school=self.fx['school'], week_start=week - datetime.timedelta(weeks=1),
             active_parents=4, enrolled_students=10, computed_at=timezone.now(),
+            gate_samples=200, gate_up_samples=190,
         )
         self.client = APIClient()
 
@@ -46,6 +47,10 @@ class HealthMetricsEndpointTests(TestCase):
         self.assertEqual(school['school_id'], self.fx['school'].id)
         self.assertEqual(school['latest_wau_pct'], 40.0)
         self.assertFalse(school['at_risk'])
+        self.assertEqual(school['declining_metrics'], [])
+        week = school['weeks'][0]
+        self.assertEqual(week['gate_uptime_pct'], 95.0)
+        self.assertIsNone(week['collection_rate_pct'])  # not computed for this week
 
     def test_foundation_filter(self):
         self._auth(self.operator)

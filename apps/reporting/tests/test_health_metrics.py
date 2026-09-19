@@ -28,7 +28,7 @@ class IsDecliningTests(SimpleTestCase):
         self.assertTrue(is_declining([0.1, 0.9, 0.7, 0.5, 0.3]))
 
 
-class GetHealthMetricsTests(TestCase):
+class HealthFixture(TestCase):
     TODAY = datetime.date(2026, 9, 16)  # a Wednesday; current week starts 2026-09-14
 
     def setUp(self):
@@ -36,17 +36,20 @@ class GetHealthMetricsTests(TestCase):
         self.fid = self.fx['foundation'].id
         self.current = datetime.date(2026, 9, 14)
 
-    def _week(self, weeks_ago, active, enrolled=10):
+    def _week(self, weeks_ago, active, enrolled=10, **health):
         RptParentWeeklyActivity.all_tenants.create(
             foundation_id=self.fid, school=self.fx['school'],
             week_start=self.current - datetime.timedelta(weeks=weeks_ago),
-            active_parents=active, enrolled_students=enrolled, computed_at=timezone.now(),
+            active_parents=active, enrolled_students=enrolled, computed_at=timezone.now(), **health,
         )
 
     def _result(self, **kwargs):
         (row,) = get_health_metrics(today=self.TODAY, **kwargs)
         return row
 
+
+
+class GetHealthMetricsTests(HealthFixture):
     def test_three_consecutive_drops_over_completed_weeks_flag_the_school(self):
         for weeks_ago, active in [(4, 8), (3, 6), (2, 5), (1, 4)]:
             self._week(weeks_ago, active)
@@ -70,6 +73,8 @@ class GetHealthMetricsTests(TestCase):
         self.assertEqual([w['complete'] for w in weeks], [True, False])
         self.assertEqual(weeks[0], {
             'week_start': '2026-09-07', 'active_parents': 4, 'enrolled_students': 10, 'wau_pct': 40.0, 'complete': True,
+            'collection_rate_pct': None, 'attendance_compliance_pct': None, 'gate_uptime_pct': None,
+            'canteen_adoption_pct': None,
         })
 
     def test_a_school_with_no_enrolled_students_has_no_percentage(self):
@@ -100,3 +105,50 @@ class GetHealthMetricsTests(TestCase):
         self._week(1, 4)
         self.fx['school'].delete()
         self.assertEqual(get_health_metrics(today=self.TODAY), [])
+
+
+class HealthMetricRatiosTests(HealthFixture):
+    """RPT-013: every metric is a ratio of stored parts, and RPT-014's decline applies to each on its own."""
+
+    def _health(self, weeks_ago, billed, collected, expected, submitted, samples, up, canteen):
+        self._week(
+            weeks_ago, 5, collection_billed=billed, collection_collected=collected,
+            attendance_expected_periods=expected, attendance_submitted_periods=submitted,
+            gate_samples=samples, gate_up_samples=up, canteen_active_students=canteen,
+        )
+
+    def test_each_metric_is_a_percentage_of_its_parts(self):
+        self._health(1, '1000000.00', '750000.00', 40, 30, 200, 190, 6)
+        week = self._result()['weeks'][0]
+        self.assertEqual(week['collection_rate_pct'], 75.0)
+        self.assertEqual(week['attendance_compliance_pct'], 75.0)
+        self.assertEqual(week['gate_uptime_pct'], 95.0)
+        self.assertEqual(week['canteen_adoption_pct'], 60.0)
+
+    def test_a_zero_base_or_uncomputed_metric_has_no_percentage(self):
+        self._health(1, '0.00', '0.00', 0, 0, 0, 0, 0)
+        week = self._result()['weeks'][0]
+        self.assertIsNone(week['collection_rate_pct'])
+        self.assertIsNone(week['attendance_compliance_pct'])
+        self.assertIsNone(week['gate_uptime_pct'])
+        self.assertEqual(week['canteen_adoption_pct'], 0.0)  # 0 of 10 enrolled: a real zero
+
+    def test_one_falling_metric_flags_the_school_and_is_named(self):
+        # WAU flat at 50%, gate uptime 99 -> 97 -> 95 -> 90 (three strict drops)
+        for weeks_ago, up in [(4, 99), (3, 97), (2, 95), (1, 90)]:
+            self._health(weeks_ago, '1000.00', '1000.00', 10, 10, 100, up, 5)
+        row = self._result()
+        self.assertTrue(row['at_risk'])
+        self.assertEqual(row['declining_metrics'], ['gate_uptime_pct'])
+
+    def test_a_healthy_school_names_nothing(self):
+        for weeks_ago in (4, 3, 2, 1):
+            self._health(weeks_ago, '1000.00', '900.00', 10, 9, 100, 95, 5)
+        row = self._result()
+        self.assertFalse(row['at_risk'])
+        self.assertEqual(row['declining_metrics'], [])
+
+    def test_a_metric_without_data_never_flags(self):
+        for weeks_ago, active in [(4, 8), (3, 6), (2, 5), (1, 4)]:
+            self._week(weeks_ago, active)  # health columns never computed
+        self.assertEqual(self._result()['declining_metrics'], ['wau_pct'])

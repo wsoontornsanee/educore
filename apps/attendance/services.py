@@ -1050,6 +1050,41 @@ def get_device_sync_payload(
     }
 
 
+def attendance_calendar_events(foundation_id, school_id, date_from, date_to) -> list:
+    """Attendance-affecting calendar events overlapping [date_from, date_to], class groups prefetched."""
+    from datetime import datetime, time
+    from apps.academic.models import AcademicCalendarEvent
+
+    tz = timezone.get_current_timezone()
+    return list(AcademicCalendarEvent.all_tenants.filter(
+        foundation_id=foundation_id,
+        school_id=school_id,
+        affects_attendance=True,
+        start_at__lte=timezone.make_aware(datetime.combine(date_to, time.max), tz),
+        end_at__gte=timezone.make_aware(datetime.combine(date_from, time.min), tz),
+        deleted_at__isnull=True,
+    ).prefetch_related('class_groups'))
+
+
+def find_calendar_exemption(slot, date, events):
+    """The first of `events` (from attendance_calendar_events) that excuses `slot` on `date`, else None:
+    it covers the slot's class group (no groups = the whole school) and is all day or overlaps the slot's times."""
+    from datetime import datetime
+
+    tz = timezone.get_current_timezone()
+    for ev in events:
+        ev_cgroups = {g.id for g in ev.class_groups.all()}
+        if ev_cgroups and slot.class_subject.class_group_id not in ev_cgroups:
+            continue
+        if ev.is_all_day:
+            return ev
+        s_start = timezone.make_aware(datetime.combine(date, slot.start_time), tz)
+        s_end = timezone.make_aware(datetime.combine(date, slot.end_time), tz)
+        if s_start < ev.end_at and s_end > ev.start_at:
+            return ev
+    return None
+
+
 def get_teacher_agenda(teacher: Staff, date) -> list:
     """TCH-001/ACD-020: today's timetable slots for a teacher, including slots they're
     substituting into — and excluding their own slots substituted away to someone else.
@@ -1089,41 +1124,14 @@ def get_teacher_agenda(teacher: Staff, date) -> list:
         ).values_list('slot_id', flat=True).distinct()
     )
 
-    # Check for active AcademicCalendarEvents affecting attendance on this date
-    from datetime import datetime, time
-    from apps.academic.models import AcademicCalendarEvent
-    tz = timezone.get_current_timezone()
-    day_start = timezone.make_aware(datetime.combine(date, time.min), tz)
-    day_end = timezone.make_aware(datetime.combine(date, time.max), tz)
-
-    cal_events = list(AcademicCalendarEvent.objects.filter(
-        foundation_id=teacher.foundation_id,
-        school_id=teacher.school_id,
-        affects_attendance=True,
-        start_at__lte=day_end,
-        end_at__gte=day_start,
-        deleted_at__isnull=True,
-    ).prefetch_related('class_groups'))
-
-    def _find_exemption(slot_obj):
-        for ev in cal_events:
-            ev_cgroups = set(ev.class_groups.values_list('id', flat=True))
-            if ev_cgroups and slot_obj.class_subject.class_group_id not in ev_cgroups:
-                continue
-            if ev.is_all_day:
-                return ev
-            s_start = timezone.make_aware(datetime.combine(date, slot_obj.start_time), tz)
-            s_end = timezone.make_aware(datetime.combine(date, slot_obj.end_time), tz)
-            if s_start < ev.end_at and s_end > ev.start_at:
-                return ev
-        return None
+    cal_events = attendance_calendar_events(teacher.foundation_id, teacher.school_id, date, date)
 
     agenda = []
     for slot in own_slots:
         # A slot substituted away to another teacher no longer belongs on this teacher's agenda.
         if slot.id in substitutions_by_slot_id:
             continue
-        ev = _find_exemption(slot)
+        ev = find_calendar_exemption(slot, date, cal_events)
         agenda.append({
             'slot_id': slot.id,
             'period_no': slot.period_no,
@@ -1143,7 +1151,7 @@ def get_teacher_agenda(teacher: Staff, date) -> list:
         orig_name = ''
         if sub.original_teacher and hasattr(sub.original_teacher, 'person'):
             orig_name = sub.original_teacher.person.full_name
-        ev = _find_exemption(slot)
+        ev = find_calendar_exemption(slot, date, cal_events)
         agenda.append({
             'slot_id': slot.id,
             'period_no': slot.period_no,

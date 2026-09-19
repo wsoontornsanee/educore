@@ -5,7 +5,7 @@ from unittest.mock import patch
 from django.test import TestCase
 
 from apps.core.models import AuditEvent
-from apps.hardware.models import Device, DeviceClass, DeviceStatus
+from apps.hardware.models import Device, DeviceClass, DeviceStatus, DeviceUptimeDay
 from apps.hardware.services import check_device_health
 from apps.identity.models import Foundation, Person, RoleAssignment, School, User
 from apps.notifications.models import NotificationCategory, NotificationIntent
@@ -132,3 +132,39 @@ class CheckDeviceHealthTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         device.refresh_from_db()
         self.assertEqual(device.status, DeviceStatus.ONLINE)
+
+    # RPT-013: each health run adds one availability sample per gate/face device in operational hours.
+
+    def _day(self):
+        return DeviceUptimeDay.all_tenants.get(school=self.school, date=datetime.date(2026, 9, 16))
+
+    def _run(self, now=FIXED_NOON_WIB):
+        with patch('apps.hardware.services.timezone.now', return_value=now):
+            check_device_health(timeout_minutes=15)
+
+    def test_counts_reachable_gates_after_the_stale_sweep(self):
+        self._make_device(minutes_ago=5)                                     # up
+        self._make_device(device_class=DeviceClass.FACE_TERMINAL, status=DeviceStatus.DEGRADED, minutes_ago=5)  # up
+        self._make_device(minutes_ago=30)                                    # stale: swept to OFFLINE, down
+        self._run()
+        day = self._day()
+        self.assertEqual((day.samples, day.up_samples), (3, 2))
+
+    def test_runs_accumulate_on_the_same_day_row(self):
+        self._make_device(minutes_ago=5)
+        self._run()
+        self._run(FIXED_NOON_WIB + datetime.timedelta(minutes=10))
+        self.assertEqual(self._day().samples, 2)
+
+    def test_other_device_classes_and_retired_gates_are_not_sampled(self):
+        self._make_device(device_class=DeviceClass.KIOSK, minutes_ago=5)
+        self._make_device(device_class=DeviceClass.POS_TERMINAL, minutes_ago=5)
+        self._make_device(status=DeviceStatus.RETIRED, minutes_ago=5)
+        self._run()
+        self.assertFalse(DeviceUptimeDay.all_tenants.exists())
+
+    def test_nothing_is_sampled_outside_operational_hours_or_on_sunday(self):
+        self._make_device(minutes_ago=5)
+        self._run(FIXED_NOON_WIB.replace(hour=22))
+        self._run(FIXED_NOON_WIB + datetime.timedelta(days=4))   # Sunday 2026-09-20
+        self.assertFalse(DeviceUptimeDay.all_tenants.exists())
