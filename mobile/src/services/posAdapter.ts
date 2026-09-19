@@ -11,6 +11,8 @@ import type { POSProduct, POSSessionData, POSStudent } from '../types/index.ts';
 export interface ServerRosterEntry {
   student_id: number;
   name?: string;
+  nis?: string | null;
+  nisn?: string | null;
   photo_key?: string;
   wallet_balance?: string;
   daily_limit?: string | null;
@@ -43,10 +45,9 @@ export function adaptRosterEntry(raw: ServerRosterEntry): POSStudent {
   return {
     id: raw.student_id,
     full_name: raw.name ?? '',
-    // The server roster carries neither NIS/NISN nor card UIDs (a backend decision, see Notion), so lookup by
-    // those cannot work yet; the operator picks from the roster list.
-    nis: null,
-    nisn: null,
+    // The roster carries NIS/NISN; card UIDs are not on the server yet (spec/12 credentials_delta), so a UID never matches.
+    nis: raw.nis ?? null,
+    nisn: raw.nisn ?? null,
     card_uid: null,
     photo_url: null,
     balance: raw.wallet_balance ?? '0',
@@ -109,4 +110,42 @@ export function adaptDeltas(data: any): AdaptedDeltas {
     rules: (data?.rules_delta ?? []) as ServerRule[],
     nextCursor: data?.next_cursor,
   };
+}
+
+/** One entry of POST /pos/transactions/batch/ `results` (apps/wallet/services.py process_offline_pos_batch). */
+export interface ServerBatchResult {
+  client_transaction_id: string;
+  /** A POSTransaction/wallet status when the server holds the sale, else why it refused it (QR_TOKEN_*, STUDENT_NOT_FOUND, ...). */
+  status: string;
+  /** True when the student had already paid this sale's offline QR online: the sync only matched the two. */
+  reconciled?: boolean;
+}
+
+// The sale is on the server. RECONCILE_REQUIRED is an accepted overspend: the server opened a reconciliation case.
+const ACCEPTED_STATUSES = new Set(['COMPLETED', 'RECONCILE_REQUIRED', 'VOIDED']);
+
+export interface BatchOutcome {
+  accepted: string[];
+  /** Subset of `accepted` that matched an already-paid offline QR instead of creating a new debit. */
+  reconciled: number;
+  rejected: { id: string; reason: string }[];
+}
+
+/**
+ * Split a batch report per sale. Anything the server did not confirm, including a sale missing from the
+ * report, is `rejected`, so the caller keeps it queued rather than marking it synced.
+ */
+export function classifyBatchResults(sentIds: string[], results: ServerBatchResult[]): BatchOutcome {
+  const byId = new Map(results.map((r) => [r.client_transaction_id, r]));
+  const outcome: BatchOutcome = { accepted: [], reconciled: 0, rejected: [] };
+  for (const id of sentIds) {
+    const result = byId.get(id);
+    if (result && ACCEPTED_STATUSES.has(result.status)) {
+      outcome.accepted.push(id);
+      if (result.reconciled) outcome.reconciled += 1;
+    } else {
+      outcome.rejected.push({ id, reason: result?.status ?? 'NO_RESULT' });
+    }
+  }
+  return outcome;
 }

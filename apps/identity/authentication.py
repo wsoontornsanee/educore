@@ -5,6 +5,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import AuthenticationFailed, InvalidToken
 from rest_framework_simplejwt.settings import api_settings
 
+from apps.identity.activity import record_activity
 from educore.middleware.tenancy import get_current_foundation_id, set_current_foundation_id
 
 
@@ -45,6 +46,8 @@ class EduCoreJWTAuthentication(JWTAuthentication):
             underlying = getattr(request, '_request', None)
             if underlying is not None:
                 underlying.foundation_id = foundation_id
+
+        record_activity(user)
 
         return result
 
