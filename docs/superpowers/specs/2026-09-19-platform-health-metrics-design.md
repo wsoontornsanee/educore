@@ -83,3 +83,37 @@ Same nightly `full` refresher (`refresh_parent_weekly_activity`), same eight-wee
 - Collection and attendance are rebuilt from today's data for weeks that predate the columns (invoices, timetable and calendar are edited in place); acceptable, they are only ever computed once per week.
 - Uptime of the first weeks after deploy is partial (sampling begins at deploy); a school appears at 100% if its only samples are healthy ones.
 - Periods for a school with timetables but no teacher using the feature score 0%, by design: that is the at-risk signal.
+
+# Slice 3: time-to-value per new school (RPT-016)
+
+Notion: "Platform health metrics slice 3: time-to-value per new school (RPT-016)".
+
+## Contract date
+
+`identity.Foundation.contract_date` (`DateField`, null). The contract is signed with the Yayasan, and `Foundation` is not a tenant table and is not on any tenant-facing form or serializer, so a school cannot edit the start of its own clock. The platform sets it in the Django admin (`FoundationAdmin`). Nothing is backfilled: until it is set, a school's milestone dates show and their `days` are `null`. Every school of a foundation is measured from that one date, so a school added later under the same contract shows large numbers (a per-school override is a follow-up if that matters).
+
+## Milestones
+
+Derived at read time in `apps/reporting/health.py` (no new table, no cron job), added to each school in `GET /internal/health-metrics/` as `time_to_value`:
+
+```
+"time_to_value": {
+  "contract_date": "2026-08-01" | null,
+  "first_gate_scan":      {"date": "2026-08-09" | null, "days": 8 | null},
+  "first_invoice":        {...},
+  "first_parent_login":   {...},
+  "parent_activation_50": {...}
+}
+```
+
+- `first_gate_scan`: earliest `GateEvent` with status `ACCEPTED` for the school, as a calendar day in the server timezone.
+- `first_invoice`: earliest `Invoice.issue_date` for the school, ignoring `DRAFT` (a cancelled invoice was still issued).
+- `first_parent_login`: earliest `UserActivityDay` of any parent account (guardian with a login) linked to an active, enrolled student of the school.
+- `parent_activation_50`: the day the number of such parent accounts that have ever been active reached `ceil(50% x enrolled students)`. Accounts over students, the same ratio as the WAU north star; a shared parent counts once.
+- `days` = milestone date minus `contract_date`; negative when the milestone came before the contract date (a pilot).
+
+## Known limits
+
+- `UserActivityDay` exists only from slice 1's deploy, so a school already live then shows first login and activation no earlier than that.
+- The parent set and the denominator are the school's current roster; past rosters are not kept (same simplification as RPT-008 and slice 1).
+- The endpoint runs a handful of grouped queries per school; fine for an internal, platform-only page, and the four milestones can move into the nightly rollup if the school count makes it slow.

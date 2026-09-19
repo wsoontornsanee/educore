@@ -57,6 +57,10 @@ class Foundation(models.Model):
     )
     plan_tier = models.CharField(max_length=32, choices=PLAN_CHOICES, default=PLAN_STANDARD)
     status = models.CharField(max_length=32, choices=STATUS_CHOICES, default=STATUS_ACTIVE, db_index=True)
+    contract_date = models.DateField(
+        null=True, blank=True,
+        help_text="Date the subscription contract was signed: the zero point of time-to-value (RPT-016). Set by the platform, never by the school.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
