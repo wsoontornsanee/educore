@@ -14,6 +14,8 @@ from .views import (
     SocialLoginView,
     VerifyOtpView,
     StaffViewSet,
+    StaffRoleDetailView,
+    StaffRoleListView,
     StudentViewSet,
 )
 
@@ -23,6 +25,12 @@ router.register('staff', StaffViewSet, basename='staff')
 router.register('students', StudentViewSet, basename='student')
 
 urlpatterns = [
+    path('staff/<int:staff_id>/roles/', StaffRoleListView.as_view(), name='api-staff-roles'),
+    path(
+        'staff/<int:staff_id>/roles/<int:assignment_id>/',
+        StaffRoleDetailView.as_view(),
+        name='api-staff-role-detail',
+    ),
     path('auth/token/', EduCoreTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('auth/token/refresh/', EduCoreTokenRefreshView.as_view(), name='token_refresh'),
     path('auth/otp/request/', RequestOtpView.as_view(), name='otp-request'),
