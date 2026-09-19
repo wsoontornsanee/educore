@@ -29,8 +29,17 @@ class WalletTransactionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = WalletTransaction
-        fields = ['id', 'foundation_id', 'wallet', 'type', 'amount', 'balance_after', 'reference', 'occurred_at', 'status']
+        fields = [
+            'id', 'foundation_id', 'wallet', 'type', 'amount', 'balance_after', 'reference', 'occurred_at', 'status',
+            'entry_mode',
+        ]
         read_only_fields = fields
+
+    entry_mode = serializers.SerializerMethodField()
+
+    def get_entry_mode(self, obj):
+        # QRS-003: annotated by the history view (one Exists subquery, no per-row lookup).
+        return 'SELF_ENTERED' if getattr(obj, 'self_entered', False) else 'OPERATOR'
 
 
 class TopupSerializer(serializers.Serializer):
@@ -86,16 +95,27 @@ class SpendRuleSerializer(serializers.ModelSerializer):
         model = SpendRule
         fields = [
             'id', 'foundation_id', 'student', 'daily_limit', 'blocked_categories',
-            'blocked_products', 'allowed_window_start', 'allowed_window_end', 'created_at', 'updated_at',
+            'blocked_products', 'allowed_window_start', 'allowed_window_end', 'qr_charge_enabled',
+            'qr_charge_available', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'foundation_id', 'student', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'foundation_id', 'student', 'qr_charge_available', 'created_at', 'updated_at']
+
+    qr_charge_available = serializers.SerializerMethodField()
+
+    def get_qr_charge_available(self, obj):
+        # QRS-017: the guardian app explains why QR is off while itemised blocks are set.
+        return bool(obj.qr_charge_enabled and not obj.blocked_categories and not obj.blocked_products)
 
 
 class MerchantSerializer(serializers.ModelSerializer):
     class Meta:
         model = Merchant
-        fields = ['id', 'foundation_id', 'school', 'name', 'type', 'settlement_account', 'commission_bps', 'is_active', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'foundation_id', 'created_at', 'updated_at']
+        fields = [
+            'id', 'foundation_id', 'school', 'name', 'type', 'settlement_account', 'commission_bps', 'is_active',
+            'qr_self_amount_enabled', 'qr_self_amount_ack_at', 'created_at', 'updated_at',
+        ]
+        # QR Charge is switched only through POST /merchants/:id/qr-charge/, which records the acknowledgement.
+        read_only_fields = ['id', 'foundation_id', 'qr_self_amount_enabled', 'qr_self_amount_ack_at', 'created_at', 'updated_at']
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -124,7 +144,7 @@ class POSTransactionSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'foundation_id', 'merchant', 'terminal', 'student', 'items', 'subtotal', 'commission',
             'total', 'occurred_at', 'status', 'offline_created', 'client_transaction_id',
-            'voided_at', 'void_reason', 'created_at',
+            'voided_at', 'void_reason', 'created_at', 'entry_mode', 'confirmation_code',
         ]
         read_only_fields = fields
 
@@ -232,3 +252,22 @@ class StudentNutritionSummarySerializer(serializers.Serializer):
     allergens = serializers.ListField(child=serializers.CharField())
     daily_breakdown = DailyNutritionSummarySerializer(many=True)
     items = StudentNutritionSummaryItemSerializer(many=True)
+
+
+class QRSessionCreateSerializer(serializers.Serializer):
+    terminal_id = serializers.IntegerField()
+
+
+class QRStudentTokenSerializer(serializers.Serializer):
+    student_id = serializers.IntegerField()
+    token = serializers.CharField(max_length=512)
+
+
+class QRChargeSerializer(QRStudentTokenSerializer):
+    amount = serializers.DecimalField(max_digits=18, decimal_places=2)
+    idempotency_key = serializers.CharField(max_length=100)
+
+
+class MerchantQRChargeSerializer(serializers.Serializer):
+    enabled = serializers.BooleanField()
+    acknowledged = serializers.BooleanField(required=False, default=False)
