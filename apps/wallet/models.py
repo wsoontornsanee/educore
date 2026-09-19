@@ -196,6 +196,9 @@ class POSTerminal(TenantModel):
 
     class Meta:
         db_table = 'pos_terminals'
+        indexes = [
+            models.Index(fields=['foundation_id', 'merchant', 'status'], name='idx_posterm_fnd_mer_st'),
+        ]
 
     def __str__(self):
         return f"{self.name or self.device_id} ({self.merchant.name})"
