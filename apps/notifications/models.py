@@ -42,6 +42,7 @@ class NotificationCategory(models.TextChoices):
     LIBRARY_LOAN_DUE = 'LIBRARY_LOAN_DUE', _('Peminjaman Perpustakaan Jatuh Tempo (Library Loan Due)')
     COUNSELLING_URGENT = 'COUNSELLING_URGENT', _('Eskalasi BK Mendesak (Urgent Counselling Escalation)')
     COUNSELLING_FOLLOW_UP = 'COUNSELLING_FOLLOW_UP', _('Pengingat Tindak Lanjut BK (Counselling Follow-up)')
+    PICKUP_OVERRIDE = 'PICKUP_OVERRIDE', _('Penjemputan oleh Penjemput Tidak Terdaftar (Pickup Override)')
 
 
 class NotificationPriority(models.TextChoices):
@@ -226,6 +227,14 @@ CATEGORY_CONFIG = {
         # QRS-041: a printed QR sheet with abnormal volume or out-of-hours use is the signature of a
         # photographed/shared sheet. The school admin can act (revoke or reprint), so it is HIGH,
         # not opt-out-able, and deduped per sheet, reason, day and recipient by the sender.
+        'default_channels': [ChannelType.WHATSAPP, ChannelType.PUSH],
+        'priority': NotificationPriority.HIGH,
+        'quiet_hours_respected': False,
+        'opt_out_allowed': False,
+    },
+    NotificationCategory.PICKUP_OVERRIDE: {
+        # ATT-018: a student was released to someone who is not authorised. The school admin must review it,
+        # so it is HIGH, not opt-out-able, and never held for quiet hours.
         'default_channels': [ChannelType.WHATSAPP, ChannelType.PUSH],
         'priority': NotificationPriority.HIGH,
         'quiet_hours_respected': False,

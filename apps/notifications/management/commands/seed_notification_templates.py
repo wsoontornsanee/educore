@@ -77,6 +77,25 @@ CANONICAL_TEMPLATES = [
         'variables': ['student_name', 'school_name', 'picked_up_by', 'time', 'date'],
     },
     {
+        'key': 'attendance.pickup_override_admin',
+        'channel': ChannelType.WHATSAPP,
+        'locale': 'id-ID',
+        'subject': 'Penjemputan oleh Penjemput Tidak Terdaftar',
+        'body': (
+            '{actor_name} mengizinkan {student_name} ({school_name}) dijemput oleh {picked_up_by}, yang tidak '
+            'terdaftar, pada pukul {time} WIB. Alasan: {reason}. Mohon tinjau di jejak audit.'
+        ),
+        'variables': ['actor_name', 'student_name', 'school_name', 'picked_up_by', 'time', 'date', 'reason'],
+    },
+    {
+        'key': 'attendance.pickup_override_admin',
+        'channel': ChannelType.PUSH,
+        'locale': 'id-ID',
+        'subject': 'Penjemput tidak terdaftar: {student_name}',
+        'body': '{actor_name} mengizinkan {picked_up_by} menjemput {student_name} pukul {time} WIB. Alasan: {reason}.',
+        'variables': ['actor_name', 'student_name', 'school_name', 'picked_up_by', 'time', 'date', 'reason'],
+    },
+    {
         'key': 'emergency.alert',
         'channel': ChannelType.WHATSAPP,
         'locale': 'id-ID',

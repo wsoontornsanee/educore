@@ -21,6 +21,7 @@ from django.utils.translation import gettext as _
 from apps.attendance.models import PickupAuthorization, PickupEvent, PickupMethod
 from apps.core.services import audit
 from apps.identity.models import GuardianLink
+from apps.identity.recipients import get_school_admin_users
 
 logger = logging.getLogger(__name__)
 
@@ -240,6 +241,7 @@ def override_release(*, staff_user, student, picked_up_by, reason, now=None) -> 
             },
         )
     notify_pickup_completed(event)
+    notify_override_to_school_admins(event)
     return event
 
 
@@ -306,5 +308,50 @@ def notify_pickup_completed(event: PickupEvent) -> int:
             # Type only: an exception message can carry the recipient's phone or email.
             logger.warning(
                 "pickup notice failed for event %s guardian %s: %s", event.id, guardian.id, type(exc).__name__,
+            )
+    return queued
+
+
+MAX_OVERRIDE_REASON_NOTICE_CHARS = 200
+
+
+def notify_override_to_school_admins(event: PickupEvent) -> int:
+    """Tell the school's admins (and the foundation's) that a student was released to an unauthorised person
+    (ATT-018), so an override is reviewed and not only recorded. The admin who made the override is not told
+    about their own action. Like the guardian notice, a failed delivery never undoes the release and its log
+    line carries only the exception type. Returns how many notices were queued."""
+    from apps.notifications.models import NotificationCategory, NotificationPriority
+    from apps.notifications.services import dispatch_intent
+
+    student = event.student
+    school = event.school
+    local_time = timezone.localtime(event.occurred_at)
+    payload_base = {
+        'type': NotificationCategory.PICKUP_OVERRIDE,
+        'student_id': student.id,
+        'student_name': student.person.full_name if student.person else 'Siswa',
+        'school_name': school.name if school else 'Sekolah',
+        'picked_up_by': event.picked_up_by,
+        'actor_name': event.verified_by.full_name or 'Admin sekolah',
+        'reason': event.override_reason[:MAX_OVERRIDE_REASON_NOTICE_CHARS],
+        'time': local_time.strftime('%H:%M'),
+        'date': local_time.strftime('%Y-%m-%d'),
+    }
+    queued = 0
+    for recipient in get_school_admin_users(school):
+        if recipient.id == event.verified_by_id:
+            continue
+        try:
+            dispatch_intent(
+                foundation_id=event.foundation_id, school_id=event.school_id, recipient_user=recipient,
+                recipient_name=recipient.full_name or '', category=NotificationCategory.PICKUP_OVERRIDE,
+                template_key='attendance.pickup_override_admin', payload=dict(payload_base),
+                priority=NotificationPriority.HIGH, dedupe_key=f"pickup_override:{event.id}:{recipient.id}",
+                immediate=True,
+            )
+            queued += 1
+        except Exception as exc:  # noqa: BLE001 - the release is committed; one bad recipient must not stop the rest
+            logger.warning(
+                "pickup override notice failed for event %s user %s: %s", event.id, recipient.id, type(exc).__name__,
             )
     return queued

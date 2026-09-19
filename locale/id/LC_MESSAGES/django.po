@@ -4396,3 +4396,7 @@ msgstr ""
 #: apps/attendance
 msgid "Pengecualian admin sekolah (School admin override)"
 msgstr ""
+
+#: apps/notifications/models.py
+msgid "Penjemputan oleh Penjemput Tidak Terdaftar (Pickup Override)"
+msgstr ""

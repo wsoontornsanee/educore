@@ -257,3 +257,25 @@ class PickupOverrideView(APIView):
         except PickupError as exc:
             return _error(exc)
         return Response(_event_data(event), status=status.HTTP_201_CREATED)
+
+
+class PickupStaffRevokeView(APIView):
+    """POST /pickup/authorizations/<id>/revoke/: gate staff withdraw an authorisation a guardian reports lost or
+    stolen. Same rules as the guardian's revoke (idempotent; a spent one-time authorisation cannot be revoked)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'attendance.write'
+
+    def post(self, request, authorization_id):
+        foundation_id = get_current_foundation_id()
+        authorization = PickupAuthorization.objects.filter(
+            id=authorization_id, foundation_id=foundation_id, deleted_at__isnull=True,
+        ).first()
+        if authorization is None or not _may_act_at_school(
+            request.user, foundation_id, self.required_permission, authorization.school_id,
+        ):
+            return _not_found()
+        try:
+            revoked = revoke_pickup_authorization(authorization, request.user)
+        except PickupError as exc:
+            return _error(exc)
+        return Response(_authorization_data(revoked))

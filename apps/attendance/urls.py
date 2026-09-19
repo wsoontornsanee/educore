@@ -6,6 +6,7 @@ from apps.attendance.pickup_views import (
     PickupAuthorizationView,
     PickupOverrideView,
     PickupReleaseView,
+    PickupStaffRevokeView,
     PickupVerifyView,
 )
 
@@ -47,5 +48,6 @@ urlpatterns = [
     path('pickup/verify/', PickupVerifyView.as_view(), name='pickup-verify'),
     path('pickup/release/', PickupReleaseView.as_view(), name='pickup-release'),
     path('pickup/override/', PickupOverrideView.as_view(), name='pickup-override'),
+    path('pickup/authorizations/<int:authorization_id>/revoke/', PickupStaffRevokeView.as_view(), name='pickup-staff-revoke'),
 ] + router.urls
 
