@@ -7,6 +7,7 @@
  */
 import { apiClient } from './api.ts';
 import { enqueuePosTransaction, generateUUID } from './posOfflineQueue.ts';
+import { adaptDeltas, adaptSession, applyRules, type ServerRule } from './posAdapter.ts';
 import type {
   POSCartItem,
   POSProduct,
@@ -41,24 +42,14 @@ export async function fetchPosSession(terminalId: number): Promise<POSSessionDat
     terminal_id: terminalId,
   });
 
-  const data = response.data;
-  const session: POSSessionData = {
-    terminal_id: data.terminal?.id || terminalId,
-    terminal_name: data.terminal?.name || `Terminal #${terminalId}`,
-    merchant_id: data.merchant?.id || 0,
-    merchant_name: data.merchant?.name || 'Kantin',
-    school_id: data.merchant?.school_id || 0,
-    catalog: data.catalog || [],
-    roster: data.roster || [],
-    sync_cursor: data.cursor,
-  };
-
+  const session = adaptSession(response.data, terminalId);
   cachedSession = session;
   return session;
 }
 
 /**
- * Perform incremental sync of roster, balances, and catalog deltas (GET /pos/sync).
+ * Perform incremental sync of roster, balances, catalog and spend-rule deltas (GET /pos/sync).
+ * Merges into the cached session; a delta only overwrites the fields it carries.
  */
 export async function syncPosDeltas(terminalId: number, cursor?: string): Promise<{
   rosterDeltas: POSStudent[];
@@ -69,35 +60,52 @@ export async function syncPosDeltas(terminalId: number, cursor?: string): Promis
   const query = `terminal_id=${terminalId}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
 
   const response = await apiClient.get<any>(`/pos/sync/?${query}`);
-  const data = response.data;
+  const deltas = adaptDeltas(response.data);
 
   if (cachedSession) {
-    if (data.roster && Array.isArray(data.roster)) {
-      const studentMap = new Map(cachedSession.roster.map((s) => [s.id, s]));
-      for (const updated of data.roster) {
-        studentMap.set(updated.id, { ...studentMap.get(updated.id), ...updated });
-      }
-      cachedSession.roster = Array.from(studentMap.values());
-    }
-
-    if (data.catalog && Array.isArray(data.catalog)) {
-      const productMap = new Map(cachedSession.catalog.map((p) => [p.id, p]));
-      for (const updated of data.catalog) {
-        productMap.set(updated.id, { ...productMap.get(updated.id), ...updated });
-      }
-      cachedSession.catalog = Array.from(productMap.values());
-    }
-
-    if (data.next_cursor) {
-      cachedSession.sync_cursor = data.next_cursor;
+    cachedSession.roster = mergeRosterDeltas(cachedSession.roster, deltas.roster, deltas.rules);
+    cachedSession.catalog = mergeCatalogDeltas(cachedSession.catalog, deltas.catalog);
+    if (deltas.nextCursor) {
+      cachedSession.sync_cursor = deltas.nextCursor;
     }
   }
 
   return {
-    rosterDeltas: data.roster || [],
-    catalogDeltas: data.catalog || [],
-    nextCursor: data.next_cursor,
+    rosterDeltas: deltas.roster,
+    catalogDeltas: deltas.catalog,
+    nextCursor: deltas.nextCursor,
   };
+}
+
+/** New and changed students by id, then rule deltas on top; students absent from the delta are kept as they were. */
+export function mergeRosterDeltas(current: POSStudent[], updated: POSStudent[], rules: ServerRule[]): POSStudent[] {
+  const byId = new Map(current.map((s) => [s.id, s]));
+  for (const student of updated) {
+    // Keep what the delta does not know (the rule fields set by an earlier session or rules delta).
+    byId.set(student.id, { ...byId.get(student.id), ...student, ...ruleFieldsOf(byId.get(student.id)) });
+  }
+  return applyRules(Array.from(byId.values()), rules);
+}
+
+function ruleFieldsOf(student: POSStudent | undefined): Partial<POSStudent> {
+  if (!student) return {};
+  const { daily_limit, blocked_categories, blocked_products, allowed_window_start, allowed_window_end } = student;
+  const kept: Partial<POSStudent> = {};
+  if (daily_limit !== undefined && daily_limit !== null) kept.daily_limit = daily_limit;
+  if (blocked_categories !== undefined) kept.blocked_categories = blocked_categories;
+  if (blocked_products !== undefined) kept.blocked_products = blocked_products;
+  if (allowed_window_start !== undefined) kept.allowed_window_start = allowed_window_start;
+  if (allowed_window_end !== undefined) kept.allowed_window_end = allowed_window_end;
+  return kept;
+}
+
+/** Products are identified by SKU: the server's catalog has no numeric id. */
+export function mergeCatalogDeltas(current: POSProduct[], updated: POSProduct[]): POSProduct[] {
+  const bySku = new Map(current.map((p) => [p.sku, p]));
+  for (const product of updated) {
+    bySku.set(product.sku, { ...bySku.get(product.sku), ...product });
+  }
+  return Array.from(bySku.values());
 }
 
 /**
@@ -129,6 +137,19 @@ export function checkStudentSpendRules(
       return {
         allowed: false,
         reason: `TIME_WINDOW_RESTRICTED: Di luar jam belanja yang diizinkan (${student.allowed_window_start} - ${student.allowed_window_end}).`,
+      };
+    }
+  }
+
+  // 2a. Blocked products by SKU (server: PRODUCT_BLOCKED). Checked here too so a sale the server will refuse is
+  // not accepted at the tablet and only bounced when the offline queue syncs.
+  if (student.blocked_products && student.blocked_products.length > 0) {
+    const blockedSkus = new Set(student.blocked_products);
+    const hit = cartItems.find((item) => blockedSkus.has(item.product.sku));
+    if (hit) {
+      return {
+        allowed: false,
+        reason: `BLOCKED_PRODUCT: "${hit.product.name}" dilarang untuk siswa ini.`,
       };
     }
   }
