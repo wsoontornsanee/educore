@@ -26,14 +26,14 @@ Mobile menus declare no permissions in TSX, so a small explicit `MOBILE_MENUS` r
 2. **Roles x Permissions** — every permission key vs role.
 3. **Menus** — surface, group, label, url name, permission key, extra gates, live vs coming-soon.
 4. **Surfaces** — surface, who can use it (roles or partner scopes).
-5. **Meta** — synced-at, git SHA, content hash.
+5. **Meta** — synced-at, content hash.
 
 ### `sync_rbac_sheet` management command
 `CronHostCommand`. Builds the matrix, hashes it, compares against the hash in the Meta tab; unchanged means no write. Otherwise clears and rewrites tabs via the Sheets API (`google-api-python-client` + `google-auth`, service account).
 
 Env: `RBAC_SHEET_ID`, `RBAC_SHEET_SERVICE_ACCOUNT_JSON`. Unset means the command exits 0 with a clear "not configured" message so dev/CI are unaffected.
 
-Scheduled hourly in `deploy/crontab` (next unique `sleep` stagger) and run after each deploy.
+Scheduled hourly in `deploy/crontab` (next unique `sleep` stagger). RBAC only changes on deploy, so the hourly run picks changes up; run `manage.py sync_rbac_sheet` by hand for an immediate refresh.
 
 ## Prerequisites (owner)
 Create a Google service account, enable the Sheets API, share the sheet with the service account email as Editor, set both env vars on prod.

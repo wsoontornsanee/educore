@@ -19,6 +19,10 @@ weasyprint>=62.3
 # File storage (ARC-026/ARC-030)
 google-cloud-storage>=2.18,<3.0
 
+# RBAC visibility sheet sync (apps/identity/rbac_sheet.py)
+google-api-python-client>=2.140,<3.0
+google-auth>=2.34,<3.0
+
 # Utilities & Security
 requests>=2.32.3
 cryptography>=43.0.1
