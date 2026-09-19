@@ -1,3 +1,4 @@
+from io import StringIO
 import datetime
 from decimal import Decimal
 from django.core.management import call_command
@@ -132,7 +133,7 @@ class ArrearsLadderTests(TestCase):
         register_provider(ChannelType.WHATSAPP, MockWhatsAppProvider())
         register_provider(ChannelType.PUSH, MockPushProvider())
         register_provider(ChannelType.SMS, MockSmsProvider())
-        call_command('seed_notification_templates', stdout=open('nul', 'w'))
+        call_command('seed_notification_templates', stdout=StringIO())
 
         # Fee & Invoice
         self.fee_type = FeeType.objects.create(
