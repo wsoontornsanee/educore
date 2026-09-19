@@ -24,6 +24,8 @@ from educore.middleware.tenancy import tenant_context
 from .models import (
     Merchant,
     POSEntryMode,
+    POSPaymentPoint,
+    POSQRDecal,
     POSQRSession,
     POSTerminal,
     POSTerminalStatus,
@@ -39,6 +41,16 @@ from .qr_charge import (
     get_qr_session_result,
     render_qr_svg,
     set_merchant_qr_charge,
+)
+from .qr_decals import (
+    DecalError,
+    close_payment_point,
+    create_payment_point,
+    get_counter_feed,
+    print_decal,
+    render_decal_pdf,
+    revoke_decal,
+    set_merchant_static_qr,
 )
 from .qr_oversight import (
     QRDisputeError,
@@ -101,9 +113,10 @@ class _QRAdminActionView(StaffConsoleMixin, APIView):
     """POST base for school-admin actions: school_config.write, target looked up inside the
     selected school and tenant (another school's or tenant's id is a 404)."""
     http_method_names = ['post']
+    permission = ADMIN_PERMISSION
 
     def get_required_permission(self):
-        return ADMIN_PERMISSION
+        return self.permission
 
     def find(self, foundation_id, school, pk):
         raise NotImplementedError
@@ -121,7 +134,7 @@ class _QRAdminActionView(StaffConsoleMixin, APIView):
             obj = self.find(foundation_id, school, pk)
             try:
                 self.perform(request, obj)
-            except (QRChargeError, QRDisputeError) as exc:
+            except (QRChargeError, QRDisputeError, DecalError) as exc:
                 messages.error(request, exc.message)
             except ValueError:  # e.g. WalletNotActiveError when the refund target is closed
                 messages.error(request, _("Tindakan tidak dapat dilakukan."))
@@ -295,3 +308,213 @@ class QRTerminalVoidView(_TerminalMixin, APIView):
             except (VoidWindowExpiredError, ValueError):
                 return Response({'error': _("Batas waktu pembatalan sudah lewat.")}, status=400)
         return Response({'status': 'VOIDED'})
+
+
+class MerchantStaticQRSwitchView(_MerchantAction):
+    """POST /web/wallet/canteen/qr/merchants/<id>/static/ — enable printed decals (acknowledged) or disable."""
+
+    def perform(self, request, merchant):
+        enabled = request.POST.get('enabled') == '1'
+        set_merchant_static_qr(merchant, enabled, request.POST.get('acknowledged') == 'on', request.user)
+        self.success_message = _("QR statis diaktifkan.") if enabled else _("QR statis dinonaktifkan.")
+
+
+# --- payment points, sheets and the operator Counter (spec 18 §3b) ----------------------------------
+
+POINTS_PERMISSION = 'pos.manage'
+
+
+def _points_url(school):
+    return f"{reverse('canteen-qr-points')}?school_id={school.id}"
+
+
+class CanteenQRPointsPageView(StaffConsoleMixin, APIView):
+    """GET /web/wallet/canteen/qr/points/ — an operator's own page: name a counter, print its sheet,
+    rotate or revoke it (QRS-030/035/036). Needs pos.manage only, never a school admin."""
+
+    def get_required_permission(self):
+        return POINTS_PERMISSION
+
+    def get(self, request):
+        foundation_id, schools, school = self.console_context(request)
+        merchants = []
+        if school:
+            with tenant_context(foundation_id):
+                for merchant in Merchant.objects.filter(
+                    foundation_id=foundation_id, school=school, deleted_at__isnull=True, is_active=True,
+                ).order_by('name'):
+                    merchant.points_list = list(POSPaymentPoint.objects.filter(
+                        foundation_id=foundation_id, merchant=merchant, deleted_at__isnull=True,
+                    ).order_by('name'))
+                    for point in merchant.points_list:
+                        point.decals_list = list(point.decals.filter(deleted_at__isnull=True).order_by('-printed_at')[:5])
+                    merchants.append(merchant)
+        return render(request, 'pages/canteen_qr_points.html', {
+            'schools': schools, 'school': school, 'merchants': merchants,
+            'can_collect': bool(school) and has_permission(request.user, 'pos.collect', foundation_id, school_id=school.id),
+        })
+
+
+class _PointsAction(_QRAdminActionView):
+    permission = POINTS_PERMISSION
+
+    def post(self, request, pk=None):
+        foundation_id, _schools, school = self.console_context(request)
+        if school is None:
+            raise NotFound()
+        with tenant_context(foundation_id):
+            obj = self.find(foundation_id, school, pk)
+            try:
+                self.perform(request, obj)
+            except (QRChargeError, DecalError) as exc:
+                messages.error(request, exc.message)
+            else:
+                messages.success(request, self.success_message)
+        return redirect(_points_url(school))
+
+
+class PaymentPointCreateWebView(_PointsAction):
+    """POST /web/wallet/canteen/qr/points/create/ — merchant_id, name, location."""
+    success_message = _lazy("Titik pembayaran dibuat.")
+
+    def find(self, foundation_id, school, pk):
+        merchant = Merchant.objects.filter(
+            id=request_int(self.request.POST.get('merchant_id')), foundation_id=foundation_id, school_id=school.id,
+            deleted_at__isnull=True,
+        ).select_related('school').first()
+        if merchant is None:
+            raise NotFound()
+        return merchant
+
+    def perform(self, request, merchant):
+        name = request.POST.get('name', '').strip()
+        if not name:
+            raise DecalError('NAME_REQUIRED', _("Nama titik pembayaran wajib diisi."))
+        create_payment_point(merchant, name[:128], request.POST.get('location', '')[:128], request.user)
+
+
+def request_int(raw):
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return 0
+
+
+class _PointAction(_PointsAction):
+    def find(self, foundation_id, school, pk):
+        point = POSPaymentPoint.objects.filter(
+            id=pk, foundation_id=foundation_id, merchant__school_id=school.id, deleted_at__isnull=True,
+        ).select_related('merchant', 'merchant__school').first()
+        if point is None:
+            raise NotFound()
+        return point
+
+
+class PaymentPointCloseWebView(_PointAction):
+    """POST /web/wallet/canteen/qr/points/<id>/close/"""
+    success_message = _lazy("Titik pembayaran ditutup.")
+
+    def perform(self, request, point):
+        close_payment_point(point, request.user)
+
+
+class DecalPrintWebView(_PointAction):
+    """POST /web/wallet/canteen/qr/points/<id>/print/ — mint a sheet (older ones get the 24 h grace)."""
+    success_message = _lazy("Lembar baru dibuat. Unduh PDF-nya di bawah, lalu cetak dan laminasi.")
+
+    def perform(self, request, point):
+        raw = request.POST.get('expires_on', '').strip()
+        expires = None
+        if raw:
+            try:
+                expires = datetime.strptime(raw, '%Y-%m-%d').date()
+            except ValueError:
+                raise DecalError('DECAL_EXPIRY_INVALID', _("Tanggal kedaluwarsa tidak valid (YYYY-MM-DD)."))
+        print_decal(point, request.user, expires)
+
+
+class _DecalAction(_PointsAction):
+    def find(self, foundation_id, school, pk):
+        decal = POSQRDecal.objects.filter(
+            id=pk, foundation_id=foundation_id, payment_point__merchant__school_id=school.id, deleted_at__isnull=True,
+        ).select_related('payment_point', 'payment_point__merchant', 'payment_point__merchant__school').first()
+        if decal is None:
+            raise NotFound()
+        return decal
+
+
+class DecalRevokeWebView(_DecalAction):
+    """POST /web/wallet/canteen/qr/decals/<id>/revoke/ — instant; other counters are untouched."""
+    success_message = _lazy("Lembar dicabut.")
+
+    def perform(self, request, decal):
+        revoke_decal(decal, request.user, request.POST.get('reason', '').strip())
+
+
+class DecalPDFWebView(StaffConsoleMixin, APIView):
+    """GET /web/wallet/canteen/qr/decals/<id>/pdf/ — the operator's own audit-logged download (QRS-042)."""
+    http_method_names = ['get']
+
+    def get_required_permission(self):
+        return POINTS_PERMISSION
+
+    def get(self, request, pk):
+        from django.http import HttpResponse
+        foundation_id, _schools, school = self.console_context(request)
+        if school is None:
+            raise NotFound()
+        with tenant_context(foundation_id):
+            decal = POSQRDecal.objects.filter(
+                id=pk, foundation_id=foundation_id, payment_point__merchant__school_id=school.id, deleted_at__isnull=True,
+            ).select_related('payment_point', 'payment_point__merchant', 'payment_point__merchant__school').first()
+            if decal is None:
+                raise NotFound()
+            try:
+                data, content_type = render_decal_pdf(decal, request.user)
+            except DecalError as exc:
+                messages.error(request, exc.message)
+                return redirect(_points_url(school))
+        ext = 'pdf' if content_type == 'application/pdf' else 'html'
+        response = HttpResponse(data, content_type=content_type)
+        response['Content-Disposition'] = f'attachment; filename="{decal.human_id}.{ext}"'
+        response['Cache-Control'] = 'no-store'
+        return response
+
+
+class _CounterMixin(StaffConsoleMixin):
+    """Operator's phone: pos.collect, and the counter's school must be one this user may operate."""
+
+    def get_required_permission(self):
+        return 'pos.collect'
+
+    def point_or_404(self, request, point_id):
+        foundation_id, schools, _school = self.console_context(request)
+        allowed = {s.id for s in schools}
+        point = POSPaymentPoint.objects.filter(
+            id=point_id, foundation_id=foundation_id, deleted_at__isnull=True,
+        ).select_related('merchant', 'merchant__school').first()
+        if point is None or point.merchant.school_id not in allowed:
+            raise NotFound()
+        return foundation_id, point
+
+
+class CounterPageView(_CounterMixin, APIView):
+    """GET /web/wallet/canteen/qr/counter/<point_id>/ — the live Counter feed (QRS-038)."""
+
+    def get(self, request, point_id):
+        foundation_id, point = self.point_or_404(request, point_id)
+        return render(request, 'pages/canteen_qr_counter.html', {'point': point, 'merchant': point.merchant})
+
+
+class CounterFeedWebView(_CounterMixin, APIView):
+    """GET /web/wallet/canteen/qr/counter/<point_id>/feed/ — the 3 s poll."""
+    http_method_names = ['get']
+
+    def get(self, request, point_id):
+        foundation_id, point = self.point_or_404(request, point_id)
+        with tenant_context(foundation_id):
+            feed = get_counter_feed(point)
+        return Response({
+            'currency': feed['currency'], 'count_today': feed['count_today'], 'total_today': str(feed['total_today']),
+            'items': [{**i, 'amount': str(i['amount'])} for i in feed['items']],
+        })

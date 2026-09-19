@@ -1,0 +1,108 @@
+{% extends "base_console.html" %}
+{% load i18n %}
+
+{% comment %}
+Page: QR Charge counters and printed sheets (spec 18 §3b). An operator (pos.manage) names a
+counter, prints its laminated sheet, rotates or revokes it. Served by
+apps.wallet.web_qr_views.CanteenQRPointsPageView at /web/wallet/canteen/qr/points/.
+{% endcomment %}
+
+{% block title %}{% translate "Titik pembayaran QR — EduCore" %}{% endblock %}
+
+{% block console_content %}
+{% include "components/_console_ui.html" %}
+<main class="cn-page">
+  <div class="cn-head">
+    <div>
+      <span class="cn-eyebrow">{% translate "Kantin & dompet" %}</span>
+      <h1 class="cn-title">{% translate "Titik pembayaran QR" %}</h1>
+    </div>
+    {% include "components/_console_school_select.html" with schools=schools school=school %}
+  </div>
+
+  {% include "components/_console_flash.html" %}
+
+  <p class="text-body">{% translate "Setiap konter tanpa layar (gerobak, fotokopi) memakai lembar QR tercetak miliknya sendiri. Konfirmasi pembayaran muncul di ponsel petugas lewat halaman Konter." %}</p>
+
+  {% for m in merchants %}
+    <section class="cn-section" aria-labelledby="pp-{{ m.id }}">
+      <h2 id="pp-{{ m.id }}">{{ m.name }}</h2>
+      {% if not m.static_qr_enabled or not m.qr_self_amount_enabled %}
+        <div class="cn-empty">{% translate "QR statis belum diaktifkan untuk merchant ini. Minta admin sekolah mengaktifkannya." %}</div>
+      {% else %}
+        {% for p in m.points_list %}
+          <div class="cn-card" style="margin-bottom:12px">
+            <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center">
+              <div>
+                <strong>{{ p.name }}</strong>
+                {% if p.location %}<span class="text-caption"> · {{ p.location }}</span>{% endif %}
+                {% if p.status == 'CLOSED' %}<span class="cn-badge is-danger">{% translate "Ditutup" %}</span>{% endif %}
+              </div>
+              <div style="display:flex;gap:12px;flex-wrap:wrap">
+                {% if can_collect %}<a class="cn-link" href="{% url 'canteen-qr-counter' p.id %}?school_id={{ school.id }}">{% translate "Buka layar Konter" %}</a>{% endif %}
+                {% if p.status == 'ACTIVE' %}
+                <form method="post" action="{% url 'canteen-qr-point-close' p.id %}?school_id={{ school.id }}" onsubmit="return confirm('{% translate "Tutup titik pembayaran ini? Lembarnya akan ditolak sampai dibuka lagi oleh admin." %}')">
+                  {% csrf_token %}<button type="submit" class="cn-link" style="background:none;border:0;padding:0;cursor:pointer">{% translate "Tutup" %}</button>
+                </form>
+                {% endif %}
+              </div>
+            </div>
+            <div class="cn-table-wrap" style="margin-top:8px">
+              <table class="cn-table">
+                <thead><tr><th>{% translate "Lembar" %}</th><th>{% translate "Status" %}</th><th>{% translate "Dicetak" %}</th><th>{% translate "Tindakan" %}</th></tr></thead>
+                <tbody>
+                  {% for d in p.decals_list %}
+                    <tr>
+                      <td class="cn-num">{{ d.human_id }}</td>
+                      <td>
+                        <span class="cn-badge{% if d.status == 'ACTIVE' %} is-ok{% elif d.status == 'REVOKED' %} is-danger{% else %} is-warn{% endif %}">{{ d.get_status_display }}</span>
+                        {% if d.grace_until %}<span class="text-caption">{% translate "berlaku s/d" %} {{ d.grace_until|date:"d M H:i" }}</span>{% endif %}
+                        {% if d.expires_on %}<span class="text-caption">{% translate "kedaluwarsa" %} {{ d.expires_on|date:"d M Y" }}</span>{% endif %}
+                      </td>
+                      <td class="cn-num">{{ d.printed_at|date:"d M Y H:i" }}</td>
+                      <td style="display:flex;gap:12px;flex-wrap:wrap">
+                        {% if d.status == 'ACTIVE' %}
+                          <a class="cn-link" href="{% url 'canteen-qr-decal-pdf' d.id %}?school_id={{ school.id }}">{% translate "Unduh PDF" %}</a>
+                        {% endif %}
+                        {% if d.status != 'REVOKED' %}
+                          <form method="post" action="{% url 'canteen-qr-decal-revoke' d.id %}?school_id={{ school.id }}" onsubmit="return confirm('{% translate "Cabut lembar ini sekarang? Lembar lain di konter lain tidak terpengaruh." %}')">
+                            {% csrf_token %}<button type="submit" class="cn-link" style="background:none;border:0;padding:0;cursor:pointer">{% translate "Cabut" %}</button>
+                          </form>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% empty %}
+                    <tr><td colspan="4" class="cn-empty">{% translate "Belum ada lembar dicetak." %}</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% if p.status == 'ACTIVE' %}
+            <form method="post" action="{% url 'canteen-qr-decal-print' p.id %}?school_id={{ school.id }}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
+              {% csrf_token %}
+              <label class="cn-eyebrow" for="exp-{{ p.id }}">{% translate "Kedaluwarsa (opsional)" %}</label>
+              <input id="exp-{{ p.id }}" type="date" name="expires_on" class="cn-select">
+              <button type="submit" class="btn btn-primary">{% translate "Cetak lembar baru" %}</button>
+              <span class="text-caption">{% translate "Lembar lama tetap berlaku 24 jam agar konter tidak berhenti menerima pembayaran." %}</span>
+            </form>
+            {% endif %}
+          </div>
+        {% empty %}
+          <div class="cn-empty">{% translate "Belum ada titik pembayaran." %}</div>
+        {% endfor %}
+
+        <form method="post" action="{% url 'canteen-qr-point-create' %}?school_id={{ school.id }}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:8px;padding:0 14px 14px">
+          {% csrf_token %}<input type="hidden" name="merchant_id" value="{{ m.id }}">
+          <div><label class="cn-eyebrow" for="pn-{{ m.id }}">{% translate "Nama (ditampilkan ke siswa)" %}</label><br>
+            <input id="pn-{{ m.id }}" name="name" class="cn-select" maxlength="128" required></div>
+          <div><label class="cn-eyebrow" for="pl-{{ m.id }}">{% translate "Lokasi" %}</label><br>
+            <input id="pl-{{ m.id }}" name="location" class="cn-select" maxlength="128"></div>
+          <button type="submit" class="btn btn-secondary">{% translate "Tambah titik pembayaran" %}</button>
+        </form>
+      {% endif %}
+    </section>
+  {% empty %}
+    <div class="cn-section"><div class="cn-empty">{% translate "Belum ada merchant terdaftar untuk sekolah ini." %}</div></div>
+  {% endfor %}
+</main>
+{% endblock %}

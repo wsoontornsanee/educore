@@ -53,6 +53,7 @@ class CanteenConsolePageView(StaffConsoleMixin, APIView):
         if school:
             # QR Charge entry points (spec 18): oversight page for finance/admin, tablet screen for operators.
             ctx['can_qr_manage'] = has_permission(request.user, 'finance.payment.read', foundation_id, school_id=school.id)
+            ctx['can_qr_points'] = has_permission(request.user, 'pos.manage', foundation_id, school_id=school.id)
             if has_permission(request.user, 'wallet.topup.write', foundation_id, school_id=school.id):
                 ctx['qr_terminals'] = list(POSTerminal.objects.filter(
                     foundation_id=foundation_id, merchant__school=school, merchant__qr_self_amount_enabled=True,

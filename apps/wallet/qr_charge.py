@@ -83,6 +83,7 @@ _REFUSAL_TEXT = {
     'QR_DECAL_REVOKED': lambda: _("Lembar ini sudah tidak berlaku. Minta petugas lembar yang terbaru."),
     'QR_DECAL_EXPIRED': lambda: _("Lembar ini sudah kedaluwarsa. Minta petugas lembar yang terbaru."),
     'PAYMENT_POINT_CLOSED': lambda: _("Titik pembayaran ini sedang ditutup."),
+    'AMOUNT_ABOVE_CAP': lambda: _("Melebihi batas pembayaran lewat QR."),
     'AMOUNT_INVALID': lambda: _("Jumlah harus lebih dari nol."),
     'WALLET_FROZEN': lambda: _("Dompetmu sedang dibekukan. Hubungi wali atau sekolah."),
     'CURRENCY_MISMATCH': lambda: _("Mata uang dompet tidak sesuai dengan kantin ini."),
@@ -90,6 +91,12 @@ _REFUSAL_TEXT = {
     'OUTSIDE_ALLOWED_WINDOW': lambda: _("Di luar jam belanja yang diizinkan wali."),
     'INSUFFICIENT_BALANCE': lambda: _("Saldo tidak cukup."),
 }
+
+
+def refusal_message(code: str) -> str:
+    """Student-facing text for a spec-18 refusal code (the code itself if it has none)."""
+    text = _REFUSAL_TEXT.get(code)
+    return text() if text else code
 
 
 def _format_cap(cap: Decimal, currency: str) -> str:
@@ -309,11 +316,11 @@ def _existing_charge(student, client_transaction_id: str) -> Optional[POSTransac
     ).first()
 
 
-def _log_rejection(target: _Target, student, amount: Decimal, client_transaction_id: str) -> None:
+def _log_rejection(target: _Target, student, amount: Decimal, client_transaction_id: str, reason: str) -> None:
     POSTransaction.objects.create(
         foundation_id=target.foundation_id, merchant=target.merchant, terminal=target.terminal, student=student,
         items=[], subtotal=amount, commission=Decimal('0.00'), total=amount, occurred_at=timezone.now(),
-        status=POSTransactionStatus.REJECTED, entry_mode=POSEntryMode.SELF_ENTERED,
+        status=POSTransactionStatus.REJECTED, entry_mode=POSEntryMode.SELF_ENTERED, reject_reason=reason,
         qr_session=target.session, qr_decal=target.decal,
         # REJECTED rows must not occupy the idempotency slot: the student may retry the same key.
         client_transaction_id=f"{client_transaction_id}:rej:{secrets.token_hex(4)}"[:128],
@@ -398,7 +405,7 @@ def charge_qr_session(token: str, student, amount, idempotency_key: str) -> POST
             return pos_tx
     except QRChargeError as exc:
         if target is not None and exc.code in _LOGGED_REJECTIONS:
-            _log_rejection(target, student, amount, client_transaction_id)
+            _log_rejection(target, student, amount, client_transaction_id, exc.code)
         raise
 
 

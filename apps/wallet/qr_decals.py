@@ -24,7 +24,7 @@ from apps.wallet.models import (
     POSQRDecal,
     POSQRDecalStatus,
 )
-from apps.wallet.qr_charge import DECAL_TOKEN_SALT, effective_cap, render_qr_svg
+from apps.wallet.qr_charge import DECAL_TOKEN_SALT, effective_cap, refusal_message, render_qr_svg
 
 DECAL_GRACE = timedelta(hours=24)  # QRS-036 default rotation grace
 
@@ -248,3 +248,45 @@ def render_decal_pdf(decal: POSQRDecal, actor) -> Tuple[bytes, str]:
         diff={'human_id': decal.human_id, 'payment_point': decal.payment_point_id, 'format': content_type},
     )
     return data, content_type
+
+
+# --- operator Counter feed (QRS-038) -------------------------------------------------------------
+
+COUNTER_FEED_LIMIT = 50
+
+
+def get_counter_feed(point: POSPaymentPoint, now=None) -> dict:
+    """Today's charges at one counter, newest first: paid ones and refusals (spec 18 §3b, QRS-038).
+
+    "Today" is the school's own local day. Totals are summed here in Decimal (clients never sum money)
+    and count only COMPLETED sales.
+    """
+    from django.db.models import Sum
+
+    from apps.attendance.services import get_school_timezone
+    from apps.wallet.models import POSEntryMode, POSTransaction, POSTransactionStatus
+
+    school = point.merchant.school
+    local_now = (now or timezone.now()).astimezone(get_school_timezone(school))
+    day_start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    base = POSTransaction.objects.filter(
+        foundation_id=point.foundation_id, qr_decal__payment_point=point, entry_mode=POSEntryMode.SELF_ENTERED,
+        occurred_at__gte=day_start, occurred_at__lt=day_start + timedelta(days=1), deleted_at__isnull=True,
+    )
+    completed = base.filter(status=POSTransactionStatus.COMPLETED)
+    rows = base.select_related('student', 'student__person').order_by('-occurred_at', '-id')[:COUNTER_FEED_LIMIT]
+    return {
+        'payment_point': point,
+        'currency': school.base_currency,
+        'count_today': completed.count(),
+        'total_today': (completed.aggregate(t=Sum('total'))['t'] or Decimal('0.00')).quantize(Decimal('0.01')),
+        'items': [
+            {
+                'id': tx.id, 'status': tx.status, 'reject_reason': tx.reject_reason,
+                'reject_label': refusal_message(tx.reject_reason) if tx.reject_reason else '',
+                'student_name': tx.student.person.full_name, 'student_nis': tx.student.nis,
+                'amount': tx.total, 'confirmation_code': tx.confirmation_code, 'occurred_at': tx.occurred_at,
+            }
+            for tx in rows
+        ],
+    }

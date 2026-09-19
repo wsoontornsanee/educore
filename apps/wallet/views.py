@@ -88,6 +88,7 @@ from apps.wallet.qr_decals import (
     DecalError,
     close_payment_point,
     create_payment_point,
+    get_counter_feed,
     print_decal,
     render_decal_pdf,
     revoke_decal,
@@ -1048,6 +1049,31 @@ class DecalRevokeView(_PaymentPointView):
             return Response({'error': _("Lembar tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
         revoke_decal(decal, request.user, payload.validated_data['reason'])
         return Response({'decal_id': decal.id, 'status': decal.status})
+
+
+class CounterFeedView(APIView):
+    """GET /pos/counter/?payment_point_id= (QRS-038): today's charges and refusals at one counter, polled by the
+    operator's phone. `pos.collect`, within the schools the actor holds it in."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'pos.collect'
+
+    def get(self, request):
+        qs = POSPaymentPoint.objects.filter(
+            id=request.query_params.get('payment_point_id') or 0,
+            foundation_id=get_current_foundation_id(), deleted_at__isnull=True,
+        ).select_related('merchant', 'merchant__school')
+        ceiling = _school_ceiling(request, self.required_permission)
+        if ceiling is not None:
+            qs = qs.filter(merchant__school_id__in=ceiling)
+        point = qs.first()
+        if not point:
+            return Response({'error': _("Titik pembayaran tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        feed = get_counter_feed(point)
+        return Response({
+            'payment_point': {'id': point.id, 'name': point.name, 'location': point.location},
+            'currency': feed['currency'], 'count_today': feed['count_today'], 'total_today': str(feed['total_today']),
+            'items': [{**i, 'amount': str(i['amount'])} for i in feed['items']],
+        })
 
 
 class POSSyncView(APIView):

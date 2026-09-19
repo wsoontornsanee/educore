@@ -160,10 +160,11 @@ All money totals are computed server-side (CUR-026); this page only formats them
       {% endif %}
     </section>
 
-    {% if can_qr_manage or qr_terminals %}
+    {% if can_qr_manage or qr_terminals or can_qr_points %}
     <section class="cn-section" aria-labelledby="canteen-qr-h">
       <h2 id="canteen-qr-h">{% translate "QR Charge" %}</h2>
       {% if can_qr_manage %}<p><a class="cn-link" href="{% url 'canteen-qr-page' %}?school_id={{ school.id }}">{% translate "Pengaturan, sanggahan, dan sinyal QR Charge" %}</a></p>{% endif %}
+      {% if can_qr_points %}<p><a class="cn-link" href="{% url 'canteen-qr-points' %}?school_id={{ school.id }}">{% translate "Titik pembayaran & lembar QR tercetak" %}</a></p>{% endif %}
       {% for t in qr_terminals %}
         <p><a class="cn-link" href="{% url 'canteen-qr-terminal' t.id %}?school_id={{ school.id }}">{% translate "Buka layar QR" %}: {{ t.merchant.name }} · {{ t.name|default:t.device_id }}</a></p>
       {% endfor %}
