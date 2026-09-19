@@ -38,6 +38,15 @@ class CrontabTests(SimpleTestCase):
             f"CronHostCommand subclasses missing from deploy/crontab (schedule them, or add to NOT_SCHEDULED with a reason): {sorted(unscheduled)}",
         )
 
+    def test_every_scheduled_command_is_cron_host_gated(self):
+        # ARC-013: a scheduled command that is not a CronHostCommand would run on every app host.
+        commands = get_commands()
+        ungated = sorted(
+            name for name in scheduled_commands()
+            if name in commands and not isinstance(load_command_class(commands[name], name), CronHostCommand)
+        )
+        self.assertEqual(ungated, [], f"scheduled commands not gated to the cron host: {ungated}")
+
     def test_stagger_offsets_are_unique(self):
         offsets = re.findall(r'sleep\s+(\d+);', CRONTAB.read_text(encoding='utf-8'))
         duplicates = sorted({o for o in offsets if offsets.count(o) > 1}, key=int)

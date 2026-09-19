@@ -34,7 +34,10 @@
 0 23 * * *     sleep 69; python /app/manage.py backup_database
 0 1 * * *      sleep 72; python /app/manage.py invoice_stale_reconciliations      # 7d handover to arrears (spec/17 REC-013)
 25 2 25 * *    sleep 75; python /app/manage.py generate_invoices --next-period
-0 3 1 * *      sleep 78; python /app/manage.py close_fiscal_periods              # FIN-025/025b: close last month, after the 31st's reconcile_payments and run_arrears_ladder
+# FIN-025/025b: close last month. On the 5th, not the 1st: pull_bank_statements (05:00 UTC daily, for 'yesterday') still
+# delivers the 31st on the 1st, and a settlement posted from it carries settled_at in the month; a closed month raises
+# PeriodClosedError (only refunds route forward). Idempotent; reopenable with an audit reason.
+30 3 5 * *     sleep 78; python /app/manage.py close_fiscal_periods
 0 4 * * 0      sleep 81; python /app/manage.py settle_merchants
 15 * * * *     sleep 84; python /app/manage.py sync_rbac_sheet                   # RBAC visibility Google Sheet (no-op if unchanged)
 */5 * * * *    sleep 8; python /app/manage.py check_service_health  # Service status page: DB probe + daily rollup
