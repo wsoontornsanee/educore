@@ -2,8 +2,11 @@
  * EduCore Guru Mobile App Entry Point.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, SafeAreaView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, SafeAreaView, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import Constants from 'expo-constants';
+import { setApiBaseUrl } from './src/services/api';
+import { resolveApiBase } from './src/services/apiConfig';
 import { checkAuth, logout } from './src/services/auth';
 import { isParent, isStaff } from './src/services/roleRouting';
 import { fetchSubstitutionSlot } from './src/services/agenda';
@@ -36,6 +39,18 @@ import { initPosQueueDb } from './src/services/posOfflineQueue';
 import { colors } from './src/theme/tokens';
 import { TimetableSlotItem, UserProfile } from './src/types';
 
+
+// Before anything can call the API. Throws in a build that names no server (see apiConfig.ts), so a
+// misconfigured build fails at launch instead of shipping an app that cannot log in.
+setApiBaseUrl(
+  resolveApiBase({
+    // Expo only inlines this exact expression, so it cannot be hidden behind a helper.
+    envUrl: process.env.EXPO_PUBLIC_API_URL,
+    extraUrl: Constants.expoConfig?.extra?.apiUrl,
+    isDev: __DEV__,
+    platform: Platform.OS,
+  }),
+);
 
 export default function App() {
   const [checkingAuth, setCheckingAuth] = useState(true);
