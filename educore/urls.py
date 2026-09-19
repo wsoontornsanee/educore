@@ -57,6 +57,7 @@ urlpatterns = [
     path('web/status/', include('apps.status.web_urls')),
     path('web/admin/staff/', include('apps.identity.web_admin_urls')),
     path('web/admin/partners/', include('apps.partners.web_urls')),
+    path('web/admin/metering/', include('apps.reporting.web_urls')),
     path('web/admin/', include('apps.foundation.web_urls')),
     path('web/', include('apps.core.web_urls')),
     # Language switch (django.views.i18n.set_language) — POST target for the

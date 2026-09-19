@@ -1,0 +1,86 @@
+{% extends "base_console.html" %}
+{% load i18n %}
+
+{% comment %}
+Page: Administrasi > Siswa terhitung. The counted students per school for one month, as the subscription invoice
+basis reads them (RPT-009). Served by apps.reporting.web_views.MeteringStatementPageView at /web/admin/metering/.
+Screen states: normal, empty (no school in scope), invalid month, incomplete (a school not yet counted).
+{% endcomment %}
+
+{% block title %}{% translate "Siswa terhitung — EduCore" %}{% endblock %}
+
+{% block console_content %}
+<main style="display:flex;flex-direction:column;gap:20px;max-width:960px">
+  <header>
+    <div class="text-label text-ink-500" style="margin-bottom:2px">{% translate "Administrasi" %}</div>
+    <h1 class="text-h2 font-display text-ink-900" style="margin:0">{% translate "Siswa terhitung" %}</h1>
+    <p class="text-body-sm text-ink-500" style="margin:6px 0 0">{% translate "Jumlah siswa aktif per sekolah yang menjadi dasar tagihan langganan EduCore. Bulan yang sudah berakhir dibekukan dan tidak berubah lagi." %}</p>
+  </header>
+
+  {% if invalid_month %}
+  <div class="card" role="alert" style="border-left:4px solid var(--color-danger);padding:12px 16px">
+    <p class="text-body text-ink-900">{% translate "Format bulan tidak valid (gunakan YYYY-MM); menampilkan bulan ini." %}</p>
+  </div>
+  {% endif %}
+
+  <form method="get" class="card" style="padding:16px;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
+    <div class="form-group" style="flex:0 1 200px;min-width:0">
+      <label class="form-label" for="metering-month">{% translate "Bulan" %}</label>
+      <input class="form-input" type="month" id="metering-month" name="month" value="{{ month_value }}" required>
+    </div>
+    <div style="flex:0 0 auto"><button type="submit" class="btn btn-primary">{% translate "Tampilkan" %}</button></div>
+    <div style="flex:1 1 auto;display:flex;gap:8px;justify-content:flex-end">
+      <a class="btn btn-secondary text-body-sm" href="?month={{ previous_month }}">{% translate "Bulan sebelumnya" %}</a>
+      {% if next_month %}<a class="btn btn-secondary text-body-sm" href="?month={{ next_month }}">{% translate "Bulan berikutnya" %}</a>{% endif %}
+    </div>
+  </form>
+
+  {% if statement.schools %}
+  <section class="card" style="padding:16px 20px" aria-label="{% translate 'Ringkasan' %}">
+    <div class="text-label text-ink-500">{% translate "Total siswa terhitung" %} · {{ statement.month }}</div>
+    <div class="text-h2 font-display text-ink-900" data-testid="metering-total">{{ statement.total_active }}</div>
+    {% if not statement.complete %}
+    <p class="text-body-sm text-ink-700" style="margin:8px 0 0" data-testid="metering-incomplete">
+      {% blocktranslate count n=uncounted trimmed %}
+      Total ini belum lengkap: {{ n }} sekolah belum dihitung untuk bulan ini.
+      {% plural %}
+      Total ini belum lengkap: {{ n }} sekolah belum dihitung untuk bulan ini.
+      {% endblocktranslate %}
+    </p>
+    {% endif %}
+  </section>
+
+  <div class="card" style="padding:0;overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;min-width:520px">
+      <thead>
+        <tr style="text-align:left;border-bottom:1px solid var(--color-line)">
+          <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Sekolah" %}</th>
+          <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Status" %}</th>
+          <th class="text-label text-ink-500" style="padding:12px 16px;text-align:right">{% translate "Siswa aktif" %}</th>
+          <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Dihitung pada" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in statement.schools %}
+        <tr style="border-bottom:1px solid var(--color-line)" data-testid="metering-row">
+          <td class="text-body-sm text-ink-900" style="padding:12px 16px">{{ entry.school_name }}{% if not entry.is_active %} <span class="text-ink-500">({% translate "nonaktif" %})</span>{% endif %}</td>
+          <td class="text-body-sm text-ink-700" style="padding:12px 16px">
+            {% if entry.state == state_frozen %}{% translate "Dibekukan" %}
+            {% elif entry.state == state_open %}{% translate "Berjalan" %}
+            {% else %}{% translate "Belum dihitung" %}{% endif %}
+          </td>
+          <td class="text-body-sm font-mono text-ink-900" style="padding:12px 16px;text-align:right">{% if entry.active_count is None %}—{% else %}{{ entry.active_count }}{% endif %}</td>
+          <td class="text-body-sm font-mono text-ink-700" style="padding:12px 16px;white-space:nowrap">{% if entry.computed_at %}{{ entry.computed_at|date:"d M Y H:i" }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="text-body-sm text-ink-500" style="margin:0">{% translate "Yang tertulis di sini adalah jumlah siswa, bukan daftar nama. Daftar siswa yang dihitung untuk bulan yang dibekukan belum tersedia." %}</p>
+  {% else %}
+  <div class="card" style="padding:32px;text-align:center">
+    <p class="text-body text-ink-500">{% translate "Belum ada sekolah yang dapat ditampilkan." %}</p>
+  </div>
+  {% endif %}
+</main>
+{% endblock %}
