@@ -103,6 +103,16 @@ jobs:
       - name: System libraries
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libmysqlclient-dev pkg-config libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
       - run: pip install -r requirements.txt
+      - name: MySQL creates every declared constraint
+        # models.W036 = a conditional unique constraint MySQL silently skips, so SQLite tests pass while
+        # production is unprotected (offline QR nonce, fixed in #276). It is only reported with --database. Only this
+        # warning is fatal: mysql.W003 on core.StoredFile.key predates CI.
+        run: |
+          python manage.py check --database default 2>&1 | tee /tmp/check.txt
+          if grep -q "models.W036" /tmp/check.txt; then
+            echo "::error::a unique constraint with a condition is not created on MySQL (use a NULL marker, see TASK-071)"
+            exit 1
+          fi
       - run: pytest -q --create-db apps/wallet apps/finance apps/identity
 
   mobile:

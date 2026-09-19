@@ -98,7 +98,7 @@ class RunArrearsLadderCommandTests(TestCase):
         register_provider(ChannelType.WHATSAPP, MockWhatsAppProvider())
         register_provider(ChannelType.PUSH, MockPushProvider())
         register_provider(ChannelType.SMS, MockSmsProvider())
-        call_command('seed_notification_templates', stdout=open('nul', 'w'))
+        call_command('seed_notification_templates', stdout=StringIO())
 
         self.fee_type = FeeType.objects.create(
             foundation_id=self.foundation.id,
