@@ -963,11 +963,28 @@ def process_offline_pos_batch(terminal, transactions: list) -> dict:
         commission = (subtotal * merchant.commission_bps / Decimal('10000')).quantize(Decimal('0.01'))
         wallet = get_or_create_wallet(student)
 
+        qr_offline_key, qr_offline_nonce = None, ''
+        qr_token = tx_data.get('qr_token')
+        if qr_token:
+            from apps.wallet.qr_offline import OfflineTokenError, verify_offline_session_token
+
+            try:
+                qr_offline_key, qr_offline_nonce = verify_offline_session_token(terminal, qr_token, occurred_at)
+            except OfflineTokenError as exc:
+                results.append({'client_transaction_id': client_transaction_id, 'status': f'QR_TOKEN_{exc.code}'})
+                continue
+            if POSTransaction.objects.filter(
+                foundation_id=terminal.foundation_id, terminal=terminal, qr_offline_nonce=qr_offline_nonce,
+            ).exists():
+                results.append({'client_transaction_id': client_transaction_id, 'status': 'QR_TOKEN_REPLAYED'})
+                continue
+
         if not check_offline_floor(wallet, subtotal):
             POSTransaction.objects.create(
                 foundation_id=terminal.foundation_id, merchant=merchant, terminal=terminal, student=student,
                 items=items, subtotal=subtotal, commission=commission, total=subtotal, occurred_at=occurred_at,
                 status=POSTransactionStatus.REJECTED, offline_created=True, client_transaction_id=client_transaction_id,
+                qr_offline_key=qr_offline_key, qr_offline_nonce=qr_offline_nonce,
             )
             results.append({'client_transaction_id': client_transaction_id, 'status': 'OFFLINE_FLOOR_EXCEEDED'})
             continue
@@ -981,6 +998,7 @@ def process_offline_pos_batch(terminal, transactions: list) -> dict:
                     foundation_id=terminal.foundation_id, merchant=merchant, terminal=terminal, student=student,
                     items=items, subtotal=subtotal, commission=commission, total=subtotal, occurred_at=occurred_at,
                     status=POSTransactionStatus.REJECTED, offline_created=True, client_transaction_id=client_transaction_id,
+                    qr_offline_key=qr_offline_key, qr_offline_nonce=qr_offline_nonce,
                 )
                 results.append({'client_transaction_id': client_transaction_id, 'status': check['reason']})
                 break
@@ -999,6 +1017,7 @@ def process_offline_pos_batch(terminal, transactions: list) -> dict:
                 items=items, subtotal=subtotal, commission=commission, total=subtotal, occurred_at=occurred_at,
                 status=POSTransactionStatus.COMPLETED, offline_created=True,
                 client_transaction_id=client_transaction_id, wallet_transaction=wallet_tx,
+                qr_offline_key=qr_offline_key, qr_offline_nonce=qr_offline_nonce,
             )
             if wallet_tx.status == WalletTransactionStatus.RECONCILE_REQUIRED:
                 create_reconciliation_case(wallet_tx, pos_transaction=pos_tx)
