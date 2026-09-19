@@ -4,7 +4,7 @@
  * 4-tab navigation: Agenda, Presensi, Broadcast, Profil.
  * Manages roll-call, substitution, and behaviour modals internally.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AgendaScreen } from '../AgendaScreen';
 import { RollCallScreen } from '../RollCallScreen';
@@ -22,9 +22,17 @@ type TeacherTab = 'AGENDA' | 'ATTENDANCE' | 'BROADCAST' | 'PROFILE';
 interface TeacherShellProps {
   user: UserProfile;
   onLogout: () => void;
+  /** Slot from a SUBSTITUTE_ASSIGNED notification tap; opens the substitution modal once. */
+  substitutionDeepLinkSlot?: TimetableSlotItem | null;
+  onSubstitutionDeepLinkHandled?: () => void;
 }
 
-export const TeacherShell: React.FC<TeacherShellProps> = ({ user, onLogout }) => {
+export const TeacherShell: React.FC<TeacherShellProps> = ({
+  user,
+  onLogout,
+  substitutionDeepLinkSlot = null,
+  onSubstitutionDeepLinkHandled,
+}) => {
   const { t, locale } = useLocale();
   const [activeTab, setActiveTab] = useState<TeacherTab>('AGENDA');
 
@@ -33,6 +41,13 @@ export const TeacherShell: React.FC<TeacherShellProps> = ({ user, onLogout }) =>
 
   // Substitution modal state
   const [subModalSlot, setSubModalSlot] = useState<TimetableSlotItem | null>(null);
+
+  useEffect(() => {
+    if (!substitutionDeepLinkSlot) return;
+    setActiveSlot(null);
+    setSubModalSlot(substitutionDeepLinkSlot);
+    onSubstitutionDeepLinkHandled?.();
+  }, [substitutionDeepLinkSlot, onSubstitutionDeepLinkHandled]);
 
   // Behaviour modal state
   const [behaviourSlot, setBehaviourSlot] = useState<TimetableSlotItem | null>(null);

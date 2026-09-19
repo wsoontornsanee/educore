@@ -20,7 +20,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ type, label, size = 'm
   let bgColor = colors.surfaceAlt;
   let textColor = colors.body;
   let dotColor = colors.muted;
-  let defaultLabel = type;
+  let defaultLabel: string = type;
 
   switch (type) {
     case 'HADIR':

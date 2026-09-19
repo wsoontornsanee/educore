@@ -36,7 +36,7 @@ import {
 describe('Push Notification Data Extraction', () => {
   it('subscribeToNotificationResponseReceived extracts data from a tap response', () => {
     const calls: any[] = [];
-    let capturedListener: ((response: any) => void) | null = null;
+    let capturedListener = null as ((response: any) => void) | null;
 
     __setNotificationsModuleForTesting({
       addNotificationResponseReceivedListener: (cb: (response: any) => void) => {
@@ -62,7 +62,7 @@ describe('Push Notification Data Extraction', () => {
 
   it('subscribeToNotificationResponseReceived extracts SUBSTITUTE_ASSIGNED tap data', () => {
     const calls: any[] = [];
-    let capturedListener: ((response: any) => void) | null = null;
+    let capturedListener = null as ((response: any) => void) | null;
 
     __setNotificationsModuleForTesting({
       addNotificationResponseReceivedListener: (cb: (response: any) => void) => {

@@ -142,10 +142,7 @@ export const LinkedAccountsSection: React.FC = () => {
             />
           ) : (
             <Text
-              style={[
-                styles.actionButtonText,
-                isLinked ? styles.unlinkButtonText : styles.linkButtonText,
-              ]}
+              style={isLinked ? styles.unlinkButtonText : styles.linkButtonText}
             >
               {isLinked ? 'Putuskan' : 'Tautkan'}
             </Text>

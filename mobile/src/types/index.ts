@@ -100,6 +100,11 @@ export interface ChildSummary {
   full_name: string;
   photo_key: string;
   financial_responsible: boolean;
+  // Not yet returned by GET /me/children/ (GuardianChildSerializer); screens fall back when absent.
+  nis?: string;
+  nisn?: string;
+  class_name?: string;
+  school_name?: string;
 }
 
 export interface OtpRequestResponse {
