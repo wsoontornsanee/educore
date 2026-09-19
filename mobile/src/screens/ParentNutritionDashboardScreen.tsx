@@ -377,14 +377,13 @@ export const ParentNutritionDashboardScreen: React.FC<ParentNutritionDashboardSc
                     ]}
                   >
                     <Text
-                      style={[
-                        styles.pillBadgeText,
+                      style={
                         sugarStatus.status === 'HIGH'
                           ? styles.badgeTextDanger
                           : sugarStatus.status === 'ELEVATED'
                           ? styles.badgeTextWarning
-                          : styles.badgeTextSuccess,
-                      ]}
+                          : styles.badgeTextSuccess
+                      }
                     >
                       {sugarStatus.status === 'HIGH'
                         ? t('nutrition.sugar_high')
