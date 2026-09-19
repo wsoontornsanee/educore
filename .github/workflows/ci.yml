@@ -1,14 +1,15 @@
 name: CI
 
+# Manual fallback only. Routine verification runs locally (`scripts/ci-local.sh --publish`, which
+# posts the `ci/local` commit status) so Actions minutes are not spent on every push. Keep the
+# jobs here in step with that script; run this workflow from the Actions tab when a run on a
+# clean GitHub runner is wanted.
 on:
-  pull_request:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
-  # Never cancel a run on main: back-to-back merges would otherwise cancel each other's MySQL job.
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
