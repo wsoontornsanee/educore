@@ -6,8 +6,9 @@ dispute resolution, and the spending-PIN attempt counter. Skipped on any other b
 serialises writers and ignores ``select_for_update``.
 """
 import threading
+import time
 from decimal import Decimal
-from unittest import skipUnless
+from unittest import mock, skipUnless
 
 from django.db import connection, connections, transaction
 from django.db.models import Sum
@@ -31,8 +32,17 @@ from apps.wallet.models import (
 )
 from apps.wallet.qr_charge import QRChargeError, charge_qr_session, create_qr_session
 from apps.wallet.qr_decals import create_payment_point, decal_token, print_decal
+from apps.wallet import qr_oversight
 from apps.wallet.qr_oversight import QRDisputeError, open_qr_dispute, resolve_qr_dispute
-from apps.wallet.services import SettlementStateError, mark_settlement_paid, run_merchant_settlement, void_pos_transaction
+from apps.wallet.services import (
+    SettlementStateError,
+    mark_settlement_paid,
+    process_offline_pos_batch,
+    process_pos_transaction,
+    run_merchant_settlement,
+    topup_wallet,
+    void_pos_transaction,
+)
 from apps.wallet.tests.test_qr_charge import GUARDIAN_PIN, QRFixtureMixin, make_guardian
 from apps.wallet.tests.test_qr_mysql_concurrency import _run_together
 from educore.middleware.tenancy import set_current_foundation_id
@@ -217,6 +227,76 @@ class MoneyPathConcurrencyTests(QRFixtureMixin, TransactionTestCase):
         self.assertEqual(self._balance(), START_BALANCE)
         self._assert_ledger_balances()
 
+    # -- lock order across the other money paths (wallet, then sale; merchant for settlement) -----------
+
+    def _many_rounds(self, rounds, make_calls):
+        """Run two racing calls per round; any InnoDB lock error (1213 deadlock, 1205 timeout) fails the round."""
+        for i in range(rounds):
+            outcomes = _run_together(self.foundation_id, *make_calls(i))
+            self.assertEqual([error for _result, error in outcomes], [None, None], (i, outcomes))
+
+    def test_top_up_and_charge_on_one_wallet_never_deadlock(self):
+        wallet = Wallet.all_tenants.get(student=self.student)
+        tokens = [create_qr_session(self.terminal)['token'] for _ in range(10)]
+        self._many_rounds(10, lambda i: (
+            lambda: topup_wallet(Wallet.objects.get(id=wallet.id), Decimal('500'), 'CASH', f'top-{i}'),
+            lambda: charge_qr_session(tokens[i], self.student, Decimal('1000'), f'pay-{i}'),
+        ))
+        self._assert_ledger_balances()
+
+    def test_settlement_run_and_a_charge_never_deadlock(self):
+        start, end = self._period()
+        tokens = [create_qr_session(self.terminal)['token'] for _ in range(10)]
+        self._many_rounds(10, lambda i: (
+            lambda: run_merchant_settlement(self.merchant, start, end),
+            lambda: charge_qr_session(tokens[i], self.student, Decimal('1000'), f'pay-{i}'),
+        ))
+        self.assertEqual(MerchantSettlement.all_tenants.filter(merchant=self.merchant).count(), 1)
+        self._assert_ledger_balances()
+
+    def test_card_tap_checkout_and_a_void_of_another_sale_never_deadlock(self):
+        sales = [self._sale(key=f'qr-{i}') for i in range(10)]
+        item = [{'sku': 'ROTI', 'name': 'Roti', 'qty': 1, 'unit_price': '1000.00'}]
+        self._many_rounds(10, lambda i: (
+            lambda: void_pos_transaction(POSTransaction.objects.get(id=sales[i].id), 'salah input'),
+            lambda: process_pos_transaction(self.terminal, self.student, item, f'card-{i}'),
+        ))
+        self._assert_ledger_balances()
+
+    # -- duplicate submissions of one client_transaction_id (card tap, offline sync) ----------------------
+
+    def test_double_submitted_card_tap_checkout_returns_the_one_sale_to_both_requests(self):
+        item = [{'sku': 'ROTI', 'name': 'Roti', 'qty': 1, 'unit_price': '1000.00'}]
+        for i in range(6):
+            outcomes = _run_together(
+                self.foundation_id,
+                lambda i=i: process_pos_transaction(self.terminal, self.student, item, f'dup-{i}'),
+                lambda i=i: process_pos_transaction(self.terminal, self.student, item, f'dup-{i}'),
+            )
+            self.assertEqual([error for _result, error in outcomes], [None, None], (i, outcomes))
+            self.assertEqual(outcomes[0][0].id, outcomes[1][0].id)
+        self.assertEqual(POSTransaction.all_tenants.filter(client_transaction_id__startswith='dup-').count(), 6)
+        self.assertEqual(self._balance(), START_BALANCE - Decimal('1000') * 6)
+        self._assert_ledger_balances()
+
+    def test_double_synced_offline_batch_neither_fails_nor_double_debits(self):
+        batch = [
+            {'client_transaction_id': f'off-{i}', 'student_id': self.student.id,
+             'items': [{'sku': 'ROTI', 'name': 'Roti', 'qty': 1, 'unit_price': '1000.00'}]}
+            for i in range(6)
+        ]
+        outcomes = _run_together(
+            self.foundation_id,
+            lambda: process_offline_pos_batch(self.terminal, batch),
+            lambda: process_offline_pos_batch(self.terminal, batch),
+        )
+        self.assertEqual([error for _result, error in outcomes], [None, None], outcomes)
+        for result, _error in outcomes:
+            self.assertEqual(len(result['results']), 6)
+        self.assertEqual(POSTransaction.all_tenants.filter(client_transaction_id__startswith='off-').count(), 6)
+        self.assertEqual(self._balance(), START_BALANCE - Decimal('1000') * 6)
+        self._assert_ledger_balances()
+
     # -- settlement ----------------------------------------------------------------------------------
 
     def _period(self):
@@ -262,6 +342,40 @@ class MoneyPathConcurrencyTests(QRFixtureMixin, TransactionTestCase):
         self.assertEqual(settlement.status, MerchantSettlementStatus.PAID)
         with self.assertRaises(SettlementStateError):
             run_merchant_settlement(self.merchant, start, end)
+
+    def test_flagging_dispute_resolution_and_a_settlement_run_do_not_deadlock(self):
+        # The third upheld dispute flags the merchant: resolve_qr_dispute inserts its settlement adjustment and
+        # then updates the merchant row, while a settlement run takes the merchant row and then scans
+        # adjustments. It holds because inserting the adjustment takes a shared lock on the merchant row (foreign key
+        # check), which queues the settlement run behind the resolution instead of crossing it.
+        guardian = make_guardian(self.fx)
+        staff = self.fx['finance_user']
+        sales = [self._sale(key=f'flag-{i}') for i in range(3)]
+        disputes = [open_qr_dispute(sale, guardian, 'Saya hanya beli minum') for sale in sales]
+        for dispute in disputes[:2]:
+            resolve_qr_dispute(dispute, QRDisputeStatus.UPHELD, staff)
+        start, end = self._period()
+        adjustment_written = threading.Event()
+        real_flag = qr_oversight._flag_merchant_if_needed
+
+        def flag_after_the_settlement_run_has_started(merchant):
+            adjustment_written.set()
+            time.sleep(1.5)  # let the settlement run take its locks and reach the adjustment scan
+            return real_flag(merchant)
+
+        def settle():
+            adjustment_written.wait(30)
+            return run_merchant_settlement(self.merchant, start, end)
+
+        with mock.patch.object(qr_oversight, '_flag_merchant_if_needed', flag_after_the_settlement_run_has_started):
+            outcomes = _run_together(
+                self.foundation_id,
+                lambda: resolve_qr_dispute(disputes[2], QRDisputeStatus.UPHELD, staff),
+                settle,
+            )
+        self.assertEqual([error for _result, error in outcomes], [None, None], outcomes)
+        self.assertIsNotNone(Merchant.all_tenants.get(id=self.merchant.id).qr_dispute_flagged_at)
+        self._assert_ledger_balances()
 
     def test_settlement_run_racing_a_dispute_resolution_absorbs_the_adjustment_exactly_once(self):
         sale = self._sale()
