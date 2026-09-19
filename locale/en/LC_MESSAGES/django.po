@@ -8223,3 +8223,56 @@ msgstr "Report cards: %(created)s created, %(updated)s updated, %(skipped)s skip
 
 msgid "Anda tidak memiliki akses ke halaman tersebut."
 msgstr "You do not have access to that page."
+msgid "Diinput petugas"
+msgstr "Entered by operator"
+
+msgid "Diinput siswa"
+msgstr "Entered by student"
+
+msgid "Kode tidak dikenali. Minta kasir menampilkan kode baru."
+msgstr "This code isn't recognised. Ask the counter to show a new one."
+
+msgid "Kode ini sudah kedaluwarsa. Minta kasir menampilkan kode baru."
+msgstr "This code has expired. Ask the counter to show a new one."
+
+msgid "Kode ini sudah dipakai. Minta kasir menampilkan kode baru."
+msgstr "This code has already been used. Ask the counter to show a new one."
+
+msgid "Kode ini bukan dari sekolahmu."
+msgstr "This code isn't from your school."
+
+msgid "Bayar QR tidak tersedia di kantin ini. Tap kartumu."
+msgstr "QR pay isn't available at this canteen. Tap your card."
+
+msgid "Bayar QR tidak tersedia. Tap kartumu."
+msgstr "QR pay isn't available. Tap your card."
+
+msgid "Bayar QR dimatikan karena wali kamu memblokir beberapa item. Tap kartumu."
+msgstr "QR pay is off for you because your guardian blocks some items. Tap your card instead."
+
+msgid "Jumlah harus lebih dari nol."
+msgstr "The amount must be more than zero."
+
+msgid "Dompetmu sedang dibekukan. Hubungi wali atau sekolah."
+msgstr "Your wallet is frozen. Contact your guardian or the school."
+
+msgid "Mata uang dompet tidak sesuai dengan kantin ini."
+msgstr "Your wallet currency doesn't match this canteen."
+
+msgid "Batas harian tercapai. Minta wali menaikkannya di aplikasi orang tua."
+msgstr "Daily limit reached. Ask a guardian to raise it in the parent app."
+
+msgid "Di luar jam belanja yang diizinkan wali."
+msgstr "Outside the spending hours your guardian allows."
+
+msgid "Saldo tidak cukup."
+msgstr "Insufficient balance."
+
+msgid "%(cap)s adalah batas maksimal pembayaran lewat QR."
+msgstr "%(cap)s is the most you can pay by QR."
+
+msgid "Konfirmasi bahwa siswa mengetik jumlah sendiri dan petugas wajib memeriksanya."
+msgstr "Confirm that the student types the amount and the operator must verify it."
+
+msgid "Sesi QR tidak ditemukan."
+msgstr "QR session not found."
