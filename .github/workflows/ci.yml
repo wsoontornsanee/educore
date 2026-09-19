@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Django checks
+    runs-on: ubuntu-latest
+    env:
+      EDUCORE_USE_SQLITE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: System libraries
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gettext libmysqlclient-dev pkg-config
+      - run: pip install -r requirements.txt
+      - run: python manage.py check
+      - name: Migrations are complete
+        # Catches a model change without a migration and duplicate migration numbers.
+        run: python manage.py makemigrations --check --dry-run
+      - name: Translation catalogs compile and the committed .mo files are current
+        # Never run makemessages (it fuzzy-clobbers translations); .po is hand-edited and
+        # compiled with compilemessages. Compare catalogs, not bytes: msgfmt output varies by version.
+        run: |
+          for lang in en id; do
+            po=locale/$lang/LC_MESSAGES/django.po
+            msgfmt --check -o "/tmp/$lang.mo" "$po"
+            python - "$lang" <<'PY'
+          import gettext, sys
+          lang = sys.argv[1]
+          def catalog(path):
+              with open(path, "rb") as f:
+                  return gettext.GNUTranslations(f)._catalog
+          if catalog(f"/tmp/{lang}.mo") != catalog(f"locale/{lang}/LC_MESSAGES/django.mo"):
+              sys.exit(f"locale/{lang}/LC_MESSAGES/django.mo is stale: run compilemessages -l {lang}")
+          PY
+          done
+
+  test-sqlite:
+    name: Tests (SQLite)
+    runs-on: ubuntu-latest
+    env:
+      EDUCORE_USE_SQLITE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: System libraries
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libmysqlclient-dev pkg-config libpango-1.0-0 libpangoft2-1.0-0 libgdk-pixbuf-2.0-0
+      - run: pip install -r requirements.txt
+      - run: pytest -q --create-db
+
+  test-mysql:
+    name: Tests (MySQL 8)
+    # MySQL 8 is the only supported engine (memory/00_CORE.md): run the suites that depend on
+    # its locking, constraints and collation, which SQLite cannot exercise.
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      EDUCORE_DB_HOST: 127.0.0.1
+      EDUCORE_DB_PORT: "3306"
+      EDUCORE_DB_USER: root
+      EDUCORE_DB_PASSWORD: root
+      EDUCORE_DB_NAME: educore
+      EDUCORE_TEST_DB_NAME: test_educore
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: System libraries
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libmysqlclient-dev pkg-config libpango-1.0-0 libpangoft2-1.0-0 libgdk-pixbuf-2.0-0
+      - run: pip install -r requirements.txt
+      - run: pytest -q --create-db apps/wallet apps/finance apps/identity
+
+  mobile:
+    name: Mobile (typecheck + tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # npm test runs .ts files directly through node's built-in type stripping.
+          node-version: 24
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
