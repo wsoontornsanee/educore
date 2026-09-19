@@ -1,19 +1,29 @@
 /**
- * Clinic officer data layer: recent visits and medication stock (services/clinicStaff.ts).
- * The screens are thin over this; the point worth pinning is that health notes never reach on-device storage.
+ * Clinic officer data layer: visits, medication stock, student lookup, health profile and recording a visit
+ * (services/clinicStaff.ts). The screens are thin over this; the point worth pinning is that health notes never
+ * reach on-device storage.
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
+  buildVisitPayload,
+  classifySubmitFailure,
+  cursorFromNext,
+  dispensableStock,
+  fetchClinicVisitsPage,
   fetchMedicationStock,
-  fetchRecentClinicVisits,
+  fetchStudentHealthProfile,
   isExpired,
   isLowStock,
+  recordClinicVisit,
+  searchStudents,
   sortStockForAttention,
+  validateVisitDraft,
 } from '../src/services/clinicStaff.ts';
 import { apiClient } from '../src/services/api.ts';
-import type { ClinicVisitItem, MedicationStockItem } from '../src/types/index.ts';
+import type { VisitDraft } from '../src/services/clinicStaff.ts';
+import type { ClinicVisitItem, MedicationStockItem, StudentLookupItem } from '../src/types/index.ts';
 
 const visit = (id: number): ClinicVisitItem => ({
   id, school: 1, student: 10 + id, student_name: `Siswa ${id}`, occurred_at: '2026-09-15T02:00:00Z',
@@ -42,18 +52,32 @@ async function withGet<T>(payload: unknown, run: (paths: string[]) => Promise<T>
   }
 }
 
-describe('clinic officer: recent visits', () => {
+describe('clinic officer: visits', () => {
   it('reads the first page of the clinic-visits endpoint', async () => {
-    await withGet({ results: [visit(1), visit(2)] }, async (paths) => {
-      const result = await fetchRecentClinicVisits();
-      assert.deepStrictEqual(result.map((v) => v.id), [1, 2]);
+    await withGet({ results: [visit(1), visit(2)], next: null }, async (paths) => {
+      const page = await fetchClinicVisitsPage();
+      assert.deepStrictEqual(page.visits.map((v) => v.id), [1, 2]);
+      assert.strictEqual(page.nextCursor, null);
       assert.deepStrictEqual(paths, ['/campus/clinic-visits/']);
     });
   });
 
+  it('hands back the cursor of the next page and sends only that cursor, not the server-built URL', async () => {
+    const next = 'http://internal:8000/api/v1/campus/clinic-visits/?cursor=cD0yMDI2&page_size=50';
+    await withGet({ results: [visit(1)], next }, async () => {
+      assert.strictEqual((await fetchClinicVisitsPage()).nextCursor, 'cD0yMDI2');
+    });
+    await withGet({ results: [visit(2)], next: null }, async (paths) => {
+      await fetchClinicVisitsPage('cD0yMDI2');
+      assert.deepStrictEqual(paths, ['/campus/clinic-visits/?cursor=cD0yMDI2']);
+    });
+    assert.strictEqual(cursorFromNext(null), null);
+    assert.strictEqual(cursorFromNext('http://x/y/?page=2'), null);
+  });
+
   it('accepts a bare array and an empty response', async () => {
-    await withGet([visit(3)], async () => assert.deepStrictEqual((await fetchRecentClinicVisits()).map((v) => v.id), [3]));
-    await withGet({}, async () => assert.deepStrictEqual(await fetchRecentClinicVisits(), []));
+    await withGet([visit(3)], async () => assert.deepStrictEqual((await fetchClinicVisitsPage()).visits.map((v) => v.id), [3]));
+    await withGet({}, async () => assert.deepStrictEqual((await fetchClinicVisitsPage()).visits, []));
   });
 
   it('never writes health notes to on-device storage', () => {
@@ -68,7 +92,7 @@ describe('clinic officer: recent visits', () => {
     const original = apiClient.get;
     apiClient.get = async () => { throw new Error('offline'); };
     try {
-      await assert.rejects(fetchRecentClinicVisits(), /offline/);
+      await assert.rejects(fetchClinicVisitsPage(), /offline/);
     } finally {
       apiClient.get = original;
     }
@@ -106,5 +130,138 @@ describe('clinic officer: medication stock', () => {
     const sorted = sortStockForAttention(list, '2026-09-19');
     assert.deepStrictEqual(sorted.map((i) => i.name), ['Betadine', 'Oralit', 'Antasida', 'Zinc']);
     assert.deepStrictEqual(list.map((i) => i.name), ['Zinc', 'Antasida', 'Oralit', 'Betadine']);
+  });
+});
+
+const student: StudentLookupItem = { id: 42, name: 'Budi Santoso', nis: '2024001', school: 1, school_name: 'SMP Harapan' };
+
+const draft = (over: Partial<VisitDraft> = {}): VisitDraft => ({
+  student, complaint: 'Pusing', treatment: '', temperature: '', pulse: '', outcome: 'RETURNED_TO_CLASS',
+  medication: null, quantity: '', consentConfirmed: false, consentNote: '', ...over,
+});
+
+const TODAY = '2026-09-19';
+
+describe('clinic officer: student lookup and health profile', () => {
+  it('searches active students by the trimmed, encoded query and keeps only what identifies the child', async () => {
+    const wire = [{
+      id: 42, nis: '2024001', nisn: '0012345678', school: 1, school_name: 'SMP Harapan',
+      person: { full_name: 'Budi Santoso', nik: '3174000000000001', address: 'Jl. Melati 1' },
+    }];
+    await withGet({ results: wire }, async (paths) => {
+      const found = await searchStudents('  budi s ');
+      assert.deepStrictEqual(found, [student]);
+      assert.deepStrictEqual(paths, ['/students/?status=ACTIVE&q=budi%20s']);
+    });
+  });
+
+  it('makes no request for a query too short to be a search', async () => {
+    await withGet({ results: [] }, async (paths) => {
+      assert.deepStrictEqual(await searchStudents(' b '), []);
+      assert.deepStrictEqual(paths, []);
+    });
+  });
+
+  it('falls back to the NIS when the student has no person name', async () => {
+    await withGet({ results: [{ id: 7, nis: '9', school: 1, person: null }] }, async () => {
+      assert.strictEqual((await searchStudents('9x'))[0].name, '9');
+    });
+  });
+
+  it('reads the health profile of the chosen student', async () => {
+    await withGet({ id: 1, student: 42, allergies: ['Kacang'], has_medical_alert: true }, async (paths) => {
+      assert.deepStrictEqual((await fetchStudentHealthProfile(42)).allergies, ['Kacang']);
+      assert.deepStrictEqual(paths, ['/campus/students/42/health-profile/']);
+    });
+  });
+});
+
+describe('clinic officer: recording a visit', () => {
+  it('needs a complaint and an outcome', () => {
+    assert.deepStrictEqual(validateVisitDraft(draft(), TODAY), []);
+    assert.deepStrictEqual(validateVisitDraft(draft({ complaint: '   ' }), TODAY), ['complaint']);
+    assert.deepStrictEqual(validateVisitDraft(draft({ outcome: null }), TODAY), ['outcome']);
+  });
+
+  it('accepts a decimal comma for temperature and rejects implausible or malformed vitals', () => {
+    assert.deepStrictEqual(validateVisitDraft(draft({ temperature: '37,5', pulse: '88' }), TODAY), []);
+    assert.deepStrictEqual(validateVisitDraft(draft({ temperature: '375' }), TODAY), ['temperature']);
+    assert.deepStrictEqual(validateVisitDraft(draft({ temperature: 'hangat' }), TODAY), ['temperature']);
+    assert.deepStrictEqual(validateVisitDraft(draft({ pulse: '88.5' }), TODAY), ['pulse']);
+    assert.deepStrictEqual(validateVisitDraft(draft({ pulse: '5' }), TODAY), ['pulse']);
+  });
+
+  it('medication needs a whole positive quantity within stock, and in-date stock', () => {
+    const paracetamol = stock(3, 'Paracetamol', 10, 2, '2027-01-01');
+    assert.deepStrictEqual(validateVisitDraft(draft({ medication: paracetamol, quantity: '2' }), TODAY), []);
+    assert.deepStrictEqual(validateVisitDraft(draft({ medication: paracetamol, quantity: '' }), TODAY), ['quantity']);
+    assert.deepStrictEqual(validateVisitDraft(draft({ medication: paracetamol, quantity: '0' }), TODAY), ['quantity']);
+    assert.deepStrictEqual(validateVisitDraft(draft({ medication: paracetamol, quantity: '1,5' }), TODAY), ['quantity']);
+    assert.deepStrictEqual(validateVisitDraft(draft({ medication: paracetamol, quantity: '11' }), TODAY), ['quantity_over_stock']);
+    const expired = stock(4, 'Antasida', 10, 2, '2026-09-18');
+    assert.deepStrictEqual(validateVisitDraft(draft({ medication: expired, quantity: '1' }), TODAY), ['medication_expired']);
+  });
+
+  it('builds the request with vitals as numbers and no medication or consent fields when none is given', () => {
+    const payload = buildVisitPayload(draft({ complaint: ' Pusing ', treatment: ' Istirahat ', temperature: '37,5', pulse: '88' }));
+    assert.deepStrictEqual(payload, {
+      student_id: 42, complaint: 'Pusing', treatment: 'Istirahat',
+      vitals: { temperature_c: 37.5, pulse_bpm: 88 }, outcome: 'RETURNED_TO_CLASS',
+    });
+    assert.deepStrictEqual((buildVisitPayload(draft()) as any).vitals, {});
+  });
+
+  it('sends medication, quantity and the consent the officer confirmed', () => {
+    const payload = buildVisitPayload(draft({
+      medication: stock(3, 'Paracetamol', 10, 2, null), quantity: ' 2 ', consentConfirmed: true, consentNote: ' via telepon ',
+    }));
+    assert.strictEqual(payload.medication_id, 3);
+    assert.strictEqual(payload.medication_quantity, 2);
+    assert.strictEqual(payload.guardian_consent_confirmed, true);
+    assert.strictEqual(payload.guardian_consent_note, 'via telepon');
+  });
+
+  it('offers only in-date stock of the student school, soonest expiry first', () => {
+    const list = [
+      stock(1, 'Zinc', 5, 1, '2027-06-01'),
+      stock(2, 'Oralit', 5, 1, '2026-12-01'),
+      stock(3, 'Habis', 0, 1, '2027-06-01'),
+      stock(4, 'Kadaluarsa', 5, 1, '2026-01-01'),
+      { ...stock(5, 'Sekolah lain', 5, 1, '2027-06-01'), school: 2 },
+    ];
+    assert.deepStrictEqual(dispensableStock(list, 1, TODAY).map((i) => i.name), ['Oralit', 'Zinc']);
+  });
+
+  it('posts to the clinic-visits endpoint and returns the saved visit', async () => {
+    const original = apiClient.post;
+    const calls: Array<{ path: string; body: any }> = [];
+    apiClient.post = async (path: string, body?: any): Promise<any> => {
+      calls.push({ path, body });
+      return { data: visit(9), status: 201, headers: {} };
+    };
+    try {
+      assert.strictEqual((await recordClinicVisit(draft())).id, 9);
+      assert.strictEqual(calls[0].path, '/campus/clinic-visits/');
+      assert.strictEqual(calls[0].body.student_id, 42);
+    } finally {
+      apiClient.post = original;
+    }
+  });
+
+  it('treats a 4xx as a refusal with the server reason, and anything else as not knowing', () => {
+    const refused = { response: { status: 400, data: ['Pemberian obat memerlukan persetujuan wali.'] } };
+    assert.deepStrictEqual(classifySubmitFailure(refused), {
+      kind: 'rejected', message: 'Pemberian obat memerlukan persetujuan wali.',
+    });
+    const fieldErrors = { response: { status: 400, data: { complaint: ['Wajib.'], vitals: { x: ['Salah.'] } } } };
+    assert.deepStrictEqual(classifySubmitFailure(fieldErrors), { kind: 'rejected', message: 'Wajib. Salah.' });
+    assert.deepStrictEqual(classifySubmitFailure({ response: { status: 500, data: {} } }), { kind: 'unknown' });
+    assert.deepStrictEqual(classifySubmitFailure({ response: { status: 408 } }), { kind: 'unknown' });
+    assert.deepStrictEqual(classifySubmitFailure(new TypeError('Network request failed')), { kind: 'unknown' });
+  });
+
+  it('keeps no offline queue: the visit is never handed to a queue or to storage', () => {
+    const source = readFileSync(new URL('../src/services/clinicStaff.ts', import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /import[^;]*(offlineQueue|posOfflineQueue|sqlite)/i);
   });
 });
