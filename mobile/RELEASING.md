@@ -35,7 +35,7 @@ Android signing: let EAS generate and hold the keystore on the first build (`eas
 
 ```bash
 cd mobile
-npm test && npx expo-doctor
+npm test && npm run typecheck && npx expo-doctor
 # 1. bump "version" in app.json AND package.json
 # 2. build
 npx eas-cli build --platform android --profile preview       # testers
