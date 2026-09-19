@@ -7153,6 +7153,9 @@ msgstr "From date"
 msgid "Sampai tanggal"
 msgstr "To date"
 
+msgid "Arsip (lebih dari 400 hari)"
+msgstr "Archive (older than 400 days)"
+
 msgid "Aktor"
 msgstr "Actor"
 

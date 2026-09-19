@@ -872,7 +872,8 @@ class FoundationExportStatusView(views.APIView):
 class FoundationAuditEventView(generics.ListAPIView):
     """GET /foundation/audit — cursor-paginated, filterable Audit Explorer
     over core.AuditEvent (FND-010, spec/03 §2/§5). Filters: actor, school,
-    module (action-prefix), action (exact), entity_type, entity_id, from, to.
+    module (action-prefix), action (exact), entity_type, entity_id, from, to,
+    archived=1 (events past the hot retention window, from the archive table).
     A school-scoped audit_log.read holder sees only their schools' events;
     foundation-scope holders see everything, including events with no school."""
     serializer_class = AuditEventSerializer
@@ -913,6 +914,7 @@ class FoundationAuditEventView(generics.ListAPIView):
             entity_id=params.get('entity_id'),
             from_date=params.get('from'),
             to_date=params.get('to'),
+            archived=params.get('archived') in ('1', 'true'),
         )
 
 

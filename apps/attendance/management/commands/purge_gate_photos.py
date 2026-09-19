@@ -11,7 +11,7 @@ from datetime import timedelta
 
 from django.utils import timezone
 
-from apps.attendance.models import GateEvent
+from apps.attendance.models import GateEvent, GateEventArchive
 from apps.core.locks import advisory_lock
 from apps.core.management.base import CronHostCommand
 from apps.core.models import JobRun
@@ -77,6 +77,12 @@ class Command(CronHostCommand):
                             total += count
                         else:
                             total += candidates.update(photo_key='')
+
+                # Events already moved to gate_events_archive (NFR-009) keep their photo_key
+                # until blanked here. The archive table is not tenant-scoped and this is an
+                # age-only sweep, so no per-foundation context is needed.
+                archived = GateEventArchive.objects.exclude(photo_key='').filter(occurred_at__lt=cutoff)
+                total += archived.count() if dry_run else archived.update(photo_key='')
 
                 if dry_run:
                     self.stdout.write(self.style.SUCCESS(

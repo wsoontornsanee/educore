@@ -9,6 +9,7 @@ from rest_framework.test import APITestCase
 from django.utils import timezone
 
 from apps.academic.models import AcademicYear, ClassGroup, ClassEnrollment
+from apps.core.archiving import archive_batch, policy_for
 from apps.core.models import DomainEvent
 from apps.foundation.services import get_foundation_enrolment_pipeline
 from apps.identity.models import Foundation, School, Person, Student, User
@@ -257,6 +258,29 @@ class FoundationEnrolmentPipelineTests(APITestCase):
         self.assertIn(2, grades)
         self.assertEqual(grades[2]["active"], 1)
         self.assertEqual(grades[2]["churned"], 1)
+
+    def test_pipeline_counts_status_events_moved_to_the_archive(self):
+        """NFR-009: an old admission recorded only as a DomainEvent still counts once archived."""
+        kwargs = dict(foundation_id=self.foundation_alpha.id, from_date=date(2025, 8, 1), to_date=date(2025, 8, 31))
+        baseline = get_foundation_enrolment_pipeline(**kwargs)["summary"]["total_accepted"]
+        with tenant_context(self.foundation_alpha.id):
+            person = Person.objects.create(foundation_id=self.foundation_alpha.id, full_name="Calon Arsip")
+            student = Student.objects.create(
+                foundation_id=self.foundation_alpha.id, school=self.school_a1, person=person,
+                nis="NIS-ARSIP", status=Student.STATUS_PROSPECT, target_grade_level=1,
+            )
+            event = DomainEvent.objects.create(
+                foundation_id=self.foundation_alpha.id, name='identity.student.status_changed',
+                payload={'student_id': student.id, 'old_status': Student.STATUS_PROSPECT, 'new_status': Student.STATUS_ACTIVE},
+            )
+            DomainEvent.objects.filter(id=event.id).update(occurred_at=datetime(2025, 8, 12, 10, 0, tzinfo=dt_timezone.utc))
+            Student.all_tenants.filter(id=student.id).update(created_at=datetime(2025, 6, 1, 10, 0, tzinfo=dt_timezone.utc))
+        self.assertEqual(get_foundation_enrolment_pipeline(**kwargs)["summary"]["total_accepted"], baseline + 1)
+
+        archive_batch(policy_for('core.DomainEvent'), 100, retention_days=0)
+
+        self.assertFalse(DomainEvent.objects.filter(id=event.id).exists())
+        self.assertEqual(get_foundation_enrolment_pipeline(**kwargs)["summary"]["total_accepted"], baseline + 1)
 
     def test_service_pipeline_grouped_by_grade(self):
         result = get_foundation_enrolment_pipeline(
