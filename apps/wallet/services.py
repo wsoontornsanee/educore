@@ -309,12 +309,7 @@ def process_wallet_auto_topups(foundation_id: int = None) -> dict:
                     foundation_id=config.foundation_id,
                     category=NotificationCategory.PAYMENT_DUE,
                     template_key='wallet.auto_topup.triggered',
-                    payload={
-                        'student_name': student.person.full_name if student.person else '',
-                        'topup_amount': str(config.topup_amount),
-                        'method': config.method,
-                        'va_number': intent.va_number,
-                    },
+                    payload=_auto_topup_notice_payload(student, intent),
                     school_id=school.id,
                     recipient_user=guardian.user,
                     recipient_phone=getattr(guardian.user, 'phone_e164', ''),
@@ -1206,6 +1201,23 @@ def _format_notice_date(day) -> str:
     from apps.finance.services.receipts import MONTH_NAMES_ID
 
     return f"{day.day} {MONTH_NAMES_ID[day.month]} {day.year}"
+
+
+def _auto_topup_notice_payload(student, intent: WalletTopupIntent) -> dict:
+    """Payload of `wallet.auto_topup.triggered`. ``payment_instruction`` is the one method-specific
+    phrase (a VA number means nothing for QRIS), so a single seeded body reads right for both;
+    ``topup_amount`` is the grouped figure because the copy already carries the "Rp"."""
+    if intent.method == WalletTopupMethod.VA:
+        instruction = f"transfer ke Virtual Account {intent.va_bank} {intent.va_number}"
+    else:
+        instruction = "buka menu Dompet di aplikasi EduCore untuk membayar dengan QRIS"
+    return {
+        'student_name': student.person.full_name if student.person else '',
+        'topup_amount': _format_notice_amount(intent.amount, intent.currency),
+        'method': intent.method,
+        'va_number': intent.va_number,
+        'payment_instruction': instruction,
+    }
 
 
 def _recon_notice_payload(wallet: Wallet, guardian, cases: list, detected_date, deadline_date) -> dict:
