@@ -18,6 +18,7 @@ from decimal import Decimal
 
 from django.db import transaction
 from django.utils import timezone
+from django.utils.translation import gettext as _
 
 from apps.core.services import audit
 from apps.finance.models import (
@@ -364,9 +365,7 @@ def resolve_discrepancy(
         DiscrepancyResolution.ESCALATED,
     }
     if resolution not in valid_resolutions:
-        raise ValueError(
-            f"Invalid resolution '{resolution}'. Must be one of {valid_resolutions}."
-        )
+        raise ValueError(_('Pilihan penyelesaian tidak valid.'))
 
     discrepancy = PaymentDiscrepancy.all_tenants.get(
         id=discrepancy_id,
@@ -374,7 +373,9 @@ def resolve_discrepancy(
     )
     if discrepancy.resolution != DiscrepancyResolution.PENDING:
         raise ValueError(
-            f"Discrepancy #{discrepancy_id} is already '{discrepancy.resolution}' - cannot resolve again."
+            _("Selisih #%(id)s sudah berstatus %(resolution)s dan tidak dapat diselesaikan ulang.") % {
+                'id': discrepancy_id, 'resolution': discrepancy.get_resolution_display(),
+            }
         )
 
     with transaction.atomic():
