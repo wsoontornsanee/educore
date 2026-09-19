@@ -49,6 +49,20 @@ class InvoiceViewsTests(TestCase):
             scope_id=self.foundation.id,
         )
 
+        self.admin_user = User.objects.create(
+            foundation_id=self.foundation.id,
+            phone_e164="+6281888888888",
+            email="admin@tunasbangsa.sch.id",
+            full_name="Admin Yayasan Tunas Bangsa",
+        )
+        RoleAssignment.all_tenants.create(
+            foundation_id=self.foundation.id,
+            user=self.admin_user,
+            role=RoleAssignment.ROLE_FOUNDATION_ADMIN,
+            scope_type=RoleAssignment.SCOPE_FOUNDATION,
+            scope_id=self.foundation.id,
+        )
+
         self.fee = FeeType.objects.create(
             foundation_id=self.foundation.id,
             school=self.school,
@@ -169,6 +183,8 @@ class InvoiceViewsTests(TestCase):
             currency='IDR',
             status=InvoiceStatus.ISSUED,
         )
+        # Write-off approval requires Foundation Admin authority (FIN-031).
+        self.client.force_authenticate(user=self.admin_user)
         res_wo = self.client.post(f'/api/v1/finance/invoices/{inv2.id}/write-off/', {'reason': 'Piutang tak tertagih'})
         self.assertEqual(res_wo.status_code, 200)
         self.assertEqual(res_wo.json()['status'], InvoiceStatus.WRITTEN_OFF)

@@ -45,6 +45,19 @@ class FinanceViewsTests(TestCase):
             scope_type=RoleAssignment.SCOPE_SCHOOL,
             scope_id=self.school.id,
         )
+        self.admin_user = User.objects.create(
+            foundation_id=self.foundation.id,
+            phone_e164="+628177777788",
+            email="admin@cendekia.sch.id",
+            full_name="Admin Yayasan Insan Cendekia",
+        )
+        RoleAssignment.all_tenants.create(
+            foundation_id=self.foundation.id,
+            user=self.admin_user,
+            role=RoleAssignment.ROLE_FOUNDATION_ADMIN,
+            scope_type=RoleAssignment.SCOPE_FOUNDATION,
+            scope_id=self.foundation.id,
+        )
         self.person = Person.all_tenants.create(
             foundation_id=self.foundation.id,
             nik="3471010101010001",
@@ -127,14 +140,18 @@ class FinanceViewsTests(TestCase):
                 status=DiscountStatus.PENDING_APPROVAL,
             )
 
-        # Approve discount
-        res = self.client.post(f'/api/v1/finance/discounts/{discount.id}/approve/?school_id={self.school.id}')
+        # Approval requires Foundation Admin authority (FIN-007, FND-008).
+        self.client.force_authenticate(user=self.admin_user)
+        res = self.client.post(
+            f'/api/v1/finance/discounts/{discount.id}/approve/?school_id={self.school.id}',
+            {'reason': 'Disetujui sesuai kebijakan keringanan'},
+        )
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json()['status'], DiscountStatus.APPROVED)
 
         discount.refresh_from_db()
         self.assertEqual(discount.status, DiscountStatus.APPROVED)
-        self.assertEqual(discount.approved_by, self.finance_user)
+        self.assertEqual(discount.approved_by, self.admin_user)
 
     def test_sibling_discount_policy_crud(self):
         self.client.force_authenticate(user=self.finance_user)
