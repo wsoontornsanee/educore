@@ -6,6 +6,7 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
+from apps.core.models import AuditEvent
 from apps.wallet.models import MerchantSettlementStatus
 from apps.wallet.services import (
     SettlementStateError,
@@ -126,6 +127,41 @@ class SettlementViewsTests(TestCase):
         }, format='json')
         self.assertEqual(res.status_code, 201, res.content)
         self.assertEqual(res.json()['gross'], '15000.00')
+
+    def _run_via_api(self):
+        res = self.client.post(f'/api/v1/merchants/{self.merchant.id}/settlements/run/', {
+            'period_start': self.today.isoformat(), 'period_end': self.today.isoformat(),
+        }, format='json')
+        self.assertEqual(res.status_code, 201, res.content)
+        return res.json()['id']
+
+    def test_mark_settlement_paid_via_api_freezes_it_and_is_idempotent(self):
+        self.client.force_authenticate(user=self.fx['finance_user'])
+        settlement_id = self._run_via_api()
+        url = f'/api/v1/merchants/{self.merchant.id}/settlements/{settlement_id}/mark-paid/'
+        res = self.client.post(url)
+        self.assertEqual(res.status_code, 200, res.content)
+        self.assertEqual(res.json()['status'], 'PAID')
+        paid_at = res.json()['paid_at']
+        self.assertIsNotNone(paid_at)
+        again = self.client.post(url)
+        self.assertEqual(again.status_code, 200)
+        self.assertEqual(again.json()['paid_at'], paid_at)
+        self.assertEqual(AuditEvent.objects.filter(action='wallet.merchant_settlement.paid').count(), 1)
+
+    def test_a_paid_settlement_cannot_be_run_again_via_api(self):
+        self.client.force_authenticate(user=self.fx['finance_user'])
+        settlement_id = self._run_via_api()
+        self.client.post(f'/api/v1/merchants/{self.merchant.id}/settlements/{settlement_id}/mark-paid/')
+        res = self.client.post(f'/api/v1/merchants/{self.merchant.id}/settlements/run/', {
+            'period_start': self.today.isoformat(), 'period_end': self.today.isoformat(),
+        }, format='json')
+        self.assertEqual(res.status_code, 400)
+
+    def test_mark_paid_of_an_unknown_settlement_is_404(self):
+        self.client.force_authenticate(user=self.fx['finance_user'])
+        res = self.client.post(f'/api/v1/merchants/{self.merchant.id}/settlements/999999/mark-paid/')
+        self.assertEqual(res.status_code, 404)
 
     def test_sales_endpoint_via_api(self):
         self.client.force_authenticate(user=self.fx['finance_user'])

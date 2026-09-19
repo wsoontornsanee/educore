@@ -107,6 +107,10 @@ class WalletCatalogSchoolCeilingTests(APITestCase):
         self.assertEqual(self.client.get(f'{base}/settlements/').status_code, 404)
         body = {'period_start': '2026-01-01', 'period_end': '2026-01-31'}
         self.assertEqual(self.client.post(f'{base}/settlements/run/', body, format='json').status_code, 404)
+        mark_paid = f'{base}/settlements/{self.settlement_a.id}/mark-paid/'
+        self.assertEqual(self.client.post(mark_paid).status_code, 404)
+        self.as_user(self.finance_a)
+        self.assertEqual(self.client.post(mark_paid).status_code, 200)
 
     def test_finance_officer_reads_own_merchant_sales(self):
         self.as_user(self.finance_a)

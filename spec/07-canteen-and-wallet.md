@@ -93,6 +93,7 @@ POST /pos/transactions                      (batch, idempotent) {transactions:[.
 POST /pos/transactions/:id/void             {reason}
 GET  /merchants/:id/sales?from&to
 POST /merchants/:id/settlements/run         {period}
+POST /merchants/:id/settlements/:settlement_id/mark-paid   (finance.payment.write; idempotent)
 GET  /students/:id/nutrition-summary?from&to
 ```
 

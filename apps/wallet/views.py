@@ -124,6 +124,7 @@ from apps.wallet.services import (
     invoice_reconciliation_case,
     mark_refund_donated,
     mark_refund_paid,
+    mark_settlement_paid,
     pos_session,
     pos_sync,
     process_offline_pos_batch,
@@ -463,6 +464,7 @@ class MerchantViewSet(TenantScopedCatalogViewSet):
         'create': 'school_config.write', 'update': 'school_config.write',
         'partial_update': 'school_config.write', 'destroy': 'school_config.write',
         'sales': 'finance.payment.read', 'settlements': 'finance.payment.read', 'run_settlement': 'finance.payment.write',
+        'mark_settlement_paid': 'finance.payment.write',
         'qr_charge': 'school_config.write', 'clear_qr_flag': 'school_config.write', 'static_qr': 'school_config.write',
         'qr_disputes': 'finance.payment.read', 'underpayment_signals': 'finance.payment.read',
     }
@@ -570,6 +572,19 @@ class MerchantViewSet(TenantScopedCatalogViewSet):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         generate_settlement_statement_pdf(settlement)
         return Response(MerchantSettlementSerializer(settlement).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path=r'settlements/(?P<settlement_id>\d+)/mark-paid')
+    def mark_settlement_paid(self, request, pk=None, settlement_id=None):
+        """POST /merchants/:id/settlements/:settlement_id/mark-paid/ — freeze a settlement as PAID once the
+        merchant has been paid out. Idempotent: an already PAID settlement is returned unchanged."""
+        merchant = self.get_object()
+        settlement = MerchantSettlement.objects.filter(
+            id=settlement_id, foundation_id=merchant.foundation_id, merchant=merchant, deleted_at__isnull=True,
+        ).first()
+        if settlement is None:
+            return Response({'error': _("Settlement tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        settlement = mark_settlement_paid(settlement)
+        return Response(MerchantSettlementSerializer(settlement).data)
 
 
 class SettlementStatementDownloadView(APIView):
