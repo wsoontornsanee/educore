@@ -8809,6 +8809,38 @@ msgstr "Short id printed on the sheet, e.g. KU-03"
 msgid "Upheld-dispute deductions absorbed by this run; net = gross - commission - adjustments_total"
 msgstr "Upheld-dispute deductions absorbed by this run; net = gross - commission - adjustments_total"
 
+#: apps/identity/models.py
+msgid "Admin Yayasan"
+msgstr "Foundation Admin"
+
+#: apps/identity/models.py
+msgid "Admin Sekolah"
+msgstr "School Admin"
+
+#: apps/identity/models.py
+msgid "Bendahara"
+msgstr "Finance Officer"
+
+#: apps/identity/models.py
+msgid "Konselor"
+msgstr "Counsellor"
+
+#: apps/identity/models.py
+msgid "Operator Kantin"
+msgstr "Canteen Operator"
+
+#: apps/identity/models.py
+msgid "Petugas UKS"
+msgstr "Clinic Officer"
+
+#: apps/identity/models.py
+msgid "Wali Murid"
+msgstr "Parent"
+
+#: apps/identity/models.py
+msgid "Operator Platform"
+msgstr "Platform Operator"
+
 #: apps/reporting/views.py
 msgid "Format bulan tidak valid (YYYY-MM)."
 msgstr "Invalid month format (YYYY-MM)."

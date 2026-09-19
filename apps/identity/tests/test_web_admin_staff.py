@@ -53,7 +53,7 @@ class StaffDirectoryViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self._rows(response), {'Budi Guru', 'Sari Guru'})
         budi = next(row for row in response.context['staff_rows'] if row.person.full_name == 'Budi Guru')
-        self.assertEqual(budi.role_list, [{'label': 'Teacher', 'scope': 'SMA A'}])
+        self.assertEqual(budi.role_list, [{'label': 'Guru', 'scope': 'SMA A'}])
         self.assertContains(response, 'Budi Guru')
 
     def test_user_without_school_config_read_redirected_home(self):

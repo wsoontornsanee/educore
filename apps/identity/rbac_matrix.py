@@ -30,8 +30,13 @@ SURFACE_MOBILE_STAFF = 'Mobile: staff app'
 SURFACE_MOBILE_POS = 'Mobile: POS kiosk'
 SURFACE_PARTNER_API = 'Partner API'
 
-ROLE_NAMES = dict(RoleAssignment.ROLE_CHOICES)
-TENANT_ROLES = list(ROLE_NAMES)
+TENANT_ROLES = [role for role, _label in RoleAssignment.ROLE_CHOICES]
+
+
+def _role_name(role):
+    """English role name for the sheet's column headers, whatever language the caller has active."""
+    with override('en'):
+        return str(dict(RoleAssignment.ROLE_CHOICES)[role])
 
 # App.tsx: parent -> ParentShell; canteen_operator/posMode -> POSKioskScreen;
 # every other signed-in user -> TeacherShell.
@@ -97,7 +102,7 @@ def _web_items():
 
 
 def _access_matrix(web_items):
-    rows = [['Surface', 'Menu', 'Permission', *(ROLE_NAMES[r] for r in TENANT_ROLES)]]
+    rows = [['Surface', 'Menu', 'Permission', *(_role_name(r) for r in TENANT_ROLES)]]
     for group, item in web_items:
         if item['url_name'] == COMING_SOON_URL_NAME:
             continue
@@ -115,7 +120,7 @@ def _access_matrix(web_items):
 
 def _roles_x_permissions():
     platform_roles = list(PLATFORM_ROLE_PERMISSIONS)
-    header = ['Permission', *(ROLE_NAMES[r] for r in TENANT_ROLES),
+    header = ['Permission', *(_role_name(r) for r in TENANT_ROLES),
               *(r.replace('_', ' ').title() for r in platform_roles)]
     keys = set().union(*ROLE_PERMISSIONS.values(), *PLATFORM_ROLE_PERMISSIONS.values())
     rows = [header]
@@ -149,7 +154,7 @@ def _surfaces():
     rows.append([SURFACE_WEB, 'Roles holding the menu permission (see legend below)', 'apps/identity/nav.py'])
     for surface in (SURFACE_MOBILE_PARENT, SURFACE_MOBILE_STAFF, SURFACE_MOBILE_POS):
         roles = next(m['roles'] for m in MOBILE_MENUS if m['surface'] == surface)
-        rows.append([surface, ', '.join(ROLE_NAMES[r] for r in roles), 'mobile/App.tsx, apps/identity/rbac_matrix.py'])
+        rows.append([surface, ', '.join(_role_name(r) for r in roles), 'mobile/App.tsx, apps/identity/rbac_matrix.py'])
     rows.append([SURFACE_PARTNER_API, 'API-key scopes: ' + ', '.join(PartnerApiKey.ALLOWED_SCOPES),
                  'apps/partners/models.py'])
     rows.append(['Legend', '', ''])
