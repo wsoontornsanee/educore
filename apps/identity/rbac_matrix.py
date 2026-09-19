@@ -56,8 +56,14 @@ MOBILE_MENUS = [
 
 
 def _web_cell(role, item):
-    # Web console is staff-only (nav.py docstring): a guardian never reaches it.
-    if role == ROLE_PARENT:
+    # Derived from the real gates, not asserted. A guardian never has a Staff
+    # row (console_access.py) or the foundation-admin flag, so those gated items
+    # are blank for Parent; every other item falls through to the ordinary
+    # permission check (permission=None items, e.g. the task inbox, are open to
+    # any authenticated user, guardians included).
+    if role == ROLE_PARENT and (
+        item.get('requires_staff_profile') or item.get('requires_foundation_admin')
+    ):
         return ''
     admin_only = item.get('requires_foundation_admin')
     if admin_only and role != ROLE_FOUNDATION_ADMIN:
@@ -132,12 +138,16 @@ def _menus(web_items):
 
 def _surfaces():
     rows = [['Surface', 'Audience', 'Source']]
-    rows.append([SURFACE_WEB, 'Staff roles holding the menu permission (parent excluded)', 'apps/identity/nav.py'])
+    rows.append([SURFACE_WEB, 'Roles holding the menu permission (see legend below)', 'apps/identity/nav.py'])
     for surface in (SURFACE_MOBILE_PARENT, SURFACE_MOBILE_STAFF, SURFACE_MOBILE_POS):
         roles = next(m['roles'] for m in MOBILE_MENUS if m['surface'] == surface)
         rows.append([surface, ', '.join(ROLE_NAMES[r] for r in roles), 'mobile/App.tsx, apps/identity/rbac_matrix.py'])
     rows.append([SURFACE_PARTNER_API, 'API-key scopes: ' + ', '.join(PartnerApiKey.ALLOWED_SCOPES),
                  'apps/partners/models.py'])
+    rows.append(['Legend', '', ''])
+    rows.append(['✓', 'Role holds the menu permission', ''])
+    rows.append(['✓*', 'Also requires a linked Staff profile', 'apps/identity/console_access.py'])
+    rows.append(['✓†', 'Foundation admin only', 'apps/identity/nav.py'])
     return rows
 
 

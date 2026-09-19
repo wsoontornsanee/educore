@@ -51,7 +51,7 @@ PII_REGEX_PATTERNS = (
 # Key-name-detectable types: never a regex shape, detected by dict-key name.
 CREDENTIAL_KEYS = frozenset({
     'password', 'token', 'secret', 'authorization', 'cookie',
-    'access_token', 'refresh_token', 'pin', 'cvv',
+    'access_token', 'refresh_token', 'pin', 'cvv', 'private_key',
 })
 # Biometric templates (apps.hardware.BiometricTemplate.template_ciphertext,
 # AGENTS Red Line #5) are always stored/transmitted encrypted, but any

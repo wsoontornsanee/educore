@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest import mock, skipUnless
 
 from django.test import SimpleTestCase
+from django.utils.translation import override
 
 from apps.identity import rbac_matrix
 from apps.identity.nav import NAV_GROUPS
@@ -32,14 +33,15 @@ class BuildMatrixTests(SimpleTestCase):
 
     def test_every_live_web_menu_appears_in_access_matrix(self):
         labels = {row[1] for row in self.matrix['Access Matrix'][1:]}
-        for group in NAV_GROUPS:
-            for item in group['items']:
-                if item['url_name'] == 'console:coming_soon':
-                    continue
-                self.assertTrue(
-                    any(label.endswith(str(item['label'])) for label in labels),
-                    f"{item['id']} missing from Access Matrix",
-                )
+        with override('id'):
+            for group in NAV_GROUPS:
+                for item in group['items']:
+                    if item['url_name'] == 'console:coming_soon':
+                        continue
+                    self.assertIn(
+                        f"{group['label']} > {item['label']}", labels,
+                        f"{item['id']} missing from Access Matrix",
+                    )
 
     def test_foundation_admin_only_menu_marks_dagger_for_foundation_admin_only(self):
         row = _access_row(self.matrix, 'Mitra & kunci API')
@@ -51,16 +53,30 @@ class BuildMatrixTests(SimpleTestCase):
         self.assertEqual(row['Finance Officer'], '✓*')
         self.assertEqual(row['Teacher'], '')
 
-    def test_no_permission_menu_open_to_staff_but_not_parent(self):
+    def test_no_permission_menu_open_to_every_role_including_parent(self):
+        # permission=None items pass every authenticated user (nav.py); the
+        # parent column is derived from the same gates, not asserted blank.
         row = _access_row(self.matrix, 'Kotak tugas')
         self.assertEqual(row['Teacher'], '✓')
-        self.assertEqual(row['Parent'], '')
+        self.assertEqual(row['Parent'], '✓')
 
-    def test_parent_column_blank_for_all_web_rows(self):
+    def test_parent_column_only_ticks_ungated_inbox_on_web_rows(self):
+        # A guardian has no Staff row and no admin flag, so staff-profile /
+        # foundation-admin items are blank; permission-gated items are blank
+        # because the parent role holds none of those menu permissions.
+        ticked = []
         for row in self.matrix['Access Matrix'][1:]:
             if row[0] == 'Web console':
                 cells = dict(zip(self.matrix['Access Matrix'][0], row))
-                self.assertEqual(cells['Parent'], '', row[1])
+                if cells['Parent']:
+                    ticked.append(row[1])
+        self.assertEqual(len(ticked), 1, ticked)
+        self.assertTrue(ticked[0].endswith('Kotak tugas'), ticked)
+
+    def test_surfaces_legend_explains_all_cell_markers(self):
+        cells = {cell for row in self.matrix['Surfaces'] for cell in row}
+        for marker in ('✓', '✓*', '✓†'):
+            self.assertIn(marker, cells)
 
     def test_mobile_parent_tabs_only_for_parent(self):
         row = _access_row(self.matrix, 'Wallet')
@@ -96,7 +112,7 @@ class MobileRegistryGuardTests(SimpleTestCase):
         source = (MOBILE_DIR / relpath).read_text(encoding='utf-8')
         match = re.search(rf'type {type_name} = ([^;]+);', source)
         self.assertIsNotNone(match, f'{type_name} not found in {relpath}')
-        return set(re.findall(r"'([A-Z_]+)'", match.group(1)))
+        return set(re.findall(r"'([A-Za-z_]+)'", match.group(1)))
 
     def _registry_ids(self, surface):
         return {m['id'] for m in MOBILE_MENUS if m['surface'] == surface}

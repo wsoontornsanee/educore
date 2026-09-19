@@ -10,12 +10,12 @@
 
 ## Global Constraints
 
-- Sheet ID and service account are env config (`RBAC_SHEET_ID`, `RBAC_SHEET_SERVICE_ACCOUNT_JSON`); never hardcode the sheet ID. When unset, the command exits 0 with a "not configured" message.
+- Sheet ID and service account are env config (`RBAC_SHEET_ID`, `RBAC_SHEET_SERVICE_ACCOUNT_KEY`); never hardcode the sheet ID. When unset, the command exits 0 with a "not configured" message.
 - Only config is written to the sheet: no per-user role assignments, no PII.
 - Single monolith, cron background execution, no Redis/Celery (CLAUDE.md).
 - Cron lines in `deploy/crontab` need a unique, increasing `sleep N` stagger.
 - The generator must import live RBAC data, never copy it.
-- Web console is staff-only: the `parent` column is always blank for web menus (see `apps/identity/nav.py` docstring: "a guardian must never reach a school-side console").
+- The `parent` web column is derived, not asserted: blank on `requires_staff_profile` / `requires_foundation_admin` items (a guardian has neither a Staff row nor the admin flag), otherwise the normal permission check (Parent ticks only the ungated inbox).
 - "Device" in the spec means client surface (web console / mobile parent / mobile staff / POS kiosk / partner API), not hardware classes.
 
 ---
@@ -610,4 +610,4 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 1. Google Cloud: create a service account, enable the Google Sheets API, create a JSON key.
 2. Share the sheet (`1cI0FBBzF3k1V28aNnNRSNY4CUwElqXeC88gMkDoT--Y`) with the service account email as Editor.
-3. On prod set `RBAC_SHEET_ID` and `RBAC_SHEET_SERVICE_ACCOUNT_JSON` (key JSON on one line), reinstall requirements, then run `python manage.py sync_rbac_sheet` once to verify.
+3. On prod set `RBAC_SHEET_ID` and `RBAC_SHEET_SERVICE_ACCOUNT_KEY` (key JSON on one line), reinstall requirements, then run `python manage.py sync_rbac_sheet` once to verify.

@@ -4,6 +4,7 @@ from django.utils import timezone
 
 from apps.core.locks import advisory_lock
 from apps.core.management.base import CronHostCommand
+from apps.core.models import JobRun
 from apps.identity.rbac_matrix import build_matrix
 from apps.identity.rbac_sheet import SheetNotConfigured, build_service, sync_matrix
 
@@ -18,10 +19,23 @@ class Command(CronHostCommand):
                 return
             try:
                 service = build_service()
-            except SheetNotConfigured:
-                self.stdout.write("sync_rbac_sheet: not configured (RBAC_SHEET_ID / RBAC_SHEET_SERVICE_ACCOUNT_JSON), skipping")
+            except SheetNotConfigured as exc:
+                self.stdout.write(f"sync_rbac_sheet: not configured ({exc}), skipping")
                 return
-            changed = sync_matrix(service, settings.RBAC_SHEET_ID, build_matrix(), timezone.now().isoformat())
+            # ARC-008. Created only once configured: an unconfigured dev/CI no-op is not a run.
+            job_run = JobRun.objects.create(job_name='sync_rbac_sheet', status=JobRun.STATUS_RUNNING)
+            try:
+                changed = sync_matrix(service, settings.RBAC_SHEET_ID, build_matrix(), timezone.now().isoformat())
+            except Exception as exc:
+                job_run.status = JobRun.STATUS_FAILED
+                job_run.error_text = str(exc)[:2000]
+                job_run.finished_at = timezone.now()
+                job_run.save(update_fields=['status', 'error_text', 'finished_at'])
+                raise
+            job_run.status = JobRun.STATUS_SUCCESS
+            job_run.items_processed = 1 if changed else 0  # 1 = sheet rewritten, 0 = unchanged
+            job_run.finished_at = timezone.now()
+            job_run.save(update_fields=['status', 'items_processed', 'finished_at'])
             self.stdout.write(self.style.SUCCESS(
                 "sync_rbac_sheet: sheet rewritten" if changed else "sync_rbac_sheet: unchanged, no write"
             ))

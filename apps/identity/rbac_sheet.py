@@ -23,14 +23,17 @@ def matrix_hash(matrix):
 
 
 def build_service():
-    if not settings.RBAC_SHEET_ID or not settings.RBAC_SHEET_SERVICE_ACCOUNT_JSON:
-        raise SheetNotConfigured('RBAC_SHEET_ID / RBAC_SHEET_SERVICE_ACCOUNT_JSON not set')
+    if not settings.RBAC_SHEET_ID or not settings.RBAC_SHEET_SERVICE_ACCOUNT_KEY:
+        raise SheetNotConfigured('RBAC_SHEET_ID / RBAC_SHEET_SERVICE_ACCOUNT_KEY not set')
     from google.oauth2.service_account import Credentials
     from googleapiclient.discovery import build
 
-    credentials = Credentials.from_service_account_info(
-        json.loads(settings.RBAC_SHEET_SERVICE_ACCOUNT_JSON), scopes=[_SCOPE],
-    )
+    try:
+        info = json.loads(settings.RBAC_SHEET_SERVICE_ACCOUNT_KEY)
+    except ValueError:
+        # Never chain or echo the raw value: JSONDecodeError.doc embeds it.
+        raise SheetNotConfigured('RBAC_SHEET_SERVICE_ACCOUNT_KEY is not valid JSON') from None
+    credentials = Credentials.from_service_account_info(info, scopes=[_SCOPE])
     return build('sheets', 'v4', credentials=credentials, cache_discovery=False)
 
 

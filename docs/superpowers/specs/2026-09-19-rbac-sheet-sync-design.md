@@ -22,7 +22,7 @@ Out: per-user role assignments (no PII in the sheet), editing RBAC from the shee
 Mobile menus declare no permissions in TSX, so a small explicit `MOBILE_MENUS` registry lives in this module (surface, label, roles/permission). A test parses `mobile/App.tsx` tab ids and fails when a tab is missing from the registry.
 
 ### Tabs (fully rewritten each sync)
-1. **Access Matrix** — one row per menu x surface, one column per role (8 tenant roles + platform operator). Cell: `✓`, `✓*` (needs linked Staff profile), `✓†` (foundation admin only), blank.
+1. **Access Matrix** — one row per menu x surface, one column per tenant role (Platform Operator holds only `status.write` and no menu, so it appears in the Roles x Permissions tab only). The Parent column is derived from the same gates as every other role: blank on staff-profile / foundation-admin items, otherwise the ordinary permission check (so Parent ticks only ungated items such as the task inbox). Cell: `✓`, `✓*` (needs linked Staff profile), `✓†` (foundation admin only), blank. Surfaces carries a legend for these markers.
 2. **Roles x Permissions** — every permission key vs role.
 3. **Menus** — surface, group, label, url name, permission key, extra gates, live vs coming-soon.
 4. **Surfaces** — surface, who can use it (roles or partner scopes).
@@ -31,7 +31,7 @@ Mobile menus declare no permissions in TSX, so a small explicit `MOBILE_MENUS` r
 ### `sync_rbac_sheet` management command
 `CronHostCommand`. Builds the matrix, hashes it, compares against the hash in the Meta tab; unchanged means no write. Otherwise clears and rewrites tabs via the Sheets API (`google-api-python-client` + `google-auth`, service account).
 
-Env: `RBAC_SHEET_ID`, `RBAC_SHEET_SERVICE_ACCOUNT_JSON`. Unset means the command exits 0 with a clear "not configured" message so dev/CI are unaffected.
+Env: `RBAC_SHEET_ID`, `RBAC_SHEET_SERVICE_ACCOUNT_KEY` (named `*_KEY` so Django's `HIDDEN_SETTINGS` filter masks it; malformed JSON raises `SheetNotConfigured` without echoing the value). Each configured run records a `JobRun` (ARC-008; items_processed 1 = rewritten, 0 = unchanged). Unset means the command exits 0 with a clear "not configured" message so dev/CI are unaffected.
 
 Scheduled hourly in `deploy/crontab` (next unique `sleep` stagger). RBAC only changes on deploy, so the hourly run picks changes up; run `manage.py sync_rbac_sheet` by hand for an immediate refresh.
 
