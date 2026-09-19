@@ -7,6 +7,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -344,17 +345,57 @@ class SpendRuleView(APIView):
         return Response(SpendRuleSerializer(rule).data)
 
 
+def _school_ceiling(request, permission):
+    """None = `permission` held foundation-wide; else the set of school ids the
+    user holds it in (IAM-012). The permission class only sees a school when the
+    URL or query names one, so anything addressed by id must check its own."""
+    from apps.identity.console_access import accessible_school_ids
+
+    return accessible_school_ids(request.user, get_current_foundation_id(), permission)
+
+
+def _get_terminal_in_ceiling(request, foundation_id, terminal_id, permission):
+    """The POSTerminal `terminal_id` if its merchant's school is inside the
+    user's `permission` ceiling, else None (callers answer 404)."""
+    ceiling = _school_ceiling(request, permission)
+    qs = POSTerminal.objects.filter(id=terminal_id, foundation_id=foundation_id)
+    if ceiling is not None:
+        qs = qs.filter(merchant__school_id__in=ceiling)
+    return qs.first()
+
+
 class TenantScopedCatalogViewSet(viewsets.ModelViewSet):
-    """Common tenancy-scoped queryset behaviour for merchant/product/terminal catalog data."""
+    """Common tenancy- and school-scoped queryset behaviour for merchant/product/terminal
+    catalog data. Subclasses set `school_path` (ORM path from a row to its school id):
+    rows outside the schools the actor holds the action's permission in are 404s, and a
+    create/update may not point a row at a school outside that ceiling."""
     model = None
+    school_path = None
     pagination_class = StandardCursorPagination
     permission_classes = [HasRequiredPermission]
+
+    def _action_ceiling(self):
+        permission = self.action_permissions.get(self.action)
+        return _school_ceiling(self.request, permission) if permission else set()
+
+    def target_school_id(self, validated_data):
+        """The school a create/update would put the row in (None = untouched)."""
+        return None
+
+    def _check_target(self, serializer):
+        ceiling = self._action_ceiling()
+        school_id = self.target_school_id(serializer.validated_data)
+        if ceiling is not None and school_id is not None and school_id not in ceiling:
+            raise NotFound()
 
     def get_queryset(self):
         foundation_id = get_current_foundation_id()
         if not foundation_id:
             return self.model.objects.none()
         qs = self.model.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True).order_by('-created_at')
+        ceiling = self._action_ceiling()
+        if ceiling is not None:
+            qs = qs.filter(**{f'{self.school_path}__in': ceiling})
         for param, field in getattr(self, 'filter_params', {}).items():
             value = self.request.query_params.get(param)
             if value:
@@ -362,11 +403,22 @@ class TenantScopedCatalogViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
+        self._check_target(serializer)
         serializer.save(foundation_id=get_current_foundation_id())
+
+    def perform_update(self, serializer):
+        self._check_target(serializer)
+        serializer.save()
 
 
 class MerchantViewSet(TenantScopedCatalogViewSet):
     model = Merchant
+    school_path = 'school_id'
+
+    def target_school_id(self, validated_data):
+        school = validated_data.get('school')
+        return school.id if school else None
+
     serializer_class = MerchantSerializer
     filter_params = {'school_id': 'school_id'}
     action_permissions = {
@@ -435,9 +487,13 @@ class SettlementStatementDownloadView(APIView):
 
     def get(self, request, settlement_id):
         foundation_id = get_current_foundation_id()
-        settlement = MerchantSettlement.objects.filter(
+        settlements = MerchantSettlement.objects.filter(
             id=settlement_id, foundation_id=foundation_id, deleted_at__isnull=True,
-        ).first()
+        )
+        ceiling = _school_ceiling(request, self.required_permission)
+        if ceiling is not None:
+            settlements = settlements.filter(merchant__school_id__in=ceiling)
+        settlement = settlements.first()
         if not settlement:
             return Response({'error': _("Settlement tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
         if not settlement.statement_pdf_key:
@@ -445,7 +501,16 @@ class SettlementStatementDownloadView(APIView):
         return Response(build_signed_download(settlement.statement_pdf_key))
 
 
-class ProductViewSet(TenantScopedCatalogViewSet):
+class _MerchantChildViewSet(TenantScopedCatalogViewSet):
+    """Catalog rows that belong to a merchant: their school is the merchant's."""
+    school_path = 'merchant__school_id'
+
+    def target_school_id(self, validated_data):
+        merchant = validated_data.get('merchant')
+        return merchant.school_id if merchant else None
+
+
+class ProductViewSet(_MerchantChildViewSet):
     model = Product
     serializer_class = ProductSerializer
     filter_params = {'merchant_id': 'merchant_id'}
@@ -456,7 +521,7 @@ class ProductViewSet(TenantScopedCatalogViewSet):
     }
 
 
-class POSTerminalViewSet(TenantScopedCatalogViewSet):
+class POSTerminalViewSet(_MerchantChildViewSet):
     model = POSTerminal
     serializer_class = POSTerminalSerializer
     filter_params = {'merchant_id': 'merchant_id'}
@@ -467,7 +532,7 @@ class POSTerminalViewSet(TenantScopedCatalogViewSet):
     }
 
 
-class POSTransactionViewSet(TenantScopedCatalogViewSet):
+class POSTransactionViewSet(_MerchantChildViewSet):
     model = POSTransaction
     serializer_class = POSTransactionSerializer
     filter_params = {'merchant_id': 'merchant_id', 'student_id': 'student_id', 'terminal_id': 'terminal_id'}
@@ -497,7 +562,7 @@ class POSTransactionViewSet(TenantScopedCatalogViewSet):
         payload = POSBatchCreateSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
 
-        terminal = POSTerminal.objects.filter(id=payload.validated_data['terminal_id'], foundation_id=foundation_id).first()
+        terminal = _get_terminal_in_ceiling(request, foundation_id, payload.validated_data['terminal_id'], 'wallet.topup.write')
         if not terminal:
             return Response({'error': _("Terminal tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
@@ -511,7 +576,7 @@ class POSTransactionViewSet(TenantScopedCatalogViewSet):
         payload.is_valid(raise_exception=True)
         data = payload.validated_data
 
-        terminal = POSTerminal.objects.filter(id=data['terminal_id'], foundation_id=foundation_id).first()
+        terminal = _get_terminal_in_ceiling(request, foundation_id, data['terminal_id'], 'wallet.topup.write')
         if not terminal:
             return Response({'error': _("Terminal tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
         student = Student.objects.filter(id=data['student_id'], foundation_id=foundation_id).first()
@@ -555,10 +620,21 @@ class POSSessionView(APIView):
         foundation_id = get_current_foundation_id()
         payload = POSSessionSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
-        terminal = POSTerminal.objects.filter(id=payload.validated_data['terminal_id'], foundation_id=foundation_id).first()
+        terminal = _get_terminal_in_ceiling(request, foundation_id, payload.validated_data['terminal_id'], 'wallet.topup.read')
         if not terminal:
             return Response({'error': _("Terminal tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
         return Response(pos_session(terminal))
+
+
+def _get_qr_session_in_ceiling(request, session_id, permission):
+    """The terminal-side QR session if its merchant's school is inside the user's ceiling."""
+    qs = POSQRSession.objects.filter(
+        id=session_id, foundation_id=get_current_foundation_id(), deleted_at__isnull=True,
+    )
+    ceiling = _school_ceiling(request, permission)
+    if ceiling is not None:
+        qs = qs.filter(merchant__school_id__in=ceiling)
+    return qs.first()
 
 
 def _qr_error_response(error: QRChargeError):
@@ -574,9 +650,7 @@ class QRSessionCreateView(APIView):
         foundation_id = get_current_foundation_id()
         payload = QRSessionCreateSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
-        terminal = POSTerminal.objects.filter(
-            id=payload.validated_data['terminal_id'], foundation_id=foundation_id, deleted_at__isnull=True,
-        ).select_related('merchant').first()
+        terminal = _get_terminal_in_ceiling(request, foundation_id, payload.validated_data['terminal_id'], self.required_permission)
         if not terminal:
             return Response({'error': _("Terminal tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
         try:
@@ -596,9 +670,7 @@ class QRSessionDetailView(APIView):
     required_permission = 'wallet.topup.write'
 
     def delete(self, request, session_id):
-        session = POSQRSession.objects.filter(
-            id=session_id, foundation_id=get_current_foundation_id(), deleted_at__isnull=True,
-        ).first()
+        session = _get_qr_session_in_ceiling(request, session_id, self.required_permission)
         if not session:
             return Response({'error': _("Sesi QR tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
         cancel_qr_session(session)
@@ -611,9 +683,7 @@ class QRSessionResultView(APIView):
     required_permission = 'wallet.topup.write'
 
     def get(self, request, session_id):
-        session = POSQRSession.objects.filter(
-            id=session_id, foundation_id=get_current_foundation_id(), deleted_at__isnull=True,
-        ).first()
+        session = _get_qr_session_in_ceiling(request, session_id, self.required_permission)
         if not session:
             return Response({'error': _("Sesi QR tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
         result = get_qr_session_result(session)
@@ -699,7 +769,7 @@ class POSSyncView(APIView):
         foundation_id = get_current_foundation_id()
         payload = POSSyncQuerySerializer(data=request.query_params)
         payload.is_valid(raise_exception=True)
-        terminal = POSTerminal.objects.filter(id=payload.validated_data['terminal_id'], foundation_id=foundation_id).first()
+        terminal = _get_terminal_in_ceiling(request, foundation_id, payload.validated_data['terminal_id'], 'wallet.topup.read')
         if not terminal:
             return Response({'error': _("Terminal tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
         return Response(pos_sync(terminal, since_cursor=payload.validated_data.get('cursor')))
