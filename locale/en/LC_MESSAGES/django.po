@@ -7907,3 +7907,38 @@ msgstr "Choose an action"
 
 msgid "Alasan penolakan"
 msgstr "Rejection reason"
+
+#: frontend/templates/pages/academic_timetable.html
+msgid "Pekan"
+msgstr "Week"
+
+#: frontend/templates/pages/academic_timetable.html
+msgid "Pekan sebelumnya"
+msgstr "Previous week"
+
+#: frontend/templates/pages/academic_timetable.html
+msgid "Pekan berikutnya"
+msgstr "Next week"
+
+#: frontend/templates/pages/academic_timetable.html
+msgid "Pekan ini"
+msgstr "This week"
+
+#: frontend/templates/pages/academic_timetable.html
+msgid "menunggu konfirmasi"
+msgstr "awaiting confirmation"
+
+#: frontend/templates/pages/academic_timetable.html
+#, python-format
+msgid "Menggantikan %(name)s"
+msgstr "Covering for %(name)s"
+
+#: frontend/templates/pages/academic_timetable.html
+#, python-format
+msgid "Digantikan %(name)s"
+msgstr "Covered by %(name)s"
+
+#: frontend/templates/pages/academic_timetable.html
+#, python-format
+msgid "Pengganti %(name)s"
+msgstr "Substitute for %(name)s"
