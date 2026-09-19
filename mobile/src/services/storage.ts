@@ -29,10 +29,20 @@ export const StorageKeys = {
   BIOMETRIC_ENABLED: 'educore_biometric_enabled',
 };
 
+/**
+ * expo-secure-store accepts only alphanumerics, '.', '-' and '_' in a key and throws on anything else
+ * (our keys use ':' as a separator). The throw was swallowed by the fallback below, so those values
+ * lived in memory only and vanished on restart: a terminal's offline-QR pairing among them.
+ * Every other character becomes `_x<hex>_` (a collision needs a key that literally contains that text).
+ */
+export function secureStoreKey(key: string): string {
+  return key.replace(/[^A-Za-z0-9._-]/g, (c) => `_x${c.charCodeAt(0).toString(16)}_`);
+}
+
 export async function setItem(key: string, value: string): Promise<void> {
   if (SecureStore && typeof SecureStore.setItemAsync === 'function') {
     try {
-      await SecureStore.setItemAsync(key, value);
+      await SecureStore.setItemAsync(secureStoreKey(key), value);
       return;
     } catch {
       // Fallback if secure store fails
@@ -44,7 +54,7 @@ export async function setItem(key: string, value: string): Promise<void> {
 export async function getItem(key: string): Promise<string | null> {
   if (SecureStore && typeof SecureStore.getItemAsync === 'function') {
     try {
-      const val = await SecureStore.getItemAsync(key);
+      const val = await SecureStore.getItemAsync(secureStoreKey(key));
       if (val !== null) return val;
     } catch {
       // Fallback
@@ -56,7 +66,7 @@ export async function getItem(key: string): Promise<string | null> {
 export async function removeItem(key: string): Promise<void> {
   if (SecureStore && typeof SecureStore.deleteItemAsync === 'function') {
     try {
-      await SecureStore.deleteItemAsync(key);
+      await SecureStore.deleteItemAsync(secureStoreKey(key));
     } catch {
       // Fallback
     }
