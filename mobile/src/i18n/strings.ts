@@ -43,6 +43,17 @@ export const strings: StringMap = {
   'common.notes':        { 'id-ID': 'Catatan',                 'en-US': 'Notes' },
   'common.unlimited':    { 'id-ID': 'Tanpa Batas',             'en-US': 'Unlimited' },
 
+  // ── Role names (RoleAssignment.role; persona terms per spec/00-overview §2) ─
+  'role.foundation_admin':  { 'id-ID': 'Admin Yayasan',    'en-US': 'Foundation Admin' },
+  'role.school_admin':      { 'id-ID': 'Admin Sekolah',    'en-US': 'School Admin' },
+  'role.finance_officer':   { 'id-ID': 'Bendahara',        'en-US': 'Finance Officer' },
+  'role.teacher':           { 'id-ID': 'Guru',             'en-US': 'Teacher' },
+  'role.counsellor':        { 'id-ID': 'Guru BK',          'en-US': 'Counsellor' },
+  'role.canteen_operator':  { 'id-ID': 'Operator Kantin',  'en-US': 'Canteen Operator' },
+  'role.clinic_officer':    { 'id-ID': 'Petugas UKS',      'en-US': 'Clinic Officer' },
+  'role.parent':            { 'id-ID': 'Wali Murid',       'en-US': 'Parent / Guardian' },
+  'role.unknown':           { 'id-ID': 'Staf',             'en-US': 'Staff' },
+
   // ── Stale / Offline Banner ────────────────────────────────────────
   'banner.offline_title':  { 'id-ID': 'Mode Offline Aktif',                'en-US': 'Offline Mode Active' },
   'banner.pending_title':  { 'id-ID': 'Presensi Menunggu Sinkron',         'en-US': 'Pending Synchronization' },
