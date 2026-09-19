@@ -15,7 +15,15 @@ from django.conf import settings
 from django.test import TestCase
 
 from apps.wallet.models import SpendRule
-from apps.wallet.services import get_or_create_wallet, pos_session, pos_sync, topup_wallet
+from apps.wallet.services import (
+    attach_receipts_to_batch_report,
+    get_or_create_wallet,
+    pos_session,
+    pos_sync,
+    process_offline_pos_batch,
+    topup_wallet,
+)
+from apps.wallet.tests.test_offline_sync import batch_item
 from apps.wallet.tests.test_pos_checkout import build_pos_fixture
 from apps.wallet.tests.test_wallet_core import build_wallet_fixture
 
@@ -70,3 +78,25 @@ class POSMobileContractTests(TestCase):
             data = self._fixture(name)
             for key in lists:
                 self.assertTrue(data[key], f'{name}: {key} is empty')
+
+    def test_batch_report_field_names_match_the_mobile_fixture(self):
+        # An accepted sale and a refused one (OFFLINE_FLOOR_EXCEEDED): the kiosk keeps the refused one queued.
+        student_id = self.fx['student'].id
+        # setUp's rule has a purchase window, which would make the accepted sale depend on the time of day.
+        SpendRule.objects.filter(student_id=student_id).update(
+            allowed_window_start=None, allowed_window_end=None, daily_limit=None, blocked_categories=[], blocked_products=[],
+        )
+        report = attach_receipts_to_batch_report(self.terminal, process_offline_pos_batch(self.terminal, [
+            batch_item(self.product.sku, self.product.name, 'contract-ok', student_id=student_id),
+            batch_item(self.product.sku, self.product.name, 'contract-refused', unit_price='900000.00', student_id=student_id),
+        ]))
+        ok, refused = report['results']
+        expected_ok, _reconciled, expected_refused = self._fixture('pos_batch.json')['results']
+        self.assertEqual(ok['status'], 'COMPLETED')
+        self.assertEqual(set(ok), set(expected_ok))
+        self.assertEqual(refused['status'], 'OFFLINE_FLOOR_EXCEEDED')
+        self.assertEqual(set(refused), set(expected_refused))
+
+    def test_roster_carries_nis_and_nisn_for_lookup(self):
+        row = pos_session(self.terminal)['roster'][0]
+        self.assertEqual((row['nis'], row['nisn']), (self.fx['student'].nis, self.fx['student'].nisn))

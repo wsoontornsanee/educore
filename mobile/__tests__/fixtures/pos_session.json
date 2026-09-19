@@ -3,6 +3,8 @@
     {
       "student_id": 1,
       "name": "Dimas",
+      "nis": "SD-001",
+      "nisn": "1234567890",
       "photo_key": "",
       "wallet_balance": "100000.00",
       "daily_limit": null,
