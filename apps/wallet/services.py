@@ -3,7 +3,7 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Any, Dict, Optional
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Sum
 from django.utils import timezone
 
@@ -76,6 +76,7 @@ def get_or_create_wallet(student) -> Wallet:
 
 
 def _get_locked_wallet(wallet_id, foundation_id):
+    # Lock order for money paths: wallet, then sale (see memory/00_CORE.md section 5). Never the reverse.
     return Wallet.objects.select_for_update().get(id=wallet_id, foundation_id=foundation_id)
 
 
@@ -105,6 +106,14 @@ def record_wallet_transaction(
         raise CurrencyMismatchError(f"CURRENCY_MISMATCH: wallet is {wallet.currency}, transaction is {currency}.")
 
     locked_wallet = _get_locked_wallet(wallet.id, wallet.foundation_id)
+
+    # The check above ran before we held the wallet lock. A duplicate request may have committed while we
+    # waited for it; a plain read would still show this transaction's older snapshot, a locking read does not.
+    existing = WalletTransaction.objects.select_for_update().filter(
+        foundation_id=wallet.foundation_id, wallet=wallet, idempotency_key=idempotency_key,
+    ).first()
+    if existing:
+        return existing
 
     if locked_wallet.status != WalletStatus.ACTIVE:
         raise WalletNotActiveError(f"WALLET_NOT_ACTIVE: wallet is {locked_wallet.status}.")
@@ -525,12 +534,23 @@ def process_pos_transaction(terminal, student, items, client_transaction_id, occ
         )
         raise
 
-    pos_tx = POSTransaction.objects.create(
-        foundation_id=terminal.foundation_id, merchant=merchant, terminal=terminal, student=student,
-        items=items, subtotal=subtotal, commission=commission, total=subtotal,
-        occurred_at=occurred_at, status=POSTransactionStatus.COMPLETED,
-        client_transaction_id=client_transaction_id, wallet_transaction=wallet_tx,
-    )
+    try:
+        with transaction.atomic():
+            pos_tx = POSTransaction.objects.create(
+                foundation_id=terminal.foundation_id, merchant=merchant, terminal=terminal, student=student,
+                items=items, subtotal=subtotal, commission=commission, total=subtotal,
+                occurred_at=occurred_at, status=POSTransactionStatus.COMPLETED,
+                client_transaction_id=client_transaction_id, wallet_transaction=wallet_tx,
+            )
+    except IntegrityError:
+        # A duplicate submission won the race for this client_transaction_id after the check above. The debit
+        # was idempotent on the same key, so there is exactly one sale: hand it to this request too.
+        winner = POSTransaction.objects.filter(
+            foundation_id=terminal.foundation_id, terminal=terminal, client_transaction_id=client_transaction_id,
+        ).first()
+        if winner is None:
+            raise
+        return winner
     audit(
         action='wallet.pos_transaction.completed',
         entity_type='POSTransaction',
@@ -1086,21 +1106,33 @@ def process_offline_pos_batch(terminal, transactions: list) -> dict:
 
         # REC-001: the debit, the POS row, and the reconciliation case (if any) commit
         # or roll back together.
-        with transaction.atomic():
-            wallet_tx = record_wallet_transaction(
-                wallet, WalletTransactionType.PURCHASE, -subtotal, client_transaction_id,
-                reference=f"POS-OFFLINE:{merchant.name}", occurred_at=occurred_at, allow_negative=True,
-            )
-            pos_tx = POSTransaction.objects.create(
-                foundation_id=terminal.foundation_id, merchant=merchant, terminal=terminal, student=student,
-                items=items, subtotal=subtotal, commission=commission, total=subtotal, occurred_at=occurred_at,
-                status=POSTransactionStatus.COMPLETED, offline_created=True,
-                client_transaction_id=client_transaction_id, wallet_transaction=wallet_tx,
-                qr_offline_key=qr_offline_key, qr_offline_nonce=qr_offline_nonce,
-            )
-            if wallet_tx.status == WalletTransactionStatus.RECONCILE_REQUIRED:
-                create_reconciliation_case(wallet_tx, pos_transaction=pos_tx)
-                wallets_needing_notice[wallet.id] = wallet
+        try:
+            with transaction.atomic():
+                wallet_tx = record_wallet_transaction(
+                    wallet, WalletTransactionType.PURCHASE, -subtotal, client_transaction_id,
+                    reference=f"POS-OFFLINE:{merchant.name}", occurred_at=occurred_at, allow_negative=True,
+                )
+                pos_tx = POSTransaction.objects.create(
+                    foundation_id=terminal.foundation_id, merchant=merchant, terminal=terminal, student=student,
+                    items=items, subtotal=subtotal, commission=commission, total=subtotal, occurred_at=occurred_at,
+                    status=POSTransactionStatus.COMPLETED, offline_created=True,
+                    client_transaction_id=client_transaction_id, wallet_transaction=wallet_tx,
+                    qr_offline_key=qr_offline_key, qr_offline_nonce=qr_offline_nonce,
+                )
+                if wallet_tx.status == WalletTransactionStatus.RECONCILE_REQUIRED:
+                    create_reconciliation_case(wallet_tx, pos_transaction=pos_tx)
+                    wallets_needing_notice[wallet.id] = wallet
+        except IntegrityError:
+            # The same batch is being synced twice at once and the other run committed this item first (its
+            # whole block, debit included, is already in). Report the sale it created and carry on, instead of
+            # failing the rest of this batch.
+            winner = POSTransaction.objects.filter(
+                foundation_id=terminal.foundation_id, terminal=terminal, client_transaction_id=client_transaction_id,
+            ).first()
+            if winner is None:
+                raise
+            results.append({'client_transaction_id': client_transaction_id, 'status': winner.status})
+            continue
 
         results.append({'client_transaction_id': client_transaction_id, 'status': wallet_tx.status})
 
