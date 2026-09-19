@@ -13,6 +13,7 @@ from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.html import escape
 from django.utils.translation import gettext as _, gettext_lazy as _lazy
 from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
@@ -524,11 +525,27 @@ class DecalPDFWebView(StaffConsoleMixin, APIView):
             except DecalError as exc:
                 messages.error(request, exc.message)
                 return redirect(_points_url(school))
-        ext = 'pdf' if content_type == 'application/pdf' else 'html'
-        response = HttpResponse(data, content_type=content_type)
-        response['Content-Disposition'] = f'attachment; filename="{decal.human_id}.{ext}"'
+        if content_type == 'application/pdf':
+            response = HttpResponse(data, content_type=content_type)
+            response['Content-Disposition'] = f'attachment; filename="{decal.human_id}.pdf"'
+        else:
+            # weasyprint is unusable on this host: show the printable sheet in the tab, with a screen-only
+            # notice, rather than a silent .html download the operator would mistake for the PDF.
+            response = HttpResponse(_with_fallback_notice(data.decode('utf-8')), content_type=content_type)
         response['Cache-Control'] = 'no-store'
         return response
+
+
+def _with_fallback_notice(html):
+    notice = escape(_("PDF belum tersedia di server ini, jadi lembar ditampilkan sebagai halaman cetak. "
+                      "Cetak dengan Ctrl/Cmd+P (kertas A4, tanpa margin) atau hubungi admin."))
+    banner = (
+        '<style>@media print { .pdf-fallback-notice { display: none } }</style>'
+        '<div class="pdf-fallback-notice" role="alert" style="position:fixed;top:0;left:0;right:0;z-index:1;'
+        'padding:8px 14px;font:14px Arial,sans-serif;background:#fff3cd;color:#664d03;'
+        f'border-bottom:1px solid #664d03">{notice}</div>'
+    )
+    return html.replace('<body>', '<body>' + banner, 1)
 
 
 class _CounterMixin(StaffConsoleMixin):
