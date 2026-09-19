@@ -8,7 +8,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ("identity", "0016_school_qr_self_amount_max"),
-        ("wallet", "0011_qr_disputes"),
+        ("wallet", "0012_static_qr_decals"),
     ]
 
     operations = [
