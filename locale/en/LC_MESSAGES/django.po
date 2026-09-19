@@ -9110,3 +9110,120 @@ msgstr "Pengecualian admin sekolah (School admin override)"
 #: apps/notifications/models.py
 msgid "Penjemputan oleh Penjemput Tidak Terdaftar (Pickup Override)"
 msgstr "Penjemputan oleh Penjemput Tidak Terdaftar (Pickup Override)"
+
+#: frontend/templates/pages/pickup_console_page.html
+msgid "Penjemputan siswa — EduCore"
+msgstr "Student pickup — EduCore"
+
+#: frontend/templates/pages/pickup_console_page.html
+msgid "Penjemputan siswa"
+msgstr "Student pickup"
+
+#: frontend/templates/pages/pickup_console_page.html
+msgid "Verifikasi kode QR penjemput"
+msgstr "Verify the pickup QR code"
+
+#: frontend/templates/pages/pickup_console_page.html
+msgid "Kode QR (pindai atau tempel)"
+msgstr "QR code (scan or paste)"
+
+#: frontend/templates/pages/pickup_console_page.html
+msgid "Periksa"
+msgstr "Check"
+
+#: frontend/templates/pages/pickup_console_page.html
+msgid "Tidak ada foto"
+msgstr "No photo"
+
+#: frontend/templates/pages/pickup_console_page.html
+msgid "Kode valid"
+msgstr "Valid code"
+
+#: frontend/templates/pages/pickup_console_page.html
+msgid "Telepon berakhiran"
+msgstr "Phone ending in"
+
+#: frontend/templates/pages/pickup_console_page.html
+msgid "Menjemput"
+msgstr "Collecting"
+
+#: frontend/templates/pages/pickup_console_page.html
+msgid "sekali pakai"
+msgstr "single use"
+
+#: frontend/templates/pages/pickup_console_page.html
+msgid "Serahkan siswa"
+msgstr "Release the student"
+
+#: frontend/templates/pages/pickup_console_page.html
+msgid "Cari siswa"
+msgstr "Find a student"
+
+#: frontend/templates/pages/pickup_console_page.html
+msgid "Wali yang boleh menjemput"
+msgstr "Guardians allowed to collect"
+
+#: frontend/templates/pages/pickup_console_page.html
+msgid "Serahkan siswa ini kepada wali tersebut?"
+msgstr "Release this student to that guardian?"
+
+#: frontend/templates/pages/pickup_console_page.html
+msgid "Serahkan"
+msgstr "Release"
+
+#: frontend/templates/pages/pickup_console_page.html
+msgid "Belum ada wali yang terdaftar boleh menjemput."
+msgstr "No registered guardian is allowed to collect yet."
+
+#: frontend/templates/pages/pickup_console_page.html
+msgid "Otorisasi penjemputan aktif"
+msgstr "Active pickup authorisations"
+
+#: frontend/templates/pages/pickup_console_page.html
+msgid "Cabut otorisasi ini? Kode QR-nya tidak akan berlaku lagi."
+msgstr "Revoke this authorisation? Its QR code will stop working."
+
+#: frontend/templates/pages/pickup_console_page.html
+msgid "Tidak ada otorisasi penjemputan yang aktif."
+msgstr "There are no active pickup authorisations."
+
+#: frontend/templates/pages/pickup_console_page.html
+msgid "Serahkan siswa kepada orang yang tidak terdaftar? Admin sekolah akan diberi tahu dan tindakan ini tercatat di jejak audit."
+msgstr "Release the student to someone who is not registered? School admins will be notified and this is recorded in the audit trail."
+
+#: frontend/templates/pages/pickup_console_page.html
+msgid "Pengecualian: penjemput tidak terdaftar"
+msgstr "Exception: unregistered person collecting"
+
+#: frontend/templates/pages/pickup_console_page.html
+msgid "Nama penjemput"
+msgstr "Name of the person collecting"
+
+#: frontend/templates/pages/pickup_console_page.html
+msgid "Alasan tertulis"
+msgstr "Written reason"
+
+#: frontend/templates/pages/pickup_console_page.html
+msgid "Serahkan dengan pengecualian"
+msgstr "Release as an exception"
+
+#: frontend/templates/pages/pickup_console_page.html
+msgid "Foto penjemput"
+msgstr "Photo of the person collecting"
+
+#: apps/attendance
+#, python-format
+msgid "%(name)s diserahkan kepada %(person)s."
+msgstr "%(name)s was released to %(person)s."
+
+#: apps/attendance
+msgid "Foto tidak valid: unggah foto penjemput terlebih dahulu dan pastikan unggahannya sudah dikonfirmasi."
+msgstr "Invalid photo: upload the photo of the person collecting first and make sure the upload is confirmed."
+
+#: apps/attendance
+msgid "Otorisasi penjemputan dicabut."
+msgstr "Pickup authorisation revoked."
+
+#: apps/attendance
+msgid "Penjemputan dengan pengecualian dicatat dan diberitahukan ke admin sekolah."
+msgstr "The exception pickup was recorded and the school admins were notified."

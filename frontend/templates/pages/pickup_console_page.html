@@ -1,0 +1,149 @@
+{% extends "base_console.html" %}
+{% load i18n %}
+
+{% comment %}
+Page: Penjemputan siswa (spec/05 §5, ATT-014..ATT-018).
+Gate staff verify a pickup QR before releasing the student, release to a guardian on
+file, withdraw a lost authorisation, and (pickup.override) release to anyone else with
+a written reason. Served by apps.attendance.pickup_web_views at /web/attendance/pickup/.
+{% endcomment %}
+
+{% block title %}{% translate "Penjemputan siswa — EduCore" %}{% endblock %}
+
+{% block console_content %}
+{% include "components/_console_ui.html" %}
+<main class="cn-page">
+  <div class="cn-head">
+    <div>
+      <span class="cn-eyebrow">{% translate "Operasional" %}</span>
+      <h1 class="cn-title">{% translate "Penjemputan siswa" %}</h1>
+    </div>
+    {% include "components/_console_school_select.html" with schools=schools school=school %}
+  </div>
+
+  {% include "components/_console_flash.html" %}
+
+  {% if school %}
+    <section class="cn-section" aria-labelledby="pk-verify-h">
+      <h2 id="pk-verify-h">{% translate "Verifikasi kode QR penjemput" %}</h2>
+      <form method="post" action="{% url 'attendance-pickup-console-verify' %}?school_id={{ school.id }}" style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;padding:16px">
+        {% csrf_token %}
+        <div style="flex:1;min-width:260px;display:flex;flex-direction:column;gap:6px">
+          <label class="cn-eyebrow" for="pk-token">{% translate "Kode QR (pindai atau tempel)" %}</label>
+          <input class="cn-select" id="pk-token" name="qr_token" required autocomplete="off" autofocus>
+        </div>
+        <button type="submit" class="btn btn-primary">{% translate "Periksa" %}</button>
+      </form>
+
+      {% if verification %}
+        <div class="card" style="margin:0 16px 16px;padding:16px;display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start">
+          {% if verification.photo_url %}
+            <img src="{{ verification.photo_url }}" alt="{% translate 'Foto penjemput' %}" width="140" height="140" style="object-fit:cover;border:1px solid #E5DDD9">
+          {% else %}
+            <div class="cn-empty" style="width:140px;height:140px;padding:8px;display:flex;align-items:center;justify-content:center;border:1px dashed #E5DDD9">{% translate "Tidak ada foto" %}</div>
+          {% endif %}
+          <div style="flex:1;min-width:240px;display:flex;flex-direction:column;gap:6px">
+            <span class="cn-badge is-ok">{% translate "Kode valid" %}</span>
+            <strong style="font-size:18px">{{ verification.person_name }}</strong>
+            {% if verification.relation %}<span>{{ verification.relation }}</span>{% endif %}
+            {% if verification.phone_last4 %}<span>{% translate "Telepon berakhiran" %} {{ verification.phone_last4 }}</span>{% endif %}
+            <span>{% translate "Menjemput" %}: <strong>{{ verification.student_name }}</strong></span>
+            <span>{% translate "Berlaku" %} {{ verification.valid_from|date:"d M H:i" }} – {{ verification.valid_to|date:"d M H:i" }}{% if verification.one_time %} · {% translate "sekali pakai" %}{% endif %}</span>
+            <form method="post" action="{% url 'attendance-pickup-console-release' %}?school_id={{ school.id }}" style="margin-top:8px">
+              {% csrf_token %}
+              <input type="hidden" name="authorization_id" value="{{ verification.authorization_id }}">
+              <button type="submit" class="btn btn-primary">{% translate "Serahkan siswa" %}</button>
+            </form>
+          </div>
+        </div>
+      {% endif %}
+    </section>
+
+    <section class="cn-section" aria-labelledby="pk-student-h">
+      <h2 id="pk-student-h">{% translate "Cari siswa" %}</h2>
+      <form method="get" style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;padding:16px">
+        <input type="hidden" name="school_id" value="{{ school.id }}">
+        <div style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:6px">
+          <label class="cn-eyebrow" for="pk-nis">{% translate "NIS siswa" %}</label>
+          <input class="cn-select" id="pk-nis" name="nis" maxlength="32" autocomplete="off" value="{{ nis }}">
+        </div>
+        <button type="submit" class="btn">{% translate "Cari" %}</button>
+      </form>
+
+      {% if student %}
+        <div style="padding:0 16px 16px;display:flex;flex-direction:column;gap:20px">
+          <strong style="font-size:18px">{{ student.person.full_name }}</strong>
+
+          <div>
+            <h3 class="cn-eyebrow">{% translate "Wali yang boleh menjemput" %}</h3>
+            {% if guardian_links %}
+              <div class="cn-table-wrap"><table class="cn-table"><tbody>
+                {% for link in guardian_links %}
+                  <tr>
+                    <td>{{ link.guardian.person.full_name }}</td>
+                    <td style="text-align:right">
+                      <form method="post" action="{% url 'attendance-pickup-console-release' %}?school_id={{ school.id }}" onsubmit="return confirm('{% translate "Serahkan siswa ini kepada wali tersebut?" %}')">
+                        {% csrf_token %}
+                        <input type="hidden" name="nis" value="{{ student.nis }}">
+                        <input type="hidden" name="guardian_id" value="{{ link.guardian_id }}">
+                        <button type="submit" class="btn">{% translate "Serahkan" %}</button>
+                      </form>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody></table></div>
+            {% else %}
+              <div class="cn-empty">{% translate "Belum ada wali yang terdaftar boleh menjemput." %}</div>
+            {% endif %}
+          </div>
+
+          <div>
+            <h3 class="cn-eyebrow">{% translate "Otorisasi penjemputan aktif" %}</h3>
+            {% if authorizations %}
+              <div class="cn-table-wrap"><table class="cn-table"><tbody>
+                {% for item in authorizations %}
+                  <tr>
+                    <td><strong>{{ item.row.person_name }}</strong>{% if item.row.relation %}<br>{{ item.row.relation }}{% endif %}</td>
+                    <td>{{ item.row.valid_from|date:"d M H:i" }} – {{ item.row.valid_to|date:"d M H:i" }}</td>
+                    <td><span class="cn-badge {% if item.status == 'ACTIVE' %}is-ok{% else %}is-warn{% endif %}">{{ item.status }}</span></td>
+                    <td style="text-align:right;display:flex;gap:8px;justify-content:flex-end">
+                      <form method="post" action="{% url 'attendance-pickup-console-verify' %}?school_id={{ school.id }}">
+                        {% csrf_token %}
+                        <input type="hidden" name="authorization_id" value="{{ item.row.id }}">
+                        <button type="submit" class="btn">{% translate "Periksa" %}</button>
+                      </form>
+                      <form method="post" action="{% url 'attendance-pickup-console-revoke' %}?school_id={{ school.id }}" onsubmit="return confirm('{% translate "Cabut otorisasi ini? Kode QR-nya tidak akan berlaku lagi." %}')">
+                        {% csrf_token %}
+                        <input type="hidden" name="authorization_id" value="{{ item.row.id }}">
+                        <input type="hidden" name="nis" value="{{ student.nis }}">
+                        <button type="submit" class="btn">{% translate "Cabut" %}</button>
+                      </form>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody></table></div>
+            {% else %}
+              <div class="cn-empty">{% translate "Tidak ada otorisasi penjemputan yang aktif." %}</div>
+            {% endif %}
+          </div>
+
+          {% if can_override %}
+            <form method="post" action="{% url 'attendance-pickup-console-override' %}?school_id={{ school.id }}" style="display:flex;flex-direction:column;gap:10px;max-width:480px" onsubmit="return confirm('{% translate "Serahkan siswa kepada orang yang tidak terdaftar? Admin sekolah akan diberi tahu dan tindakan ini tercatat di jejak audit." %}')">
+              {% csrf_token %}
+              <input type="hidden" name="nis" value="{{ student.nis }}">
+              <strong>{% translate "Pengecualian: penjemput tidak terdaftar" %}</strong>
+              <label class="cn-eyebrow" for="pk-by">{% translate "Nama penjemput" %}</label>
+              <input class="cn-select" id="pk-by" name="picked_up_by" required maxlength="120">
+              <label class="cn-eyebrow" for="pk-reason">{% translate "Alasan tertulis" %}</label>
+              <input class="cn-select" id="pk-reason" name="reason" required>
+              <button type="submit" class="btn btn-primary">{% translate "Serahkan dengan pengecualian" %}</button>
+            </form>
+          {% endif %}
+        </div>
+      {% endif %}
+    </section>
+  {% else %}
+    <div class="cn-section"><div class="cn-empty">{% translate "Belum ada sekolah yang dapat Anda akses." %}</div></div>
+  {% endif %}
+</main>
+{% endblock %}

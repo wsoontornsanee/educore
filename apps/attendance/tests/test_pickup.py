@@ -6,13 +6,16 @@ from django.core import signing
 from django.core.management import call_command
 from django.db import connection
 from django.test import TestCase, TransactionTestCase
+from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.attendance.models import PickupAuthorization, PickupEvent, PickupMethod
 from apps.attendance.pickup import TOKEN_SALT, pickup_qr_token
 from apps.core.models import AuditEvent
-from apps.identity.models import Foundation, Guardian, GuardianLink, Person, RoleAssignment, School, Student, User
+from apps.identity.models import (
+    Foundation, Guardian, GuardianLink, Person, RoleAssignment, School, Staff, Student, User,
+)
 from apps.notifications.models import ChannelType, NotificationIntent
 from apps.notifications.services import render_template_message
 from educore.middleware.tenancy import set_current_foundation_id
@@ -536,3 +539,264 @@ class OneTimeQrConcurrencyTests(_PickupFixture, TransactionTestCase):
         self.assertIsInstance(losers[0], PickupError)
         self.assertEqual(losers[0].code, 'PICKUP_ALREADY_USED')
         self.assertEqual(PickupEvent.all_tenants.filter(authorization_id=authorization_id).count(), 1)
+
+
+class PickupPhotoTests(_Base):
+    """A guardian supplies `photo_key`; it must be their own confirmed pickup photo, never another tenant's file."""
+
+    def stored(self, key='PRD/pickup_photo/abc_photo.jpg', user=None, foundation=None, purpose='pickup_photo', confirmed=True):
+        from apps.core.models import StoredFile
+        return StoredFile.all_tenants.create(
+            foundation_id=(foundation or self.foundation).id, bucket='b', key=key, purpose=purpose,
+            content_type='image/jpeg', size=1000, uploaded_by=str((user or self.guardian_user).id),
+            confirmed_at=timezone.now() if confirmed else None,
+        )
+
+    def test_the_guardians_own_confirmed_photo_is_accepted(self):
+        self.stored()
+        res = self.create_authorization(photo_key='PRD/pickup_photo/abc_photo.jpg')
+        self.assertEqual(res.status_code, 201, res.content)
+        self.assertEqual(res.json()['photo_key'], 'PRD/pickup_photo/abc_photo.jpg')
+
+    def test_a_key_that_is_not_a_stored_file_is_refused(self):
+        res = self.create_authorization(photo_key='PRD/other_tenant/secret.pdf')
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(res.json()['code'], 'PICKUP_INVALID_PHOTO')
+        self.assertFalse(PickupAuthorization.all_tenants.exists())
+
+    def test_another_users_upload_another_purpose_another_foundation_or_unconfirmed_are_all_refused(self):
+        other = Foundation.objects.create(legal_name="Lain", brand_name="Lain", npwp="04.000.000.0-000.000", address="X")
+        cases = {
+            'uploaded by someone else': dict(key='k1', user=self.second_user),
+            'wrong purpose': dict(key='k2', purpose='homework_submission'),
+            'another foundation': dict(key='k3', foundation=other),
+            'not confirmed': dict(key='k4', confirmed=False),
+        }
+        for label, kwargs in cases.items():
+            with self.subTest(label):
+                self.stored(**kwargs)
+                res = self.create_authorization(photo_key=kwargs['key'])
+                self.assertEqual(res.json().get('code'), 'PICKUP_INVALID_PHOTO', label)
+        self.assertFalse(PickupAuthorization.all_tenants.exists())
+
+    def test_a_soft_deleted_photo_is_refused(self):
+        stored = self.stored()
+        stored.deleted_at = timezone.now()
+        stored.save()
+        res = self.create_authorization(photo_key='PRD/pickup_photo/abc_photo.jpg')
+        self.assertEqual(res.json()['code'], 'PICKUP_INVALID_PHOTO')
+
+    def test_no_photo_is_fine(self):
+        self.assertEqual(self.create_authorization().status_code, 201)
+
+    def test_verify_returns_a_short_lived_link_for_a_valid_photo(self):
+        self.stored()
+        created = self.create_authorization(photo_key='PRD/pickup_photo/abc_photo.jpg').json()
+        with mock.patch('apps.core.storage.generate_download_url', return_value='https://signed.example/photo') as sign:
+            res = self.post(self.teacher, '/api/v1/pickup/verify/', {'qr_token': created['qr_token']})
+        self.assertEqual(res.json()['photo_url'], 'https://signed.example/photo')
+        self.assertEqual(sign.call_args.kwargs['expires_seconds'], 300)
+
+    def test_an_arbitrary_key_stored_before_validation_existed_is_never_signed(self):
+        created = self.create_authorization().json()
+        PickupAuthorization.all_tenants.filter(id=created['id']).update(photo_key='PRD/other_tenant/secret.pdf')
+        with mock.patch('apps.core.storage.generate_download_url', return_value='https://signed.example/x') as sign:
+            res = self.post(self.teacher, '/api/v1/pickup/verify/', {'qr_token': created['qr_token']})
+        self.assertEqual(res.json()['photo_url'], '')
+        sign.assert_not_called()
+
+    def test_a_photo_of_another_foundation_is_never_signed_even_if_the_key_matches(self):
+        other = Foundation.objects.create(legal_name="Lain", brand_name="Lain", npwp="05.000.000.0-000.000", address="X")
+        self.stored(key='PRD/pickup_photo/shared.jpg', foundation=other)
+        created = self.create_authorization().json()
+        PickupAuthorization.all_tenants.filter(id=created['id']).update(photo_key='PRD/pickup_photo/shared.jpg')
+        with mock.patch('apps.core.storage.generate_download_url', return_value='https://signed.example/x') as sign:
+            res = self.post(self.teacher, '/api/v1/pickup/verify/', {'qr_token': created['qr_token']})
+        self.assertEqual(res.json()['photo_url'], '')
+        sign.assert_not_called()
+
+    def test_a_storage_failure_reads_as_no_photo_and_never_blocks_the_verify(self):
+        self.stored()
+        created = self.create_authorization(photo_key='PRD/pickup_photo/abc_photo.jpg').json()
+        with mock.patch('apps.core.storage.generate_download_url', side_effect=RuntimeError('gcs down')):
+            res = self.post(self.teacher, '/api/v1/pickup/verify/', {'qr_token': created['qr_token']})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()['photo_url'], '')
+
+
+class PickupPhotoUploadPurposeTests(_Base):
+    UPLOAD = '/api/v1/files/uploads/'
+
+    def initiate(self, user, **body):
+        base = {'purpose': 'pickup_photo', 'filename': 'sopir.jpg', 'content_type': 'image/jpeg', 'size': 500_000}
+        base.update(body)
+        with mock.patch('apps.core.services.storage.generate_upload_url', return_value='https://upload.example/put'):
+            return self.post(user, self.UPLOAD, base)
+
+    def test_a_guardian_can_start_a_pickup_photo_upload(self):
+        res = self.initiate(self.guardian_user)
+        self.assertEqual(res.status_code, 201, res.content)
+        self.assertEqual(res.json()['purpose'], 'pickup_photo')
+
+    def test_only_small_jpeg_or_png_images_are_accepted(self):
+        self.assertEqual(self.initiate(self.guardian_user, content_type='image/png').status_code, 201)
+        self.assertEqual(self.initiate(self.guardian_user, content_type='application/pdf').status_code, 400)
+        self.assertEqual(self.initiate(self.guardian_user, size=3 * 1024 * 1024).status_code, 400)
+
+    def test_someone_without_pickup_authorize_cannot_start_one(self):
+        self.assertEqual(self.initiate(self.teacher).status_code, 403)
+
+
+class PickupConsoleWebTests(_Base):
+    """The staff screen at /web/attendance/pickup/: same services as the API, so this covers wiring and scoping."""
+    PAGE = '/web/attendance/pickup/'
+
+    def setUp(self):
+        super().setUp()
+        for user, school in ((self.teacher, self.school), (self.school_admin, self.school),
+                             (self.other_school_teacher, self.other_school), (self.other_school_admin, self.other_school)):
+            Staff.all_tenants.create(
+                foundation_id=self.foundation.id, person=Person.all_tenants.create(
+                    foundation_id=self.foundation.id, full_name=user.full_name),
+                user=user, school=school, join_date=timezone.localdate(),
+            )
+        self.scope = f'?school_id={self.school.id}'
+
+    def web_post(self, user, name, data, school=None):
+        self.client.force_authenticate(user=user)
+        set_current_foundation_id(self.foundation.id)
+        return self.client.post(f'{self.PAGE}{name}/?school_id={(school or self.school).id}', data)
+
+    def web_get(self, user, query=''):
+        self.client.force_authenticate(user=user)
+        set_current_foundation_id(self.foundation.id)
+        return self.client.get(f'{self.PAGE}{query}')
+
+    def flashes(self, res):
+        return [str(m) for m in res.wsgi_request._messages]
+
+    def token(self):
+        set_current_foundation_id(self.foundation.id)
+        return self.create_authorization().json()['qr_token']
+
+    def test_verify_shows_who_the_code_releases_the_student_to_and_changes_nothing(self):
+        token = self.token()
+        res = self.web_post(self.teacher, 'verify', {'qr_token': token})
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, 'Pak Sopir')
+        self.assertContains(res, 'Umar bin Khattab')
+        self.assertContains(res, '2333')  # last four digits only
+        self.assertNotContains(res, SECRET_PHONE)
+        self.assertFalse(PickupEvent.all_tenants.exists())
+        self.assertFalse(PickupAuthorization.all_tenants.get().used_at)
+
+    def test_the_verify_page_signs_the_photo_only_for_a_confirmed_one(self):
+        from apps.core.models import StoredFile
+        StoredFile.all_tenants.create(
+            foundation_id=self.foundation.id, bucket='b', key='PRD/pickup_photo/x.jpg', purpose='pickup_photo',
+            content_type='image/jpeg', size=1, uploaded_by=str(self.guardian_user.id), confirmed_at=timezone.now(),
+        )
+        set_current_foundation_id(self.foundation.id)
+        token = self.create_authorization(photo_key='PRD/pickup_photo/x.jpg').json()['qr_token']
+        with mock.patch('apps.core.storage.generate_download_url', return_value='https://signed.example/p.jpg'):
+            res = self.web_post(self.teacher, 'verify', {'qr_token': token})
+        self.assertContains(res, 'https://signed.example/p.jpg')
+
+    def test_a_bad_expired_revoked_or_other_school_code_is_refused_with_a_message(self):
+        token = self.token()
+        res = self.web_post(self.teacher, 'verify', {'qr_token': 'garbage'})
+        self.assertEqual(res.status_code, 302)
+        self.assertIn('Kode QR penjemputan tidak valid.', self.flashes(res))
+        # a token that is valid but belongs to another school's student reads as invalid too
+        res = self.web_post(self.other_school_teacher, 'verify', {'qr_token': token}, school=self.other_school)
+        self.assertIn('Kode QR penjemputan tidak valid.', self.flashes(res))
+        PickupAuthorization.all_tenants.update(revoked_at=timezone.now())
+        res = self.web_post(self.teacher, 'verify', {'qr_token': token})
+        self.assertTrue(any('dicabut' in m for m in self.flashes(res)))
+
+    def test_release_by_authorization_records_the_event_and_spends_a_one_time_code(self):
+        self.token()
+        auth = PickupAuthorization.all_tenants.get()
+        res = self.web_post(self.teacher, 'release', {'authorization_id': auth.id})
+        self.assertEqual(res.status_code, 302)
+        self.assertEqual(PickupEvent.all_tenants.get().method, PickupMethod.QR)
+        self.assertTrue(any('diserahkan kepada Pak Sopir' in m for m in self.flashes(res)))
+        again = self.web_post(self.teacher, 'release', {'authorization_id': auth.id})
+        self.assertEqual(PickupEvent.all_tenants.count(), 1)
+        self.assertTrue(any('sudah digunakan' in m for m in self.flashes(again)))
+
+    def test_release_to_a_guardian_on_file_and_refuses_one_without_can_pickup(self):
+        res = self.web_post(self.teacher, 'release', {'nis': self.student.nis, 'guardian_id': self.guardian.id})
+        self.assertEqual(PickupEvent.all_tenants.get().method, PickupMethod.GUARDIAN)
+        res = self.web_post(self.teacher, 'release', {'nis': self.student.nis, 'guardian_id': self.second_guardian.id})
+        self.assertEqual(PickupEvent.all_tenants.count(), 1)
+        self.assertTrue(any('tidak terdaftar' in m for m in self.flashes(res)))
+
+    def test_staff_of_another_school_can_neither_release_nor_revoke(self):
+        self.token()
+        auth = PickupAuthorization.all_tenants.get()
+        for action in ('release', 'revoke'):
+            res = self.web_post(self.other_school_teacher, action, {'authorization_id': auth.id}, school=self.other_school)
+            self.assertIn('Kode QR penjemputan tidak valid.', self.flashes(res))
+        # and cannot act for a school they are not assigned to
+        res = self.web_post(self.other_school_teacher, 'release', {'authorization_id': auth.id})
+        self.assertRedirects(res, reverse('web-console-home'), fetch_redirect_response=False)
+        self.assertFalse(PickupEvent.all_tenants.exists())
+        self.assertIsNone(PickupAuthorization.all_tenants.get().revoked_at)
+
+    def test_revoke_withdraws_the_authorization(self):
+        self.token()
+        auth = PickupAuthorization.all_tenants.get()
+        res = self.web_post(self.teacher, 'revoke', {'authorization_id': auth.id, 'nis': self.student.nis})
+        self.assertEqual(res.status_code, 302)
+        self.assertIsNotNone(PickupAuthorization.all_tenants.get().revoked_at)
+        self.assertIn('Otorisasi penjemputan dicabut.', self.flashes(res))
+
+    def test_only_a_school_admin_can_override_and_the_reason_is_mandatory(self):
+        data = {'nis': self.student.nis, 'picked_up_by': 'Paman Budi', 'reason': 'Orang tua tidak dapat dihubungi'}
+        res = self.web_post(self.teacher, 'override', data)
+        self.assertEqual(res.status_code, 302)  # sent home: a teacher lacks pickup.override
+        self.assertFalse(PickupEvent.all_tenants.exists())
+        res = self.web_post(self.school_admin, 'override', {**data, 'reason': '  '})
+        self.assertFalse(PickupEvent.all_tenants.exists())
+        self.assertTrue(any('Alasan pengecualian wajib' in m for m in self.flashes(res)))
+        self.web_post(self.school_admin, 'override', data)
+        event = PickupEvent.all_tenants.get()
+        self.assertEqual((event.method, event.picked_up_by), (PickupMethod.OVERRIDE, 'Paman Budi'))
+        self.assertTrue(AuditEvent.objects.filter(action='attendance.pickup.override').exists())
+
+    def test_the_page_lists_guardians_and_live_authorizations_and_shows_override_only_to_admins(self):
+        self.token()
+        res = self.web_get(self.teacher, f'{self.scope}&nis={self.student.nis}')
+        self.assertContains(res, 'Khalid bin Walid')
+        self.assertNotContains(res, 'Aisyah binti Abu Bakar')  # no can_pickup
+        self.assertContains(res, 'Pak Sopir')
+        self.assertNotContains(res, 'Serahkan dengan pengecualian')
+        res = self.web_get(self.school_admin, f'{self.scope}&nis={self.student.nis}')
+        self.assertContains(res, 'Serahkan dengan pengecualian')
+
+    def test_a_spent_or_revoked_authorization_is_no_longer_listed(self):
+        self.token()
+        PickupAuthorization.all_tenants.update(revoked_at=timezone.now())
+        res = self.web_get(self.teacher, f'{self.scope}&nis={self.student.nis}')
+        self.assertNotContains(res, 'Pak Sopir')
+
+    def test_the_qr_token_never_appears_in_a_page_or_url(self):
+        token = self.token()
+        res = self.web_get(self.teacher, f'{self.scope}&nis={self.student.nis}')
+        self.assertNotContains(res, token)
+        res = self.web_post(self.teacher, 'verify', {'qr_token': token})
+        self.assertNotContains(res, token)
+
+    def test_a_guardian_cannot_reach_the_screen(self):
+        for method, url in (('get', self.PAGE), ('post', f'{self.PAGE}release/')):
+            self.client.force_authenticate(user=self.guardian_user)
+            set_current_foundation_id(self.foundation.id)
+            res = getattr(self.client, method)(url)
+            self.assertIn(res.status_code, (302, 403, 404))
+        self.assertFalse(PickupEvent.all_tenants.exists())
+
+    def test_the_gate_page_links_to_the_pickup_screen(self):
+        self.client.force_authenticate(user=self.teacher)
+        set_current_foundation_id(self.foundation.id)
+        self.assertContains(self.client.get('/web/attendance/gate/'), self.PAGE)
