@@ -18,7 +18,7 @@ Semver: patch = fixes only, minor = new screens/features, major = breaking chang
 | `preview` | Android `.apk`, internal distribution | Testers: install directly from the EAS link |
 | `production` | Android `.aab`, build number auto-incremented | Play Store submission |
 
-Both bake `EXPO_PUBLIC_API_URL=https://educore.makan.live/api/v1` into the bundle. Without it the app falls back to the emulator loopback (`10.0.2.2:8000`).
+Both bake `EXPO_PUBLIC_API_URL=https://educore.makan.live/api/v1` into the bundle. A release build with no URL, a non-https URL or one not ending in `/api/v1` fails at launch (`resolveApiBase`, `src/services/apiConfig.ts`); only a development bundle falls back to a local server (`10.0.2.2:8000` on the Android emulator, `localhost:8000` on the iOS simulator).
 
 ## One-time setup
 
