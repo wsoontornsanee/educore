@@ -37,7 +37,7 @@ export function clearCachedSession(): void {
  * Fetch and bootstrap a POS terminal session (spec/07 §8 POST /pos/sessions).
  */
 export async function fetchPosSession(terminalId: number): Promise<POSSessionData> {
-  const response = await apiClient.post<any>('/api/v1/pos/sessions/', {
+  const response = await apiClient.post<any>('/pos/sessions/', {
     terminal_id: terminalId,
   });
 
@@ -65,12 +65,10 @@ export async function syncPosDeltas(terminalId: number, cursor?: string): Promis
   catalogDeltas: POSProduct[];
   nextCursor?: string;
 }> {
-  const params: any = { terminal_id: terminalId };
-  if (cursor) {
-    params.cursor = cursor;
-  }
+  // apiClient takes a finished path: it has no `params` option, so the query is built here.
+  const query = `terminal_id=${terminalId}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
 
-  const response = await apiClient.get<any>('/api/v1/pos/sync/', { params });
+  const response = await apiClient.get<any>(`/pos/sync/?${query}`);
   const data = response.data;
 
   if (cachedSession) {
@@ -219,7 +217,7 @@ export async function checkoutPOSTransaction(options: {
 
   if (!forceOffline) {
     try {
-      const response = await apiClient.post<any>('/api/v1/pos/transactions/', {
+      const response = await apiClient.post<any>('/pos/transactions/', {
         terminal_id: terminalId,
         student_id: student.id,
         items: itemsPayload,
@@ -298,7 +296,7 @@ export async function voidPOSTransaction(
   reason: string
 ): Promise<{ success: boolean; message?: string }> {
   const response = await apiClient.post<any>(
-    `/api/v1/pos/transactions/${transactionId}/void/`,
+    `/pos/transactions/${transactionId}/void/`,
     { reason }
   );
   return { success: true, message: response.data?.status || 'VOIDED' };

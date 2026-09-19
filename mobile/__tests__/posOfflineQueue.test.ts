@@ -72,7 +72,7 @@ describe('POS Offline Queue', () => {
     let sentPayload: any = null;
     const originalPost = apiClient.post;
     (apiClient as any).post = async (url: string, data: any) => {
-      if (url === '/api/v1/pos/transactions/batch/') {
+      if (url === '/pos/transactions/batch/') {
         sentPayload = data;
         return { data: { created: 2, skipped: 0 } };
       }
