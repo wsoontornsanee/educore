@@ -122,6 +122,37 @@ class Device(TenantModel):
         return f"{self.name} ({self.device_code}) - {self.get_device_class_display()}"
 
 
+class DeviceUptimeDay(TenantModel):
+    """Gate availability samples for one school and day (RPT-013 gate uptime %).
+
+    `check_device_health` (every 10 minutes) adds one sample per gate/face device during the
+    school's operational hours: `samples` counts every device sampled, `up_samples` those that were
+    reachable (ONLINE or DEGRADED). Uptime % = `up_samples / samples` summed over a week. The repo
+    keeps only the latest heartbeat per device, so without these counters no past week's uptime can
+    be reconstructed. Counts only, no PII.
+    """
+    school = models.ForeignKey('identity.School', on_delete=models.PROTECT, related_name='device_uptime_days')
+    date = models.DateField(help_text=_("School-local calendar date"))
+    samples = models.PositiveIntegerField(default=0)
+    up_samples = models.PositiveIntegerField(default=0)
+    active_uniq_marker = soft_delete_uniqueness_marker()
+
+    class Meta(TenantModel.Meta):
+        db_table = 'device_uptime_days'
+        indexes = [
+            models.Index(fields=['foundation_id', 'school', 'date'], name='idx_devup_fnd_sch_date'),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'school', 'date', 'active_uniq_marker'],
+                name='unique_device_uptime_day_per_school_date',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.school_id} {self.date}: {self.up_samples}/{self.samples}"
+
+
 class BiometricSubjectType(models.TextChoices):
     """Mirrors apps.compliance.DataSubjectRequestSubjectType — not imported
     directly to avoid a hardware -> compliance model dependency; compliance

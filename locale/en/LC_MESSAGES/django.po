@@ -9299,3 +9299,39 @@ msgstr "Turun (Alight)"
 #: apps/notifications/models.py
 msgid "Bus Sekolah Mendekat (Bus Approaching)"
 msgstr "Bus Sekolah Mendekat (Bus Approaching)"
+
+#: apps/hardware/models.py
+msgid "School-local calendar date"
+msgstr "School-local calendar date"
+
+#: apps/reporting/models.py
+msgid "IDR invoices due in the week (issued, part-paid, paid, written off)"
+msgstr "IDR invoices due in the week (issued, part-paid, paid, written off)"
+
+#: apps/reporting/models.py
+msgid "Of those, settled by the end of the week"
+msgstr "Of those, settled by the end of the week"
+
+#: apps/reporting/models.py
+msgid "Timetable periods that fell in the week and needed attendance"
+msgstr "Timetable periods that fell in the week and needed attendance"
+
+#: apps/reporting/models.py
+msgid "Of those, periods with attendance submitted"
+msgstr "Of those, periods with attendance submitted"
+
+#: apps/reporting/models.py
+msgid "Gate/face device availability samples in operational hours"
+msgstr "Gate/face device availability samples in operational hours"
+
+#: apps/reporting/models.py
+msgid "Of those, samples where the device was reachable"
+msgstr "Of those, samples where the device was reachable"
+
+#: apps/reporting/models.py
+msgid "Counted students with a completed canteen purchase in the week"
+msgstr "Counted students with a completed canteen purchase in the week"
+
+#: apps/reporting/models.py
+msgid "When the RPT-013 columns were computed; a week computed after it ended is frozen"
+msgstr "When the RPT-013 columns were computed; a week computed after it ended is frozen"

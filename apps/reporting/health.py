@@ -1,4 +1,4 @@
-"""Platform health metrics read model (spec/15 RPT-012, RPT-014).
+"""Platform health metrics read model (spec/15 RPT-012, RPT-013, RPT-014).
 
 Read-only over `rpt_parent_weekly_activity`. The at-risk flag is derived at read time so a
 threshold change never needs a backfill.
@@ -13,8 +13,22 @@ HISTORY_WEEKS = 8      # completed weeks returned, plus the in-progress one
 DECLINE_STREAK = 3     # consecutive week-over-week drops that flag a school (RPT-014)
 
 
-def _ratio(row):
-    return row.active_parents / row.enrolled_students if row.enrolled_students else None
+def _over(numerator, denominator):
+    """None when the week has no data for the metric (column not computed yet, or a zero base)."""
+    if numerator is None or not denominator:
+        return None
+    return numerator / denominator
+
+
+# Metric name (the key in the response) -> ratio of one weekly row. A metric is "declining" for RPT-014
+# on its own, so a school flagged at risk says which health signal is falling.
+METRICS = {
+    'wau_pct': lambda r: _over(r.active_parents, r.enrolled_students),
+    'collection_rate_pct': lambda r: _over(r.collection_collected, r.collection_billed),
+    'attendance_compliance_pct': lambda r: _over(r.attendance_submitted_periods, r.attendance_expected_periods),
+    'gate_uptime_pct': lambda r: _over(r.gate_up_samples, r.gate_samples),
+    'canteen_adoption_pct': lambda r: _over(r.canteen_active_students, r.enrolled_students),
+}
 
 
 def _pct(ratio):
@@ -50,18 +64,22 @@ def get_health_metrics(foundation_id=None, today=None) -> list:
     result = []
     for school_rows in by_school.values():
         by_week = {r.week_start: r for r in school_rows}
-        ratios = [_ratio(by_week[w]) if w in by_week else None for w in expected]
+        declining = [
+            name for name, ratio in METRICS.items()
+            if is_declining([ratio(by_week[w]) if w in by_week else None for w in expected])
+        ]
         result.append({
             'foundation_id': school_rows[0].foundation_id,
             'school_id': school_rows[0].school_id,
             'school_name': school_rows[0].school.name,
-            'latest_wau_pct': _pct(_ratio(by_week[previous_week])) if previous_week in by_week else None,
-            'at_risk': is_declining(ratios),
+            'latest_wau_pct': _pct(METRICS['wau_pct'](by_week[previous_week])) if previous_week in by_week else None,
+            'at_risk': bool(declining),
+            'declining_metrics': declining,
             'weeks': [{
                 'week_start': r.week_start.isoformat(),
                 'active_parents': r.active_parents,
                 'enrolled_students': r.enrolled_students,
-                'wau_pct': _pct(_ratio(r)),
+                **{name: _pct(ratio(r)) for name, ratio in METRICS.items()},
                 'complete': r.week_start < current_week,
             } for r in school_rows],
         })

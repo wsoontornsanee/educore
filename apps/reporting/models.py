@@ -272,7 +272,8 @@ class RptArAging(TenantModel):
 
 
 class RptParentWeeklyActivity(TenantModel):
-    """Weekly parent-app activity per school (RPT-012 north star: weekly active parent accounts / enrolled students).
+    """Weekly health rollup per school: parent-app activity (RPT-012 north star: weekly active parent accounts /
+    enrolled students) plus the other RPT-013 metrics (see the RPT-013 columns below).
 
     `active_parents` = distinct users with a `UserActivityDay` in the week who hold an active `GuardianLink`
     to a counted student of the school; `enrolled_students` = the RPT-007 active enrolled students at refresh
@@ -284,6 +285,17 @@ class RptParentWeeklyActivity(TenantModel):
     active_parents = models.PositiveIntegerField(default=0)
     enrolled_students = models.PositiveIntegerField(default=0)
     computed_at = models.DateTimeField(help_text=_("RPT-005: data freshness timestamp"))
+
+    # RPT-013 health metrics beside the parent WAU, one row per school per week. Each is a numerator and
+    # a denominator so the ratio can be re-derived; null until the week's health part was computed.
+    collection_billed = MoneyField(null=True, blank=True, help_text=_("IDR invoices due in the week (issued, part-paid, paid, written off)"))
+    collection_collected = MoneyField(null=True, blank=True, help_text=_("Of those, settled by the end of the week"))
+    attendance_expected_periods = models.PositiveIntegerField(null=True, blank=True, help_text=_("Timetable periods that fell in the week and needed attendance"))
+    attendance_submitted_periods = models.PositiveIntegerField(null=True, blank=True, help_text=_("Of those, periods with attendance submitted"))
+    gate_samples = models.PositiveIntegerField(null=True, blank=True, help_text=_("Gate/face device availability samples in operational hours"))
+    gate_up_samples = models.PositiveIntegerField(null=True, blank=True, help_text=_("Of those, samples where the device was reachable"))
+    canteen_active_students = models.PositiveIntegerField(null=True, blank=True, help_text=_("Counted students with a completed canteen purchase in the week"))
+    health_computed_at = models.DateTimeField(null=True, blank=True, help_text=_("When the RPT-013 columns were computed; a week computed after it ended is frozen"))
     active_uniq_marker = soft_delete_uniqueness_marker()
 
     class Meta:

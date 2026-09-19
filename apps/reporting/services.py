@@ -343,23 +343,94 @@ def refresh_active_students(scope: str, since=None) -> dict:
     return {'rows_written': rows_written, 'scope': scope}
 
 
+def _collection_for_week(school, week, week_end) -> dict:
+    """RPT-013 collection rate parts: IDR invoices due in the week, and how much of them was settled
+    by the end of that week (an on-time collection rate, so a later payment never rewrites the week).
+    Drafts and cancelled invoices are not receivables; written-off ones stay in the base."""
+    from apps.finance.models import Invoice, InvoiceStatus, PaymentAllocation, PaymentStatus
+
+    invoices = Invoice.all_tenants.filter(
+        foundation_id=school.foundation_id, school=school, currency='IDR', deleted_at__isnull=True,
+        due_date__range=(week, week_end),
+        status__in=[InvoiceStatus.ISSUED, InvoiceStatus.PARTIALLY_PAID, InvoiceStatus.PAID, InvoiceStatus.WRITTEN_OFF],
+    )
+    billed = invoices.aggregate(total=Sum('total'))['total'] or Decimal('0.00')
+    collected = PaymentAllocation.all_tenants.filter(
+        foundation_id=school.foundation_id, invoice__in=invoices, currency='IDR', deleted_at__isnull=True,
+        payment__status=PaymentStatus.SETTLED, payment__deleted_at__isnull=True,
+        payment__settled_at__date__lte=week_end,
+    ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+    return {'collection_billed': billed, 'collection_collected': collected}
+
+
+def _attendance_for_week(slots, events, submitted, week, week_end, today) -> dict:
+    """RPT-013 attendance-submission compliance parts. Expected = timetable periods of the school that
+    fell on a day of the week before today, inside their term and not excused by an attendance-affecting
+    calendar event (the teacher agenda's own exemption rule); submitted = those with any PeriodAttendance."""
+    from apps.attendance.services import find_calendar_exemption
+
+    expected = done = 0
+    day = week
+    while day <= min(week_end, today - timedelta(days=1)):
+        for slot in slots:
+            term = slot.class_subject.term
+            if slot.day_of_week != day.isoweekday() or not term.start_date <= day <= term.end_date:
+                continue
+            if find_calendar_exemption(slot, day, events):
+                continue
+            expected += 1
+            done += (slot.id, day) in submitted
+        day += timedelta(days=1)
+    return {'attendance_expected_periods': expected, 'attendance_submitted_periods': done}
+
+
+def _gate_for_week(school, week, week_end) -> dict:
+    from apps.hardware.models import DeviceUptimeDay
+
+    totals = DeviceUptimeDay.all_tenants.filter(
+        foundation_id=school.foundation_id, school=school, deleted_at__isnull=True, date__range=(week, week_end),
+    ).aggregate(samples=Sum('samples'), up=Sum('up_samples'))
+    return {'gate_samples': totals['samples'] or 0, 'gate_up_samples': totals['up'] or 0}
+
+
+def _canteen_for_week(school, week, week_end, counted) -> dict:
+    """RPT-013 canteen adoption numerator: counted students with a completed canteen purchase in the week."""
+    from apps.wallet.models import MerchantType, POSTransaction, POSTransactionStatus
+
+    active = POSTransaction.all_tenants.filter(
+        foundation_id=school.foundation_id, merchant__school=school, merchant__type=MerchantType.CANTEEN,
+        status=POSTransactionStatus.COMPLETED, deleted_at__isnull=True,
+        occurred_at__date__range=(week, week_end), student_id__in=counted,
+    ).values('student_id').distinct().count()
+    return {'canteen_active_students': active}
+
+
 def refresh_parent_weekly_activity(scope: str) -> dict:
-    """RPT-012: rebuild rpt_parent_weekly_activity, one row per school per week.
+    """RPT-012 / RPT-013: rebuild rpt_parent_weekly_activity, one row per school per week.
 
     scope='dashboard' (every 5 minutes) does nothing; scope='full' (nightly) refreshes the current
     week and covers the previous PARENT_ACTIVITY_BACKFILL_WEEKS - 1 weeks (backfilling missing ones
     from UserActivityDay).
-    A week whose row was computed after the week ended is frozen (mirrors RPT-008): the denominator
-    cannot be reconstructed later, so it is captured once and never rewritten.
+    The row has two parts, each frozen on its own once it was computed after the week ended (mirrors
+    RPT-008): the parent WAU part (`computed_at`), whose denominator cannot be reconstructed later, and
+    the RPT-013 health part (`health_computed_at`), whose sources (POS sales, uptime samples) are archived
+    or overwritten in time. Weeks written before the health part existed get it on the first run after.
     """
+    from apps.academic.models import TimetableSlot
+    from apps.attendance.models import PeriodAttendance
+    from apps.attendance.services import attendance_calendar_events
     from apps.identity.models import GuardianLink, UserActivityDay
 
     if scope != 'full':
         return {'rows_written': 0, 'scope': scope}  # weekly metric: the nightly full run is enough
 
     now = timezone.now()
-    current_week = _week_start(timezone.localdate(now))
+    today = timezone.localdate(now)
+    current_week = _week_start(today)
     weeks = [current_week] + [current_week - timedelta(weeks=n) for n in range(1, PARENT_ACTIVITY_BACKFILL_WEEKS)]
+
+    def _frozen(computed_at, week_end):
+        return bool(computed_at and timezone.localdate(computed_at) > week_end)
 
     enrolled_ids = _active_enrolled_student_ids()
     rows_written = 0
@@ -370,20 +441,59 @@ def refresh_parent_weekly_activity(scope: str) -> dict:
             guardian__deleted_at__isnull=True, guardian__user__isnull=False,
         ).values_list('guardian__user_id', flat=True))
 
+        existing_by_week = {
+            row.week_start: row for row in RptParentWeeklyActivity.all_tenants.filter(
+                foundation_id=school.foundation_id, school=school, week_start__in=weeks,
+            )
+        }
+        needs = {}  # week -> (refresh the WAU part, refresh the health part)
         for week in weeks:
+            existing = existing_by_week.get(week)
             week_end = week + timedelta(days=6)
-            existing = RptParentWeeklyActivity.all_tenants.filter(
-                foundation_id=school.foundation_id, school=school, week_start=week,
-            ).first()
-            if existing and timezone.localdate(existing.computed_at) > week_end:
-                continue  # frozen
+            needs[week] = (
+                not _frozen(existing and existing.computed_at, week_end),
+                not _frozen(existing and existing.health_computed_at, week_end),
+            )
+        if not any(wau or health for wau, health in needs.values()):
+            continue
 
-            active_parents = UserActivityDay.all_tenants.filter(
-                foundation_id=school.foundation_id, date__range=(week, week_end), user_id__in=parent_user_ids,
-            ).values('user_id').distinct().count()
+        slots = submitted = events = None
+        if any(health for _wau, health in needs.values()):
+            oldest_week = min(w for w, (_wau, health) in needs.items() if health)
+            slots = list(TimetableSlot.all_tenants.filter(
+                foundation_id=school.foundation_id, class_subject__class_group__school=school,
+                deleted_at__isnull=True, class_subject__deleted_at__isnull=True,
+                class_subject__class_group__deleted_at__isnull=True,
+            ).select_related('class_subject__class_group', 'class_subject__term'))
+            submitted = set(PeriodAttendance.all_tenants.filter(
+                foundation_id=school.foundation_id, slot_id__in=[s.id for s in slots],
+                date__range=(oldest_week, today), deleted_at__isnull=True,
+            ).values_list('slot_id', 'date').distinct())
+            events = attendance_calendar_events(school.foundation_id, school.id, oldest_week, today)
+
+        for week in weeks:
+            refresh_wau, refresh_health = needs[week]
+            if not (refresh_wau or refresh_health):
+                continue
+            week_end = week + timedelta(days=6)
+            defaults = {}
+            if refresh_wau:
+                defaults.update(
+                    active_parents=UserActivityDay.all_tenants.filter(
+                        foundation_id=school.foundation_id, date__range=(week, week_end), user_id__in=parent_user_ids,
+                    ).values('user_id').distinct().count(),
+                    enrolled_students=len(counted), computed_at=now,
+                )
+            if refresh_health:
+                defaults.update(
+                    **_collection_for_week(school, week, week_end),
+                    **_attendance_for_week(slots, events, submitted, week, week_end, today),
+                    **_gate_for_week(school, week, week_end),
+                    **_canteen_for_week(school, week, week_end, counted),
+                    health_computed_at=now,
+                )
             RptParentWeeklyActivity.all_tenants.update_or_create(
-                foundation_id=school.foundation_id, school=school, week_start=week,
-                defaults={'active_parents': active_parents, 'enrolled_students': len(counted), 'computed_at': now},
+                foundation_id=school.foundation_id, school=school, week_start=week, defaults=defaults,
             )
             rows_written += 1
 
