@@ -26,7 +26,7 @@ Four independent PRs, in this order: roster, schedule, grading queue, rapor. Eac
 - **Foundation-wide visibility.** Same as the permission-slip console and the JSON APIs: anyone holding the read permission sees every class of their foundation. Per-teacher scoping is a follow-on because it must change the API and console together.
 - **Staff profile required.** `ROLE_PARENT` holds both `student_records.read` and `grades.read`. A guardian must never reach the school-side console, so every page requires a linked `Staff` row (same reasoning as `StaffConsoleMixin`). The four nav items get `requires_staff_profile=True` so the nav never shows a link that 404s.
 - **Minimal PII.** Pages show student name and NIS only. Never NISN, NIK, phone, or guardian data.
-- **Substitutions not shown** on Jadwal v1 (follow-on).
+- **Substitutions** were not shown on Jadwal v1; added afterwards, see "Follow-on: timetable substitutions".
 
 ## Shared pattern
 
@@ -63,8 +63,21 @@ Four independent PRs, in this order: roster, schedule, grading queue, rapor. Eac
 - `GET /web/academic/report-cards/<id>/print/` (`academic-report-card-print-page`): returns `render_report_card_html` (the branded layout the PDF is built from) for opening in a new tab. No PDF download link: the existing `download` action returns a signed-URL JSON document, not a linkable file.
 - Nav: `reports` flipped, `requires_staff_profile=True`.
 
+## Follow-on: timetable substitutions (Jadwal)
+
+- `?week=<date>` (any date resolves to that week's Monday; invalid or missing means the current week) with previous/next/this-week links and the date under each day header.
+- `TimetableSubstitution` rows for the shown week are overlaid, mirroring `get_effective_teacher_for_slot`: PENDING and ACCEPTED count (PENDING is flagged "menunggu konfirmasi"), DECLINED and soft-deleted are ignored. A substitution counts only on the weekday its slot recurs on (`date__iso_week_day = slot.day_of_week`).
+- Class view: the substitute replaces the teacher line, with "Pengganti <regular teacher>". Teacher view: a slot the teacher was substituted out of is struck through with "Digantikan <substitute>"; a slot they cover shows "Menggantikan <regular teacher>" even though it is not one of their own class subjects. One extra query regardless of slot count.
+
+## Follow-on: write actions (Antrean penilaian, Rapor)
+
+Built in `apps/academic/console_actions.py`. Every action is a POST-only view that reuses the audited service the JSON API calls, then redirects back with a flash message (post/redirect/get, like the Operasional and Keuangan consoles). Each is gated fail-closed by its own permission key plus the linked Staff profile (`StaffConsoleMixin`), and by school scope: the target must belong to a school in which the user holds that key (`permitted_schools`), otherwise 404. Read pages stay foundation-wide; only writes are school-scoped. Buttons render only where the user could actually act.
+
+- **Grade** (`grades.write`, `grading-queue/<id>/grade/`): score required, 0-100, at most two decimals (console-only validation; the JSON API and service are unchanged, the spec sets no homework score scale), optional feedback. **Return** (`.../return/`): feedback required (the service enforces it). Both only act on SUBMITTED/LATE rows; a row someone else already graded or returned is refused, never overwritten. Redirect keeps a numeric `?class_subject=` filter.
+- **Generate** (`grades.write`, `report-cards/generate/`): class (in a writable school) + term; the term must belong to the class's academic year. `generate_report_cards` skips cards no longer in DRAFT; the flash reports created / updated / skipped.
+- **Approve** and **Publish** (`school_config.write`, same keys as the API) and **Revise** (`grades.write`), on the detail page: DRAFT/PENDING_REVIEW shows Setujui, APPROVED shows Terbitkan, a current PUBLISHED card shows Buat revisi (redirects to the new DRAFT version). An invalid transition flashes a generic Indonesian error instead of the service's raw `INVALID_TRANSITION` code.
+- Still out of scope: editing a card's narrative / promotion decision / extracurricular notes.
+
 ## Out of scope (Notion Todos)
 
-- Write actions on grading queue and Rapor.
 - Per-teacher class scoping.
-- Timetable substitution overlay.
