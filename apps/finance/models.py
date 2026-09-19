@@ -487,7 +487,13 @@ class PaymentAllocation(TenantModel):
 
 
 class StudentCreditBalance(TenantModel):
-    """Credit balance for a student resulting from overpayments (spec/06 §4, FIN-015)."""
+    """A student's running credit/reconciliation balance (spec/06 §4, FIN-015,
+    FIN-024). Positive from overpayments (FIN-015) or a gateway reconciliation
+    settling for more than the billed amount; negative when a gateway
+    settlement (AMOUNT_MISMATCH) arrived short of the billed amount — the
+    student then owes that shortfall outside the normal invoice schedule.
+    Signed on purpose: this is the single place both directions land, so
+    nothing about it is silently written off or discarded."""
     student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name='credit_balances')
     balance = MoneyField(default=Decimal('0.00'))
     currency = models.CharField(max_length=3, default='IDR')

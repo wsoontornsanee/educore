@@ -418,43 +418,140 @@ def resolve_discrepancy(
 
 def _settle_payment(
     payment: Payment, gateway_fee, foundation_id: int, *, actor_role: str, actor_id: str = None, settled_at=None,
-) -> None:
+    net: Decimal = None, reconciliation_delta: Decimal = Decimal('0.00'),
+) -> dict:
     """Settle `payment` through the SAME path a gateway webhook uses (receipt
     number, invoice allocation, balanced ledger journal, settlement events),
     instead of only flipping its status — which would mark money settled
     without it ever reaching AR or the double-entry ledger.
 
-    The Payment's own recorded amount is what gets allocated; the gateway's
-    reported fee is kept when there is one and net is derived, so
-    `net + fee == amount` and the journal balances even when the gateway
-    amount differs from the recorded one by up to AMOUNT_TOLERANCE.
+    The Payment's own recorded amount is what gets allocated to invoices; the
+    gateway's reported fee is kept when there is one. By default `net` is
+    derived as `payment.amount - fee`, so `net + fee == amount` and the
+    journal balances even when the gateway amount differs from the recorded
+    one by up to AMOUNT_TOLERANCE (the auto-settle path, matched amounts).
+
+    `net`/`reconciliation_delta` are overridden together by a manual
+    AMOUNT_MISMATCH resolution (spec/06 FIN-024): `net` becomes the
+    gateway's ACTUAL net (what really hit the bank, per reconciliation best
+    practice — Cash/Bank should match the bank statement), and
+    `reconciliation_delta` is the signed difference from `payment.amount`
+    that keeps the journal balanced by moving the student's
+    StudentCreditBalance instead. See `_finalize_payment_settlement`.
     """
     from apps.finance.services.payments import _finalize_payment_settlement
     from educore.middleware.tenancy import tenant_context
 
     fee = gateway_fee or payment.fee or Decimal('0.00')
     with tenant_context(foundation_id):
-        _finalize_payment_settlement(
+        return _finalize_payment_settlement(
             payment,
             fee=fee,
-            net=payment.amount - fee,
+            net=net if net is not None else payment.amount - fee,
             actor_role=actor_role,
             actor_id=actor_id,
             settled_at=settled_at,
+            reconciliation_delta=reconciliation_delta,
         )
 
 
 def _settle_payment_manually(discrepancy: 'PaymentDiscrepancy', resolved_by) -> None:
     """A finance user's MANUAL_SETTLED resolution: settle the discrepancy's
-    linked Payment (an AMOUNT_MISMATCH therefore settles at the amount EduCore
-    holds, not the gateway's)."""
+    linked Payment.
+
+    A plain MISSING_IN_SYSTEM/normal settle uses `_settle_payment`'s default
+    (allocate + book at `payment.amount`, the system/billed amount — invoice
+    books never change). An AMOUNT_MISMATCH additionally reconciles the
+    gateway/system delta into the student's StudentCreditBalance (spec/06
+    FIN-024): Cash/Bank is booked at what the gateway actually settled, the
+    difference from the billed amount moves the credit balance, and — once
+    settled — a positive balance sweeps the student's other open invoices
+    while a negative one raises an alert.
+    """
     payment = discrepancy.payment
     if payment.status == PaymentStatus.SETTLED:
         return
+
+    is_amount_mismatch = discrepancy.discrepancy_type == DiscrepancyType.AMOUNT_MISMATCH
+    reconciliation_delta = (discrepancy.gateway_amount - payment.amount) if is_amount_mismatch else Decimal('0.00')
+    # Computed, not discrepancy.gateway_net: that stored field is a display
+    # snapshot and isn't guaranteed consistent with gateway_amount/gateway_fee
+    # at resolution time (e.g. not backfilled by every discrepancy source).
+    net = (discrepancy.gateway_amount - discrepancy.gateway_fee) if is_amount_mismatch else None
+
     _settle_payment(
         payment, discrepancy.gateway_fee, discrepancy.foundation_id,
         actor_role='MANUAL_RECONCILIATION', actor_id=str(resolved_by.id) if resolved_by is not None else None,
+        net=net, reconciliation_delta=reconciliation_delta,
     )
+
+    if is_amount_mismatch and reconciliation_delta != Decimal('0.00'):
+        _handle_post_settlement_credit_balance(payment, resolved_by)
+
+
+def _handle_post_settlement_credit_balance(payment: Payment, resolved_by) -> None:
+    """After an AMOUNT_MISMATCH settle moved the student's StudentCreditBalance:
+    a positive balance sweeps the student's other open invoices (remainder
+    stays as credit); a negative balance raises a one-time alert. Never
+    silent either way."""
+    from apps.finance.models import StudentCreditBalance
+    from apps.finance.services.payments import apply_student_credit_to_invoices
+    from educore.middleware.tenancy import tenant_context
+
+    with tenant_context(payment.foundation_id):
+        credit = StudentCreditBalance.objects.filter(
+            foundation_id=payment.foundation_id, student=payment.student, currency=payment.currency,
+        ).first()
+        if credit is None or credit.balance == Decimal('0.00'):
+            return
+
+        if credit.balance > Decimal('0.00'):
+            apply_student_credit_to_invoices(
+                payment.student, payment.foundation_id, payment.currency,
+                actor_role='MANUAL_RECONCILIATION', actor_id=str(resolved_by.id) if resolved_by is not None else None,
+            )
+        else:
+            _alert_negative_reconcile_balance(payment.student, credit.balance)
+
+
+def _alert_negative_reconcile_balance(student, balance: Decimal) -> None:
+    """One-time PAYMENT_DUE-category notice: a reconciliation shortfall left
+    the student owing more than their open invoices show (spec/06 FIN-024).
+    Reuses PAYMENT_DUE rather than a new category (finance.payment_due's own
+    precedent: don't proliferate categories for a variant of the same
+    underlying concern — the student owes EduCore money)."""
+    from apps.identity.models import GuardianLink
+    from apps.notifications.models import NotificationCategory, NotificationPriority
+    from apps.notifications.services import dispatch_intent
+
+    links = GuardianLink.objects.filter(
+        student=student, deleted_at__isnull=True,
+    ).select_related('guardian', 'guardian__person', 'guardian__user')
+    target_links = [gl for gl in links if gl.financial_responsible] or [gl for gl in links if gl.is_primary] or list(links)
+
+    seen = set()
+    for gl in target_links:
+        guardian = gl.guardian
+        if guardian.id in seen or not guardian.user:
+            continue
+        seen.add(guardian.id)
+        dispatch_intent(
+            foundation_id=student.foundation_id,
+            school_id=student.school_id,
+            category=NotificationCategory.PAYMENT_DUE,
+            template_key='finance.reconcile_balance_negative',
+            payload={
+                'guardian_name': guardian.person.full_name if guardian.person else '',
+                'student_name': student.person.full_name if student.person else '',
+                'amount': str(-balance),
+            },
+            recipient_user=guardian.user,
+            recipient_phone=getattr(guardian.user, 'phone_e164', ''),
+            recipient_email=getattr(guardian.user, 'email', ''),
+            recipient_name=guardian.person.full_name if guardian.person else '',
+            dedupe_key=f"reconcile_balance_negative:{student.id}:{timezone.localdate().isoformat()}",
+            priority=NotificationPriority.NORMAL,
+        )
 
 
 def _batch_summary(batch: 'GatewaySettlementBatch', dry_run: bool) -> dict:

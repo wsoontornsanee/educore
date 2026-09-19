@@ -243,7 +243,7 @@ class LedgerServiceTests(TestCase):
         journal = post_payment_settlement_journal(
             payment=payment,
             allocations=[allocation],
-            overpayment=overpayment,
+            credit_balance_delta=overpayment,
         )
         total_debit = sum(e.debit for e in journal.entries.all())
         total_credit = sum(e.credit for e in journal.entries.all())

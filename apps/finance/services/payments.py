@@ -7,6 +7,7 @@ from django.utils.translation import gettext
 from apps.core.services import audit, record_domain_event
 
 from apps.finance.models import (
+    AccountCode,
     Invoice,
     InvoiceStatus,
     Payment,
@@ -254,6 +255,102 @@ def allocate_payment_to_invoices(
     return allocations, overpayment
 
 
+@transaction.atomic
+def apply_student_credit_to_invoices(
+    student: Student, foundation_id: int, currency: str = 'IDR', *, actor_role: str = 'SYSTEM', actor_id: str = None,
+) -> tuple[list[Invoice], Decimal]:
+    """Sweep a student's available StudentCreditBalance against their other
+    open invoices, oldest-first (spec/06 FIN-024 reconciliation credit).
+
+    Unlike `allocate_payment_to_invoices`, there is no new Payment behind
+    this money — it is an EXISTING credit being applied — so no
+    PaymentAllocation rows are created (those always require a real Payment).
+    Instead this directly mutates invoice.paid/status, exactly as
+    allocate_payment_to_invoices does, and posts its own balanced journal:
+    Dr Student Credit Balance (2200) / Cr AR (1200) for the swept total.
+
+    Returns (invoices_touched, amount_applied). A no-op (([], 0.00)) when
+    there is no credit or no open invoice to apply it to.
+    """
+    credit = StudentCreditBalance.objects.select_for_update().filter(
+        foundation_id=foundation_id, student=student, currency=currency,
+    ).first()
+    if credit is None or credit.balance <= Decimal('0.00'):
+        return [], Decimal('0.00')
+
+    target_invoices = list(
+        Invoice.objects.select_for_update().filter(
+            foundation_id=foundation_id, student=student, currency=currency,
+        ).exclude(
+            status__in=[InvoiceStatus.PAID, InvoiceStatus.CANCELLED, InvoiceStatus.WRITTEN_OFF]
+        ).order_by('issue_date', 'due_date', 'id')
+    )
+
+    remaining = credit.balance
+    touched = []
+    for invoice in target_invoices:
+        if remaining <= Decimal('0.00'):
+            break
+        balance_due = invoice.balance_due
+        if balance_due <= Decimal('0.00'):
+            continue
+
+        alloc_amount = min(remaining, balance_due)
+
+        from apps.finance.services.installments import allocate_payment_to_installments
+        allocate_payment_to_installments(invoice=invoice, payment_amount=alloc_amount, paid_at=timezone.now())
+
+        invoice.paid += alloc_amount
+        invoice.status = InvoiceStatus.PAID if invoice.paid >= invoice.total else InvoiceStatus.PARTIALLY_PAID
+        invoice.save(update_fields=['paid', 'status', 'updated_at'])
+
+        touched.append(invoice)
+        remaining -= alloc_amount
+
+    applied = credit.balance - remaining
+    if applied <= Decimal('0.00'):
+        return [], Decimal('0.00')
+
+    credit.balance = remaining
+    credit.save(update_fields=['balance', 'updated_at'])
+
+    from apps.finance.services.ledger import post_ledger_journal
+    post_ledger_journal(
+        school=target_invoices[0].school,
+        ref_type='CREDIT_APPLICATION',
+        ref_id=credit.id,
+        description=f"Penerapan Saldo Kredit ke Tagihan ({student.person.full_name if student.person else student.id})",
+        entries=[
+            {
+                'account_code': AccountCode.STUDENT_CREDIT,
+                'account_name': 'Saldo Deposit Siswa',
+                'debit': applied,
+                'credit': Decimal('0.00'),
+            },
+            {
+                'account_code': AccountCode.ACCOUNTS_RECEIVABLE,
+                'account_name': 'Piutang SPP & Biaya',
+                'debit': Decimal('0.00'),
+                'credit': applied,
+            },
+        ],
+        currency=currency,
+        occurred_at=timezone.now(),
+    )
+
+    audit(
+        action='finance.credit_balance.applied_to_invoices',
+        entity_type='StudentCreditBalance',
+        entity_id=credit.id,
+        actor_id=actor_id,
+        role=actor_role,
+        foundation_id=foundation_id,
+        diff={'amount': str(applied), 'invoice_ids': [inv.id for inv in touched]},
+    )
+
+    return touched, applied
+
+
 def _dispatch_payment_received_notification(payment: Payment, allocations: list) -> None:
     """
     PAR-008: Dispatch PAYMENT_RECEIVED push notification to guardians
@@ -464,6 +561,7 @@ def _get_or_create_pending_payment(*, foundation_id, school, student, intent, pa
 
 def _finalize_payment_settlement(
     payment: Payment, *, fee: Decimal, net: Decimal, actor_role: str, actor_id: str = None, settled_at=None,
+    reconciliation_delta: Decimal = Decimal('0.00'),
 ) -> dict:
     """Mark an existing `Payment` SETTLED, allocate it to invoices, post the
     balanced ledger journal, and fire every settlement side-effect (domain
@@ -473,8 +571,17 @@ def _finalize_payment_settlement(
     (outbound poll fallback for a missed webhook, FIN-013/ARC-006) and
     `resolve_discrepancy` (a finance user's manual settlement, `actor_id` =
     that user) and the reconciliation cron's auto-settle (`settled_at` = the
-    gateway's own settlement time). `net + fee` must equal `payment.amount`,
-    or the settlement journal cannot balance.
+    gateway's own settlement time). `net + fee + reconciliation_delta` must
+    equal `payment.amount`, or the settlement journal cannot balance.
+
+    `reconciliation_delta` (spec/06 FIN-024) is nonzero only for a manually
+    resolved AMOUNT_MISMATCH: the signed difference between what the gateway
+    actually settled and `payment.amount` (what was allocated to invoices,
+    unchanged, at the billed amount). It moves the student's
+    StudentCreditBalance by the same signed amount — positive stacks on top
+    of any ordinary FIN-015 overpayment-beyond-invoices; negative is a
+    reconciliation shortfall the student now owes outside the invoice
+    schedule.
     """
     payment.status = PaymentStatus.SETTLED
     payment.settled_at = settled_at or timezone.now()
@@ -491,11 +598,22 @@ def _finalize_payment_settlement(
     # Allocate to invoices
     allocations, overpayment = allocate_payment_to_invoices(payment)
 
+    credit_balance_delta = overpayment + reconciliation_delta
+    if reconciliation_delta != Decimal('0.00'):
+        credit, _created = StudentCreditBalance.objects.select_for_update().get_or_create(
+            foundation_id=payment.foundation_id,
+            student=payment.student,
+            currency=payment.currency,
+            defaults={'balance': Decimal('0.00')},
+        )
+        credit.balance += reconciliation_delta
+        credit.save(update_fields=['balance', 'updated_at'])
+
     # Post balanced double-entry ledger journal (FIN-021, FIN-023, CUR-020)
     post_payment_settlement_journal(
         payment=payment,
         allocations=allocations,
-        overpayment=overpayment,
+        credit_balance_delta=credit_balance_delta,
     )
 
     # Record domain event
@@ -556,6 +674,7 @@ def _finalize_payment_settlement(
         'reference': payment.reference,
         'allocated_invoices': len(allocations),
         'overpayment': str(overpayment),
+        'credit_balance_delta': str(credit_balance_delta),
     }
 
 
@@ -776,7 +895,7 @@ def record_cash_payment(
     post_payment_settlement_journal(
         payment=payment,
         allocations=allocations,
-        overpayment=overpayment,
+        credit_balance_delta=overpayment,
     )
 
     record_domain_event(
@@ -884,7 +1003,7 @@ def verify_manual_transfer(
         post_payment_settlement_journal(
             payment=payment,
             allocations=allocations,
-            overpayment=overpayment,
+            credit_balance_delta=overpayment,
         )
 
         record_domain_event(
