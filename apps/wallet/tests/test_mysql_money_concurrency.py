@@ -5,10 +5,11 @@ against the database for the rest: idempotency-key retries, void vs charge, doub
 dispute resolution, and the spending-PIN attempt counter. Skipped on any other backend, because SQLite
 serialises writers and ignores ``select_for_update``.
 """
+import threading
 from decimal import Decimal
 from unittest import skipUnless
 
-from django.db import connection
+from django.db import connection, connections, transaction
 from django.db.models import Sum
 from django.test import TransactionTestCase
 from django.utils import timezone
@@ -16,8 +17,10 @@ from django.utils import timezone
 from apps.identity.models import UserPin
 from apps.identity.pin import PinError, check_pin
 from apps.wallet.models import (
+    Merchant,
     MerchantSettlement,
     MerchantSettlementAdjustment,
+    MerchantSettlementStatus,
     POSEntryMode,
     POSTransaction,
     POSTransactionStatus,
@@ -28,9 +31,10 @@ from apps.wallet.models import (
 from apps.wallet.qr_charge import QRChargeError, charge_qr_session, create_qr_session
 from apps.wallet.qr_decals import create_payment_point, decal_token, print_decal
 from apps.wallet.qr_oversight import QRDisputeError, open_qr_dispute, resolve_qr_dispute
-from apps.wallet.services import run_merchant_settlement, void_pos_transaction
+from apps.wallet.services import SettlementStateError, mark_settlement_paid, run_merchant_settlement, void_pos_transaction
 from apps.wallet.tests.test_qr_charge import GUARDIAN_PIN, QRFixtureMixin, make_guardian
 from apps.wallet.tests.test_qr_mysql_concurrency import _run_together
+from educore.middleware.tenancy import set_current_foundation_id
 
 START_BALANCE = Decimal('100000.00')
 
@@ -119,6 +123,23 @@ class MoneyPathConcurrencyTests(QRFixtureMixin, TransactionTestCase):
         self.assertEqual(self._balance(), START_BALANCE - Decimal('1000'))
         self._assert_ledger_balances()
 
+    def test_void_and_charge_for_one_student_never_deadlock_over_many_rounds(self):
+        # Void and charge take the same locks in the same order (wallet, then sale). A single round hits a
+        # bad ordering only some of the time, so repeat: a lock-order regression shows up as InnoDB 1213.
+        rounds = 12
+        for i in range(rounds):
+            sale = self._sale(key=f'sale-a-{i}')
+            token = create_qr_session(self.terminal)['token']
+            outcomes = _run_together(
+                self.foundation_id,
+                lambda sale=sale: void_pos_transaction(POSTransaction.objects.get(id=sale.id), 'salah input'),
+                lambda token=token, i=i: charge_qr_session(token, self.student, Decimal('1000'), f'sale-b-{i}'),
+            )
+            self.assertEqual([error for _result, error in outcomes], [None, None], (i, outcomes))
+        # Each round: A charged and voided, B charged.
+        self.assertEqual(self._balance(), START_BALANCE - Decimal('1000') * rounds)
+        self._assert_ledger_balances()
+
     def test_void_racing_an_upheld_dispute_on_the_same_sale_refunds_once(self):
         sale = self._sale()
         dispute = open_qr_dispute(sale, make_guardian(self.fx), 'Saya hanya beli minum')
@@ -153,6 +174,33 @@ class MoneyPathConcurrencyTests(QRFixtureMixin, TransactionTestCase):
         settlements = MerchantSettlement.all_tenants.filter(merchant=self.merchant, deleted_at__isnull=True)
         self.assertEqual(settlements.count(), 1)
         self.assertEqual(settlements.get().gross, Decimal('1000.00'))
+
+    def test_mark_paid_queues_behind_a_settlement_run_holding_the_merchant_lock(self):
+        self._sale()
+        start, end = self._period()
+        settlement = run_merchant_settlement(self.merchant, start, end)
+        finished = threading.Event()
+
+        def mark_paid():
+            set_current_foundation_id(self.foundation_id)
+            try:
+                mark_settlement_paid(MerchantSettlement.objects.get(id=settlement.id))
+            finally:
+                connections.close_all()
+                finished.set()
+
+        worker = threading.Thread(target=mark_paid)
+        with transaction.atomic():
+            # What a run in flight holds: mark-paid must wait for it, not slip in before its totals are final.
+            Merchant.all_tenants.select_for_update().get(id=self.merchant.id)
+            worker.start()
+            self.assertFalse(finished.wait(1.5), 'mark_settlement_paid did not wait for the merchant lock')
+        self.assertTrue(finished.wait(30))
+        worker.join()
+        settlement.refresh_from_db()
+        self.assertEqual(settlement.status, MerchantSettlementStatus.PAID)
+        with self.assertRaises(SettlementStateError):
+            run_merchant_settlement(self.merchant, start, end)
 
     def test_settlement_run_racing_a_dispute_resolution_absorbs_the_adjustment_exactly_once(self):
         sale = self._sale()

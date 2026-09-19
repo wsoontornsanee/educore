@@ -546,8 +546,10 @@ def void_pos_transaction(pos_transaction: POSTransaction, reason: str, actor=Non
                           void_window_minutes=DEFAULT_VOID_WINDOW_MINUTES) -> POSTransaction:
     """WAL-025: operator void within the window reverses the purchase and restores balance.
 
-    Locks the sale row first (before the wallet row, the same order dispute resolution uses), so a second
-    void or an upheld dispute on the same sale queues behind this one and then sees it already refunded."""
+    Lock order is wallet, then sale (as charge and dispute resolution take them), so a second void or an
+    upheld dispute on the same sale queues behind this one and then sees it already refunded. Taking the
+    sale first would deadlock against a charge that holds the wallet and re-checks its idempotency key."""
+    _get_locked_wallet(pos_transaction.wallet_transaction.wallet_id, pos_transaction.foundation_id)
     pos_transaction = POSTransaction.all_tenants.select_for_update().get(
         id=pos_transaction.id, foundation_id=pos_transaction.foundation_id,
     )
@@ -720,7 +722,13 @@ def generate_settlement_statement_pdf(settlement: MerchantSettlement) -> str:
     return stored_file.key
 
 
+@transaction.atomic
 def mark_settlement_paid(settlement: MerchantSettlement) -> MerchantSettlement:
+    """Freeze a settlement as PAID. Takes the merchant lock ``run_merchant_settlement`` takes, then re-reads the
+    row, so a run in flight finishes first (the paid totals are its final ones) and a run that starts after
+    this is refused. The re-read also stops a stale copy from marking an already paid settlement a second time."""
+    Merchant.all_tenants.select_for_update().get(id=settlement.merchant_id, foundation_id=settlement.foundation_id)
+    settlement.refresh_from_db()
     if settlement.status == MerchantSettlementStatus.PAID:
         return settlement
     settlement.status = MerchantSettlementStatus.PAID
