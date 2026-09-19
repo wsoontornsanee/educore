@@ -9,6 +9,7 @@
 import { api } from './api.ts';
 import { cacheGet, cacheSet } from './storage.ts';
 import { generateUUID } from './offlineQueue.ts';
+import { requestOtp } from './parentAuth.ts';
 import { updateSpendRules } from './wallet.ts';
 import type { WalletSpendRule } from '../types/index.ts';
 
@@ -189,6 +190,35 @@ export async function fetchPinStatus(): Promise<PinStatus> {
 
 export async function createPin(pin: string): Promise<PinStatus> {
   const res = await api.post<PinStatus>('/me/pin/', { pin });
+  return res.data;
+}
+
+export type NewPinProblem = 'PIN_INVALID_FORMAT' | 'PIN_MISMATCH';
+
+/** Client-side check of a new-PIN entry before it is sent; the server still enforces strength (PIN_TOO_WEAK). */
+export function checkNewPinEntry(newPin: string, repeat: string): NewPinProblem | null {
+  if (!isValidPinFormat(newPin)) return 'PIN_INVALID_FORMAT';
+  if (newPin !== repeat) return 'PIN_MISMATCH';
+  return null;
+}
+
+/** PUT /me/pin/: the current PIN counts against the attempt limit like any other entry. */
+export async function changePin(currentPin: string, newPin: string): Promise<PinStatus> {
+  const res = await api.put<PinStatus>('/me/pin/', { current_pin: currentPin, new_pin: newPin });
+  return res.data;
+}
+
+/** Forgotten or locked-out PIN: a fresh OTP goes to the account's own phone; returns the challenge to verify. */
+export async function requestPinResetOtp(phoneE164: string): Promise<number> {
+  return (await requestOtp(phoneE164)).challenge_id;
+}
+
+export async function resetPinWithOtp(challengeId: number, code: string, newPin: string): Promise<PinStatus> {
+  const res = await api.post<PinStatus>('/me/pin/reset/', {
+    challenge_id: challengeId,
+    code,
+    new_pin: newPin,
+  });
   return res.data;
 }
 

@@ -5,6 +5,8 @@ import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyKeypadKey,
+  changePin,
+  checkNewPinEntry,
   canDisputeTransaction,
   chargeQr,
   createPin,
@@ -19,6 +21,8 @@ import {
   newIdempotencyKey,
   normalizeScannedToken,
   openQrDispute,
+  requestPinResetOtp,
+  resetPinWithOtp,
   resolveQr,
   setQrChargeEnabled,
 } from '../src/services/qrCharge.ts';
@@ -166,6 +170,51 @@ describe('Canteen QR Charge guardian client', () => {
       assert.ok(!isValidPinFormat('48291'));
       assert.ok(!isValidPinFormat('4829134'));
       assert.ok(!isValidPinFormat('48a913'));
+    });
+  });
+
+  describe('PIN change and OTP reset', () => {
+    it('checks a new PIN entry: format first, then match', () => {
+      assert.strictEqual(checkNewPinEntry('482913', '482913'), null);
+      assert.strictEqual(checkNewPinEntry('4829', '4829'), 'PIN_INVALID_FORMAT');
+      assert.strictEqual(checkNewPinEntry('482913', '482914'), 'PIN_MISMATCH');
+    });
+
+    it('change sends current and new PIN with PUT', async () => {
+      const original = api.put;
+      (api as any).put = async (path: string, body: any) => {
+        assert.strictEqual(path, '/me/pin/');
+        assert.deepStrictEqual(body, { current_pin: '482913', new_pin: '739158' });
+        return { data: { is_set: true, locked_until: null, requires_otp_reset: false } };
+      };
+      try {
+        assert.strictEqual((await changePin('482913', '739158')).is_set, true);
+      } finally {
+        (api as any).put = original;
+      }
+    });
+
+    it('reset requests an OTP for the phone, then posts challenge, code and new PIN', async () => {
+      const original = api.post;
+      const calls: Array<{ path: string; body: any }> = [];
+      (api as any).post = async (path: string, body: any) => {
+        calls.push({ path, body });
+        return path === '/auth/otp/request/'
+          ? { data: { challenge_id: 42 } }
+          : { data: { is_set: true, locked_until: null, requires_otp_reset: false } };
+      };
+      try {
+        const challengeId = await requestPinResetOtp('+6281234567890');
+        assert.strictEqual(challengeId, 42);
+        const status = await resetPinWithOtp(challengeId, '123456', '739158');
+        assert.strictEqual(status.requires_otp_reset, false);
+        assert.deepStrictEqual(calls, [
+          { path: '/auth/otp/request/', body: { phone_e164: '+6281234567890' } },
+          { path: '/me/pin/reset/', body: { challenge_id: 42, code: '123456', new_pin: '739158' } },
+        ]);
+      } finally {
+        (api as any).post = original;
+      }
     });
   });
 

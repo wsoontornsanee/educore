@@ -45,6 +45,8 @@ import {
   setBiometricEnabled,
 } from '../../services/storage';
 import { LinkedAccountsSection } from '../../components/LinkedAccountsSection';
+import { SpendingPinSheet, SpendingPinSheetMode } from '../../components/SpendingPinSheet';
+import { fetchPinStatus } from '../../services/qrCharge';
 import { colors, radius, spacing, typography } from '../../theme/tokens';
 import type { ChildSummary, NotificationChannelType, NotificationLocale, UserProfile } from '../../types/index';
 
@@ -76,6 +78,17 @@ export const ParentProfileScreen: React.FC<ParentProfileScreenProps> = ({
   const [bioHardwareAvailable, setBioHardwareAvailable] = useState(false);
   const [bioEnabled, setBioEnabled] = useState(false);
   const [bioLabel, setBioLabel] = useState('Biometrik');
+
+  // Guardian spending PIN (QR Charge): shown only once a PIN exists — first-time setup happens
+  // in the QR pay flow. `pinSheet` is the open change/reset sheet, if any.
+  const [pinIsSet, setPinIsSet] = useState(false);
+  const [pinSheet, setPinSheet] = useState<SpendingPinSheetMode | null>(null);
+
+  useEffect(() => {
+    fetchPinStatus()
+      .then((status) => setPinIsSet(status.is_set))
+      .catch(() => setPinIsSet(false));
+  }, []);
 
   // Clinic visit history modal — which child's history is currently shown, if any
   const [clinicHistoryChild, setClinicHistoryChild] = useState<ChildSummary | null>(null);
@@ -361,27 +374,52 @@ export const ParentProfileScreen: React.FC<ParentProfileScreenProps> = ({
           </View>
         </View>
 
-        {/* 5. Security / Biometric */}
-        {bioHardwareAvailable && (
+        {/* 5. Security / Biometric + spending PIN */}
+        {(bioHardwareAvailable || pinIsSet) && (
           <>
             <Text style={styles.sectionHeader}>{t('profile.section.security', locale)}</Text>
-            <View style={styles.card}>
-              <View style={styles.prefRow}>
-                <View style={styles.prefLabelContainer}>
-                  <Text style={styles.rowLabel}>
-                    {t('bio.toggle', locale)} ({bioLabel})
-                  </Text>
-                  <Text style={styles.rowSub}>{t('bio.toggle_sub', locale)}</Text>
-                </View>
-                <Switch
-                  value={bioEnabled}
-                  onValueChange={handleBiometricToggle}
-                  trackColor={{ false: colors.borderDark, true: colors.primary }}
-                  thumbColor={colors.white}
-                  accessibilityLabel={`${t('bio.toggle', locale)} ${bioLabel}`}
-                />
+            {pinIsSet && (
+              <View style={styles.card}>
+                <TouchableOpacity
+                  style={styles.prefRow}
+                  onPress={() => setPinSheet('CHANGE')}
+                  accessibilityRole="button"
+                >
+                  <View style={styles.prefLabelContainer}>
+                    <Text style={styles.rowLabel}>{t('pin.change', locale)}</Text>
+                    <Text style={styles.rowSub}>{t('pin.change_sub', locale)}</Text>
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.prefRow}
+                  onPress={() => setPinSheet('RESET')}
+                  accessibilityRole="button"
+                >
+                  <View style={styles.prefLabelContainer}>
+                    <Text style={styles.rowLabel}>{t('pin.forgot', locale)}</Text>
+                  </View>
+                </TouchableOpacity>
               </View>
-            </View>
+            )}
+            {bioHardwareAvailable && (
+              <View style={styles.card}>
+                <View style={styles.prefRow}>
+                  <View style={styles.prefLabelContainer}>
+                    <Text style={styles.rowLabel}>
+                      {t('bio.toggle', locale)} ({bioLabel})
+                    </Text>
+                    <Text style={styles.rowSub}>{t('bio.toggle_sub', locale)}</Text>
+                  </View>
+                  <Switch
+                    value={bioEnabled}
+                    onValueChange={handleBiometricToggle}
+                    trackColor={{ false: colors.borderDark, true: colors.primary }}
+                    thumbColor={colors.white}
+                    accessibilityLabel={`${t('bio.toggle', locale)} ${bioLabel}`}
+                  />
+                </View>
+              </View>
+            )}
           </>
         )}
 
@@ -414,6 +452,18 @@ export const ParentProfileScreen: React.FC<ParentProfileScreenProps> = ({
           />
         )}
       </Modal>
+
+      <SpendingPinSheet
+        visible={pinSheet !== null}
+        mode={pinSheet ?? 'CHANGE'}
+        phoneE164={user.phone_e164}
+        maskedPhone={maskedPhone}
+        onClose={() => setPinSheet(null)}
+        onDone={(mode) => {
+          setPinSheet(null);
+          Alert.alert(mode === 'CHANGE' ? t('pin.done_change', locale) : t('pin.done_reset', locale));
+        }}
+      />
     </SafeAreaView>
   );
 };
