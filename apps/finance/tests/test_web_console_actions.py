@@ -89,6 +89,7 @@ class DiscrepancyResolveTests(ActionTestBase):
 
     def test_resolve_select_forces_a_deliberate_choice(self):
         self.client.force_login(self.officer)
+        self._link_payment()
         page = self.client.get(reverse('finance-console-reconciliation'), {'batch': self.batch.id})
         html = page.content.decode()
         self.assertIn('<select name="resolution" required', html)
@@ -96,6 +97,30 @@ class DiscrepancyResolveTests(ActionTestBase):
         self.assertLess(placeholder, html.index('value="MANUAL_SETTLED"'))
         self.assertLess(placeholder, html.index('value="WAIVED"'))
         self.assertLess(placeholder, html.index('value="ESCALATED"'))
+
+    def _link_payment(self):
+        from apps.finance.models import Payment, PaymentMethod
+        payment = Payment.objects.create(
+            foundation_id=self.foundation.id, school=self.school1, student=self.s1, amount=Decimal('1000.00'),
+            currency='IDR', method=PaymentMethod.VA, channel='BCA_VA', reference='PAY/TEST/1', external_id='EXT-1',
+        )
+        PaymentDiscrepancy.all_tenants.filter(pk=self.discrepancy.pk).update(payment=payment)
+
+    def test_manual_settle_offered_only_when_a_payment_is_linked(self):
+        self.client.force_login(self.officer)
+        page = self.client.get(reverse('finance-console-reconciliation'), {'batch': self.batch.id})
+        html = page.content.decode()
+        self.assertNotIn('value="MANUAL_SETTLED"', html)  # MISSING_IN_SYSTEM: nothing to settle
+        self.assertIn('value="WAIVED"', html)
+        self.assertIn('value="ESCALATED"', html)
+
+    def test_forced_manual_settle_without_a_payment_flashes_an_error(self):
+        self.client.force_login(self.officer)
+        response = self._post(resolution='MANUAL_SETTLED')
+        self.discrepancy.refresh_from_db()
+        self.assertEqual(self.discrepancy.resolution, DiscrepancyResolution.PENDING)
+        self.assertEqual(len(flashes(response)), 1)
+        self.assertIn('pembayaran terkait', flashes(response)[0])
 
     def test_already_resolved_shows_error_and_keeps_first_resolution(self):
         self.client.force_login(self.officer)

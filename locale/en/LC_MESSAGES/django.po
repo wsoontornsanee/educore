@@ -8521,3 +8521,8 @@ msgstr "Sheet not found."
 
 msgid "Digantikan"
 msgstr "Superseded"
+
+#: apps/finance/services/reconciliation.py
+#, python-format
+msgid "Selisih #%(id)s tidak memiliki pembayaran terkait sehingga tidak dapat diselesaikan manual. Pilih Abaikan atau Teruskan ke tim keuangan."
+msgstr "Discrepancy #%(id)s has no linked payment, so it cannot be settled manually. Choose Waive or Escalate to finance."
