@@ -18,7 +18,8 @@
     "android": {
       "package": "id.sch.educore.guru",
       "adaptiveIcon": {
-        "backgroundColor": "#0F172A"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#C8102E"
       }
     },
     "plugins": [
@@ -35,9 +36,6 @@
           "cameraPermission": "EduCore memakai kamera untuk memindai kode QR pembayaran kantin."
         }
       ]
-    ],
-    "extra": {
-      "apiUrl": "http://10.0.2.2:8000/api/v1"
-    }
+    ]
   }
 }
