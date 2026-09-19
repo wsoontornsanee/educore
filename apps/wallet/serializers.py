@@ -1,3 +1,4 @@
+from django.utils.translation import gettext as _
 from rest_framework import serializers
 
 from apps.wallet.models import (
@@ -229,9 +230,17 @@ class POSSessionSerializer(serializers.Serializer):
 
 class OfflinePOSTransactionSerializer(serializers.Serializer):
     client_transaction_id = serializers.CharField(max_length=128)
-    student_id = serializers.IntegerField()
-    items = serializers.ListField(child=serializers.DictField())
+    # Optional only for a QR-token entry the student already paid online: the terminal
+    # never learns the student or the amount, it just reports the token it minted.
+    student_id = serializers.IntegerField(required=False)
+    items = serializers.ListField(child=serializers.DictField(), required=False)
     occurred_at = serializers.DateTimeField(required=False)
+    qr_token = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        if not attrs.get('qr_token') and not ('student_id' in attrs and 'items' in attrs):
+            raise serializers.ValidationError(_("student_id dan items wajib diisi."))
+        return attrs
 
 
 class POSBatchCreateSerializer(serializers.Serializer):
