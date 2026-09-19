@@ -228,19 +228,20 @@ class SubstitutionWorkflowApiTests(TestCase):
     def test_unauthorized_teacher_cannot_accept_or_decline(self):
         third_teacher = make_substitute_teacher(self.fx, phone='+628177777777', name='Guru Lain')
         self.client.force_authenticate(user=third_teacher.user)
+        # Not a party and not a teacher of the slot's class: hidden by the class scope (404).
 
         res_accept = self.client.post(
             f'/api/v1/academic/timetable/substitutions/{self.sub.id}/accept/',
             format='json',
         )
-        self.assertEqual(res_accept.status_code, 403)
+        self.assertEqual(res_accept.status_code, 404)
 
         res_decline = self.client.post(
             f'/api/v1/academic/timetable/substitutions/{self.sub.id}/decline/',
             {'reason': 'Tidak mau'},
             format='json',
         )
-        self.assertEqual(res_decline.status_code, 403)
+        self.assertEqual(res_decline.status_code, 404)
 
     def test_school_admin_can_accept_or_decline(self):
         RoleAssignment.all_tenants.create(
@@ -294,11 +295,13 @@ class SubstitutionWorkflowApiTests(TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json()['slot_item']['substitution_id'], self.sub.id)
 
-    def test_retrieve_substitution_forbidden_for_unrelated_teacher(self):
+    def test_retrieve_substitution_hidden_from_unrelated_teacher_of_another_class(self):
+        # Per-teacher class scope: a teacher who neither takes part in the substitution nor
+        # teaches its class no longer sees it exist (404, previously the view's own 403).
         third_teacher = make_substitute_teacher(self.fx, phone='+628177777778', name='Guru Lain Sekali')
         self.client.force_authenticate(user=third_teacher.user)
         res = self.client.get(f'/api/v1/academic/timetable/substitutions/{self.sub.id}/')
-        self.assertEqual(res.status_code, 403)
+        self.assertEqual(res.status_code, 404)
 
     def test_retrieve_substitution_cross_tenant_returns_404(self):
         fx_b = build_academic_fixture(foundation_name="Yayasan Lain Sekali")

@@ -85,8 +85,22 @@ Policy (decided with the product owner): in a school where a user's only staff r
 - Built as `apps/academic/class_scope.py` (`ClassScope(user, foundation_id)`): a fixed handful of queries at construction (none for an unrestricted user), then `q(class_field, school_field)` returns the Q that limits any queryset, `class_groups(qs)` and `allows(class_group)` cover the common cases. Roles are read from `RoleAssignment`; this is the one place a role name matters, because every role holds `student_records.read`, so no permission key can single out teachers.
 - Applied to all four pages and to every write action: hidden classes are filtered out of lists and pickers, direct URLs to them 404, the grading queue and the report card counts exclude them, and grade/return/generate/approve/publish/revise refuse them (404 or the generic "pick a valid class" error).
 - Teacher lens on Jadwal still lists colleagues, but only their slots in classes the viewer may see.
-- Not covered: the JSON `/api/v1` endpoints (the mobile teacher app depends on them; tracked as its own Notion Todo).
+- The JSON `/api/v1` endpoints are covered by the next section.
+
+## Follow-on: per-teacher class scope on the JSON API
+
+The same `ClassScope` policy now applies to the academic JSON API, after a compatibility audit of the mobile app.
+
+**Mobile audit.** The mobile teacher app (agenda, roll call, substitution modal, broadcast) calls only `/teacher/agenda`, `/academic/timetable/slots/<id>/`, `/timetable/slots/<id>/period-attendance/`, `/academic/timetable/substitutions/<id>/` (+ `accept`/`decline`), `/teacher/broadcasts/`, and the behaviour endpoints. The parent app calls only the student-scoped endpoints (`/academic/students/<id>/...`, guardian-gated). No mobile screen uses the class-management endpoints that are now scoped. The one flow that crosses classes is a substitute teacher opening a substitution for a class they do not teach; it is preserved explicitly (below) and covered by tests.
+
+**Mechanism.** `TenantScopedModelViewSet` gained `class_scope_fields` (lookups of the row's class group id and school id, applied in `get_queryset`, so retrieve/update/delete/custom actions on an out-of-scope row all 404) and `class_scope_write` (dotted path from validated data to the target `ClassGroup`, checked on create/update so a teacher cannot write into another teacher's class). Configured on: class enrollments, assessments, homework, homework submissions, exams, exam questions, exam attempts, lesson plans. Hand-scoped: report cards (list/retrieve/actions/generate), broadcasts (list/create), the aggregated grading queue, gradebook, attainment's class subject, teacher permission slips (list/create/tally) and the Operasional permission-slip console pages.
+
+**Substitutions.** A restricted teacher sees substitutions in their own classes plus every one they take part in as original or substitute teacher. Consequence: an uninvolved teacher of a different class now gets 404 instead of the view's old 403 (two existing tests updated).
+
+**Student-scoped endpoints** (grades, homework, report cards, attainment, timetable, permission slips, broadcasts) use `can_view_student_academics`: `can_guardian_access_student` plus, for a restricted teacher, the student must be enrolled in one of their classes. A linked guardian always keeps access to their own child, even if they are also a teacher. `can_guardian_access_student` itself is unchanged because it also guards finance, clinic and wallet data.
+
+**Not covered** (own Todos): the attendance, behaviour, identity `/students/`, wallet and clinic endpoints, `TimetableSlotViewSet` (its retrieve already limits to the slot's teacher, substitute or an admin) and the school-level expected-periods rollup.
 
 ## Out of scope (Notion Todos)
 
-- Enforcing the same class scope on the matching JSON API endpoints.
+- Class scope on non-academic endpoints (attendance, behaviour, identity students).
