@@ -33,11 +33,16 @@ class WalletTransactionSerializer(serializers.ModelSerializer):
         model = WalletTransaction
         fields = [
             'id', 'foundation_id', 'wallet', 'type', 'amount', 'balance_after', 'reference', 'occurred_at', 'status',
-            'entry_mode',
+            'entry_mode', 'dispute_status',
         ]
         read_only_fields = fields
 
     entry_mode = serializers.SerializerMethodField()
+    dispute_status = serializers.SerializerMethodField()
+
+    def get_dispute_status(self, obj):
+        # Annotated by the history view: the guardian sees OPEN/UPHELD/REJECTED on the row itself.
+        return getattr(obj, 'dispute_status_value', None)
 
     def get_entry_mode(self, obj):
         # QRS-003: annotated by the history view (one Exists subquery, no per-row lookup).
