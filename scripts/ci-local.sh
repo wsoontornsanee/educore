@@ -5,7 +5,15 @@
 #
 #   scripts/ci-local.sh              run every gate
 #   scripts/ci-local.sh --publish    run every gate, then post ci/local for HEAD (must be pushed)
-#   scripts/ci-local.sh checks mysql run only the named gates (checks, sqlite, mysql, mobile)
+#   scripts/ci-local.sh checks mysql run only the named gates (checks, mobile, sqlite, mysql)
+#   scripts/ci-local.sh --all        ignore the shortcuts below and run every gate for real
+#
+# Shortcuts (a gate is reported as skipped/cached, never silently dropped):
+#   - a gate whose inputs are untouched relative to origin/main is skipped (docs-only change: no
+#     Python gates; Python-only change: no mobile gate);
+#   - on a clean tree, a gate that already passed on identical inputs is not re-run (results live
+#     in the shared .git dir, so sibling worktrees and retries after a later gate failed benefit);
+#   - the first failing gate stops the run, and everything runs at low CPU priority.
 #
 # MySQL gate: uses EDUCORE_DB_HOST/PORT/USER/PASSWORD (defaults: 127.0.0.1:3306, root, no password);
 # Django creates and drops its own per-checkout test database.
@@ -14,15 +22,17 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 PUBLISH=0
+ALL=0
 GATES=()
 for arg in "$@"; do
   case "$arg" in
     --publish) PUBLISH=1 ;;
+    --all) ALL=1 ;;
     checks|sqlite|mysql|mobile) GATES+=("$arg") ;;
     *) echo "unknown argument: $arg" >&2; exit 2 ;;
   esac
 done
-[ ${#GATES[@]} -eq 0 ] && GATES=(checks sqlite mysql mobile)
+[ ${#GATES[@]} -eq 0 ] && GATES=(checks mobile sqlite mysql)
 
 if [ "$PUBLISH" = 1 ]; then
   # The status vouches for a commit, so it must describe exactly the code that was tested.
@@ -34,6 +44,8 @@ if [ "$PUBLISH" = 1 ]; then
   [ "$(git rev-parse "origin/$BRANCH" 2>/dev/null)" = "$SHA" ] \
     || { echo "HEAD is not pushed to origin/$BRANCH; push first so the status lands on the PR head" >&2; exit 2; }
 fi
+
+renice -n 10 -p $$ >/dev/null 2>&1 || true
 
 if [ -x .venv/bin/python ]; then PY=.venv/bin/python; else PY=python3; fi
 export EDUCORE_DB_HOST="${EDUCORE_DB_HOST:-127.0.0.1}"
@@ -95,23 +107,62 @@ gate_mysql() {
 }
 
 gate_mobile() {
-  (cd mobile && npm ci --silent && npm run typecheck && npm test)
+  # npm ci wipes node_modules; skip it while the lockfile is the one already installed.
+  local lock
+  lock=$(git hash-object mobile/package-lock.json)
+  (
+    cd mobile
+    if [ "$(cat node_modules/.ci-lock 2>/dev/null)" != "$lock" ]; then
+      npm ci --silent && echo "$lock" > node_modules/.ci-lock || exit 1
+    fi
+    npm run typecheck && npm test
+  )
 }
 
+BASE=$(git merge-base HEAD origin/main 2>/dev/null || true)
+CHANGED=$([ -n "$BASE" ] && git diff --name-only "$BASE" || true)
+
+# Does this change touch anything the gate reads? Unknown base means yes.
+gate_relevant() {
+  [ "$ALL" = 1 ] || [ -z "$BASE" ] && return 0
+  case "$1" in
+    mobile) grep -q '^mobile/' <<<"$CHANGED" ;;
+    *) grep -qvE '^(mobile/|docs/|spec/|memory/|\.github/|[^/]+\.md$)' <<<"$CHANGED" ;;
+  esac
+}
+
+# Fingerprint of the tracked files a gate reads; empty when the tree is dirty (no caching then).
+gate_key() {
+  [ -z "$(git status --porcelain)" ] || return 0
+  if [ "$1" = mobile ]; then git ls-files -s -- mobile; else git ls-files -s -- . ':!mobile'; fi | git hash-object --stdin
+}
+
+PASSED_DIR="$(git rev-parse --git-common-dir)/ci-local-pass"
+mkdir -p "$PASSED_DIR"
 FAILED=()
+NOTES=()
 for gate in "${GATES[@]}"; do
   echo; echo "=== ci-local: $gate ==="
+  if ! gate_relevant "$gate"; then
+    echo "=== $gate: SKIPPED (nothing it reads changed vs origin/main) ==="; NOTES+=("$gate skipped"); continue
+  fi
+  key=$(gate_key "$gate")
+  stamp="$PASSED_DIR/${gate}-${key}"
+  if [ "$ALL" != 1 ] && [ -n "$key" ] && [ -e "$stamp" ]; then
+    echo "=== $gate: CACHED (passed earlier on identical files) ==="; NOTES+=("$gate cached"); continue
+  fi
   start=$SECONDS
   if "gate_$gate"; then
     echo "=== $gate: PASS ($((SECONDS - start))s) ==="
+    [ -n "$key" ] && touch "$stamp"
   else
     echo "=== $gate: FAIL ($((SECONDS - start))s) ===" >&2
-    FAILED+=("$gate")
+    FAILED+=("$gate"); break
   fi
 done
 
 echo
-if [ ${#FAILED[@]} -eq 0 ]; then STATE=success; DESC="All gates passed locally: ${GATES[*]}"
+if [ ${#FAILED[@]} -eq 0 ]; then STATE=success; DESC="All gates passed locally: ${GATES[*]}${NOTES:+ (${NOTES[*]})}"
 else STATE=failure; DESC="Failed locally: ${FAILED[*]}"; fi
 echo "ci-local: $STATE ($DESC)"
 
