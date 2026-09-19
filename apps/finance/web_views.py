@@ -1,4 +1,4 @@
-"""Keuangan (finance) pages of the web console — read-only, server-rendered.
+"""Keuangan (finance) pages of the web console — server-rendered.
 
 Thin views over existing finance models/services (no new domain logic). Each
 page is gated by the SAME RBAC permission key its nav item declares
@@ -8,21 +8,29 @@ if a role mistake grants them finance.* (same reasoning as the permission
 slip console). School-scoped staff only see their own schools' records
 (apps.finance.scope.staff_school_scope), matching the JSON API.
 
-Write actions (resolving discrepancies, approving discounts/write-offs,
-cash entry) stay on the JSON API for now.
+The read pages are read-only views. Write actions (resolving discrepancies,
+approving/rejecting discounts and write-offs, cash entry) are POST-only views
+(FinanceActionView subclasses) that call the existing services, flash a
+message and redirect back to the page. Approve/reject authority (foundation
+admin) is enforced by the services, not by the views.
 """
 import re
 from decimal import Decimal
 
+from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import F, Q, Sum
+from django.shortcuts import get_object_or_404, redirect  # noqa: F401
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from django.views.generic import TemplateView
+from django.views.generic import TemplateView, View
 
 from apps.finance.models import (
+    DiscrepancyResolution,
     Discount,
     DiscountStatus,
     GatewaySettlementBatch,
@@ -36,9 +44,18 @@ from apps.finance.models import (
 )
 from apps.finance.scope import staff_school_scope
 from apps.finance.services.ar_aging import AGING_BUCKETS, get_ar_aging_report
+from apps.finance.services.invoicing import (
+    approve_discount,
+    approve_invoice_write_off,
+    reject_discount,
+    reject_invoice_write_off,
+)
+from apps.finance.services.payments import record_cash_payment
+from apps.finance.services.reconciliation import resolve_discrepancy
+from apps.identity.models import Student
 from apps.identity.nav import has_staff_profile
-from apps.identity.rbac import has_permission_in_any_scope
-from educore.middleware.tenancy import get_current_foundation_id
+from apps.identity.rbac import has_permission_in_any_scope, is_foundation_admin
+from educore.middleware.tenancy import get_current_foundation_id, tenant_context
 
 PAGE_SIZE = 25
 RECENT_PAYMENTS = 20
@@ -74,24 +91,25 @@ PAYMENT_BADGES = {
 }
 
 
-class FinanceConsoleView(LoginRequiredMixin, TemplateView):
-    """Base: login + permission + Staff-profile gate, then foundation-scoped
-    context. Subclasses declare `required_permission` and build their context
-    in `build_context`. Failing the gate is a 403 (the nav already hides the
-    item from anyone who'd fail it, so this is only reachable by URL)."""
+class FinanceConsoleGateMixin(LoginRequiredMixin):
+    """Login + permission (any scope) + Staff-profile gate shared by every
+    finance console view, read or write. Failing the gate is a 403 (the nav
+    already hides items from users who'd fail it, so this is only reachable
+    by URL). After dispatch passes, `foundation_id` and `school_ids` (None =
+    unrestricted, else the caller's school ids) are set."""
     required_permission = None
-    page_title = ''
 
-    def get(self, request, *args, **kwargs):
-        self.foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
-        if not (
-            self.foundation_id
-            and has_permission_in_any_scope(request.user, self.required_permission, self.foundation_id)
-            and has_staff_profile(request.user, self.foundation_id)
-        ):
-            raise PermissionDenied
-        self.school_ids = staff_school_scope(request.user, self.foundation_id)
-        return super().get(request, *args, **kwargs)
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated:
+            self.foundation_id = get_current_foundation_id() or getattr(request.user, 'foundation_id', None)
+            if not (
+                self.foundation_id
+                and has_permission_in_any_scope(request.user, self.required_permission, self.foundation_id)
+                and has_staff_profile(request.user, self.foundation_id)
+            ):
+                raise PermissionDenied
+            self.school_ids = staff_school_scope(request.user, self.foundation_id)
+        return super().dispatch(request, *args, **kwargs)
 
     def scoped(self, model, school_field='school_id'):
         """Undeleted rows of `model` for this foundation, limited to the
@@ -101,6 +119,11 @@ class FinanceConsoleView(LoginRequiredMixin, TemplateView):
             qs = qs.filter(**{f'{school_field}__in': self.school_ids})
         return qs
 
+
+class FinanceConsoleView(FinanceConsoleGateMixin, TemplateView):
+    """Read pages: subclasses build their context in `build_context`."""
+    page_title = ''
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx['page_title'] = self.page_title
@@ -109,6 +132,42 @@ class FinanceConsoleView(LoginRequiredMixin, TemplateView):
 
     def build_context(self):
         raise NotImplementedError
+
+
+class FinanceActionView(FinanceConsoleGateMixin, View):
+    """POST-only write action: look up the (scoped) object, call an existing
+    service inside the tenant context, flash the outcome, redirect back.
+
+    Subclasses set `required_permission` and implement `get_object` (default:
+    no object), `perform` (returns the success message; raises ValueError /
+    ValidationError / PermissionDenied for user-facing failures) and
+    `redirect_url`. A service PermissionDenied is shown as a flash error, not
+    a 403 page: the user was allowed to reach the view."""
+    http_method_names = ['post']
+
+    def get_object(self, **url_kwargs):
+        return None
+
+    def perform(self, obj):
+        raise NotImplementedError
+
+    def redirect_url(self, obj):
+        raise NotImplementedError
+
+    def post(self, request, *args, **kwargs):
+        obj = self.get_object(**kwargs)
+        try:
+            with transaction.atomic(), tenant_context(self.foundation_id):
+                message = self.perform(obj)
+        except PermissionDenied:
+            messages.error(request, _('Anda tidak berwenang melakukan tindakan ini.'))
+        except ValidationError as exc:
+            messages.error(request, ' '.join(exc.messages))
+        except ValueError as exc:
+            messages.error(request, str(exc))
+        else:
+            messages.success(request, message)
+        return redirect(self.redirect_url(obj))
 
 
 class BillingConsoleView(FinanceConsoleView):
@@ -165,12 +224,64 @@ class BillingConsoleView(FinanceConsoleView):
             'page': page,
             'totals': totals,
             'payments': payments,
+            'can_record_cash': has_permission_in_any_scope(self.request.user, 'finance.invoice.write', self.foundation_id),
             'status_choices': [(value, INVOICE_BADGES[value][1]) for value in InvoiceStatus.values],
             'filters': {'status': status, 'period': period, 'q': q},
             'filter_querystring': '&'.join(
                 f'{key}={value}' for key, value in (('status', status), ('period', period), ('q', q)) if value
             ),
         }
+
+
+AMOUNT_RE = re.compile(r'[0-9]{1,16}(\.[0-9]{1,2})?')
+
+
+class CashPaymentView(FinanceActionView):
+    """POST: record a cash payment for a student found by NIS within the
+    caller's schools. The service allocates to open invoices oldest-first,
+    posts the ledger journal and audits. A NIS matching more than one student
+    (possible across schools) is refused rather than guessed."""
+    required_permission = 'finance.invoice.write'
+
+    def redirect_url(self, obj):
+        return reverse('finance-console-billing')
+
+    def _parse_amount(self, raw):
+        # Strict ASCII plain-decimal grammar checked BEFORE Decimal(): rejects
+        # exponents, NaN/Infinity, underscores, non-ASCII digits, signs, more
+        # than two decimals and anything beyond DECIMAL(18,2) (16 integer digits).
+        text = raw.strip()
+        if not AMOUNT_RE.fullmatch(text):
+            raise ValueError(_('Jumlah tidak valid.'))
+        amount = Decimal(text)
+        if amount <= 0:
+            raise ValueError(_('Jumlah harus lebih dari nol dengan maksimal dua desimal.'))
+        return amount
+
+    def _find_student(self, nis):
+        students = Student.all_tenants.filter(
+            foundation_id=self.foundation_id, deleted_at__isnull=True, nis=nis,
+        ).select_related('school')
+        if self.school_ids is not None:
+            students = students.filter(school_id__in=self.school_ids)
+        matches = list(students[:2])
+        if not matches:
+            raise ValueError(_('Siswa dengan NIS tersebut tidak ditemukan.'))
+        if len(matches) > 1:
+            raise ValueError(_('NIS cocok dengan lebih dari satu siswa. Gunakan API keuangan untuk memilih siswa.'))
+        return matches[0]
+
+    def perform(self, obj):
+        amount = self._parse_amount(self.request.POST.get('amount', ''))
+        student = self._find_student(self.request.POST.get('nis', '').strip())
+        payment = record_cash_payment(
+            school=student.school,
+            student=student,
+            amount=amount,
+            received_by=self.request.user,
+            notes=self.request.POST.get('notes', '').strip()[:255],
+        )
+        return _('Pembayaran tunai tercatat. No. kwitansi: %(receipt)s') % {'receipt': payment.receipt_number}
 
 
 class ReconciliationConsoleView(FinanceConsoleView):
@@ -197,7 +308,43 @@ class ReconciliationConsoleView(FinanceConsoleView):
                     foundation_id=self.foundation_id, batch=selected, deleted_at__isnull=True,
                 ).order_by('-id')[:DISCREPANCY_LIMIT]
             )
-        return {'page': page, 'selected': selected, 'discrepancies': discrepancies}
+        return {
+            'page': page, 'selected': selected, 'discrepancies': discrepancies,
+            'can_resolve': has_permission_in_any_scope(self.request.user, 'finance.payment.write', self.foundation_id),
+        }
+
+
+class DiscrepancyResolveView(FinanceActionView):
+    """POST: settle / waive / escalate a pending gateway discrepancy. Batches
+    are foundation-level (not per-school), same as the read page and API."""
+    required_permission = 'finance.payment.write'
+    ALLOWED_RESOLUTIONS = (
+        DiscrepancyResolution.MANUAL_SETTLED,
+        DiscrepancyResolution.WAIVED,
+        DiscrepancyResolution.ESCALATED,
+    )
+
+    def get_object(self, pk):
+        return get_object_or_404(
+            PaymentDiscrepancy.all_tenants.filter(foundation_id=self.foundation_id, deleted_at__isnull=True),
+            pk=pk,
+        )
+
+    def perform(self, discrepancy):
+        resolution = self.request.POST.get('resolution', '')
+        if resolution not in self.ALLOWED_RESOLUTIONS:
+            raise ValueError(_('Pilihan penyelesaian tidak valid.'))
+        resolve_discrepancy(
+            discrepancy_id=discrepancy.id,
+            resolution=resolution,
+            resolved_by=self.request.user,
+            foundation_id=self.foundation_id,
+            notes=self.request.POST.get('notes', '').strip()[:255],
+        )
+        return _('Selisih berhasil diperbarui.')
+
+    def redirect_url(self, discrepancy):
+        return f"{reverse('finance-console-reconciliation')}?batch={discrepancy.batch_id}#discrepancies"
 
 
 class ReceivablesConsoleView(FinanceConsoleView):
@@ -227,4 +374,42 @@ class ReceivablesConsoleView(FinanceConsoleView):
             'debtors': debtors,
             'pending_discounts': list(pending_discounts),
             'pending_write_offs': list(pending_write_offs),
+            'can_decide': is_foundation_admin(self.request.user, self.foundation_id),
         }
+
+
+class _DecisionView(FinanceActionView):
+    """Approve/reject pair. `decision` is fixed per URL via as_view(decision=...).
+    Approval and rejection authority (foundation admin) is enforced by the
+    services; the buttons are only *shown* to foundation admins."""
+    required_permission = 'finance.invoice.write'
+    decision = None  # 'approve' | 'reject'
+
+    def redirect_url(self, obj):
+        return reverse('finance-console-receivables')
+
+
+class DiscountDecisionView(_DecisionView):
+    def get_object(self, pk):
+        return get_object_or_404(self.scoped(Discount, 'student__school_id'), pk=pk)
+
+    def perform(self, discount):
+        reason = self.request.POST.get('reason', '').strip()
+        if self.decision == 'approve':
+            approve_discount(discount, self.request.user, reason=reason)
+            return _('Keringanan disetujui.')
+        reject_discount(discount, self.request.user, reason=reason)
+        return _('Keringanan ditolak.')
+
+
+class WriteOffDecisionView(_DecisionView):
+    def get_object(self, pk):
+        return get_object_or_404(self.scoped(InvoiceWriteOffRequest), pk=pk)
+
+    def perform(self, write_off):
+        if self.decision == 'approve':
+            approve_invoice_write_off(request_obj=write_off, user=self.request.user)
+            return _('Penghapusbukuan disetujui.')
+        notes = self.request.POST.get('notes', '').strip()
+        reject_invoice_write_off(request_obj=write_off, user=self.request.user, notes=notes)
+        return _('Penghapusbukuan ditolak.')

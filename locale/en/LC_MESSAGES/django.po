@@ -7249,6 +7249,57 @@ msgstr "Revoke"
 
 msgid "Belum ada kunci API."
 msgstr "No API keys yet."
+msgid "Pilihan penyelesaian tidak valid."
+msgstr "Invalid resolution choice."
+
+msgid "Selisih berhasil diperbarui."
+msgstr "Discrepancy updated."
+
+msgid "Keringanan disetujui."
+msgstr "Discount approved."
+
+msgid "Keringanan ditolak."
+msgstr "Discount rejected."
+
+msgid "Penghapusbukuan disetujui."
+msgstr "Write-off approved."
+
+msgid "Penghapusbukuan ditolak."
+msgstr "Write-off rejected."
+
+msgid "Anda tidak berwenang melakukan tindakan ini."
+msgstr "You are not authorized to perform this action."
+
+msgid "Jumlah tidak valid."
+msgstr "Invalid amount."
+
+msgid "Jumlah harus lebih dari nol dengan maksimal dua desimal."
+msgstr "Amount must be greater than zero with at most two decimals."
+
+msgid "Siswa dengan NIS tersebut tidak ditemukan."
+msgstr "No student found with that NIS."
+
+msgid "NIS cocok dengan lebih dari satu siswa. Gunakan API keuangan untuk memilih siswa."
+msgstr "NIS matches more than one student. Use the finance API to choose the student."
+
+#, python-format
+msgid "Pembayaran tunai tercatat. No. kwitansi: %(receipt)s"
+msgstr "Cash payment recorded. Receipt no.: %(receipt)s"
+
+msgid "Penyelesaian"
+msgstr "Resolution"
+
+msgid "Selesaikan manual"
+msgstr "Settle manually"
+
+msgid "Abaikan"
+msgstr "Waive"
+
+msgid "Teruskan ke tim keuangan"
+msgstr "Escalate to finance team"
+
+msgid "Catatan"
+msgstr "Notes"
 
 msgid "Simpan"
 msgstr "Save"
@@ -7539,10 +7590,6 @@ msgid "Capaian"
 msgstr "Achievement"
 
 #: frontend/templates/pages/academic_report_card_list.html
-msgid "Catatan"
-msgstr "Notes"
-
-#: frontend/templates/pages/academic_report_card_list.html
 msgid "Belum lengkap"
 msgstr "Incomplete"
 
@@ -7745,6 +7792,11 @@ msgstr "Duty-desk actions"
 
 msgid "Check-in manual (kartu tertinggal)"
 msgstr "Manual check-in (forgotten card)"
+msgid "Alasan keputusan"
+msgstr "Reason for decision"
+
+msgid "Catat pembayaran tunai"
+msgstr "Record cash payment"
 
 msgid "NIS siswa"
 msgstr "Student NIS"
@@ -7838,6 +7890,7 @@ msgstr "You can only grant roles whose permissions do not exceed your own, withi
 
 msgid "Tambah"
 msgstr "Add"
+
 
 #: apps/wallet/web_views.py
 msgid "Data ini sudah diproses sebelumnya."
@@ -8014,3 +8067,22 @@ msgstr "Transfer reference (optional)"
 #: apps/wallet/web_views.py
 msgid "Referensi (opsional)"
 msgstr "Reference (optional)"
+
+msgid "Jumlah (Rp)"
+msgstr "Amount (Rp)"
+
+msgid "Catat pembayaran"
+msgstr "Record payment"
+
+msgid "Dialokasikan otomatis ke tagihan terbuka yang paling lama."
+msgstr "Automatically allocated to the oldest open invoices."
+
+msgid "Batch penyelesaian gateway pembayaran per hari."
+msgstr "Payment gateway settlement batches per day."
+
+msgid "Pilih tindakan"
+msgstr "Choose an action"
+
+msgid "Alasan penolakan"
+msgstr "Rejection reason"
+
