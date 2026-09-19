@@ -75,7 +75,7 @@ class ClassConsoleTests(TestCase):
         )
         ClassGroup.objects.create(
             foundation_id=self.foundation.id, school=self.school, academic_year=old_year,
-            grade_level=9, name='IX Lama',
+            grade_level=9, name='IX Lama', homeroom_teacher=self.teacher,
         )
         self._auth_teacher()
         res = self.client.get(LIST_URL)

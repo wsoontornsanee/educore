@@ -23,7 +23,7 @@ Four independent PRs, in this order: roster, schedule, grading queue, rapor. Eac
 ## Decisions
 
 - **Read-only.** Write actions (grade/return homework, generate/approve/publish report cards) stay on the JSON API. Tracked in Notion as a follow-on.
-- **Foundation-wide visibility.** Same as the permission-slip console and the JSON APIs: anyone holding the read permission sees every class of their foundation. Per-teacher scoping is a follow-on because it must change the API and console together.
+- **Foundation-wide visibility (v1).** Same as the permission-slip console and the JSON APIs: anyone holding the read permission saw every class of their foundation. Teachers were later restricted to their own classes, see "Follow-on: per-teacher class scoping".
 - **Staff profile required.** `ROLE_PARENT` holds both `student_records.read` and `grades.read`. A guardian must never reach the school-side console, so every page requires a linked `Staff` row (same reasoning as `StaffConsoleMixin`). The four nav items get `requires_staff_profile=True` so the nav never shows a link that 404s.
 - **Minimal PII.** Pages show student name and NIS only. Never NISN, NIK, phone, or guardian data.
 - **Substitutions** were not shown on Jadwal v1; added afterwards, see "Follow-on: timetable substitutions".
@@ -78,6 +78,15 @@ Built in `apps/academic/console_actions.py`. Every action is a POST-only view th
 - **Approve** and **Publish** (`school_config.write`, same keys as the API) and **Revise** (`grades.write`), on the detail page: DRAFT/PENDING_REVIEW shows Setujui, APPROVED shows Terbitkan, a current PUBLISHED card shows Buat revisi (redirects to the new DRAFT version). An invalid transition flashes a generic Indonesian error instead of the service's raw `INVALID_TRANSITION` code.
 - Still out of scope: editing a card's narrative / promotion decision / extracurricular notes.
 
+## Follow-on: per-teacher class scoping
+
+Policy (decided with the product owner): in a school where a user's only staff role is `teacher`, the console shows only the classes they teach (`ClassSubject.teacher`) or are homeroom teacher of (`ClassGroup.homeroom_teacher`). Every other staff role (school/foundation admin, counsellor, finance, canteen, clinic) and superusers keep foundation-wide reads, and a teacher who also holds one of those roles in the same school is unrestricted there. The `parent` role is not a staff role and never lifts a restriction. Restriction is decided per school, so someone who teaches in school A and admins school B is restricted in A only. Classes covered through an accepted substitution do not count.
+
+- Built as `apps/academic/class_scope.py` (`ClassScope(user, foundation_id)`): a fixed handful of queries at construction (none for an unrestricted user), then `q(class_field, school_field)` returns the Q that limits any queryset, `class_groups(qs)` and `allows(class_group)` cover the common cases. Roles are read from `RoleAssignment`; this is the one place a role name matters, because every role holds `student_records.read`, so no permission key can single out teachers.
+- Applied to all four pages and to every write action: hidden classes are filtered out of lists and pickers, direct URLs to them 404, the grading queue and the report card counts exclude them, and grade/return/generate/approve/publish/revise refuse them (404 or the generic "pick a valid class" error).
+- Teacher lens on Jadwal still lists colleagues, but only their slots in classes the viewer may see.
+- Not covered: the JSON `/api/v1` endpoints (the mobile teacher app depends on them; tracked as its own Notion Todo).
+
 ## Out of scope (Notion Todos)
 
-- Per-teacher class scoping.
+- Enforcing the same class scope on the matching JSON API endpoints.
