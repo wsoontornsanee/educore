@@ -427,7 +427,7 @@ export interface WalletData {
   updated_at: string;
 }
 
-export type WalletTransactionType = 'TOPUP' | 'PURCHASE' | 'REFUND' | 'ADJUSTMENT';
+export type WalletTransactionType = 'TOPUP' | 'PURCHASE' | 'REFUND' | 'ADJUSTMENT' | 'TRANSFER_OUT';
 
 export interface WalletTransactionItem {
   id: number;
