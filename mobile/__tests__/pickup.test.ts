@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   createPickupAuthorization,
+  customWindowProblem,
   fetchPickupAuthorizations,
   isLive,
   pickupErrorCode,
@@ -66,6 +67,31 @@ describe('pickup validity windows', () => {
   });
 });
 
+describe('pickup exact-window validation (mirrors the server)', () => {
+  const now = new Date('2026-09-19T10:00:00Z');
+  const at = (iso: string) => new Date(iso);
+
+  it('accepts a window that starts in the past or the future and ends in the future', () => {
+    assert.strictEqual(customWindowProblem(at('2026-09-19T08:00:00Z'), at('2026-09-19T12:00:00Z'), now), null);
+    assert.strictEqual(customWindowProblem(at('2026-09-25T01:00:00Z'), at('2026-09-25T09:00:00Z'), now), null);
+  });
+
+  it('refuses an end that is not after the start', () => {
+    assert.strictEqual(customWindowProblem(at('2026-09-20T09:00:00Z'), at('2026-09-20T09:00:00Z'), now), 'ORDER');
+    assert.strictEqual(customWindowProblem(at('2026-09-20T09:00:00Z'), at('2026-09-20T08:00:00Z'), now), 'ORDER');
+  });
+
+  it('refuses an end that has already passed', () => {
+    assert.strictEqual(customWindowProblem(at('2026-09-19T01:00:00Z'), at('2026-09-19T09:00:00Z'), now), 'PAST');
+  });
+
+  it('allows 366 days and refuses more', () => {
+    const from = at('2026-09-19T10:00:00Z');
+    assert.strictEqual(customWindowProblem(from, at('2027-09-20T10:00:00Z'), now), null);
+    assert.strictEqual(customWindowProblem(from, at('2027-09-20T10:00:01Z'), now), 'TOO_LONG');
+  });
+});
+
 describe('pickup authorisation requests', () => {
   it('lists a child’s authorisations by student id', async () => {
     await withClient('get', [item(), item({ id: 2, status: 'USED', qr_token: null })], async (calls) => {
@@ -94,10 +120,33 @@ describe('pickup authorisation requests', () => {
     });
   });
 
-  it('never sends a photo key (photo upload is a separate item)', async () => {
+  it('sends no photo key when the guardian attached no photo', async () => {
     await withClient('post', item(), async (calls) => {
       await createPickupAuthorization({ studentId: 7, personName: 'A', relation: '', phone: '', preset: 'TODAY', oneTime: true });
       assert.ok(!('photo_key' in (calls[0].body as object)));
+    });
+  });
+
+  it('sends the uploaded photo key as photo_key', async () => {
+    await withClient('post', item(), async (calls) => {
+      await createPickupAuthorization(
+        { studentId: 7, personName: 'A', relation: '', phone: '', preset: 'TODAY', photoKey: 'STG/pickup_photo/abc_pickup.jpg', oneTime: true },
+      );
+      assert.strictEqual((calls[0].body as any).photo_key, 'STG/pickup_photo/abc_pickup.jpg');
+    });
+  });
+
+  it('an exact window replaces the preset window', async () => {
+    const from = new Date('2026-09-22T01:00:00Z');
+    const to = new Date('2026-09-22T09:30:00Z');
+    await withClient('post', item(), async (calls) => {
+      await createPickupAuthorization(
+        { studentId: 7, personName: 'A', relation: '', phone: '', preset: 'TODAY', customWindow: { from, to }, oneTime: true },
+        new Date('2026-09-19T10:00:00Z'),
+      );
+      const body = calls[0].body as any;
+      assert.strictEqual(body.valid_from, '2026-09-22T01:00:00.000Z');
+      assert.strictEqual(body.valid_to, '2026-09-22T09:30:00.000Z');
     });
   });
 

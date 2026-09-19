@@ -17,10 +17,26 @@ export interface NewPickupAuthorization {
   relation: string;
   phone: string;
   preset: WindowPreset;
+  /** An exact window; when set it replaces the preset (which then only names the shortcut last used). */
+  customWindow?: { from: Date; to: Date };
+  /** Storage key from uploadPickupPhoto; omitted when the guardian attached no photo. */
+  photoKey?: string;
   oneTime: boolean;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+/** Mirrors MAX_AUTHORIZATION_WINDOW in apps/attendance/pickup.py; the server enforces it, this fails fast. */
+const MAX_WINDOW_MS = 366 * DAY_MS;
+
+export type WindowProblem = 'ORDER' | 'PAST' | 'TOO_LONG';
+
+/** Why an exact window would be refused by the server, or null when it is acceptable. */
+export function customWindowProblem(from: Date, to: Date, now: Date = new Date()): WindowProblem | null {
+  if (!(to.getTime() > from.getTime())) return 'ORDER';
+  if (!(to.getTime() > now.getTime())) return 'PAST';
+  if (to.getTime() - from.getTime() > MAX_WINDOW_MS) return 'TOO_LONG';
+  return null;
+}
 
 /**
  * The validity window for a preset, starting now. TODAY runs to the last second of today in WIB (a guardian
@@ -49,7 +65,10 @@ export async function createPickupAuthorization(input: NewPickupAuthorization, n
     person_name: input.personName.trim(),
     relation: input.relation.trim(),
     phone: input.phone.trim(),
-    ...windowFor(input.preset, now),
+    ...(input.customWindow
+      ? { valid_from: input.customWindow.from.toISOString(), valid_to: input.customWindow.to.toISOString() }
+      : windowFor(input.preset, now)),
+    ...(input.photoKey ? { photo_key: input.photoKey } : {}),
     one_time: input.oneTime,
   });
   return response.data;

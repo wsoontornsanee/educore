@@ -1,17 +1,21 @@
 /**
  * Parent: pickup authorisations for one child (spec/05 ATT-015). A guardian authorises a named person for a
- * time window, shows them the QR, sees the status and can revoke. Photo upload is a separate item.
- * The list holds a phone number and a live QR token, so nothing here is written to device storage.
+ * time window (a preset or an exact date-time range) and, optionally, a photo, shows them the QR, sees the
+ * status and can revoke. The list holds a phone number and a live QR token, and the photo shows a third party,
+ * so nothing here is written to device storage: the picked photo is deleted once the authorisation exists.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, Modal, SafeAreaView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View,
+  ActivityIndicator, Alert, FlatList, Image, Modal, SafeAreaView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
+import { DateTimeField } from '../../components/DateTimeField';
 import {
-  createPickupAuthorization, fetchPickupAuthorizations, isLive, pickupErrorCode, revokePickupAuthorization,
-  type WindowPreset,
+  createPickupAuthorization, customWindowProblem, fetchPickupAuthorizations, isLive, pickupErrorCode,
+  revokePickupAuthorization, windowFor, type WindowPreset,
 } from '../../services/pickup.ts';
+import { discardPickupPhoto, pickPickupPhoto, type PhotoSource } from '../../services/photoPicker.ts';
+import { PickupPhotoError, uploadPickupPhoto, type PickedPhoto } from '../../services/pickupPhoto.ts';
 import { useLocale } from '../../i18n/LocaleContext.tsx';
 import { colors, radius, spacing, typography } from '../../theme/tokens.ts';
 import type { ChildSummary, PickupAuthorizationItem } from '../../types/index.ts';
@@ -21,7 +25,8 @@ interface ParentPickupScreenProps {
   onClose: () => void;
 }
 
-const PRESETS: WindowPreset[] = ['TODAY', 'WEEK', 'MONTH'];
+type PresetChoice = WindowPreset | 'CUSTOM';
+const PRESETS: PresetChoice[] = ['TODAY', 'WEEK', 'MONTH', 'CUSTOM'];
 
 function formatDateTime(iso: string): string {
   try {
@@ -43,12 +48,52 @@ export const ParentPickupScreen: React.FC<ParentPickupScreenProps> = ({ child, o
   const [personName, setPersonName] = useState('');
   const [relation, setRelation] = useState('');
   const [phone, setPhone] = useState('');
-  const [preset, setPreset] = useState<WindowPreset>('TODAY');
+  const [preset, setPreset] = useState<PresetChoice>('TODAY');
+  const [customFrom, setCustomFrom] = useState(() => new Date());
+  const [customTo, setCustomTo] = useState(() => new Date(windowFor('TODAY').valid_to));
   const [oneTime, setOneTime] = useState(true);
+  const [photo, setPhoto] = useState<PickedPhoto | null>(null);
+  // Set once the photo is uploaded, so a retry after a failed create does not upload it a second time.
+  const [photoKey, setPhotoKey] = useState<string | null>(null);
 
-  const explain = useCallback((error: unknown) => (
-    pickupErrorCode(error) === 'PICKUP_NOT_GUARDIAN' ? t('pickup.error.not_guardian') : t('pickup.error.generic')
-  ), [t]);
+  const explain = useCallback((error: unknown) => {
+    if (error instanceof PickupPhotoError) {
+      return t(error.code === 'TOO_LARGE' ? 'pickup.photo.error.too_large' : 'pickup.photo.error.upload');
+    }
+    switch (pickupErrorCode(error)) {
+      case 'PICKUP_NOT_GUARDIAN': return t('pickup.error.not_guardian');
+      case 'PICKUP_INVALID_WINDOW': return t('pickup.error.window_invalid');
+      case 'PICKUP_INVALID_PHOTO': return t('pickup.photo.error.upload');
+      default: return t('pickup.error.generic');
+    }
+  }, [t]);
+
+  const choosePreset = (key: PresetChoice) => {
+    if (key === 'CUSTOM' && preset !== 'CUSTOM') { // start from "now until the end of today", then adjust
+      setCustomFrom(new Date());
+      setCustomTo(new Date(windowFor('TODAY').valid_to));
+    }
+    setPreset(key);
+  };
+
+  const takePhoto = async (source: PhotoSource) => {
+    setMessage(null);
+    const result = await pickPickupPhoto(source);
+    if (!result) return;
+    if ('failure' in result) {
+      setMessage(t(result.failure === 'DENIED' ? 'pickup.photo.error.camera_denied' : 'pickup.photo.error.unavailable'));
+      return;
+    }
+    if (photo) discardPickupPhoto(photo);
+    setPhoto(result.photo);
+    setPhotoKey(null);
+  };
+
+  const removePhoto = () => {
+    if (photo) discardPickupPhoto(photo);
+    setPhoto(null);
+    setPhotoKey(null);
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -69,17 +114,35 @@ export const ParentPickupScreen: React.FC<ParentPickupScreenProps> = ({ child, o
       setMessage(t('pickup.name_required'));
       return;
     }
+    if (preset === 'CUSTOM') {
+      const problem = customWindowProblem(customFrom, customTo);
+      if (problem) {
+        setMessage(t(`pickup.error.window_${problem}`));
+        return;
+      }
+    }
     setSubmitting(true); // one request per tap: the create call is not idempotent
     setMessage(null);
     try {
+      let key = photoKey;
+      if (photo && !key) {
+        key = await uploadPickupPhoto(photo);
+        setPhotoKey(key);
+      }
       const created = await createPickupAuthorization({
-        studentId: child.student_id, personName, relation, phone, preset, oneTime,
+        studentId: child.student_id, personName, relation, phone,
+        preset: preset === 'CUSTOM' ? 'TODAY' : preset,
+        customWindow: preset === 'CUSTOM' ? { from: customFrom, to: customTo } : undefined,
+        photoKey: key ?? undefined,
+        oneTime,
       });
       setItems((current) => [created, ...current]);
       setAdding(false);
       setPersonName(''); setRelation(''); setPhone('');
+      removePhoto();
       if (created.qr_token) setQrFor(created);
     } catch (error) {
+      if (pickupErrorCode(error) === 'PICKUP_INVALID_PHOTO') setPhotoKey(null); // the stored file is gone: upload again
       setMessage(explain(error));
     } finally {
       setSubmitting(false);
@@ -134,12 +197,30 @@ export const ParentPickupScreen: React.FC<ParentPickupScreenProps> = ({ child, o
                 <Field label={t('pickup.person_name')} value={personName} onChange={setPersonName} />
                 <Field label={t('pickup.relation')} value={relation} onChange={setRelation} />
                 <Field label={t('pickup.phone')} value={phone} onChange={setPhone} keyboardType="phone-pad" />
-                <Text style={styles.label}>{t('pickup.validity')}</Text>
+                <Text style={styles.label}>{t('pickup.photo')}</Text>
+                <View style={styles.photoRow}>
+                  {photo && <Image source={{ uri: photo.uri }} style={styles.photo} accessibilityIgnoresInvertColors />}
+                  <View style={styles.photoActions}>
+                    <TouchableOpacity onPress={() => takePhoto('camera')} style={styles.action} accessibilityRole="button">
+                      <Text style={styles.actionText}>{t('pickup.photo.take')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => takePhoto('library')} style={styles.action} accessibilityRole="button">
+                      <Text style={styles.actionText}>{t('pickup.photo.choose')}</Text>
+                    </TouchableOpacity>
+                    {photo && (
+                      <TouchableOpacity onPress={removePhoto} style={styles.action} accessibilityRole="button">
+                        <Text style={[styles.actionText, styles.danger]}>{t('pickup.photo.remove')}</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+                <Text style={styles.hint}>{t('pickup.photo.hint')}</Text>
+                <Text style={[styles.label, styles.sectionGap]}>{t('pickup.validity')}</Text>
                 <View style={styles.presetRow}>
                   {PRESETS.map((key) => (
                     <TouchableOpacity
                       key={key}
-                      onPress={() => setPreset(key)}
+                      onPress={() => choosePreset(key)}
                       style={[styles.preset, preset === key && styles.presetActive]}
                       accessibilityRole="button"
                       accessibilityState={{ selected: preset === key }}
@@ -148,6 +229,12 @@ export const ParentPickupScreen: React.FC<ParentPickupScreenProps> = ({ child, o
                     </TouchableOpacity>
                   ))}
                 </View>
+                {preset === 'CUSTOM' && (
+                  <View>
+                    <DateTimeField label={t('pickup.window.from')} value={customFrom} onChange={setCustomFrom} />
+                    <DateTimeField label={t('pickup.window.to')} value={customTo} onChange={setCustomTo} />
+                  </View>
+                )}
                 <View style={styles.switchRow}>
                   <Text style={styles.label}>{t('pickup.one_time')}</Text>
                   <Switch value={oneTime} onValueChange={setOneTime} />
@@ -230,11 +317,15 @@ const styles = StyleSheet.create({
   field: { marginBottom: spacing.sm },
   label: { fontSize: typography.fontSize.sm, color: colors.body, fontWeight: typography.fontWeight.medium },
   input: { borderWidth: 1, borderColor: colors.borderDark, borderRadius: radius.card, padding: spacing.sm, minHeight: 44, color: colors.heading },
-  presetRow: { flexDirection: 'row', gap: spacing.sm, marginVertical: spacing.sm },
-  preset: { flex: 1, minHeight: 44, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.borderDark, borderRadius: radius.card },
+  presetRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginVertical: spacing.sm },
+  preset: { flexGrow: 1, minWidth: 72, minHeight: 44, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.borderDark, borderRadius: radius.card },
   presetActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   presetText: { color: colors.body },
   presetTextActive: { color: colors.white, fontWeight: typography.fontWeight.bold },
+  sectionGap: { marginTop: spacing.sm },
+  photoRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.xs },
+  photo: { width: 72, height: 72, borderRadius: radius.card, backgroundColor: colors.surfaceAlt },
+  photoActions: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.md },
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 44 },
   hint: { fontSize: typography.fontSize.xs, color: colors.muted, marginTop: spacing.xs },
   primary: { minHeight: 44, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary, borderRadius: radius.card, marginTop: spacing.sm },
