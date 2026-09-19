@@ -20,7 +20,9 @@ import {
   View,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { SpendingPinSheet } from '../../components/SpendingPinSheet';
 import { useLocale } from '../../i18n/LocaleContext.tsx';
+import { getUserProfile } from '../../services/storage';
 import { formatRupiah } from '../../services/wallet';
 import {
   PIN_LENGTH,
@@ -30,6 +32,7 @@ import {
   QrResolveResult,
   applyKeypadKey,
   chargeQr,
+  checkNewPinEntry,
   createPin,
   describeQrError,
   evaluateAmount,
@@ -83,6 +86,9 @@ export const ParentQrChargeScreen: React.FC<ParentQrChargeScreenProps> = ({
   const [failure, setFailure] = useState<QrFailure | null>(null);
   const [savingPin, setSavingPin] = useState(false);
   const [paid, setPaid] = useState<QrChargeResult | null>(null);
+  // Own phone for the OTP that resets a locked / forgotten PIN.
+  const [phone, setPhone] = useState('');
+  const [resetSheetOpen, setResetSheetOpen] = useState(false);
 
   // One key per confirmation, reused on retry after a dropped connection so a lost response
   // can never debit twice. Re-minted whenever the amount or QR changes.
@@ -109,6 +115,7 @@ export const ParentQrChargeScreen: React.FC<ParentQrChargeScreenProps> = ({
     if (!visible) return;
     reset();
     fetchPinStatus().then(setPinStatus).catch(() => setPinStatus(null));
+    getUserProfile().then((u) => setPhone(u?.phone_e164 ?? ''));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, child.student_id]);
 
@@ -158,12 +165,9 @@ export const ParentQrChargeScreen: React.FC<ParentQrChargeScreenProps> = ({
   };
 
   const handleSavePin = async () => {
-    if (!isValidPinFormat(newPin)) {
-      setFailure({ code: 'PIN_INVALID_FORMAT', message: t('qr.enter_pin') });
-      return;
-    }
-    if (newPin !== repeatPin) {
-      setFailure({ code: 'PIN_MISMATCH', message: t('qr.pin_mismatch') });
+    const problem = checkNewPinEntry(newPin, repeatPin);
+    if (problem) {
+      setFailure({ code: problem, message: problem });
       return;
     }
     setSavingPin(true);
@@ -225,6 +229,8 @@ export const ParentQrChargeScreen: React.FC<ParentQrChargeScreenProps> = ({
     (!!pinStatus?.locked_until && new Date(pinStatus.locked_until).getTime() > Date.now());
 
   const failureText = (f: QrFailure): string => {
+    if (f.code === 'PIN_MISMATCH') return t('qr.pin_mismatch');
+    if (f.code === 'PIN_INVALID_FORMAT') return t('qr.enter_pin');
     if (f.code === 'PIN_LOCKED') return t('qr.pin_locked');
     if (f.code === 'PIN_RESET_REQUIRED') return t('qr.pin_reset_required');
     if (f.code === 'NETWORK') return t('qr.network_retry');
@@ -425,6 +431,16 @@ export const ParentQrChargeScreen: React.FC<ParentQrChargeScreenProps> = ({
               </Text>
             )}
 
+            {pinBlocked && !!phone && (
+              <TouchableOpacity
+                style={styles.secondaryBtn}
+                onPress={() => setResetSheetOpen(true)}
+                accessibilityRole="button"
+              >
+                <Text style={styles.secondaryBtnText}>{t('pin.forgot_short')}</Text>
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity
               style={[styles.primaryBtn, (step === 'PAYING' || pinBlocked || !isValidPinFormat(pin)) && styles.btnDisabled]}
               onPress={handlePay}
@@ -504,6 +520,18 @@ export const ParentQrChargeScreen: React.FC<ParentQrChargeScreenProps> = ({
           )}
         </View>
         {renderBody()}
+        <SpendingPinSheet
+          visible={resetSheetOpen}
+          mode="RESET"
+          phoneE164={phone}
+          maskedPhone={phone.replace(/(\+\d{2})(\d{3})(\d+)(\d{4})$/, '$1 $2 ****$4')}
+          onClose={() => setResetSheetOpen(false)}
+          onDone={() => {
+            setResetSheetOpen(false);
+            setFailure(null);
+            fetchPinStatus().then(setPinStatus).catch(() => setPinStatus(null));
+          }}
+        />
       </SafeAreaView>
     </Modal>
   );

@@ -352,6 +352,23 @@ export const strings: StringMap = {
   'qr.dispute_reason':      { 'id-ID': 'Alasan sanggahan',                         'en-US': 'Reason for dispute' },
   'qr.dispute_submit':      { 'id-ID': 'Kirim sanggahan',                          'en-US': 'Submit dispute' },
   'qr.dispute_sent':        { 'id-ID': 'Sanggahan terkirim. Sekolah akan meninjaunya.', 'en-US': 'Dispute sent. The school will review it.' },
+  // ── Guardian spending PIN change / reset ──────────────────────────
+  'pin.section_title':      { 'id-ID': 'PIN belanja wali',                        'en-US': 'Guardian spending PIN' },
+  'pin.change':             { 'id-ID': 'Ubah PIN belanja',                        'en-US': 'Change spending PIN' },
+  'pin.change_sub':         { 'id-ID': 'PIN 6 angka untuk pembayaran QR di kantin.', 'en-US': '6-digit PIN for QR payments at the canteen.' },
+  'pin.forgot':             { 'id-ID': 'Lupa PIN? Atur ulang dengan kode OTP',    'en-US': 'Forgot PIN? Reset with an OTP code' },
+  'pin.current':            { 'id-ID': 'PIN saat ini',                            'en-US': 'Current PIN' },
+  'pin.reset_title':        { 'id-ID': 'Atur ulang PIN belanja',                  'en-US': 'Reset spending PIN' },
+  'pin.reset_desc':         { 'id-ID': 'Kami mengirim kode OTP ke nomor HP akun Anda untuk memastikan ini benar Anda.', 'en-US': 'We send an OTP code to your account phone to confirm it is you.' },
+  'pin.send_otp':           { 'id-ID': 'Kirim kode OTP',                          'en-US': 'Send OTP code' },
+  'pin.otp_sent':           { 'id-ID': 'Kode OTP dikirim ke',                     'en-US': 'OTP code sent to' },
+  'pin.otp_code':           { 'id-ID': 'Kode OTP (6 angka)',                      'en-US': 'OTP code (6 digits)' },
+  'pin.reset_submit':       { 'id-ID': 'Atur ulang PIN',                          'en-US': 'Reset PIN' },
+  'pin.change_submit':      { 'id-ID': 'Ubah PIN',                                'en-US': 'Change PIN' },
+  'pin.done_change':        { 'id-ID': 'PIN belanja berhasil diubah.',            'en-US': 'Spending PIN changed.' },
+  'pin.done_reset':         { 'id-ID': 'PIN belanja berhasil diatur ulang.',      'en-US': 'Spending PIN reset.' },
+  'pin.sheet_close':        { 'id-ID': 'Batal',                                   'en-US': 'Cancel' },
+  'pin.forgot_short':       { 'id-ID': 'Atur ulang PIN',                          'en-US': 'Reset PIN' },
 };
 
 /**
