@@ -8735,3 +8735,21 @@ msgstr "Deductions waiting"
 
 msgid "Dikembalikan (sanggahan)"
 msgstr "Refunded (dispute)"
+
+msgid "student_id dan items wajib diisi."
+msgstr "student_id and items are required."
+
+msgid "Token QR tidak valid."
+msgstr "The QR token is not valid."
+
+msgid "Kunci terminal tidak valid atau sudah dicabut."
+msgstr "The terminal key is invalid or has been revoked."
+
+msgid "Tanda tangan token QR tidak cocok."
+msgstr "The QR token signature does not match."
+
+msgid "Token QR ini bukan milik terminal ini."
+msgstr "This QR token does not belong to this terminal."
+
+msgid "Token QR sudah kedaluwarsa."
+msgstr "The QR token has expired."

@@ -13,7 +13,12 @@ Token shape mirrors the online session's "no amount/student encoded"
 invariant (QRS-005/006): the token only proves "a real, paired terminal
 minted this single-use session at this moment" — never the sale itself.
 
-Wire format (what the — not-yet-built — RN terminal client must produce):
+Two consumers verify the same token: the terminal's offline sync
+(``process_offline_pos_batch``) and the student's own online charge
+(``qr_charge.charge_qr_session``, QRS-022), which is what actually debits the
+wallet. Whichever runs first claims the nonce; the other only reconciles.
+
+Wire format (what the RN terminal client must produce):
     token = "<payload_b64>.<hmac_hex>"
     payload = {"terminal_device_id", "key_id", "nonce", "minted_at", "expires_at"}
     hmac_hex = HMAC-SHA256(secret, payload_b64).hexdigest()
@@ -102,8 +107,7 @@ def _revoke_other_active_keys(terminal, keep) -> None:
 def mint_offline_session_token(key: POSTerminalSessionKey, secret: str, ttl_seconds: int = 120) -> str:
     """Reference implementation of what the terminal does locally, offline,
     with no server round-trip. Used by tests; the real signer lives in the
-    (not-yet-built) RN terminal client, which must produce byte-identical
-    payload encoding."""
+    RN terminal client, which must produce byte-identical payload encoding."""
     now = timezone.now()
     payload = {
         'terminal_device_id': key.terminal.device_id,
@@ -123,22 +127,37 @@ def _sign(payload: dict, secret: str) -> str:
     return f"{payload_b64}.{sig}"
 
 
-def verify_offline_session_token(terminal, token: str, occurred_at) -> tuple:
-    """Verify a terminal-minted offline token against `terminal` and the sale's
-    `occurred_at` (the terminal's own clock at scan time — NOT wall-clock
-    "now" at sync time, since sync can legitimately happen days later).
-    Returns (key, nonce) on success, so the caller can record which key
-    authenticated the sale and enforce single-use (WAL-015). Fail-closed
-    order mirrors qr_charge._load_session."""
+def _decode(token: str) -> tuple:
+    """Split ``token`` into (payload_b64, sig_hex, payload). Malformed input raises MALFORMED."""
     try:
         payload_b64, sig_hex = token.rsplit('.', 1)
         padded = payload_b64 + '=' * (-len(payload_b64) % 4)
         payload = json.loads(base64.urlsafe_b64decode(padded))
+        if not isinstance(payload, dict):
+            raise ValueError
     except (ValueError, TypeError, UnicodeDecodeError):
         raise OfflineTokenError('MALFORMED', _("Token QR tidak valid."))
+    return payload_b64, sig_hex, payload
 
-    key = POSTerminalSessionKey.objects.filter(
+
+def peek_key_id(token: str) -> str:
+    """The unverified ``key_id`` a token claims, so a caller can locate the key (and its terminal).
+    Nothing read here is trusted until ``verify_offline_session_token`` passes."""
+    return str(_decode(token)[2].get('key_id') or '')
+
+
+def verify_offline_session_token(terminal, token: str, occurred_at) -> tuple:
+    """Verify a terminal-minted offline token against `terminal` and `occurred_at`:
+    the terminal's own clock at scan time when syncing (NOT wall-clock "now" —
+    sync can legitimately happen days later), or server "now" on the student's
+    online charge. Returns (key, nonce) on success, so the caller can record
+    which key authenticated the sale and enforce single-use (WAL-015).
+    Fail-closed order mirrors qr_charge._load_session."""
+    payload_b64, sig_hex, payload = _decode(token)
+
+    key = POSTerminalSessionKey.all_tenants.filter(
         foundation_id=terminal.foundation_id, terminal=terminal, key_id=payload.get('key_id'),
+        deleted_at__isnull=True,
     ).first()
     if key is None or not key.is_verifiable:
         raise OfflineTokenError('KEY_INVALID', _("Kunci terminal tidak valid atau sudah dicabut."))
@@ -153,7 +172,7 @@ def verify_offline_session_token(terminal, token: str, occurred_at) -> tuple:
     try:
         minted_at = datetime.fromisoformat(payload['minted_at'])
         expires_at = datetime.fromisoformat(payload['expires_at'])
-    except (KeyError, ValueError):
+    except (KeyError, ValueError, TypeError):
         raise OfflineTokenError('MALFORMED', _("Token QR tidak valid."))
     if expires_at < minted_at:
         raise OfflineTokenError('MALFORMED', _("Token QR tidak valid."))
@@ -163,4 +182,4 @@ def verify_offline_session_token(terminal, token: str, occurred_at) -> tuple:
     nonce = payload.get('nonce')
     if not nonce:
         raise OfflineTokenError('MALFORMED', _("Token QR tidak valid."))
-    return key, nonce
+    return key, str(nonce)

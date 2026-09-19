@@ -17,6 +17,7 @@ from apps.wallet.models import (
     MerchantSettlementAdjustment,
     WalletAutoTopupConfig,
     MerchantSettlementStatus,
+    POSEntryMode,
     POSTransaction,
     POSTransactionStatus,
     Product,
@@ -1007,20 +1008,11 @@ def process_offline_pos_batch(terminal, transactions: list) -> dict:
             results.append({'client_transaction_id': client_transaction_id, 'status': existing.status})
             continue
 
-        student = Student.objects.filter(id=tx_data['student_id'], foundation_id=terminal.foundation_id).first()
-        if not student:
-            results.append({'client_transaction_id': client_transaction_id, 'status': 'STUDENT_NOT_FOUND'})
-            continue
-
-        items = tx_data['items']
-        occurred_at = tx_data.get('occurred_at') or timezone.now()
-        merchant = terminal.merchant
-        subtotal = sum((Decimal(str(i['unit_price'])) * i.get('qty', 1) for i in items), Decimal('0.00'))
-        commission = (subtotal * merchant.commission_bps / Decimal('10000')).quantize(Decimal('0.01'))
-        wallet = get_or_create_wallet(student)
-
+        # QRS-022/024: a terminal-signed token the student already spent online was debited server-side
+        # at that moment. Syncing it is a reconciliation, never a second sale.
         qr_offline_key, qr_offline_nonce = None, ''
         qr_token = tx_data.get('qr_token')
+        occurred_at = tx_data.get('occurred_at') or timezone.now()
         if qr_token:
             from apps.wallet.qr_offline import OfflineTokenError, verify_offline_session_token
 
@@ -1029,11 +1021,29 @@ def process_offline_pos_batch(terminal, transactions: list) -> dict:
             except OfflineTokenError as exc:
                 results.append({'client_transaction_id': client_transaction_id, 'status': f'QR_TOKEN_{exc.code}'})
                 continue
-            if POSTransaction.objects.filter(
+            claimed = POSTransaction.objects.filter(
                 foundation_id=terminal.foundation_id, terminal=terminal, qr_offline_nonce=qr_offline_nonce,
-            ).exists():
-                results.append({'client_transaction_id': client_transaction_id, 'status': 'QR_TOKEN_REPLAYED'})
+            ).first()
+            if claimed is not None:
+                if claimed.entry_mode == POSEntryMode.SELF_ENTERED:
+                    results.append({
+                        'client_transaction_id': client_transaction_id, 'status': claimed.status,
+                        'reconciled': True, 'confirmation_code': claimed.confirmation_code, 'total': str(claimed.total),
+                    })
+                else:
+                    results.append({'client_transaction_id': client_transaction_id, 'status': 'QR_TOKEN_REPLAYED'})
                 continue
+
+        student = Student.objects.filter(id=tx_data.get('student_id'), foundation_id=terminal.foundation_id).first()
+        if not student:
+            results.append({'client_transaction_id': client_transaction_id, 'status': 'STUDENT_NOT_FOUND'})
+            continue
+
+        items = tx_data['items']
+        merchant = terminal.merchant
+        subtotal = sum((Decimal(str(i['unit_price'])) * i.get('qty', 1) for i in items), Decimal('0.00'))
+        commission = (subtotal * merchant.commission_bps / Decimal('10000')).quantize(Decimal('0.01'))
+        wallet = get_or_create_wallet(student)
 
         if not check_offline_floor(wallet, subtotal):
             POSTransaction.objects.create(

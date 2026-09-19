@@ -3,7 +3,9 @@
 The terminal mints a one-time signed QR (``create_qr_session``); the student's
 app resolves it and submits an amount (``resolve_qr_session`` /
 ``charge_qr_session``). The wallet is debited server-side against a fresh,
-locked balance; there is no offline path and no line items.
+locked balance and there are no line items. A terminal that is offline signs its
+own token (``qr_offline``); the student's charge verifies it here (QRS-022), so
+the debit is still online and never overspends (QRS-024).
 """
 import hashlib
 import hmac
@@ -17,7 +19,7 @@ from typing import Any, Dict, Optional
 import segno
 from django.conf import settings
 from django.core import signing
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
@@ -28,6 +30,7 @@ from apps.wallet.models import (
     POSQRDecal,
     POSQRDecalStatus,
     POSQRSession,
+    POSTerminalSessionKey,
     POSTerminalStatus,
     POSTransaction,
     POSTransactionStatus,
@@ -35,6 +38,7 @@ from apps.wallet.models import (
     WalletStatus,
     WalletTransactionType,
 )
+from apps.wallet.qr_offline import OfflineTokenError, peek_key_id, verify_offline_session_token
 from apps.wallet.services import (
     InsufficientBalanceError,
     _get_locked_wallet,
@@ -178,9 +182,12 @@ def effective_cap(merchant, static: bool = False) -> Decimal:
 
 @dataclass
 class _Target:
-    """What a scanned token points at: a terminal session (single use) or a printed decal (reusable)."""
+    """What a scanned token points at: a terminal session (single use), a printed decal (reusable),
+    or a session the terminal signed itself while offline (single use, claimed by its nonce)."""
     session: Optional[POSQRSession] = None
     decal: Optional[POSQRDecal] = None
+    offline_key: Optional[POSTerminalSessionKey] = None
+    offline_nonce: str = ''
 
     @property
     def is_static(self) -> bool:
@@ -188,25 +195,29 @@ class _Target:
 
     @property
     def merchant(self):
-        return self.decal.payment_point.merchant if self.decal else self.session.merchant
+        if self.decal:
+            return self.decal.payment_point.merchant
+        return self.terminal.merchant if self.offline_key else self.session.merchant
 
     @property
     def terminal(self):
+        if self.offline_key:
+            return self.offline_key.terminal
         return None if self.decal else self.session.terminal
 
     @property
     def nonce(self) -> str:
-        return (self.decal or self.session).nonce
+        return self.offline_nonce if self.offline_key else (self.decal or self.session).nonce
 
     @property
     def foundation_id(self) -> int:
-        return (self.decal or self.session).foundation_id
+        return (self.offline_key or self.decal or self.session).foundation_id
 
     @property
     def label(self) -> str:
         if self.decal:
             return self.decal.payment_point.name
-        return self.session.terminal.name or self.session.terminal.device_id
+        return self.terminal.name or self.terminal.device_id
 
 
 def _parse_token(token: str):
@@ -257,11 +268,50 @@ def _load_decal(decal_id: int, nonce: str, student) -> POSQRDecal:
     return decal
 
 
+def _looks_offline(token: str) -> bool:
+    # Django-signed tokens always carry ':' separators; the offline wire format is "<payload>.<hmac>".
+    return ':' not in token and token.count('.') == 1
+
+
+def _load_offline(token: str, student) -> _Target:
+    """QRS-022: verify a terminal-signed token on the student's charge call — key, signature and
+    terminal binding, then school, then expiry and single use. Nothing is trusted until the HMAC passes."""
+    try:
+        key_id = peek_key_id(token)
+    except OfflineTokenError:
+        raise _refuse('QR_TOKEN_INVALID')
+    key = POSTerminalSessionKey.all_tenants.select_related(
+        'terminal', 'terminal__merchant', 'terminal__merchant__school',
+    ).filter(key_id=key_id, deleted_at__isnull=True).first() if key_id else None
+    if key is None:
+        raise _refuse('QR_TOKEN_INVALID')
+    terminal = key.terminal
+    if key.foundation_id != student.foundation_id or terminal.merchant.school_id != student.school_id:
+        raise _refuse('MERCHANT_FOREIGN_TENANT')
+    try:
+        _, nonce = verify_offline_session_token(terminal, token, timezone.now())
+    except OfflineTokenError as exc:
+        raise _refuse('QR_TOKEN_EXPIRED' if exc.code == 'EXPIRED' else 'QR_TOKEN_INVALID')
+    if terminal.status != POSTerminalStatus.ACTIVE:
+        raise _refuse('QR_MODE_DISABLED_BY_MERCHANT')
+    if _offline_nonce_claimed(terminal, nonce):
+        raise _refuse('QR_TOKEN_USED')
+    return _Target(offline_key=key, offline_nonce=nonce)
+
+
+def _offline_nonce_claimed(terminal, nonce: str) -> bool:
+    return POSTransaction.all_tenants.filter(
+        foundation_id=terminal.foundation_id, terminal=terminal, qr_offline_nonce=nonce,
+    ).exists()
+
+
 def _load_target(token: str, student, lock: bool = False) -> _Target:
     """Resolve ``token`` and fail closed, in order: signature, tenant/school, then state.
 
     Tenant/school is checked before use/expiry so a foreign scan learns nothing (QRS-009).
     """
+    if _looks_offline(token):
+        return _load_offline(token, student)
     kind, target_id, nonce = _parse_token(token)
     if kind == 'SESSION':
         return _Target(session=_load_session(target_id, nonce, student, lock))
@@ -380,12 +430,15 @@ def charge_qr_session(token: str, student, amount, idempotency_key: str) -> POST
                 raise _refuse('INSUFFICIENT_BALANCE')
 
             commission = (amount * merchant.commission_bps / Decimal('10000')).quantize(Decimal('0.01'))
+            # An offline token has no session row to lock: the (terminal, nonce) unique constraint
+            # on this insert is the single-use claim, so two phones racing yield one sale.
             pos_tx = POSTransaction.objects.create(
                 foundation_id=target.foundation_id, merchant=merchant, terminal=target.terminal, student=student,
                 items=[], subtotal=amount, commission=commission, total=amount, occurred_at=occurred_at,
                 status=POSTransactionStatus.COMPLETED, client_transaction_id=client_transaction_id,
                 wallet_transaction=wallet_tx, entry_mode=POSEntryMode.SELF_ENTERED,
                 qr_session=target.session, qr_decal=target.decal,
+                qr_offline_key=target.offline_key, qr_offline_nonce=target.offline_nonce,
             )
             pos_tx.confirmation_code = derive_confirmation_code(pos_tx.id, target.nonce)
             pos_tx.save(update_fields=['confirmation_code', 'updated_at'])
@@ -402,12 +455,17 @@ def charge_qr_session(token: str, student, amount, idempotency_key: str) -> POST
                 foundation_id=target.foundation_id,
                 diff={
                     'merchant': merchant.name, 'total': str(amount), 'entry_mode': POSEntryMode.SELF_ENTERED,
-                    'static': target.is_static,
+                    'static': target.is_static, 'offline_token': target.offline_key is not None,
                 },
             )
     except QRChargeError as exc:
         if target is not None and exc.code in _LOGGED_REJECTIONS:
             _log_rejection(target, student, amount, client_transaction_id, exc.code)
+        raise
+    except IntegrityError:
+        # Lost the nonce race: the losing debit rolled back with the whole atomic block.
+        if target is not None and target.offline_key and _offline_nonce_claimed(target.terminal, target.offline_nonce):
+            raise _refuse('QR_TOKEN_USED') from None
         raise
 
     if target.is_static:
