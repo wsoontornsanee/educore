@@ -626,6 +626,17 @@ class POSSessionView(APIView):
         return Response(pos_session(terminal))
 
 
+def _get_qr_session_in_ceiling(request, session_id, permission):
+    """The terminal-side QR session if its merchant's school is inside the user's ceiling."""
+    qs = POSQRSession.objects.filter(
+        id=session_id, foundation_id=get_current_foundation_id(), deleted_at__isnull=True,
+    )
+    ceiling = _school_ceiling(request, permission)
+    if ceiling is not None:
+        qs = qs.filter(merchant__school_id__in=ceiling)
+    return qs.first()
+
+
 def _qr_error_response(error: QRChargeError):
     return Response({'error': error.code, 'message': error.message}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -639,9 +650,7 @@ class QRSessionCreateView(APIView):
         foundation_id = get_current_foundation_id()
         payload = QRSessionCreateSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
-        terminal = POSTerminal.objects.filter(
-            id=payload.validated_data['terminal_id'], foundation_id=foundation_id, deleted_at__isnull=True,
-        ).select_related('merchant').first()
+        terminal = _get_terminal_in_ceiling(request, foundation_id, payload.validated_data['terminal_id'], self.required_permission)
         if not terminal:
             return Response({'error': _("Terminal tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
         try:
@@ -661,9 +670,7 @@ class QRSessionDetailView(APIView):
     required_permission = 'wallet.topup.write'
 
     def delete(self, request, session_id):
-        session = POSQRSession.objects.filter(
-            id=session_id, foundation_id=get_current_foundation_id(), deleted_at__isnull=True,
-        ).first()
+        session = _get_qr_session_in_ceiling(request, session_id, self.required_permission)
         if not session:
             return Response({'error': _("Sesi QR tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
         cancel_qr_session(session)
@@ -676,9 +683,7 @@ class QRSessionResultView(APIView):
     required_permission = 'wallet.topup.write'
 
     def get(self, request, session_id):
-        session = POSQRSession.objects.filter(
-            id=session_id, foundation_id=get_current_foundation_id(), deleted_at__isnull=True,
-        ).first()
+        session = _get_qr_session_in_ceiling(request, session_id, self.required_permission)
         if not session:
             return Response({'error': _("Sesi QR tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
         result = get_qr_session_result(session)

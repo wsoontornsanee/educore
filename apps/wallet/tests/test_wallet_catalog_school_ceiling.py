@@ -146,3 +146,19 @@ class WalletCatalogSchoolCeilingTests(APITestCase):
         self.as_user(self.finance_a)
         self.assertEqual(len(self.client.get('/api/v1/pos/transactions/').data['results']), 1)
         self.assertEqual(self.client.post('/api/v1/pos/sessions/', {'terminal_id': self.terminal_a.id}, format='json').status_code, 200)
+
+    # --- QR charge terminal sessions (spec 18) ------------------------------
+    def test_qr_sessions_are_school_scoped(self):
+        from apps.wallet.models import POSQRSession
+        from apps.wallet.qr_charge import create_qr_session, set_merchant_qr_charge
+
+        set_merchant_qr_charge(self.merchant_a, True, True, self.finance_a)
+        session = create_qr_session(self.terminal_a)['session']
+        self.as_user(self.finance_b)
+        self.assertEqual(self.client.post('/api/v1/pos/qr-sessions/', {'terminal_id': self.terminal_a.id}, format='json').status_code, 404)
+        self.assertEqual(self.client.get(f'/api/v1/pos/qr-sessions/{session.id}/result/').status_code, 404)
+        self.assertEqual(self.client.delete(f'/api/v1/pos/qr-sessions/{session.id}/').status_code, 404)
+        self.assertTrue(POSQRSession.all_tenants.filter(id=session.id, deleted_at__isnull=True).exists())
+        self.as_user(self.finance_a)
+        self.assertEqual(self.client.post('/api/v1/pos/qr-sessions/', {'terminal_id': self.terminal_a.id}, format='json').status_code, 201)
+        self.assertEqual(self.client.get(f'/api/v1/pos/qr-sessions/{session.id}/result/').status_code, 200)
