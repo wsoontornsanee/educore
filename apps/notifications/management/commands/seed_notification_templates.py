@@ -97,6 +97,34 @@ CANONICAL_TEMPLATES = [
         'body': 'Pembayaran sebesar {amount} untuk ananda {student_name} telah diterima. {invoice_info}',
         'variables': ['amount', 'student_name', 'invoice_info', 'payment_reference'],
     },
+    # FIN-024 — AMOUNT_MISMATCH reconciliation left the student's reconcile balance negative
+    # (gateway settled less than billed). Dispatched once a day per student by
+    # finance.services.reconciliation._alert_negative_reconcile_balance; `amount` arrives pre-formatted
+    # with its currency (e.g. "Rp 20.000"), like finance.payment_due.
+    {
+        'key': 'finance.reconcile_balance_negative',
+        'channel': ChannelType.WHATSAPP,
+        'locale': 'id-ID',
+        'subject': 'Selisih Kurang Pembayaran',
+        'body': 'Yth. {guardian_name}, setelah rekonsiliasi dengan penyelenggara pembayaran, pembayaran untuk ananda {student_name} kurang {amount} dari yang tercatat di tagihan. Mohon lengkapi selisih ini melalui aplikasi EduCore atau hubungi pihak sekolah bila ada pertanyaan.',
+        'variables': ['guardian_name', 'student_name', 'amount'],
+    },
+    {
+        'key': 'finance.reconcile_balance_negative',
+        'channel': ChannelType.PUSH,
+        'locale': 'id-ID',
+        'subject': 'Selisih Kurang Pembayaran: {student_name}',
+        'body': 'Pembayaran ananda {student_name} kurang {amount} setelah rekonsiliasi. Mohon lengkapi atau hubungi sekolah.',
+        'variables': ['student_name', 'amount'],
+    },
+    {
+        'key': 'finance.reconcile_balance_negative',
+        'channel': ChannelType.SMS,
+        'locale': 'id-ID',
+        'subject': 'Selisih Pembayaran',
+        'body': 'EduCore: pembayaran ananda {student_name} kurang {amount} setelah rekonsiliasi. Hubungi sekolah atau buka aplikasi.',
+        'variables': ['student_name', 'amount'],
+    },
     # spec/17 §5 — closes the WAL-017 "notify the guardian" gap. Meta approval for the
     # WhatsApp variants is a launch blocker for the canteen module.
     {

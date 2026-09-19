@@ -19,7 +19,8 @@ from apps.finance.models import (
 from apps.finance.services.payments import apply_student_credit_to_invoices
 from apps.finance.services.reconciliation import resolve_discrepancy
 from apps.identity.models import Foundation, Guardian, GuardianLink, Person, School, Student, User
-from apps.notifications.models import NotificationIntent
+from apps.notifications.models import ChannelType, NotificationIntent
+from apps.notifications.services import render_template_message
 from educore.middleware.tenancy import clear_current_foundation_id, set_current_foundation_id
 
 
@@ -165,7 +166,25 @@ class UnderpaidGatewayDeltaTests(_Base):
         self._resolve(discrepancy)
         intent = NotificationIntent.objects.get(template_key='finance.reconcile_balance_negative')
         self.assertEqual(intent.recipient_user_id, self.guardian.user_id)
-        self.assertEqual(intent.payload['amount'], '20000.00')
+        self.assertEqual(intent.payload['amount'], 'Rp 20.000')
+
+    def test_alert_renders_on_every_seeded_channel_from_the_dispatched_payload(self):
+        """The dispatched payload must fill every placeholder of the seeded copy — no raw braces, the
+        formatted shortfall present, and the guardian/student named where the channel addresses them."""
+        from django.core.management import call_command
+        call_command('seed_notification_templates', foundation_id=self.foundation.id, verbosity=0)
+        self._resolve(self._discrepancy(self.payment, gateway_amount=Decimal('480000.00')))
+        intent = NotificationIntent.objects.get(template_key='finance.reconcile_balance_negative')
+
+        for channel in (ChannelType.WHATSAPP, ChannelType.PUSH, ChannelType.SMS):
+            with self.subTest(channel=channel):
+                rendered = render_template_message(
+                    intent.template_key, channel, self.foundation.id, intent.payload,
+                )
+                text = f"{rendered['subject']} {rendered['body']}"
+                self.assertNotIn('{', text)
+                self.assertIn('Rp 20.000', rendered['body'])
+                self.assertIn(intent.payload['student_name'], text)
 
     def test_alert_is_not_duplicated_on_a_second_shortfall_same_day(self):
         d1 = self._discrepancy(self.payment, gateway_amount=Decimal('480000.00'))
