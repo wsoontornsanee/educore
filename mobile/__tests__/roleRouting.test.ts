@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { isParent, isStaff, STAFF_ROLES } from '../src/services/roleRouting.ts';
+import { isClinicOfficerOnly, isParent, isStaff, STAFF_ROLES } from '../src/services/roleRouting.ts';
 import type { RoleAssignment, UserProfile } from '../src/types/index.ts';
 
 const user = (roles: string[]): UserProfile => ({
@@ -52,6 +52,25 @@ describe('App tree routing precedence (IAM-009)', () => {
       .sort();
     assert.ok(backend.length > 0, 'failed to parse backend STAFF_ROLES');
     assert.deepStrictEqual([...STAFF_ROLES].sort(), backend);
+  });
+
+  it('sends a clinic officer with no other staff role to the clinic app', () => {
+    assert.strictEqual(isClinicOfficerOnly(user(['clinic_officer'])), true);
+    // A guardian role does not change it: staff wins, and the only staff role is clinic_officer.
+    assert.strictEqual(isClinicOfficerOnly(user(['clinic_officer', 'parent'])), true);
+  });
+
+  it('keeps anyone with another staff role in the teacher tree', () => {
+    for (const other of ['teacher', 'counsellor', 'school_admin', 'foundation_admin', 'finance_officer', 'canteen_operator']) {
+      assert.strictEqual(isClinicOfficerOnly(user(['clinic_officer', other])), false, other);
+    }
+  });
+
+  it('is not a clinic officer without the role, without roles, or when signed out', () => {
+    assert.strictEqual(isClinicOfficerOnly(user(['teacher'])), false);
+    assert.strictEqual(isClinicOfficerOnly(user(['parent'])), false);
+    assert.strictEqual(isClinicOfficerOnly(user([])), false);
+    assert.strictEqual(isClinicOfficerOnly(null), false);
   });
 
   it('routes nobody to the parent tree without a parent role', () => {
