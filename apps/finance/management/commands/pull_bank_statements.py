@@ -24,6 +24,7 @@ import logging
 from django.utils import timezone
 
 from apps.core.locks import advisory_lock
+from apps.core.job_runs import track_job_run
 from apps.core.management.base import CronHostCommand
 from apps.finance.models import BankSftpConfig
 from apps.finance.services.bank_sftp_pull import BankSftpPullError, fetch_bank_statement_via_sftp
@@ -65,25 +66,28 @@ class Command(CronHostCommand):
 
             self.stdout.write(f"Pulling bank statements: date={settlement_date}, configs={configs.count()}")
 
-            succeeded = 0
-            failed = 0
-            for config in configs:
-                try:
-                    fetch_bank_statement_via_sftp(config, settlement_date)
-                except BankSftpPullError as exc:
-                    record_bank_sftp_pull_failure(
-                        bank_code=config.bank_code,
-                        settlement_date=settlement_date,
-                        foundation_id=config.foundation_id,
-                        error=str(exc),
-                    )
-                    self.stdout.write(self.style.ERROR(
-                        f"  [school={config.school_id}] {config.bank_code}: FAILED - {exc}"
-                    ))
-                    failed += 1
-                    continue
+            with track_job_run('pull_bank_statements') as run:
+                succeeded = 0
+                failed = 0
+                for config in configs:
+                    try:
+                        fetch_bank_statement_via_sftp(config, settlement_date)
+                    except BankSftpPullError as exc:
+                        record_bank_sftp_pull_failure(
+                            bank_code=config.bank_code,
+                            settlement_date=settlement_date,
+                            foundation_id=config.foundation_id,
+                            error=str(exc),
+                        )
+                        self.stdout.write(self.style.ERROR(
+                            f"  [school={config.school_id}] {config.bank_code}: FAILED - {exc}"
+                        ))
+                        failed += 1
+                        run.add_error(f"school={config.school_id} {config.bank_code}: {exc}")
+                        continue
 
-                succeeded += 1  # pragma: no cover - unreachable until a real client exists
+                    succeeded += 1  # pragma: no cover - unreachable until a real client exists
+                    run.items_processed += 1  # pragma: no cover
 
             self.stdout.write(self.style.WARNING(
                 f"Bank SFTP pull complete. Succeeded: {succeeded}, Failed: {failed}."
