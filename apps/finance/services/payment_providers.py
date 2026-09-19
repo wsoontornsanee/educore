@@ -18,6 +18,14 @@ class PaymentGatewayError(Exception):
 class PaymentProvider(ABC):
     """Abstract payment gateway provider (spec/06 §4 FIN-012)."""
 
+    def is_configured(self) -> bool:
+        """Whether this deployment holds the credentials the provider needs to call its API.
+
+        Lets a scheduled job tell "this gateway is not in use here" from "this gateway is broken". Providers
+        with no credentials to miss (the mock, and Midtrans, which falls back to a sandbox key) are always
+        configured."""
+        return True
+
     @abstractmethod
     def create_va(self, student, school, bank: str, amount: Decimal, expires_at) -> dict:
         """Allocate or request a virtual account number."""
@@ -222,6 +230,9 @@ class XenditPaymentProvider(PaymentProvider):
         self.api_key = api_key or getattr(settings, 'XENDIT_API_KEY', '')
         self.callback_token = callback_token or getattr(settings, 'XENDIT_CALLBACK_TOKEN', 'sandbox-token')
         self.base_url = base_url or getattr(settings, 'XENDIT_BASE_URL', 'https://api.xendit.co')
+
+    def is_configured(self) -> bool:
+        return bool(self.api_key)
 
     def _auth(self):
         if not self.api_key:
