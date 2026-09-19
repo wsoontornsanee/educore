@@ -601,7 +601,7 @@ class WalletReconciliationSettleCashView(WalletReconciliationCaseView):
             settle_reconciliation_with_cash(
                 case, payload.validated_data['amount'], payload.validated_data.get('reference', ''), actor=request.user,
             )
-        except (WalletNotActiveError, CurrencyMismatchError) as e:
+        except ValueError as e:  # WalletNotActiveError, CurrencyMismatchError, INVALID_STATE
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         case.refresh_from_db()
