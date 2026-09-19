@@ -8859,3 +8859,47 @@ msgstr "Payment voided; the amount was refunded in full."
 #: apps/wallet/qr_oversight.py
 msgid "Pembayaran ini sudah dibatalkan dan dikembalikan penuh, sehingga sanggahan tidak dapat dikabulkan."
 msgstr "This payment was already voided and refunded in full, so the dispute can no longer be upheld."
+
+#: frontend/templates/components/console_nav.html
+msgid "Buka navigasi"
+msgstr "Open navigation"
+
+#: apps/attendance/services.py
+#, python-format
+msgid "Tipe permohonan '%(type)s' tidak valid. Pilihan: SAKIT, IZIN."
+msgstr "Request type '%(type)s' is invalid. Options: SAKIT, IZIN."
+
+#: apps/finance/services/installments.py
+#, python-format
+msgid "Nominal cicilan #%(no)s harus lebih besar dari 0."
+msgstr "Installment #%(no)s amount must be greater than 0."
+
+#: apps/finance/services/installments.py
+#, python-format
+msgid "Format tanggal cicilan #%(no)s tidak valid (YYYY-MM-DD)."
+msgstr "Installment #%(no)s date format is invalid (YYYY-MM-DD)."
+
+#: apps/finance/services/installments.py
+#, python-format
+msgid "Tanggal cicilan #%(no)s wajib diisi."
+msgstr "Installment #%(no)s date is required."
+
+#: apps/finance/services/installments.py
+#, python-format
+msgid "Jatuh tempo cicilan #%(no)s tidak boleh sebelum tanggal penerbitan tagihan (%(issue_date)s)."
+msgstr "Installment #%(no)s due date cannot be before the invoice issue date (%(issue_date)s)."
+
+#: apps/finance/services/installments.py
+#, python-format
+msgid "Total rencana cicilan (%(scheduled)s) tidak sama dengan sisa tagihan (%(target)s)."
+msgstr "Total installment plan (%(scheduled)s) does not equal the remaining invoice balance (%(target)s)."
+
+#: apps/finance/services/refunds.py
+#, python-format
+msgid "Mata uang pengembalian (%(currency)s) tidak sesuai dengan mata uang pembayaran (%(payment_currency)s)."
+msgstr "Refund currency (%(currency)s) does not match the payment currency (%(payment_currency)s)."
+
+#: apps/finance/services/refunds.py
+#, python-format
+msgid "Total pengembalian dana (%(total)s) melebihi nominal pembayaran yang diselesaikan (%(amount)s)."
+msgstr "Total refunded (%(total)s) exceeds the settled payment amount (%(amount)s)."

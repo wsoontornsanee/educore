@@ -1327,7 +1327,7 @@ def submit_absence_request(
         raise ValidationError(_("Tanggal mulai tidak boleh melebihi tanggal akhir."))
 
     if type not in AbsenceType.values:
-        raise ValidationError(_(f"Tipe permohonan '{type}' tidak valid. Pilihan: SAKIT, IZIN."))
+        raise ValidationError(_("Tipe permohonan '%(type)s' tidak valid. Pilihan: SAKIT, IZIN.") % {'type': type})
 
     if not reason or not str(reason).strip():
         raise ValidationError(_("Alasan izin atau keterangan sakit wajib diisi."))

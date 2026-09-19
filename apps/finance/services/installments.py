@@ -129,20 +129,21 @@ def create_installment_plan(
         for i, item in enumerate(schedule):
             amt = Decimal(str(item.get('amount', '0.00'))).quantize(Decimal('0.01'))
             if amt <= Decimal('0.00'):
-                raise InvalidInstallmentError(_(f"Nominal cicilan #{i+1} harus lebih besar dari 0."))
+                raise InvalidInstallmentError(_("Nominal cicilan #%(no)s harus lebih besar dari 0.") % {'no': i + 1})
 
             due_date = item.get('due_date')
             if isinstance(due_date, str):
                 try:
                     due_date = datetime.date.fromisoformat(due_date)
                 except ValueError:
-                    raise InvalidInstallmentError(_(f"Format tanggal cicilan #{i+1} tidak valid (YYYY-MM-DD)."))
+                    raise InvalidInstallmentError(_("Format tanggal cicilan #%(no)s tidak valid (YYYY-MM-DD).") % {'no': i + 1})
             elif not isinstance(due_date, datetime.date):
-                raise InvalidInstallmentError(_(f"Tanggal cicilan #{i+1} wajib diisi."))
+                raise InvalidInstallmentError(_("Tanggal cicilan #%(no)s wajib diisi.") % {'no': i + 1})
 
             if due_date < invoice.issue_date:
                 raise InvalidInstallmentError(
-                    _(f"Jatuh tempo cicilan #{i+1} tidak boleh sebelum tanggal penerbitan tagihan ({invoice.issue_date}).")
+                    _("Jatuh tempo cicilan #%(no)s tidak boleh sebelum tanggal penerbitan tagihan (%(issue_date)s).")
+                    % {'no': i + 1, 'issue_date': invoice.issue_date}
                 )
 
             total_scheduled += amt
@@ -155,7 +156,8 @@ def create_installment_plan(
 
         if total_scheduled != target_amount:
             raise InvalidInstallmentError(
-                _(f"Total rencana cicilan ({total_scheduled}) tidak sama dengan sisa tagihan ({target_amount}).")
+                _("Total rencana cicilan (%(scheduled)s) tidak sama dengan sisa tagihan (%(target)s).")
+                % {'scheduled': total_scheduled, 'target': target_amount}
             )
     elif count:
         if count < 1:
