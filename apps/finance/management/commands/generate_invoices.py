@@ -12,6 +12,7 @@ import logging
 from django.utils import timezone
 
 from apps.core.locks import advisory_lock
+from apps.core.job_runs import track_job_run
 from apps.core.management.base import CronHostCommand
 from apps.identity.models import Foundation, School
 from apps.finance.services import generate_monthly_invoices
@@ -68,35 +69,37 @@ class Command(CronHostCommand):
 
             self.stdout.write(f"Starting invoice generation for period: {period} (dry_run={dry_run})")
 
-            foundations = Foundation.objects.filter(status=Foundation.STATUS_ACTIVE)
+            with track_job_run('generate_invoices', record=not dry_run) as run:
+                foundations = Foundation.objects.filter(status=Foundation.STATUS_ACTIVE)
 
-            total_generated = 0
-            total_skipped = 0
+                total_generated = 0
+                total_skipped = 0
 
-            for foundation in foundations:
-                with tenant_context(foundation.id):
-                    schools_qs = School.objects.filter(foundation_id=foundation.id, is_active=True)
-                    if school_id:
-                        schools_qs = schools_qs.filter(id=school_id)
+                for foundation in foundations:
+                    with tenant_context(foundation.id):
+                        schools_qs = School.objects.filter(foundation_id=foundation.id, is_active=True)
+                        if school_id:
+                            schools_qs = schools_qs.filter(id=school_id)
 
-                    for school in schools_qs:
-                        self.stdout.write(f"Processing school: {school.name} (NPSN: {school.npsn})...")
-                        res = generate_monthly_invoices(
-                            school=school,
-                            period=period,
-                            dry_run=dry_run,
-                            triggered_by=None,
-                        )
+                        for school in schools_qs:
+                            self.stdout.write(f"Processing school: {school.name} (NPSN: {school.npsn})...")
+                            res = generate_monthly_invoices(
+                                school=school,
+                                period=period,
+                                dry_run=dry_run,
+                                triggered_by=None,
+                            )
 
-                        gen_count = res['generated_count']
-                        skip_count = res['skipped_existing_count']
-                        total_generated += gen_count
-                        total_skipped += skip_count
+                            gen_count = res['generated_count']
+                            skip_count = res['skipped_existing_count']
+                            total_generated += gen_count
+                            run.items_processed += gen_count
+                            total_skipped += skip_count
 
-                        self.stdout.write(
-                            f"  - Generated: {gen_count}, Skipped (existing): {skip_count}, "
-                            f"Net Billed: {res['currency']} {res['total_net_amount']}"
-                        )
+                            self.stdout.write(
+                                f"  - Generated: {gen_count}, Skipped (existing): {skip_count}, "
+                                f"Net Billed: {res['currency']} {res['total_net_amount']}"
+                            )
 
             self.stdout.write(self.style.SUCCESS(
                 f"Invoice generation completed. Total Generated: {total_generated}, Skipped: {total_skipped}"

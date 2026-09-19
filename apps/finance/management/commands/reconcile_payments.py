@@ -16,6 +16,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from apps.core.locks import advisory_lock
+from apps.core.job_runs import track_job_run
 from apps.core.management.base import CronHostCommand
 from apps.finance.services.reconciliation import reconcile_gateway_settlement
 from apps.identity.models import Foundation
@@ -80,30 +81,34 @@ class Command(CronHostCommand):
                 f"providers={providers}, dry_run={dry_run}"
             )
 
-            foundations = Foundation.objects.filter(status=Foundation.STATUS_ACTIVE)
-            grand_total = grand_matched = grand_missing = grand_mismatch = 0
+            with track_job_run('reconcile_payments', record=not dry_run) as run:
+                foundations = Foundation.objects.filter(status=Foundation.STATUS_ACTIVE)
+                grand_total = grand_matched = grand_missing = grand_mismatch = 0
 
-            for foundation in foundations:
-                with tenant_context(foundation.id):
-                    for provider_name in providers:
-                        result = reconcile_gateway_settlement(
-                            provider_name=provider_name,
-                            settlement_date=settlement_date,
-                            foundation_id=foundation.id,
-                            dry_run=dry_run,
-                        )
-                        dry_tag = " [DRY RUN]" if dry_run else ""
-                        error_tag = f" ERROR: {result.get('error', '')}" if 'error' in result else ""
-                        self.stdout.write(
-                            f"  [{foundation.name}] {provider_name}{dry_tag}: "
-                            f"total={result['total']} matched={result['matched']} "
-                            f"missing={result['missing']} mismatch={result['mismatch']}"
-                            f"{error_tag}"
-                        )
-                        grand_total += result['total']
-                        grand_matched += result['matched']
-                        grand_missing += result['missing']
-                        grand_mismatch += result['mismatch']
+                for foundation in foundations:
+                    with tenant_context(foundation.id):
+                        for provider_name in providers:
+                            result = reconcile_gateway_settlement(
+                                provider_name=provider_name,
+                                settlement_date=settlement_date,
+                                foundation_id=foundation.id,
+                                dry_run=dry_run,
+                            )
+                            dry_tag = " [DRY RUN]" if dry_run else ""
+                            error_tag = f" ERROR: {result.get('error', '')}" if 'error' in result else ""
+                            self.stdout.write(
+                                f"  [{foundation.brand_name}] {provider_name}{dry_tag}: "
+                                f"total={result['total']} matched={result['matched']} "
+                                f"missing={result['missing']} mismatch={result['mismatch']}"
+                                f"{error_tag}"
+                            )
+                            grand_total += result['total']
+                            run.items_processed += result['total']
+                            if 'error' in result:
+                                run.add_error(f"{foundation.brand_name} {provider_name}: {result['error']}")
+                            grand_matched += result['matched']
+                            grand_missing += result['missing']
+                            grand_mismatch += result['mismatch']
 
             style = self.style.SUCCESS if grand_missing == 0 and grand_mismatch == 0 else self.style.WARNING
             self.stdout.write(style(
