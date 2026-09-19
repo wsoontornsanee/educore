@@ -391,15 +391,17 @@ def get_or_create_spend_rule(student) -> SpendRule:
 
 def set_spend_rule(
     student, daily_limit=None, blocked_categories=None, blocked_products=None,
-    allowed_window_start=None, allowed_window_end=None,
+    allowed_window_start=None, allowed_window_end=None, qr_charge_enabled=None,
 ) -> SpendRule:
-    """WAL-009/010/011."""
+    """WAL-009/010/011; ``qr_charge_enabled`` (QRS-002) is left unchanged when None."""
     rule = get_or_create_spend_rule(student)
     rule.daily_limit = daily_limit
     rule.blocked_categories = blocked_categories or []
     rule.blocked_products = blocked_products or []
     rule.allowed_window_start = allowed_window_start
     rule.allowed_window_end = allowed_window_end
+    if qr_charge_enabled is not None:
+        rule.qr_charge_enabled = qr_charge_enabled
     rule.save()
 
     audit(
@@ -411,6 +413,7 @@ def set_spend_rule(
             'daily_limit': str(daily_limit) if daily_limit is not None else None,
             'blocked_categories': rule.blocked_categories,
             'blocked_products': rule.blocked_products,
+            'qr_charge_enabled': rule.qr_charge_enabled,
         },
     )
     return rule
@@ -1414,7 +1417,11 @@ def get_notice_delivery_receipt(case: WalletReconciliation) -> dict:
 
 def settle_reconciliation_with_cash(case: WalletReconciliation, amount: Decimal, reference: str, actor=None) -> WalletTransaction:
     """REC-026: bendahara records a cash payment at the school office. Reuses the normal
-    top-up path so the existing settlement logic (TASK-035) fires unchanged."""
+    top-up path so the existing settlement logic (TASK-035) fires unchanged.
+    Only an OPEN case can be paid: crediting a case that is already settled,
+    invoiced or written off would double-credit the wallet."""
+    if case.status != WalletReconciliationStatus.OPEN:
+        raise ValueError(f"INVALID_STATE: case is {case.status}, not OPEN.")
     return topup_wallet(
         case.wallet, amount, 'CASH', f"reconciliation_cash:{case.id}:{timezone.now().timestamp()}",
         reference=reference or f"Pelunasan tunai - kasus #{case.id}",

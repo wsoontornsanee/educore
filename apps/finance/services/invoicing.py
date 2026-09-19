@@ -222,14 +222,16 @@ def create_discount_with_approval_check(
 @transaction.atomic
 def approve_discount(discount: Discount, user: Any, reason: str = '') -> Discount:
     """Approve a pending discount request (FIN-007, FND-007, FND-008)."""
+    # Authority first: even the idempotent "already approved" no-op must not
+    # report success to a caller who could never have approved it.
+    from apps.identity.rbac import is_foundation_admin
+    if not is_foundation_admin(user, discount.foundation_id):
+        raise PermissionDenied(_("Persetujuan diskon atau keringanan biaya memerlukan wewenang Admin Yayasan (FIN-007, FND-007)."))
+
     if discount.status == DiscountStatus.APPROVED:
         return discount
     if discount.status != DiscountStatus.PENDING_APPROVAL:
         raise ValidationError(_("Hanya permohonan diskon dengan status PENDING_APPROVAL yang dapat disetujui."))
-
-    from apps.identity.rbac import is_foundation_admin
-    if not is_foundation_admin(user, discount.foundation_id):
-        raise PermissionDenied(_("Persetujuan diskon atau keringanan biaya memerlukan wewenang Admin Yayasan (FIN-007, FND-007)."))
 
     if not reason or not reason.strip():
         raise ValidationError(_("Alasan persetujuan diskon wajib diisi."))

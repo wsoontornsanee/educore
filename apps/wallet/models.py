@@ -91,6 +91,9 @@ class SpendRule(TenantModel):
     blocked_products = models.JSONField(default=list, blank=True, help_text=_("List of product SKUs"))
     allowed_window_start = models.TimeField(null=True, blank=True)
     allowed_window_end = models.TimeField(null=True, blank=True)
+    qr_charge_enabled = models.BooleanField(
+        default=True, help_text=_("Guardian switch for student-entered QR Charge (QRS-002)"),
+    )
 
     class Meta:
         db_table = 'spend_rules'
@@ -114,6 +117,14 @@ class Merchant(TenantModel):
     settlement_account = models.CharField(max_length=64, blank=True, default='')
     commission_bps = models.PositiveIntegerField(default=0, help_text=_("Commission in basis points (100 = 1%)"))
     is_active = models.BooleanField(default=True)
+    qr_self_amount_enabled = models.BooleanField(
+        default=False, help_text=_("Student-entered QR Charge accepted at this merchant (QRS-001)"),
+    )
+    qr_self_amount_ack_by = models.ForeignKey(
+        'identity.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+        help_text=_("Admin who acknowledged the operator-verifies-amount statement (QRS-001)"),
+    )
+    qr_self_amount_ack_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = 'merchants'
@@ -178,6 +189,11 @@ class POSTransactionStatus(models.TextChoices):
     VOIDED = 'VOIDED', _('Dibatalkan')
 
 
+class POSEntryMode(models.TextChoices):
+    OPERATOR = 'OPERATOR', _('Diinput petugas')
+    SELF_ENTERED = 'SELF_ENTERED', _('Diinput siswa')
+
+
 class POSTransaction(TenantModel):
     """A sale at a POS terminal (spec/07 §5, §6)."""
     merchant = models.ForeignKey(Merchant, on_delete=models.PROTECT, related_name='pos_transactions')
@@ -196,6 +212,9 @@ class POSTransaction(TenantModel):
     )
     voided_at = models.DateTimeField(null=True, blank=True)
     void_reason = models.CharField(max_length=255, blank=True, default='')
+    entry_mode = models.CharField(max_length=16, choices=POSEntryMode.choices, default=POSEntryMode.OPERATOR)
+    qr_session = models.ForeignKey('POSQRSession', on_delete=models.PROTECT, null=True, blank=True, related_name='+')
+    confirmation_code = models.CharField(max_length=4, blank=True, default='')
 
     class Meta:
         db_table = 'pos_transactions'
@@ -212,6 +231,30 @@ class POSTransaction(TenantModel):
 
     def __str__(self):
         return f"{self.student.nis} @ {self.merchant.name}: {self.total} ({self.status})"
+
+
+class POSQRSession(TenantModel):
+    """One-time QR shown by a terminal for a student-entered charge (spec 18 §3, QRS-005/006).
+
+    The token handed to the student is signed and encodes only this row's id and
+    nonce — never an amount, student or balance. Single use is enforced by
+    ``consumed_at`` under a row lock, not by the token alone.
+    """
+    merchant = models.ForeignKey(Merchant, on_delete=models.PROTECT, related_name='qr_sessions')
+    terminal = models.ForeignKey(POSTerminal, on_delete=models.PROTECT, related_name='qr_sessions')
+    nonce = models.CharField(max_length=32)
+    expires_at = models.DateTimeField()
+    consumed_at = models.DateTimeField(null=True, blank=True)
+    consumed_by_student = models.ForeignKey(Student, on_delete=models.PROTECT, null=True, blank=True, related_name='+')
+
+    class Meta:
+        db_table = 'pos_qr_sessions'
+        indexes = [
+            models.Index(fields=['foundation_id', 'terminal_id', 'expires_at']),
+        ]
+
+    def __str__(self):
+        return f"QR session {self.pk} @ {self.terminal_id}"
 
 
 class MerchantSettlementStatus(models.TextChoices):

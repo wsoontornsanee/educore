@@ -2,6 +2,7 @@ from datetime import datetime
 import base64
 from decimal import Decimal
 
+from django.db.models import Exists, OuterRef
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import permissions, status, viewsets
@@ -17,6 +18,8 @@ from apps.identity.permissions import HasRequiredPermission
 from educore.middleware.tenancy import get_current_foundation_id
 
 from apps.wallet.models import (
+    POSEntryMode,
+    POSQRSession,
     Merchant,
     MerchantSettlement,
     WalletAutoTopupConfig,
@@ -34,6 +37,7 @@ from apps.wallet.models import (
 from apps.wallet.serializers import (
     MerchantSerializer,
     MerchantSettlementRunSerializer,
+    MerchantQRChargeSerializer,
     MerchantSettlementSerializer,
     POSBatchCreateSerializer,
     POSSessionSerializer,
@@ -43,6 +47,9 @@ from apps.wallet.serializers import (
     POSTransactionSerializer,
     POSTransactionVoidSerializer,
     ProductSerializer,
+    QRChargeSerializer,
+    QRSessionCreateSerializer,
+    QRStudentTokenSerializer,
     ReconciliationCashSettleSerializer,
     ReconciliationWriteOffSerializer,
     RefundMarkDonatedSerializer,
@@ -56,6 +63,15 @@ from apps.wallet.serializers import (
     TopupSerializer,
     WalletSerializer,
     WalletTransactionSerializer,
+)
+from apps.wallet.qr_charge import (
+    QRChargeError,
+    cancel_qr_session,
+    charge_qr_session,
+    create_qr_session,
+    get_qr_session_result,
+    resolve_qr_session,
+    set_merchant_qr_charge,
 )
 from apps.wallet.services import (
     CurrencyMismatchError,
@@ -133,6 +149,10 @@ class WalletTransactionsView(APIView):
 
         qs = WalletTransaction.objects.filter(
             foundation_id=foundation_id, wallet=wallet, deleted_at__isnull=True,
+        ).annotate(
+            self_entered=Exists(POSTransaction.objects.filter(
+                wallet_transaction_id=OuterRef('pk'), entry_mode=POSEntryMode.SELF_ENTERED,
+            )),
         ).order_by('-occurred_at')
 
         paginator = self.pagination_class()
@@ -320,6 +340,7 @@ class SpendRuleView(APIView):
             blocked_products=payload.validated_data.get('blocked_products'),
             allowed_window_start=payload.validated_data.get('allowed_window_start'),
             allowed_window_end=payload.validated_data.get('allowed_window_end'),
+            qr_charge_enabled=payload.validated_data.get('qr_charge_enabled'),
         )
         return Response(SpendRuleSerializer(rule).data)
 
@@ -405,7 +426,22 @@ class MerchantViewSet(TenantScopedCatalogViewSet):
         'create': 'school_config.write', 'update': 'school_config.write',
         'partial_update': 'school_config.write', 'destroy': 'school_config.write',
         'sales': 'finance.payment.read', 'settlements': 'finance.payment.read', 'run_settlement': 'finance.payment.write',
+        'qr_charge': 'school_config.write',
     }
+
+    @action(detail=True, methods=['post'], url_path='qr-charge')
+    def qr_charge(self, request, pk=None):
+        """POST /merchants/:id/qr-charge/ — school admin switch for student-entered QR (QRS-001)."""
+        merchant = self.get_object()
+        payload = MerchantQRChargeSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        try:
+            set_merchant_qr_charge(
+                merchant, payload.validated_data['enabled'], payload.validated_data['acknowledged'], request.user,
+            )
+        except QRChargeError as e:
+            return _qr_error_response(e)
+        return Response(self.get_serializer(merchant).data)
 
     @action(detail=True, methods=['get'], url_path='sales')
     def sales(self, request, pk=None):
@@ -590,6 +626,135 @@ class POSSessionView(APIView):
         return Response(pos_session(terminal))
 
 
+def _qr_error_response(error: QRChargeError):
+    return Response({'error': error.code, 'message': error.message}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class QRSessionCreateView(APIView):
+    """POST /pos/qr-sessions/: terminal mints a one-time QR (QRS-005)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'wallet.topup.write'
+
+    def post(self, request):
+        foundation_id = get_current_foundation_id()
+        payload = QRSessionCreateSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        terminal = POSTerminal.objects.filter(
+            id=payload.validated_data['terminal_id'], foundation_id=foundation_id, deleted_at__isnull=True,
+        ).select_related('merchant').first()
+        if not terminal:
+            return Response({'error': _("Terminal tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            minted = create_qr_session(terminal)
+        except QRChargeError as e:
+            return _qr_error_response(e)
+        session = minted['session']
+        return Response(
+            {'session_id': session.id, 'token': minted['token'], 'expires_at': session.expires_at},
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class QRSessionDetailView(APIView):
+    """DELETE /pos/qr-sessions/:id/: regenerate/cancel."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'wallet.topup.write'
+
+    def delete(self, request, session_id):
+        session = POSQRSession.objects.filter(
+            id=session_id, foundation_id=get_current_foundation_id(), deleted_at__isnull=True,
+        ).first()
+        if not session:
+            return Response({'error': _("Sesi QR tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        cancel_qr_session(session)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class QRSessionResultView(APIView):
+    """GET /pos/qr-sessions/:id/result/: terminal polls for the student's charge (QRS-013/014)."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'wallet.topup.write'
+
+    def get(self, request, session_id):
+        session = POSQRSession.objects.filter(
+            id=session_id, foundation_id=get_current_foundation_id(), deleted_at__isnull=True,
+        ).first()
+        if not session:
+            return Response({'error': _("Sesi QR tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        result = get_qr_session_result(session)
+        pos_tx = result['transaction']
+        body = {'status': result['status'], 'transaction': None}
+        if pos_tx:
+            body['transaction'] = {
+                'id': pos_tx.id,
+                'student_name': pos_tx.student.person.full_name,
+                'student_nis': pos_tx.student.nis,
+                'amount': str(pos_tx.total),
+                'confirmation_code': pos_tx.confirmation_code,
+                'occurred_at': pos_tx.occurred_at,
+                'status': pos_tx.status,
+            }
+        return Response(body)
+
+
+class _QRStudentView(APIView):
+    """Shared base: the scanning caller must be an active guardian of the student (spec 18 §9).
+
+    Staff hold ``wallet.topup.write`` too, so the permission alone is not enough — an
+    operator must never be able to charge an arbitrary student's wallet by QR.
+    """
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'wallet.topup.write'
+
+    def _guardian_student(self, request, student_id):
+        foundation_id = get_current_foundation_id()
+        from apps.identity.guardian_access import get_guardian_student_ids
+        if student_id not in get_guardian_student_ids(request.user, foundation_id):
+            return None
+        return Student.objects.filter(id=student_id, foundation_id=foundation_id, deleted_at__isnull=True).first()
+
+
+class QRResolveView(_QRStudentView):
+    """POST /wallet/qr/resolve/: stall, own balance and cap before the keypad (QRS-011)."""
+
+    def post(self, request):
+        payload = QRStudentTokenSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        student = self._guardian_student(request, payload.validated_data['student_id'])
+        if not student:
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            data = resolve_qr_session(payload.validated_data['token'], student)
+        except QRChargeError as e:
+            return _qr_error_response(e)
+        data['balance'] = str(data['balance'])
+        data['max_amount'] = str(data['max_amount'])
+        return Response(data)
+
+
+class QRChargeView(_QRStudentView):
+    """POST /wallet/qr/charge/: the student-entered debit (QRS-012)."""
+
+    def post(self, request):
+        payload = QRChargeSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        data = payload.validated_data
+        student = self._guardian_student(request, data['student_id'])
+        if not student:
+            return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            pos_tx = charge_qr_session(data['token'], student, data['amount'], data['idempotency_key'])
+        except QRChargeError as e:
+            return _qr_error_response(e)
+        return Response({
+            'txn_id': pos_tx.id,
+            'code': pos_tx.confirmation_code,
+            'amount': str(pos_tx.total),
+            'balance_after': str(pos_tx.wallet_transaction.balance_after),
+            'occurred_at': pos_tx.occurred_at,
+        }, status=status.HTTP_201_CREATED)
+
+
 class POSSyncView(APIView):
     """GET /pos/sync?terminal_id&cursor: incremental deltas since a cursor (WAL-012)."""
     permission_classes = [HasRequiredPermission]
@@ -666,7 +831,7 @@ class WalletReconciliationSettleCashView(WalletReconciliationCaseView):
             settle_reconciliation_with_cash(
                 case, payload.validated_data['amount'], payload.validated_data.get('reference', ''), actor=request.user,
             )
-        except (WalletNotActiveError, CurrencyMismatchError) as e:
+        except ValueError as e:  # WalletNotActiveError, CurrencyMismatchError, INVALID_STATE
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         case.refresh_from_db()

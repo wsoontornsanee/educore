@@ -94,6 +94,10 @@ class School(TenantModel):
     timezone = models.CharField(max_length=32, default='Asia/Jakarta')
     base_currency = models.CharField(max_length=3, default='IDR', help_text="School base currency (CUR-007)")
     is_active = models.BooleanField(default=True)
+    qr_self_amount_max = MoneyField(
+        default=Decimal('50000.00'),
+        help_text="Per-charge cap for student-entered canteen QR payments (QRS-004)",
+    )
 
     # DAPODIK/EMIS statutory fields (CMP-017, CMP-019). Blank-optional:
     # the pre-export validation report flags them, entry is never blocked.
