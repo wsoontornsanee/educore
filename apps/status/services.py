@@ -3,11 +3,13 @@ import datetime
 import logging
 import time
 
+from django.core.cache import cache
 from django.db import connection
 from django.db.models import Avg
 from django.utils import timezone
 
 from apps.core.services import audit, enqueue_task
+from apps.identity.models import PlatformRoleAssignment
 from educore.middleware.tenancy import tenant_context
 
 from .models import ComponentHeartbeat, DailyComponentStatus, ServiceComponent, StatusIncident, StatusSubscriber
@@ -271,3 +273,57 @@ def subscribe_email(email):
     """Idempotently capture an email for incident-update notifications (no delivery built yet)."""
     subscriber, _created = StatusSubscriber.objects.get_or_create(email=email)
     return subscriber
+
+
+JOB_ALERT_REPEAT_SECONDS = 24 * 60 * 60
+
+
+def _job_alert_key(row) -> str:
+    # Keyed on the last success, so a job that recovers and later goes stale again alerts again.
+    last_success = row.last_success_at.isoformat() if row.last_success_at else 'never'
+    return f"job_health_alert:{row.job_name}:{row.state}:{last_success}"
+
+
+def dispatch_job_alerts(rows) -> int:
+    """Email platform operators about scheduled jobs that need attention (ARC-008).
+
+    Each (job, state, last success) alerts at most once per 24 h, so a job that stays stale is a daily
+    reminder, not a message every cron tick. Nothing is marked as alerted unless there is somebody to
+    tell, so adding the first operator later does not delay the alert by a day. One email per operator
+    lists every newly alerting job. The email carries no error text (that stays on the ops page).
+    Returns how many jobs were newly alerted.
+    """
+    unhealthy = [row for row in rows if row.needs_alert]
+    if not unhealthy:
+        return 0
+    recipient_ids = list(
+        PlatformRoleAssignment.objects.filter(role=PlatformRoleAssignment.ROLE_PLATFORM_OPERATOR)
+        .values_list('user_id', flat=True).distinct()
+    )
+    if not recipient_ids:
+        logger.warning("%d scheduled job(s) need attention but no platform operator is assigned", len(unhealthy))
+        return 0
+    fresh = [row for row in unhealthy if cache.add(_job_alert_key(row), 1, timeout=JOB_ALERT_REPEAT_SECONDS)]
+    if not fresh:
+        return 0
+    lines = [
+        f"{row.job_name} [{row.state}] cadence {row.cadence}, batas {_format_age(row.max_age)}, "
+        f"sukses terakhir: "
+        f"{timezone.localtime(row.last_success_at).strftime('%d %b %Y %H:%M') + ' WIB' if row.last_success_at else 'belum pernah'}"
+        for row in fresh
+    ]
+    with tenant_context(None):
+        for user_id in recipient_ids:
+            enqueue_task(
+                'status.job_alert_email.send', payload={'user_id': user_id, 'lines': lines}, foundation_id=None,
+            )
+    return len(fresh)
+
+
+def _format_age(delta: datetime.timedelta) -> str:
+    minutes = int(delta.total_seconds() // 60)
+    if minutes < 120:
+        return f"{minutes} menit"
+    if minutes < 60 * 48:
+        return f"{minutes // 60} jam"
+    return f"{minutes // (60 * 24)} hari"

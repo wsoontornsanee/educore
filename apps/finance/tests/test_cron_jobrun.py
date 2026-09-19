@@ -132,3 +132,27 @@ class PullBankStatementsJobRunTests(_Base):
     def test_bad_date_is_a_usage_error_not_a_failed_run(self):
         run_command('pull_bank_statements', '--date=nonsense')
         self.assertFalse(self.rows('pull_bank_statements').exists())
+
+
+class CloseFiscalPeriodsJobRunTests(_Base):
+    def test_success_run_counts_closed_periods(self):
+        run_command('close_fiscal_periods', '--period=2026-08')
+        row = self.rows('close_fiscal_periods').get()
+        self.assertEqual(row.status, JobRun.STATUS_SUCCESS)
+        self.assertEqual(row.items_processed, 1)
+
+    def test_dry_run_writes_no_row(self):
+        run_command('close_fiscal_periods', '--period=2026-08', '--dry-run')
+        self.assertFalse(self.rows('close_fiscal_periods').exists())
+
+    def test_a_period_that_fails_to_close_ends_the_run_failed_with_the_reason(self):
+        from apps.finance.services.period_close import PeriodCloseValidationError
+        with patch(
+            'apps.finance.management.commands.close_fiscal_periods.close_fiscal_period',
+            side_effect=PeriodCloseValidationError('ledger tidak seimbang'),
+        ):
+            run_command('close_fiscal_periods', '--period=2026-08')
+        row = self.rows('close_fiscal_periods').get()
+        self.assertEqual(row.status, JobRun.STATUS_FAILED)
+        self.assertIn('ledger tidak seimbang', row.error_text)
+        self.assertEqual(row.items_processed, 0)

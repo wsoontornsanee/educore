@@ -9,6 +9,7 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework.views import APIView
 
+from apps.core.job_health import evaluate_job_health
 from apps.identity.permissions import HasRequiredPermission
 from .forms import IncidentCreateForm
 from .models import ServiceComponent, StatusIncident
@@ -32,6 +33,7 @@ class StatusManagePageView(StatusManageAccessMixin, APIView):
         return render(request, 'status/manage.html', {
             'components': components,
             'incidents': incidents,
+            'jobs': evaluate_job_health(),
         })
 
 

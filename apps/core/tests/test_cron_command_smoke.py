@@ -17,6 +17,8 @@ from django.core.management import call_command
 from django.db import transaction
 from django.test import TestCase
 
+from apps.core.job_health import JOB_MAX_AGE
+from apps.core.models import JobRun
 from apps.identity.models import Foundation, School
 from educore.middleware.tenancy import clear_current_foundation_id, set_current_foundation_id
 
@@ -26,6 +28,12 @@ CRONTAB = Path(settings.BASE_DIR) / 'deploy' / 'crontab'
 # (no longer in the crontab) fails `test_skip_list_has_no_stale_entries`.
 SKIPPED = {
     'backup_database': 'refuses to run without DATABASE_BACKUP_KEY and shells out to mysqldump; see test_backup_database',
+}
+
+
+# Jobs that legitimately write no JobRun in this environment (so they read NEVER_RUN, which does not alert).
+NO_JOBRUN_WITHOUT_CONFIG = {
+    'sync_rbac_sheet': 'writes a JobRun only once the RBAC Google Sheet is configured; unconfigured is not a run',
 }
 
 
@@ -66,6 +74,17 @@ class CronCommandSmokeTests(TestCase):
                 # A savepoint per invocation: one command's DB error must not poison the rest.
                 with transaction.atomic():
                     call_command(*argv, '--force', stdout=StringIO(), stderr=StringIO())
+
+    def test_every_job_in_the_freshness_table_writes_a_jobrun_under_that_name(self):
+        # job_health decides staleness from JobRun.job_name; a mismatched name would read as NEVER_RUN forever.
+        for argv in cron_invocations():
+            if argv[0] not in SKIPPED:
+                with transaction.atomic():
+                    call_command(*argv, '--force', stdout=StringIO(), stderr=StringIO())
+        written = set(JobRun.objects.values_list('job_name', flat=True))
+        skipped_jobs = set(SKIPPED)
+        missing = sorted(set(JOB_MAX_AGE) - skipped_jobs - set(NO_JOBRUN_WITHOUT_CONFIG) - written)
+        self.assertEqual(missing, [], f"scheduled jobs that never wrote a JobRun under their job_health name: {missing}")
 
     def test_skip_list_has_no_stale_entries(self):
         scheduled = {argv[0] for argv in cron_invocations()}
