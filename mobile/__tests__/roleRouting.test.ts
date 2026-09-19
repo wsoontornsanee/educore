@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { isParent, isStaff } from '../src/services/roleRouting.ts';
+import { readFileSync } from 'node:fs';
+import { isParent, isStaff, STAFF_ROLES } from '../src/services/roleRouting.ts';
 import type { RoleAssignment, UserProfile } from '../src/types/index.ts';
 
 const user = (roles: string[]): UserProfile => ({
@@ -32,6 +33,25 @@ describe('App tree routing precedence (IAM-009)', () => {
     for (const staffRole of ['school_admin', 'finance_officer', 'counsellor', 'foundation_admin']) {
       assert.strictEqual(isParent(user([staffRole, 'parent'])), false, staffRole);
     }
+  });
+
+  it('treats a clinic officer as staff, not parent', () => {
+    assert.strictEqual(isStaff(user(['clinic_officer'])), true);
+    assert.strictEqual(isParent(user(['clinic_officer', 'parent'])), false);
+  });
+
+  it('STAFF_ROLES matches the backend guardian_access.STAFF_ROLES set', () => {
+    const src = readFileSync(
+      new URL('../../apps/identity/guardian_access.py', import.meta.url),
+      'utf8',
+    );
+    const block = /STAFF_ROLES\s*=\s*\{([^}]*)\}/.exec(src)?.[1] ?? '';
+    // RoleAssignment.ROLE_FOO = 'foo' — the constant name lower-cased is the value.
+    const backend = [...block.matchAll(/RoleAssignment\.ROLE_([A-Z_]+)/g)]
+      .map((m) => m[1].toLowerCase())
+      .sort();
+    assert.ok(backend.length > 0, 'failed to parse backend STAFF_ROLES');
+    assert.deepStrictEqual([...STAFF_ROLES].sort(), backend);
   });
 
   it('routes nobody to the parent tree without a parent role', () => {
