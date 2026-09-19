@@ -16,6 +16,7 @@ from apps.reporting.models import (
     RptArAging,
     RptDailyAttendance,
     RptDailyFinance,
+    RptParentWeeklyActivity,
     RptSubscriptionCharge,
     RptWalletActivity,
 )
@@ -254,6 +255,33 @@ def _month_is_closed(month, today) -> bool:
     return last_day_of_month < today
 
 
+PARENT_ACTIVITY_BACKFILL_WEEKS = 8
+
+
+def _active_enrolled_student_ids() -> set:
+    """RPT-007, half one: students with a current active ClassEnrollment (implemented once, here)."""
+    from apps.academic.models import ClassEnrollment
+
+    return set(
+        ClassEnrollment.all_tenants.filter(is_active=True, deleted_at__isnull=True).values_list('student_id', flat=True)
+    )
+
+
+def _counted_student_ids(school, enrolled_ids) -> list:
+    """RPT-007, half two: the school's ACTIVE students that are also enrolled, ascending ids."""
+    from apps.identity.models import Student
+
+    return sorted(Student.all_tenants.filter(
+        foundation_id=school.foundation_id, school=school,
+        status=Student.STATUS_ACTIVE, id__in=enrolled_ids,
+        deleted_at__isnull=True,
+    ).values_list('id', flat=True))
+
+
+def _week_start(day):
+    return day - timedelta(days=day.weekday())
+
+
 def refresh_active_students(scope: str, since=None) -> dict:
     """spec/15 §2, RPT-007/RPT-008: rebuild rpt_active_students, one row per school
     per month — the invoice basis for EduCore's own subscription billing.
@@ -270,9 +298,6 @@ def refresh_active_students(scope: str, since=None) -> dict:
     most recently closed month if it has no row yet (bounded backfill, not unbounded
     history — a nightly refresh only ever needs to freeze the month that JUST closed).
     """
-    from apps.academic.models import ClassEnrollment
-    from apps.identity.models import Student
-
     now = timezone.now()
     today = now.date()
     current_month = today.replace(day=1)
@@ -285,9 +310,7 @@ def refresh_active_students(scope: str, since=None) -> dict:
         previous_month = (current_month - timedelta(days=1)).replace(day=1)
         target_months = [current_month, previous_month]
 
-    active_student_ids = set(
-        ClassEnrollment.all_tenants.filter(is_active=True, deleted_at__isnull=True).values_list('student_id', flat=True)
-    )
+    active_student_ids = _active_enrolled_student_ids()
 
     rows_written = 0
     for school in School.all_tenants.filter(deleted_at__isnull=True):
@@ -298,11 +321,7 @@ def refresh_active_students(scope: str, since=None) -> dict:
             if existing and _month_is_closed(month, today):
                 continue  # RPT-008: a closed month's row is frozen forever
 
-            counted_ids = sorted(Student.all_tenants.filter(
-                foundation_id=school.foundation_id, school=school,
-                status=Student.STATUS_ACTIVE, id__in=active_student_ids,
-                deleted_at__isnull=True,
-            ).values_list('id', flat=True))
+            counted_ids = _counted_student_ids(school, active_student_ids)
 
             # The count and the roster it was made from are written together, so they can never disagree
             # (RPT-009), and they freeze together (the `existing` check above covers both).
@@ -319,6 +338,53 @@ def refresh_active_students(scope: str, since=None) -> dict:
                     month=month,
                     defaults={'student_ids': counted_ids, 'captured_at': now},
                 )
+            rows_written += 1
+
+    return {'rows_written': rows_written, 'scope': scope}
+
+
+def refresh_parent_weekly_activity(scope: str) -> dict:
+    """RPT-012: rebuild rpt_parent_weekly_activity, one row per school per week.
+
+    scope='dashboard' (every 5 minutes) does nothing; scope='full' (nightly) refreshes the current
+    week and covers the previous PARENT_ACTIVITY_BACKFILL_WEEKS - 1 weeks (backfilling missing ones
+    from UserActivityDay).
+    A week whose row was computed after the week ended is frozen (mirrors RPT-008): the denominator
+    cannot be reconstructed later, so it is captured once and never rewritten.
+    """
+    from apps.identity.models import GuardianLink, UserActivityDay
+
+    if scope != 'full':
+        return {'rows_written': 0, 'scope': scope}  # weekly metric: the nightly full run is enough
+
+    now = timezone.now()
+    current_week = _week_start(timezone.localdate(now))
+    weeks = [current_week] + [current_week - timedelta(weeks=n) for n in range(1, PARENT_ACTIVITY_BACKFILL_WEEKS)]
+
+    enrolled_ids = _active_enrolled_student_ids()
+    rows_written = 0
+    for school in School.all_tenants.filter(deleted_at__isnull=True):
+        counted = _counted_student_ids(school, enrolled_ids)
+        parent_user_ids = set(GuardianLink.all_tenants.filter(
+            foundation_id=school.foundation_id, student_id__in=counted, deleted_at__isnull=True,
+            guardian__deleted_at__isnull=True, guardian__user__isnull=False,
+        ).values_list('guardian__user_id', flat=True))
+
+        for week in weeks:
+            week_end = week + timedelta(days=6)
+            existing = RptParentWeeklyActivity.all_tenants.filter(
+                foundation_id=school.foundation_id, school=school, week_start=week,
+            ).first()
+            if existing and timezone.localdate(existing.computed_at) > week_end:
+                continue  # frozen
+
+            active_parents = UserActivityDay.all_tenants.filter(
+                foundation_id=school.foundation_id, date__range=(week, week_end), user_id__in=parent_user_ids,
+            ).values('user_id').distinct().count()
+            RptParentWeeklyActivity.all_tenants.update_or_create(
+                foundation_id=school.foundation_id, school=school, week_start=week,
+                defaults={'active_parents': active_parents, 'enrolled_students': len(counted), 'computed_at': now},
+            )
             rows_written += 1
 
     return {'rows_written': rows_written, 'scope': scope}

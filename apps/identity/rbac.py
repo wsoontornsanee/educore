@@ -295,7 +295,7 @@ def is_foundation_admin(user: User, foundation_id: int) -> bool:
 PLATFORM_ROLE_OPERATOR = PlatformRoleAssignment.ROLE_PLATFORM_OPERATOR
 
 PLATFORM_ROLE_PERMISSIONS: dict[str, set[str]] = {
-    PLATFORM_ROLE_OPERATOR: {'status.write'},
+    PLATFORM_ROLE_OPERATOR: {'status.write', 'platform.health.read'},
 }
 
 # All platform-grantable permission key strings, flattened for a cheap O(1)

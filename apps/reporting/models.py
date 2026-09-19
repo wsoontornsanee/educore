@@ -269,3 +269,34 @@ class RptArAging(TenantModel):
 
     def __str__(self):
         return f"{self.student} - {self.bucket} ({self.amount} {self.currency})"
+
+
+class RptParentWeeklyActivity(TenantModel):
+    """Weekly parent-app activity per school (RPT-012 north star: weekly active parent accounts / enrolled students).
+
+    `active_parents` = distinct users with a `UserActivityDay` in the week who hold an active `GuardianLink`
+    to a counted student of the school; `enrolled_students` = the RPT-007 active enrolled students at refresh
+    time (this repo keeps no status history, so the denominator is whatever it was when the week froze).
+    Holds counts only, no PII.
+    """
+    school = models.ForeignKey(School, on_delete=models.PROTECT, related_name='parent_weekly_activity_reports')
+    week_start = models.DateField(help_text=_("Monday of the week (Asia/Jakarta calendar)"))
+    active_parents = models.PositiveIntegerField(default=0)
+    enrolled_students = models.PositiveIntegerField(default=0)
+    computed_at = models.DateTimeField(help_text=_("RPT-005: data freshness timestamp"))
+    active_uniq_marker = soft_delete_uniqueness_marker()
+
+    class Meta:
+        db_table = 'rpt_parent_weekly_activity'
+        indexes = [
+            models.Index(fields=['foundation_id', 'school_id', 'week_start']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'school', 'week_start', 'active_uniq_marker'],
+                name='unique_rpt_parent_weekly_activity_per_school_week',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.school.name} - week {self.week_start}: {self.active_parents}/{self.enrolled_students}"

@@ -17,6 +17,7 @@ from apps.reporting.services import (
     refresh_daily_attendance,
     refresh_daily_finance,
     refresh_foundation_kpis,
+    refresh_parent_weekly_activity,
     refresh_subscription_charges,
     refresh_wallet_activity,
 )
@@ -28,6 +29,7 @@ REFRESHERS = [
     ('rpt_daily_attendance', refresh_daily_attendance),
     ('rpt_academic_performance', refresh_academic_performance),
     ('rpt_active_students', refresh_active_students),
+    ('rpt_parent_weekly_activity', refresh_parent_weekly_activity),
     ('rpt_subscription_charges', refresh_subscription_charges),
     ('rpt_daily_finance', refresh_daily_finance),
     ('rpt_ar_aging', refresh_ar_aging),

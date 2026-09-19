@@ -9227,3 +9227,11 @@ msgstr "Pickup authorisation revoked."
 #: apps/attendance
 msgid "Penjemputan dengan pengecualian dicatat dan diberitahukan ke admin sekolah."
 msgstr "The exception pickup was recorded and the school admins were notified."
+
+#: apps/reporting/views.py
+msgid "Parameter foundation_id tidak valid."
+msgstr "Invalid foundation_id parameter."
+
+#: apps/reporting/models.py
+msgid "Monday of the week (Asia/Jakarta calendar)"
+msgstr "Monday of the week (Asia/Jakarta calendar)"
