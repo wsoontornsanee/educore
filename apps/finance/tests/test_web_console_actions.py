@@ -114,21 +114,21 @@ class DiscrepancyResolveTests(ActionTestBase):
         self.assertEqual(response.status_code, 302)
         self.assertIn('/web/login/', response['Location'])
 
-    def test_user_without_payment_write_gets_403(self):
+    def test_user_without_payment_write_is_sent_home(self):
         teacher = make_user(
             self.foundation, '+6281300008010', RoleAssignment.ROLE_TEACHER,
             RoleAssignment.SCOPE_SCHOOL, self.school1.id, staff_school=self.school1, name='Guru',
         )
         self.client.force_login(teacher)
-        self.assertEqual(self.client.post(self.url, {'resolution': 'WAIVED'}).status_code, 403)
+        self.assertRedirects(self.client.post(self.url, {'resolution': 'WAIVED'}), reverse('web-console-home'), fetch_redirect_response=False)
 
-    def test_no_staff_profile_gets_403(self):
+    def test_no_staff_profile_is_sent_home(self):
         no_staff = make_user(
             self.foundation, '+6281300008011', RoleAssignment.ROLE_FINANCE_OFFICER,
             RoleAssignment.SCOPE_FOUNDATION, self.foundation.id, name='NoStaff',
         )
         self.client.force_login(no_staff)
-        self.assertEqual(self.client.post(self.url, {'resolution': 'WAIVED'}).status_code, 403)
+        self.assertRedirects(self.client.post(self.url, {'resolution': 'WAIVED'}), reverse('web-console-home'), fetch_redirect_response=False)
 
     def test_other_tenants_discrepancy_is_404(self):
         other, (other_school, _) = make_foundation('B')
@@ -240,13 +240,13 @@ class DiscountDecisionTests(ActionTestBase):
         self.client.logout()
         self.assertEqual(self.client.post(self.approve_url, {'reason': 'x'}).status_code, 302)
 
-    def test_user_without_invoice_write_gets_403(self):
+    def test_user_without_invoice_write_is_sent_home(self):
         teacher = make_user(
             self.foundation, '+6281300008020', RoleAssignment.ROLE_TEACHER,
             RoleAssignment.SCOPE_SCHOOL, self.school1.id, staff_school=self.school1, name='Guru',
         )
         self.client.force_login(teacher)
-        self.assertEqual(self.client.post(self.approve_url, {'reason': 'x'}).status_code, 403)
+        self.assertRedirects(self.client.post(self.approve_url, {'reason': 'x'}), reverse('web-console-home'), fetch_redirect_response=False)
 
 
 class WriteOffDecisionTests(ActionTestBase):
@@ -403,7 +403,7 @@ class CashPaymentTests(ActionTestBase):
         self.assertEqual(len(flashes(response)), 1)
         self.assertFalse(Payment.all_tenants.exists())
 
-    def test_get_is_405_anonymous_redirects_no_permission_403(self):
+    def test_get_is_405_anonymous_redirects_no_permission_sent_home(self):
         self.client.force_login(self.officer)
         self.assertEqual(self.client.get(self.url).status_code, 405)
         self.client.logout()
@@ -413,7 +413,7 @@ class CashPaymentTests(ActionTestBase):
             RoleAssignment.SCOPE_SCHOOL, self.school1.id, staff_school=self.school1, name='Guru',
         )
         self.client.force_login(teacher)
-        self.assertEqual(self.client.post(self.url, {'nis': '0001', 'amount': '1'}).status_code, 403)
+        self.assertRedirects(self.client.post(self.url, {'nis': '0001', 'amount': '1'}), reverse('web-console-home'), fetch_redirect_response=False)
 
     def test_cash_form_shown_on_billing_page_for_writers_only(self):
         self.client.force_login(self.officer)

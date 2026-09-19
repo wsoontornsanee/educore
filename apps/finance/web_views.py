@@ -54,6 +54,7 @@ from apps.finance.services.invoicing import (
 )
 from apps.finance.services.payments import record_cash_payment
 from apps.finance.services.reconciliation import resolve_discrepancy
+from apps.identity.console_access import redirect_denied_to_home
 from apps.identity.models import Student
 from apps.identity.nav import has_staff_profile
 from apps.identity.rbac import has_permission_in_any_scope, is_foundation_admin
@@ -97,9 +98,9 @@ PAYMENT_BADGES = {
 
 class FinanceConsoleGateMixin(LoginRequiredMixin):
     """Login + permission (any scope) + Staff-profile gate shared by every
-    finance console view, read or write. Failing the gate is a 403 (the nav
-    already hides items from users who'd fail it, so this is only reachable
-    by URL). After dispatch passes, `foundation_id` and `school_ids` (None =
+    finance console view, read or write. Failing the gate sends the user home
+    with a message, like every other console page (the nav already hides items
+    from users who'd fail it, so this is only reachable by URL). After dispatch passes, `foundation_id` and `school_ids` (None =
     unrestricted, else the caller's school ids) are set."""
     required_permission = None
 
@@ -111,7 +112,7 @@ class FinanceConsoleGateMixin(LoginRequiredMixin):
                 and has_permission_in_any_scope(request.user, self.required_permission, self.foundation_id)
                 and has_staff_profile(request.user, self.foundation_id)
             ):
-                raise PermissionDenied
+                return redirect_denied_to_home(request)
             self.school_ids = staff_school_scope(request.user, self.foundation_id)
         return super().dispatch(request, *args, **kwargs)
 
