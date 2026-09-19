@@ -4,12 +4,10 @@ Moves rows older than each table's retention window into its `<table>_archive` s
 in bounded batches (ARC-009). Nothing is dropped: financial and audit rows are archived,
 never deleted (AGENTS red line 2). See apps.core.archiving for the per-table policy.
 """
-from django.utils import timezone
-
 from apps.core.archiving import POLICIES, archive_batch, eligible_rows
+from apps.core.job_runs import track_job_run
 from apps.core.locks import advisory_lock
 from apps.core.management.base import CronHostCommand
-from apps.core.models import JobRun
 
 JOB_NAME = 'archive_high_write_tables'
 
@@ -50,12 +48,13 @@ class Command(CronHostCommand):
                     f"Advisory lock for '{JOB_NAME}' already held. Exiting cleanly."))
                 return
 
-            job_run = JobRun.objects.create(job_name=JOB_NAME)
-            try:
-                total = 0
+            dry_run = options['dry_run']
+            # record=False on a dry run: like the other commands, it leaves no JobRun, so job_health cannot
+            # read a job that has never really run as healthy (ARC-008).
+            with track_job_run(JOB_NAME, record=not dry_run) as run:
                 for policy in policies:
                     table = policy.source._meta.db_table
-                    if options['dry_run']:
+                    if dry_run:
                         count = min(eligible_rows(policy, retention_days).count(), limit)
                         self.stdout.write(f"{table}: {count} row(s) would be archived (dry-run).")
                         continue
@@ -65,17 +64,8 @@ class Command(CronHostCommand):
                         if not batch:
                             break
                         moved += batch
-                    total += moved
+                    run.items_processed += moved
                     self.stdout.write(f"{table}: archived {moved} row(s).")
 
-                job_run.status = JobRun.STATUS_SUCCESS
-                job_run.items_processed = total
-                job_run.finished_at = timezone.now()
-                job_run.save()
-                self.stdout.write(self.style.SUCCESS(f"{JOB_NAME}: archived {total} row(s)."))
-            except Exception as exc:
-                job_run.status = JobRun.STATUS_FAILED
-                job_run.error_text = str(exc)[:2000]
-                job_run.finished_at = timezone.now()
-                job_run.save()
-                raise
+            if not dry_run:
+                self.stdout.write(self.style.SUCCESS(f"{JOB_NAME}: archived {run.items_processed} row(s)."))

@@ -2,6 +2,7 @@
 from datetime import timedelta
 from decimal import Decimal
 from io import StringIO
+from unittest import mock
 
 from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase
@@ -163,3 +164,23 @@ class ArchiveCommandTests(TestCase):
         output = self.run_command('--dry-run')
         self.assertIn('3 row(s) would be archived', output)
         self.assertEqual(AuditEvent.objects.count(), 3)
+        self.assertNotIn('archived 0 row(s)', output)  # a dry run reports what it would do, never a fake result
+
+    def test_dry_run_leaves_no_job_run_and_a_real_run_leaves_one(self):
+        # A dry-run row would make job_health read a never-scheduled job as healthy (ARC-008).
+        self.run_command('--dry-run')
+        self.assertFalse(JobRun.objects.filter(job_name='archive_high_write_tables').exists())
+        self.run_command()
+        run = JobRun.objects.get(job_name='archive_high_write_tables')
+        self.assertEqual((run.status, run.items_processed), (JobRun.STATUS_SUCCESS, 3))
+        self.assertIsNotNone(run.finished_at)
+
+    def test_a_failing_run_is_recorded_failed_and_the_error_still_reaches_cron(self):
+        with mock.patch('apps.core.management.commands.archive_high_write_tables.archive_batch',
+                        side_effect=RuntimeError('boom')):
+            with self.assertRaisesMessage(RuntimeError, 'boom'):
+                self.run_command()
+        run = JobRun.objects.get(job_name='archive_high_write_tables')
+        self.assertEqual(run.status, JobRun.STATUS_FAILED)
+        self.assertIn('boom', run.error_text)
+        self.assertIsNotNone(run.finished_at)
