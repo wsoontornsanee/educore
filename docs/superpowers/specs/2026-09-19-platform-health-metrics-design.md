@@ -43,7 +43,7 @@ Computed at read time, not stored. Take the last four **completed** weeks of a s
 
 ## 5. Tests
 
-- Activity recording: first request of the day inserts one row and sets the gate; second request the same day writes nothing; two racing first requests insert once (MySQL two-thread test, like #276); a recording error does not fail the request.
+- Activity recording: first request of the day inserts one row and sets the gate; second request the same day writes nothing; a stale in-memory copy of the user (two requests that both loaded it before either recorded) inserts once; a recording error does not fail the request.
 - Rollup: only parents with an active link count; staff activity does not; inactive students and unlinked users excluded; week boundaries (Sunday/Monday); frozen week not recomputed; denominator 0.
 - At-risk: three strict drops flagged; tie, two drops, three weeks of data, and an in-progress week each not flagged.
 - Endpoint: operator 200, foundation admin 403, anonymous 401; `foundation_id` filter; shape.

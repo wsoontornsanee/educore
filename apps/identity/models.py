@@ -252,6 +252,10 @@ class User(AbstractBaseUser, PermissionsMixin, TenantModel):
     # Account lockout (IAM-008: 10 failed attempts in 15 min locks account)
     failed_login_attempts = models.PositiveIntegerField(default=0)
     locked_until = models.DateTimeField(null=True, blank=True)
+    last_activity_date = models.DateField(
+        null=True, blank=True,
+        help_text="Last calendar day (Asia/Jakarta) with an authenticated API request; gate for UserActivityDay.",
+    )
 
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
@@ -954,3 +958,29 @@ class PlatformRoleAssignment(models.Model):
 
     def __str__(self):
         return f"{self.user.phone_e164} -> {self.role} (PLATFORM)"
+
+
+class UserActivityDay(TenantModel):
+    """One row per user per calendar day (Asia/Jakarta) with an authenticated API request.
+
+    The history behind weekly-active-parent metrics (RPT-012). Written by
+    `apps.identity.activity.record_activity`; ids and dates only, no PII (RPT-015).
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='activity_days')
+    date = models.DateField()
+    active_uniq_marker = soft_delete_uniqueness_marker()
+
+    class Meta:
+        db_table = 'user_activity_days'
+        indexes = [
+            models.Index(fields=['foundation_id', 'date']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'user', 'date', 'active_uniq_marker'],
+                name='unique_user_activity_day',
+            ),
+        ]
+
+    def __str__(self):
+        return f"user={self.user_id} {self.date}"
