@@ -12,6 +12,7 @@ import logging
 from django.utils import timezone
 
 from apps.core.locks import advisory_lock
+from apps.core.job_runs import track_job_run
 from apps.core.management.base import CronHostCommand
 from apps.finance.services.arrears import run_arrears_ladder
 from apps.identity.models import Foundation, School
@@ -69,41 +70,43 @@ class Command(CronHostCommand):
                 f"Starting arrears reminder ladder execution (as_of_date={as_of_date}, dry_run={dry_run})"
             )
 
-            foundations = Foundation.objects.filter(status=Foundation.STATUS_ACTIVE)
+            with track_job_run('run_arrears_ladder', record=not dry_run) as run:
+                foundations = Foundation.objects.filter(status=Foundation.STATUS_ACTIVE)
 
-            total_evaluated = 0
-            total_eligible = 0
-            total_dispatched = 0
-            total_skipped = 0
+                total_evaluated = 0
+                total_eligible = 0
+                total_dispatched = 0
+                total_skipped = 0
 
-            for foundation in foundations:
-                with tenant_context(foundation.id):
-                    schools_qs = School.objects.filter(foundation_id=foundation.id, is_active=True)
-                    if school_id:
-                        schools_qs = schools_qs.filter(id=school_id)
+                for foundation in foundations:
+                    with tenant_context(foundation.id):
+                        schools_qs = School.objects.filter(foundation_id=foundation.id, is_active=True)
+                        if school_id:
+                            schools_qs = schools_qs.filter(id=school_id)
 
-                    for school in schools_qs:
-                        res = run_arrears_ladder(
-                            school=school,
-                            as_of_date=as_of_date,
-                            dry_run=dry_run,
-                        )
+                        for school in schools_qs:
+                            res = run_arrears_ladder(
+                                school=school,
+                                as_of_date=as_of_date,
+                                dry_run=dry_run,
+                            )
 
-                        evaluated = res['evaluated_count']
-                        eligible = res['eligible_count']
-                        dispatched = res['dispatched_count']
-                        skipped = res['skipped_existing_count']
+                            evaluated = res['evaluated_count']
+                            eligible = res['eligible_count']
+                            dispatched = res['dispatched_count']
+                            skipped = res['skipped_existing_count']
 
-                        total_evaluated += evaluated
-                        total_eligible += eligible
-                        total_dispatched += dispatched
-                        total_skipped += skipped
+                            total_evaluated += evaluated
+                            total_eligible += eligible
+                            total_dispatched += dispatched
+                            run.items_processed += dispatched
+                            total_skipped += skipped
 
-                        status_note = " (dry run)" if dry_run else ""
-                        self.stdout.write(
-                            f"  [{school.name}] Evaluated: {evaluated}, Eligible: {eligible}, "
-                            f"Dispatched: {dispatched}, Skipped: {skipped}{status_note}"
-                        )
+                            status_note = " (dry run)" if dry_run else ""
+                            self.stdout.write(
+                                f"  [{school.name}] Evaluated: {evaluated}, Eligible: {eligible}, "
+                                f"Dispatched: {dispatched}, Skipped: {skipped}{status_note}"
+                            )
 
             self.stdout.write(self.style.SUCCESS(
                 f"Arrears ladder completed. Evaluated: {total_evaluated}, Eligible: {total_eligible}, "
