@@ -16,7 +16,8 @@ Semver: patch = fixes only, minor = new screens/features, major = breaking chang
 | Profile | Output | Use |
 |---|---|---|
 | `preview` | Android `.apk`, internal distribution | Testers: install directly from the EAS link |
-| `production` | Android `.aab`, build number auto-incremented | Play Store submission |
+| `preview-simulator` | iOS Simulator `.app` (extends `preview`) | Run the iOS build without an Apple Developer account |
+| `production` | Android `.aab` / iOS `.ipa`, build number auto-incremented | Play Store / TestFlight submission |
 
 Both bake `EXPO_PUBLIC_API_URL=https://educore.makan.live/api/v1` into the bundle. A release build with no URL, a non-https URL or one not ending in `/api/v1` fails at launch (`resolveApiBase`, `src/services/apiConfig.ts`); only a development bundle falls back to a local server (`10.0.2.2:8000` on the Android emulator, `localhost:8000` on the iOS simulator).
 
@@ -46,8 +47,24 @@ git tag mobile-v1.0.0 && git push origin mobile-v1.0.0
 
 Inspect or correct the remote counter: `npx eas-cli build:version:get -p android --profile production` / `build:version:set`.
 
+## Android push (FCM)
+
+`app.config.ts` layers `android.googleServicesFile` over `app.json` from the `GOOGLE_SERVICES_JSON` EAS file variable, so the Firebase file never enters git. A `production` Android build **fails at config time** without it; `preview` and local builds proceed (push just won't register).
+
+One-time, owner-side:
+1. Firebase console: create a project, add an Android app with package `id.sch.educore.guru`, download `google-services.json`.
+2. `npx eas-cli env:create --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --visibility sensitive --environment production --environment preview`
+3. Firebase → Project settings → Service accounts → generate a private key, then `npx eas-cli credentials` → Android → Google Service Account → FCM V1 key. (Expo's push service needs this to relay to devices.)
+
+## iOS
+
+`bundleIdentifier` is set and `expo-local-authentication` declares its Face ID reason. Both profiles already build for iOS (`--platform ios`); nothing is iOS-specific except credentials.
+
+- **No Apple account:** `npx eas-cli build --platform ios --profile preview-simulator`, then drag the `.app` into the Simulator.
+- **Device / TestFlight (needs an Apple Developer Program account):** `eas device:create` (internal `preview` only), then `eas build --platform ios --profile production` and `eas submit --platform ios --profile production`; EAS creates the certificates and the APNs push key on the first run.
+- Before the first TestFlight upload the owner should decide the export-compliance answer (`ios.infoPlist.ITSAppUsesNonExemptEncryption`); it is left unset so App Store Connect asks.
+
 ## Not yet wired
 
-- **Android push (FCM):** add `google-services.json` and set `android.googleServicesFile` in `app.json` (see Expo docs, "FCM credentials"), otherwise token registration fails silently in release builds.
-- **iOS:** needs an Apple Developer account; `bundleIdentifier` is already set. Add an `ios` block to the profiles when ready.
-- **Icons:** `assets/` holds generated placeholders; swap in the brand icon (1024² opaque icon, 1024² transparent adaptive foreground with the glyph inside the centre 66%, 96² white-on-transparent notification icon).
+- **Icons:** `assets/` holds generated placeholders (a white "E" on brand red); swap in the brand icon (1024² opaque icon, 1024² transparent adaptive foreground with the glyph inside the centre 66%, 96² white-on-transparent notification icon).
+- **CI:** no workflow builds on a `mobile-v*` tag yet (needs an `EXPO_TOKEN` secret).

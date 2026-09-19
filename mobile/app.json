@@ -31,6 +31,12 @@
         }
       ],
       [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "EduCore memakai Face ID untuk membuka aplikasi dengan cepat."
+        }
+      ],
+      [
         "expo-camera",
         {
           "cameraPermission": "EduCore memakai kamera untuk memindai kode QR pembayaran kantin.",
