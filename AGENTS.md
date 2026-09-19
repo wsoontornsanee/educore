@@ -55,7 +55,7 @@ Every task must strictly adhere to the following 5-phase SOP:
    - Strictly follow the **Pre-PR Synchronization & Conflict Resolution Protocol** below.
 5. **Merge After CI, Then Wait for Deploy Instruction:**
    - **Merge automatically once CI has passed** (standing instruction, 2026-09-19). Do not wait for a separate "merge N" message. Merge only when ALL of these hold, checked immediately before merging:
-     - Every CI check has finished and passed (`gh pr checks <N>`; nothing pending or failing).
+     - CI has passed on the PR head (`gh pr checks <N>`; nothing pending or failing). CI runs locally, not on GitHub Actions (minutes cost money): from a clean, pushed branch run `scripts/ci-local.sh --publish`, which runs the four gates (Django checks, SQLite tests, MySQL tests, mobile) and posts the `ci/local` commit status. Re-run it after every push; a status on an older head does not count. `.github/workflows/ci.yml` is manual-only (`workflow_dispatch`) and stays in step with the script.
      - The branch is current with `main` (`git fetch origin` then `git rev-list --count HEAD..origin/main` is `0`) and the PR is `MERGEABLE` with no conflicts. If `main` moved, sync it (Pre-PR protocol below) and wait for CI on the new head; never merge on a CI result from an older head.
      - The PR is one you opened for the task at hand, and the user has not said to hold it.
    - Merge with `gh pr merge <N> --squash`. `main` requires one approving review, which the PR author cannot supply, so when `REVIEW_REQUIRED` is the *only* blocker use `--admin`. This is a standing choice by the user, not a general licence: never use `--admin` to get past failing or pending CI, conflicts, or any other block.

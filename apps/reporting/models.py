@@ -163,6 +163,45 @@ class RptActiveStudentRoster(TenantModel):
         return f"{self.school.name} - {self.month:%Y-%m}: {len(self.student_ids)} students"
 
 
+class RptSubscriptionCharge(TenantModel):
+    """One module's subscription charge for one school and month (RPT-010): the counted students
+    x the module's price for the foundation's tier, prorated by the days the module was entitled.
+
+    Everything that produced `amount` is stored on the row, because none of it can be rebuilt later:
+    the count is frozen (RPT-008), `plan_tier` is only the foundation's current label, and a price
+    list can grow. It is frozen like the count: `refresh_subscription_charges` rewrites the row
+    until the first run after the month has ended, and never again. A module with no price for the
+    month has no row (it is not charged), so a school with no rows has no price list that applies.
+    """
+    school = models.ForeignKey(School, on_delete=models.PROTECT, related_name='subscription_charges')
+    month = models.DateField(help_text=_("Normalized to the 1st of the month"))
+    module_key = models.CharField(max_length=32)
+    plan_tier = models.CharField(max_length=32, help_text="The foundation's tier when the row was computed")
+    currency = models.CharField(max_length=3, default='IDR')
+    active_count = models.PositiveIntegerField(help_text="The month's `RptActiveStudent` count")
+    unit_price = MoneyField(help_text="Per student per month, from `ModulePrice`")
+    active_days = models.PositiveSmallIntegerField(help_text="Days of the month the module was entitled")
+    days_in_month = models.PositiveSmallIntegerField()
+    amount = MoneyField(help_text="active_count x unit_price x active_days / days_in_month, rounded half-up once")
+    computed_at = models.DateTimeField(help_text=_("RPT-005: data freshness timestamp"))
+    active_uniq_marker = soft_delete_uniqueness_marker()
+
+    class Meta:
+        db_table = 'rpt_subscription_charges'
+        indexes = [
+            models.Index(fields=['foundation_id', 'school_id', 'month']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'school', 'month', 'module_key', 'active_uniq_marker'],
+                name='unique_rpt_subscription_charge_per_school_month_module',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.school.name} - {self.month:%Y-%m} {self.module_key}: {self.currency} {self.amount}"
+
+
 class RptDailyFinance(TenantModel):
     """Daily finance rollup per school (spec/15 §2). Feeds the "Collection
     performance" report (spec/15 §3). Rebuilt by `refresh_reporting`.

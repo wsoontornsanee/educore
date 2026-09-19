@@ -1,6 +1,7 @@
+import calendar
 import datetime
 from datetime import timedelta
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from django.db import transaction
 from django.db.models import Count, Sum
@@ -16,6 +17,7 @@ from apps.reporting.models import (
     RptDailyAttendance,
     RptDailyFinance,
     RptParentWeeklyActivity,
+    RptSubscriptionCharge,
     RptWalletActivity,
 )
 
@@ -388,6 +390,77 @@ def refresh_parent_weekly_activity(scope: str) -> dict:
     return {'rows_written': rows_written, 'scope': scope}
 
 
+def _month_days(month) -> tuple[datetime.date, int]:
+    days_in_month = calendar.monthrange(month.year, month.month)[1]
+    return month.replace(day=days_in_month), days_in_month
+
+
+def refresh_subscription_charges(scope: str, since=None) -> dict:
+    """RPT-010: one `RptSubscriptionCharge` per school, month and priced module, from the month's
+    counted students, the price list (`ModulePrice`) and the days the module was entitled.
+
+    Runs after `refresh_active_students` and reads its count; a school-month with no count has no
+    charge. The price is the foundation's CURRENT tier's, looked up at the month (the repo keeps no
+    tier history), and is stored on the row. A month is rewritten until the first run after it has
+    ended and then frozen (RPT-008), so entitlement changes made on its last day are still seen.
+    A module with no price for that tier and month gets no row: it is not charged.
+    """
+    from apps.identity.entitlements import entitled_days_in_month
+    from apps.identity.models import Foundation, ModulePrice
+
+    now = timezone.now()
+    today = now.date()
+    current_month = today.replace(day=1)
+    if since is not None:
+        target_months = [since]
+    elif scope == 'dashboard':
+        target_months = [current_month]
+    else:
+        target_months = [current_month, (current_month - timedelta(days=1)).replace(day=1)]
+
+    tiers = dict(Foundation.objects.values_list('id', 'plan_tier'))
+    rows_written = 0
+    for school in School.all_tenants.filter(deleted_at__isnull=True):
+        for month in target_months:
+            count_row = RptActiveStudent.all_tenants.filter(
+                foundation_id=school.foundation_id, school=school, month=month,
+            ).first()
+            if count_row is None:
+                continue
+            last_day, days_in_month = _month_days(month)
+            existing = list(RptSubscriptionCharge.all_tenants.filter(
+                foundation_id=school.foundation_id, school=school, month=month,
+            ))
+            if existing and all(row.computed_at.date() > last_day for row in existing):
+                continue  # RPT-008: computed after the month ended, so frozen
+
+            plan_tier = tiers[school.foundation_id]
+            days = entitled_days_in_month(school.foundation_id, school.id, month)
+            prices = {}
+            for price in ModulePrice.objects.filter(
+                plan_tier=plan_tier, currency=school.base_currency, effective_from__lte=month,
+            ).order_by('effective_from'):
+                prices[price.module_key] = price  # the latest start wins
+
+            with transaction.atomic():
+                for module_key, price in prices.items():
+                    # Full precision, rounded once to the stored scale (CUR-017).
+                    amount = (
+                        Decimal(count_row.active_count) * price.unit_price * days[module_key] / days_in_month
+                    ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                    RptSubscriptionCharge.all_tenants.update_or_create(
+                        foundation_id=school.foundation_id, school=school, month=month, module_key=module_key,
+                        defaults={
+                            'plan_tier': plan_tier, 'currency': price.currency, 'active_count': count_row.active_count,
+                            'unit_price': price.unit_price, 'active_days': days[module_key],
+                            'days_in_month': days_in_month, 'amount': amount, 'computed_at': now,
+                        },
+                    )
+                    rows_written += 1
+
+    return {'rows_written': rows_written, 'scope': scope}
+
+
 def refresh_daily_finance(scope: str, since=None) -> dict:
     """spec/15 §2: rebuild rpt_daily_finance, one row per school per day.
 
@@ -748,6 +821,14 @@ def get_metering_statement(foundation_id, month, school_ids=None, today=None) ->
     A school with no row for the month is listed as NOT_COMPUTED rather than as zero, because a
     missing count and a count of zero are different facts on an invoice dispute. `complete` says
     whether every listed school has a count, so `total_active` is never mistaken for the whole.
+
+    RPT-010/RPT-011: each school also carries the month's money, all read from `rpt_*` tables.
+    `subscription` is the frozen (or, while the month is open, running) `RptSubscriptionCharge` lines and
+    their total; it is None until the school has a count, and empty `lines` mean no price list applies
+    (a total of 0.00 then means "not priced", not "free"). `campus_take_rate` is the wallet commission
+    (WAL-021, stored on each sale at its own rate) and `payment_fees` the fees recorded on settled
+    payments: the gateway's fee at settlement, NOT EduCore's margin over it, which nothing records. Both
+    are one entry per currency. `revenue_totals` sums the schools listed, per currency.
     """
     today = today or timezone.now().date()
     month = month.replace(day=1)
@@ -763,8 +844,27 @@ def get_metering_statement(foundation_id, month, school_ids=None, today=None) ->
         foundation_id=foundation_id, month=month, deleted_at__isnull=True,
     ).values_list('school_id', flat=True))
     closed = _month_is_closed(month, today)
+    last_day, _days = _month_days(month)
+    school_list = list(schools)
+    ids = [school.id for school in school_list]
+    charges: dict[int, list] = {}
+    for charge in RptSubscriptionCharge.all_tenants.filter(
+        foundation_id=foundation_id, month=month, school_id__in=ids, deleted_at__isnull=True,
+    ).order_by('module_key'):
+        charges.setdefault(charge.school_id, []).append(charge)
+    take_rate = _month_sums(RptWalletActivity, 'commission', foundation_id, ids, month, last_day)
+    payment_fees = _month_sums(RptDailyFinance, 'fees', foundation_id, ids, month, last_day)
+    totals: dict[str, dict] = {}
+
+    def add_total(currency, key, amount):
+        line = totals.setdefault(currency, {
+            'currency': currency, 'subscription': Decimal('0.00'), 'campus_take_rate': Decimal('0.00'),
+            'payment_fees': Decimal('0.00'),
+        })
+        line[key] += amount
+
     entries = []
-    for school in schools:
+    for school in school_list:
         row = counts.get(school.id)
         if row is None:
             state, active_count, computed_at = METERING_NOT_COMPUTED, None, None
@@ -776,6 +876,9 @@ def get_metering_statement(foundation_id, month, school_ids=None, today=None) ->
             'state': state, 'active_count': active_count, 'computed_at': computed_at,
             # A roster exists only for counts made after rosters were captured; older frozen months have none.
             'roster_available': school.id in with_roster,
+            'subscription': _subscription_block(charges.get(school.id, []), add_total) if row is not None else None,
+            'campus_take_rate': _money_list(take_rate.get(school.id, {}), 'campus_take_rate', add_total),
+            'payment_fees': _money_list(payment_fees.get(school.id, {}), 'payment_fees', add_total),
         })
     counted = [e['active_count'] for e in entries if e['active_count'] is not None]
     return {
@@ -783,7 +886,50 @@ def get_metering_statement(foundation_id, month, school_ids=None, today=None) ->
         'schools': entries,
         'total_active': sum(counted),
         'complete': len(counted) == len(entries),
+        'revenue_totals': [
+            {'currency': t['currency'], **{k: _amount(v) for k, v in t.items() if k != 'currency'}}
+            for t in sorted(totals.values(), key=lambda t: t['currency'])
+        ],
     }
+
+
+def _amount(value: Decimal) -> str:
+    """Money leaves the API as a string, never a float (CUR-026); the column's own scale is kept."""
+    return format(value.quantize(Decimal('0.01')), 'f')
+
+
+def _month_sums(model, field, foundation_id, school_ids, month, last_day) -> dict[int, dict[str, Decimal]]:
+    """school id -> currency -> the sum of a daily rollup's money column over the month."""
+    sums: dict[int, dict[str, Decimal]] = {}
+    for school_id, currency, total in model.all_tenants.filter(
+        foundation_id=foundation_id, school_id__in=school_ids, date__gte=month, date__lte=last_day,
+        deleted_at__isnull=True,
+    ).values_list('school_id', 'currency').annotate(total=Sum(field)):
+        sums.setdefault(school_id, {})[currency] = total or Decimal('0.00')
+    return sums
+
+
+def _money_list(by_currency, total_key, add_total) -> list[dict]:
+    for currency, amount in by_currency.items():
+        add_total(currency, total_key, amount)
+    return [{'amount': _amount(amount), 'currency': currency} for currency, amount in sorted(by_currency.items())]
+
+
+def _subscription_block(charges, add_total) -> dict:
+    lines = [
+        {
+            'module_key': c.module_key, 'plan_tier': c.plan_tier, 'unit_price': _amount(c.unit_price),
+            'active_count': c.active_count, 'active_days': c.active_days, 'days_in_month': c.days_in_month,
+            'amount': _amount(c.amount), 'currency': c.currency,
+        }
+        for c in charges
+    ]
+    by_currency: dict[str, Decimal] = {}
+    for c in charges:
+        by_currency[c.currency] = by_currency.get(c.currency, Decimal('0.00')) + c.amount
+    for currency, amount in by_currency.items():
+        add_total(currency, 'subscription', amount)
+    return {'lines': lines, 'totals': [{'amount': _amount(a), 'currency': c} for c, a in sorted(by_currency.items())]}
 
 
 def get_metering_roster(foundation_id, school, month, today=None) -> dict:

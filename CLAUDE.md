@@ -29,6 +29,12 @@ python manage.py test apps.core
 pytest
 ```
 
+### CI (runs locally, not on GitHub Actions)
+```bash
+scripts/ci-local.sh --publish   # all gates, then posts the `ci/local` commit status for the pushed HEAD
+scripts/ci-local.sh checks      # or run single gates: checks | sqlite | mysql | mobile
+```
+
 ### Background Tasks & Cron Verification
 ```bash
 # Run task queue drainer
@@ -46,4 +52,4 @@ python manage.py <job_command>
 - **3-layer tenancy (`TenantModel`, `TenantManager`, cross-tenant 404 test).**
 - **Money: `core.fields.MoneyField` (`DECIMAL(18,2)`), double-entry ledger, round-half-up.**
 - **`id-ID` first.**
-- **PR lifecycle: merge automatically once CI passes (`--admin` only if the required review is the sole blocker); deploy only on explicit instruction (`AGENTS.md` §4 stage 5).**
+- **PR lifecycle: merge automatically once local CI (`ci/local` status) passes (`--admin` only if the required review is the sole blocker); deploy only on explicit instruction (`AGENTS.md` §4 stage 5).**
