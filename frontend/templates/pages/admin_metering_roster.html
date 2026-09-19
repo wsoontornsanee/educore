@@ -1,0 +1,75 @@
+{% extends "base_console.html" %}
+{% load i18n %}
+
+{% comment %}
+Page: Administrasi > Siswa terhitung > daftar. WHICH students one school's count for a month was made of (RPT-009), so
+an invoice dispute can be settled. Served by apps.reporting.web_views.MeteringRosterPageView at
+/web/admin/metering/roster/. NIS is shown, NISN never. Screen states: normal, no roster (frozen before rosters were
+captured), not computed, invalid month; a school outside the viewer's scope is a 404.
+{% endcomment %}
+
+{% block title %}{% translate "Daftar siswa terhitung — EduCore" %}{% endblock %}
+
+{% block console_content %}
+<main style="display:flex;flex-direction:column;gap:20px;max-width:960px">
+  <header>
+    <div class="text-label text-ink-500" style="margin-bottom:2px">{% translate "Administrasi" %} · {% translate "Siswa terhitung" %}</div>
+    <h1 class="text-h2 font-display text-ink-900" style="margin:0">{{ school.name }} · {{ roster.month }}</h1>
+    <p style="margin:6px 0 0"><a href="{% url 'admin-metering' %}?month={{ back_month }}">← {% translate "Kembali ke ringkasan" %}</a></p>
+  </header>
+
+  {% if invalid_month %}
+  <div class="card" role="alert" style="border-left:4px solid var(--color-danger);padding:12px 16px">
+    <p class="text-body text-ink-900">{% translate "Format bulan tidak valid (gunakan YYYY-MM); menampilkan bulan ini." %}</p>
+  </div>
+  {% endif %}
+
+  <section class="card" style="padding:16px 20px" aria-label="{% translate 'Ringkasan' %}">
+    <div class="text-label text-ink-500">{% translate "Siswa terhitung" %}</div>
+    <div class="text-h2 font-display text-ink-900" data-testid="roster-count">{% if roster.active_count is None %}—{% else %}{{ roster.active_count }}{% endif %}</div>
+    <p class="text-body-sm text-ink-700" style="margin:8px 0 0">
+      {% if roster.state == state_frozen %}{% translate "Bulan ini sudah dibekukan dan tidak berubah lagi." %}
+      {% elif roster.state == state_open %}{% translate "Bulan ini masih berjalan; daftar diperbarui setiap kali jumlah dihitung ulang." %}
+      {% else %}{% translate "Bulan ini belum dihitung untuk sekolah ini." %}{% endif %}
+      {% if roster.captured_at %}{% translate "Daftar diambil pada" %} {{ roster.captured_at|date:"d M Y H:i" }}.{% endif %}
+    </p>
+  </section>
+
+  {% if roster.roster_available %}
+  <div class="card" style="padding:0;overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;min-width:520px">
+      <thead>
+        <tr style="text-align:left;border-bottom:1px solid var(--color-line)">
+          <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Nama" %}</th>
+          <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "NIS" %}</th>
+          <th class="text-label text-ink-500" style="padding:12px 16px">{% translate "Status sekarang" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in roster.students %}
+        <tr style="border-bottom:1px solid var(--color-line)" data-testid="roster-row">
+          <td class="text-body-sm text-ink-900" style="padding:12px 16px">{{ s.full_name }}</td>
+          <td class="text-body-sm font-mono text-ink-900" style="padding:12px 16px">{{ s.nis }}</td>
+          <td class="text-body-sm text-ink-700" style="padding:12px 16px">
+            {% if s.current_status == 'ACTIVE' %}{% translate "Aktif" %}
+            {% elif s.current_status == 'INACTIVE' %}{% translate "Nonaktif" %}
+            {% elif s.current_status == 'GRADUATED' %}{% translate "Lulus" %}
+            {% elif s.current_status == 'TRANSFERRED_OUT' %}{% translate "Pindah keluar" %}
+            {% else %}{% translate "Calon siswa" %}{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="text-body-sm text-ink-500" style="margin:0">{% translate "Status sekarang adalah status siswa saat ini, bukan saat dihitung: siswa yang sudah pindah atau lulus tetap tercantum karena mereka termasuk dalam hitungan bulan ini. NISN tidak ditampilkan." %}</p>
+  {% else %}
+  <div class="card" style="padding:32px;text-align:center" data-testid="roster-unavailable">
+    <p class="text-body text-ink-700">
+      {% if roster.state == state_not_computed %}{% translate "Belum ada daftar karena bulan ini belum dihitung." %}
+      {% else %}{% translate "Daftar siswa tidak tersedia untuk bulan ini: jumlahnya dibekukan sebelum daftar mulai disimpan, dan masa lalu tidak dapat direkonstruksi." %}{% endif %}
+    </p>
+  </div>
+  {% endif %}
+</main>
+{% endblock %}

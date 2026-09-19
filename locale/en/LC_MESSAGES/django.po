@@ -8978,3 +8978,71 @@ msgstr "Ids of the students counted, in ascending order"
 #: apps/reporting/models.py
 msgid "When the roster was taken (same instant as the count)"
 msgstr "When the roster was taken (same instant as the count)"
+
+#: frontend/templates/pages/admin_metering.html
+msgid "Daftar siswa"
+msgstr "Student list"
+
+#: frontend/templates/pages/admin_metering.html
+msgid "Lihat daftar"
+msgstr "View list"
+
+#: frontend/templates/pages/admin_metering.html
+msgid "Tidak tersedia"
+msgstr "Not available"
+
+#: frontend/templates/pages/admin_metering.html
+msgid "Daftar siswa yang dihitung disimpan bersama jumlahnya. Bulan yang sudah dibekukan sebelum daftar mulai disimpan hanya memiliki jumlah dan tidak dapat direkonstruksi."
+msgstr "The list of counted students is stored together with the count. Months frozen before lists were stored have only a count and cannot be reconstructed."
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Daftar siswa terhitung — EduCore"
+msgstr "Counted students — EduCore"
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Kembali ke ringkasan"
+msgstr "Back to the summary"
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Bulan ini sudah dibekukan dan tidak berubah lagi."
+msgstr "This month is frozen and no longer changes."
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Bulan ini masih berjalan; daftar diperbarui setiap kali jumlah dihitung ulang."
+msgstr "This month is still open; the list is updated each time the count is recomputed."
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Bulan ini belum dihitung untuk sekolah ini."
+msgstr "This month has not been counted for this school yet."
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Daftar diambil pada"
+msgstr "List captured on"
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Status sekarang"
+msgstr "Current status"
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Lulus"
+msgstr "Graduated"
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Pindah keluar"
+msgstr "Transferred out"
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Calon siswa"
+msgstr "Prospective student"
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Status sekarang adalah status siswa saat ini, bukan saat dihitung: siswa yang sudah pindah atau lulus tetap tercantum karena mereka termasuk dalam hitungan bulan ini. NISN tidak ditampilkan."
+msgstr "Current status is the student's status today, not when they were counted: students who have since left or graduated stay listed because they were part of this month's count. NISN is not shown."
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Belum ada daftar karena bulan ini belum dihitung."
+msgstr "There is no list yet because this month has not been counted."
+
+#: frontend/templates/pages/admin_metering_roster.html
+msgid "Daftar siswa tidak tersedia untuk bulan ini: jumlahnya dibekukan sebelum daftar mulai disimpan, dan masa lalu tidak dapat direkonstruksi."
+msgstr "The student list is not available for this month: its count was frozen before lists were stored, and the past cannot be reconstructed."

@@ -121,6 +121,20 @@ def accessible_school_ids(user, foundation_id, permission_key):
     }
 
 
+def accessible_school_ids_for_all(user, foundation_id, *permission_keys):
+    """School ids where `user` holds EVERY one of `permission_keys`; None means every school of the foundation.
+
+    For surfaces that combine two gates, e.g. a metering roster is metering data (`reporting.read`) that
+    lists students (`student_records.read`): the caller must hold both, and only for the same school."""
+    allowed = None
+    for permission_key in permission_keys:
+        ceiling = accessible_school_ids(user, foundation_id, permission_key)
+        if ceiling is None:
+            continue
+        allowed = set(ceiling) if allowed is None else allowed & set(ceiling)
+    return allowed
+
+
 def can_manage_staff(actor, staff, ceiling, assignments):
     """May `actor` offboard `staff`, given `ceiling` (accessible_school_ids
     for school_config.write: None = foundation-wide) and the target's active

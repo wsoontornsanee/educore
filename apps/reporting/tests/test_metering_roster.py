@@ -14,7 +14,7 @@ from apps.reporting.services import (
     METERING_FROZEN, METERING_NOT_COMPUTED, METERING_OPEN, get_metering_roster, get_metering_statement,
     refresh_active_students,
 )
-from apps.reporting.views import _schools_allowed_for_all
+from apps.identity.console_access import accessible_school_ids_for_all
 
 NOW = timezone.now()
 THIS_MONTH = NOW.date().replace(day=1)
@@ -163,10 +163,10 @@ class MeteringRosterServiceTests(_Base):
         self.assertFalse(by_school[second.id]['roster_available'])
 
 
-class SchoolsAllowedForAllTests(TestCase):
+class AccessibleSchoolIdsForAllTests(TestCase):
     def check(self, ceilings):
-        with mock.patch('apps.reporting.views.accessible_school_ids', side_effect=lambda u, f, p: ceilings[p]):
-            return _schools_allowed_for_all(object(), 1, *ceilings)
+        with mock.patch('apps.identity.console_access.accessible_school_ids', side_effect=lambda u, f, p: ceilings[p]):
+            return accessible_school_ids_for_all(object(), 1, *ceilings)
 
     def test_every_permission_foundation_wide_means_every_school(self):
         self.assertIsNone(self.check({'a': None, 'b': None}))
