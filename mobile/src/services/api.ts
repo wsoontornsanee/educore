@@ -6,7 +6,8 @@
  */
 import { clearAuth, getTokens, saveTokens } from './storage.ts';
 
-export const DEFAULT_API_BASE = 'http://10.0.2.2:8000/api/v1';
+// Release builds get this from the EAS profile env (eas.json); the fallback is the Android emulator's host loopback.
+export const DEFAULT_API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:8000/api/v1';
 
 let currentBaseUrl = DEFAULT_API_BASE;
 

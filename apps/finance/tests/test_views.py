@@ -115,6 +115,21 @@ class FinanceViewsTests(TestCase):
             self.assertEqual(ass.amount, Decimal('800000.00'))
 
     def test_discount_approval_action(self):
+        # Approving a discount is foundation authority (FND-007/008), so the
+        # school finance officer of setUp cannot; a foundation admin can, with a reason.
+        foundation_admin = User.objects.create(
+            foundation_id=self.foundation.id,
+            phone_e164="+628177777778",
+            email="admin@cendekia.sch.id",
+            full_name="Admin Yayasan",
+        )
+        RoleAssignment.all_tenants.create(
+            foundation_id=self.foundation.id,
+            user=foundation_admin,
+            role=RoleAssignment.ROLE_FOUNDATION_ADMIN,
+            scope_type=RoleAssignment.SCOPE_FOUNDATION,
+            scope_id=self.foundation.id,
+        )
         self.client.force_authenticate(user=self.finance_user)
         with tenant_context(self.foundation.id):
             discount = Discount.objects.create(
@@ -127,14 +142,24 @@ class FinanceViewsTests(TestCase):
                 status=DiscountStatus.PENDING_APPROVAL,
             )
 
+        denied = self.client.post(
+            f'/api/v1/finance/discounts/{discount.id}/approve/?school_id={self.school.id}',
+            {'reason': 'Disetujui'}, format='json',
+        )
+        self.assertEqual(denied.status_code, 403)
+
         # Approve discount
-        res = self.client.post(f'/api/v1/finance/discounts/{discount.id}/approve/?school_id={self.school.id}')
+        self.client.force_authenticate(user=foundation_admin)
+        res = self.client.post(
+            f'/api/v1/finance/discounts/{discount.id}/approve/?school_id={self.school.id}',
+            {'reason': 'Disetujui'}, format='json',
+        )
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json()['status'], DiscountStatus.APPROVED)
 
         discount.refresh_from_db()
         self.assertEqual(discount.status, DiscountStatus.APPROVED)
-        self.assertEqual(discount.approved_by, self.finance_user)
+        self.assertEqual(discount.approved_by, foundation_admin)
 
     def test_sibling_discount_policy_crud(self):
         self.client.force_authenticate(user=self.finance_user)

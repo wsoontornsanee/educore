@@ -940,9 +940,12 @@ def reject_invoice_write_off(
     return request_obj
 
 
+@transaction.atomic
 def write_off_invoice(invoice: Invoice, user: User, reason: str = "") -> Invoice:
     """Writes off an overdue invoice as bad debt (spec/06 §3, FIN-009, FIN-031).
     Creates and approves the write-off request and posts the Dr Bad Debt / Cr AR ledger journal.
+    Atomic: a caller without foundation authority (PermissionDenied) leaves no
+    dangling PENDING request behind.
     """
     req = request_invoice_write_off(invoice, user, reason)
     approve_invoice_write_off(req, user)

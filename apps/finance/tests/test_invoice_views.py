@@ -11,6 +11,7 @@ from apps.finance.models import (
     Invoice,
     InvoiceLine,
     InvoiceStatus,
+    InvoiceWriteOffRequest,
 )
 from educore.middleware.tenancy import set_current_foundation_id, clear_current_foundation_id, tenant_context
 
@@ -45,6 +46,20 @@ class InvoiceViewsTests(TestCase):
             foundation_id=self.foundation.id,
             user=self.finance_user,
             role=RoleAssignment.ROLE_FINANCE_OFFICER,
+            scope_type=RoleAssignment.SCOPE_FOUNDATION,
+            scope_id=self.foundation.id,
+        )
+
+        self.foundation_admin = User.objects.create(
+            foundation_id=self.foundation.id,
+            phone_e164="+6281999999998",
+            email="admin@tunasbangsa.sch.id",
+            full_name="Admin Yayasan Tunas Bangsa",
+        )
+        RoleAssignment.all_tenants.create(
+            foundation_id=self.foundation.id,
+            user=self.foundation_admin,
+            role=RoleAssignment.ROLE_FOUNDATION_ADMIN,
             scope_type=RoleAssignment.SCOPE_FOUNDATION,
             scope_id=self.foundation.id,
         )
@@ -169,6 +184,14 @@ class InvoiceViewsTests(TestCase):
             currency='IDR',
             status=InvoiceStatus.ISSUED,
         )
+        # Direct write-off is foundation authority (FIN-031): the finance officer
+        # is refused (403) and leaves no dangling PENDING request behind...
+        res_denied = self.client.post(f'/api/v1/finance/invoices/{inv2.id}/write-off/', {'reason': 'Piutang tak tertagih'})
+        self.assertEqual(res_denied.status_code, 403)
+        self.assertFalse(InvoiceWriteOffRequest.objects.filter(invoice=inv2).exists())
+
+        # ...while a foundation admin can write it off.
+        self.client.force_authenticate(user=self.foundation_admin)
         res_wo = self.client.post(f'/api/v1/finance/invoices/{inv2.id}/write-off/', {'reason': 'Piutang tak tertagih'})
         self.assertEqual(res_wo.status_code, 200)
         self.assertEqual(res_wo.json()['status'], InvoiceStatus.WRITTEN_OFF)
