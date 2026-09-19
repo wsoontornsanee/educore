@@ -22,6 +22,7 @@ from apps.wallet.models import (
     POSPaymentPoint,
     POSQRDecal,
     POSQRSession,
+    POSTerminalSessionKeyStatus,
     QRDispute,
     Merchant,
     MerchantSettlement,
@@ -624,7 +625,41 @@ class POSTerminalViewSet(_MerchantChildViewSet):
         'list': 'hardware.read', 'retrieve': 'hardware.read',
         'create': 'hardware.write', 'update': 'hardware.write',
         'partial_update': 'hardware.write', 'destroy': 'hardware.write',
+        'issue_session_key': 'hardware.write', 'revoke_session_key': 'hardware.write',
     }
+
+    @action(detail=True, methods=['post'], url_path='session-key/issue')
+    def issue_session_key(self, request, pk=None):
+        """Issue a new offline-signing key for this terminal (QRS-022/023).
+        The plaintext secret is returned ONLY in this response — it is never
+        retrievable again afterwards. Issuing a new key revokes any prior
+        ACTIVE key with a grace period, so already-signed offline sales still
+        sync (POSTerminalSessionKey.GRACE_PERIOD_DAYS)."""
+        from apps.wallet.qr_offline import issue_terminal_session_key
+
+        terminal = self.get_object()
+        key, secret = issue_terminal_session_key(
+            terminal, actor_id=str(request.user.id), ip_address=request.META.get('REMOTE_ADDR'),
+        )
+        return Response(
+            {'id': key.id, 'key_id': key.key_id, 'secret': secret, 'status': key.status},
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=['post'], url_path='session-key/revoke')
+    def revoke_session_key(self, request, pk=None):
+        """Revoke this terminal's current ACTIVE offline-signing key."""
+        from apps.wallet.models import POSTerminalSessionKey
+        from apps.wallet.qr_offline import revoke_terminal_session_key
+
+        terminal = self.get_object()
+        key = POSTerminalSessionKey.objects.filter(
+            foundation_id=terminal.foundation_id, terminal=terminal, status=POSTerminalSessionKeyStatus.ACTIVE,
+        ).first()
+        if key is None:
+            raise NotFound()
+        revoke_terminal_session_key(key, actor_id=str(request.user.id), ip_address=request.META.get('REMOTE_ADDR'))
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class POSTransactionViewSet(_MerchantChildViewSet):

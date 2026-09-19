@@ -1,5 +1,6 @@
 from decimal import Decimal
 from django.db import models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.fields import MoneyField
@@ -206,6 +207,50 @@ class POSEntryMode(models.TextChoices):
     SELF_ENTERED = 'SELF_ENTERED', _('Diinput siswa')
 
 
+class POSTerminalSessionKeyStatus(models.TextChoices):
+    ACTIVE = 'ACTIVE', _('Aktif')
+    REVOKED = 'REVOKED', _('Dicabut')
+
+
+class POSTerminalSessionKey(TenantModel):
+    """A symmetric secret a terminal uses to sign offline-minted QR session
+    tokens locally, with no server round-trip (QRS-022/023, spec 18 §6).
+
+    Mirrors apps.partners.PartnerApiKey: the plaintext secret is returned
+    exactly once, at issue/rotate time, and stored Fernet-encrypted at rest
+    from then on (apps/wallet/crypto.py). `key_id` travels inside the token
+    so the server knows which secret to verify against without guessing.
+
+    Rotation: revoking a key does not immediately invalidate transactions
+    already signed with it — a terminal can be offline for days, so a
+    revoked key stays valid for VERIFICATION (never for new minting) until
+    `grace_until`, giving in-flight offline sales a window to sync cleanly.
+    """
+    GRACE_PERIOD_DAYS = 7
+
+    terminal = models.ForeignKey(POSTerminal, on_delete=models.CASCADE, related_name='session_keys')
+    key_id = models.CharField(max_length=64, unique=True, db_index=True)
+    secret_encrypted = models.TextField(help_text=_("Fernet-encrypted HMAC secret; never returned after issue time"))
+    status = models.CharField(max_length=16, choices=POSTerminalSessionKeyStatus.choices, default=POSTerminalSessionKeyStatus.ACTIVE)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    grace_until = models.DateTimeField(null=True, blank=True, help_text=_("Revoked key still verifies until this time"))
+
+    class Meta:
+        db_table = 'pos_terminal_session_keys'
+        indexes = [
+            models.Index(fields=['foundation_id', 'terminal_id', 'status']),
+        ]
+
+    def __str__(self):
+        return f"{self.key_id} ({self.terminal.device_id}) - {self.status}"
+
+    @property
+    def is_verifiable(self) -> bool:
+        if self.status == POSTerminalSessionKeyStatus.ACTIVE:
+            return True
+        return bool(self.grace_until and timezone.now() <= self.grace_until)
+
+
 class POSTransaction(TenantModel):
     """A sale at a POS terminal (spec/07 §5, §6)."""
     merchant = models.ForeignKey(Merchant, on_delete=models.PROTECT, related_name='pos_transactions')
@@ -231,6 +276,14 @@ class POSTransaction(TenantModel):
     qr_session = models.ForeignKey('POSQRSession', on_delete=models.PROTECT, null=True, blank=True, related_name='+')
     qr_decal = models.ForeignKey('POSQRDecal', on_delete=models.PROTECT, null=True, blank=True, related_name='+')
     confirmation_code = models.CharField(max_length=4, blank=True, default='')
+    qr_offline_key = models.ForeignKey(
+        POSTerminalSessionKey, on_delete=models.PROTECT, null=True, blank=True, related_name='+',
+        help_text=_("Set when this sale was authenticated by an offline-minted QR session token"),
+    )
+    qr_offline_nonce = models.CharField(
+        max_length=64, blank=True, default='',
+        help_text=_("Nonce from the offline-minted QR token; unique per terminal to reject replays (WAL-015)"),
+    )
 
     class Meta:
         db_table = 'pos_transactions'
@@ -242,6 +295,11 @@ class POSTransaction(TenantModel):
             models.UniqueConstraint(
                 fields=['foundation_id', 'terminal', 'client_transaction_id'],
                 name='unique_pos_transaction_client_id_per_terminal',
+            ),
+            models.UniqueConstraint(
+                fields=['foundation_id', 'terminal', 'qr_offline_nonce'],
+                condition=~models.Q(qr_offline_nonce=''),
+                name='unique_pos_transaction_qr_offline_nonce_per_terminal',
             ),
         ]
 

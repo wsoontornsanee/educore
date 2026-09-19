@@ -284,6 +284,12 @@ EDUCORE_CLINIC_FERNET_KEY = os.environ.get('EDUCORE_CLINIC_FERNET_KEY', '')
 # set an explicit key; the SECRET_KEY-derived fallback is dev/test-only.
 EDUCORE_COUNSELLING_FERNET_KEY = os.environ.get('EDUCORE_COUNSELLING_FERNET_KEY', '')
 
+# POS terminal offline QR session-key encryption at rest (spec 18 §6,
+# QRS-022/023) — own Fernet key, same pattern as EDUCORE_BIOMETRIC_FERNET_KEY.
+# Production MUST set an explicit key; the SECRET_KEY-derived fallback is
+# dev/test-only.
+EDUCORE_WALLET_FERNET_KEY = os.environ.get('EDUCORE_WALLET_FERNET_KEY', '')
+
 # Status page subscriber incident email (Notion: "Status page: subscriber
 # email delivery") — Django's built-in SMTP backend, not a provider SDK.
 # Defaults to the console backend so local/dev/test never attempts a real
