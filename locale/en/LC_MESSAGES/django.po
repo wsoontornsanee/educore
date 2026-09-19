@@ -8526,3 +8526,122 @@ msgstr "Superseded"
 #, python-format
 msgid "Selisih #%(id)s tidak memiliki pembayaran terkait sehingga tidak dapat diselesaikan manual. Pilih Abaikan atau Teruskan ke tim keuangan."
 msgstr "Discrepancy #%(id)s has no linked payment, so it cannot be settled manually. Choose Waive or Escalate to finance."
+msgid "Titik pembayaran QR — EduCore"
+msgstr "QR payment points — EduCore"
+
+msgid "Titik pembayaran QR"
+msgstr "QR payment points"
+
+msgid "Setiap konter tanpa layar (gerobak, fotokopi) memakai lembar QR tercetak miliknya sendiri. Konfirmasi pembayaran muncul di ponsel petugas lewat halaman Konter."
+msgstr "Each counter without a screen (cart, photocopy desk) uses its own printed QR sheet. Payment confirmations appear on the operator's phone through the Counter page."
+
+msgid "QR statis belum diaktifkan untuk merchant ini. Minta admin sekolah mengaktifkannya."
+msgstr "Static QR isn't turned on for this merchant. Ask the school admin to enable it."
+
+msgid "Buka layar Konter"
+msgstr "Open Counter screen"
+
+msgid "Tutup titik pembayaran ini? Lembarnya akan ditolak sampai dibuka lagi oleh admin."
+msgstr "Close this payment point? Its sheets will be refused until an admin reopens it."
+
+msgid "Lembar"
+msgstr "Sheet"
+
+msgid "Dicetak"
+msgstr "Printed"
+
+msgid "berlaku s/d"
+msgstr "valid until"
+
+msgid "kedaluwarsa"
+msgstr "expires"
+
+msgid "Unduh PDF"
+msgstr "Download PDF"
+
+msgid "Cabut lembar ini sekarang? Lembar lain di konter lain tidak terpengaruh."
+msgstr "Revoke this sheet now? Sheets at other counters are not affected."
+
+msgid "Belum ada lembar dicetak."
+msgstr "No sheets printed yet."
+
+msgid "Kedaluwarsa (opsional)"
+msgstr "Expires (optional)"
+
+msgid "Cetak lembar baru"
+msgstr "Print new sheet"
+
+msgid "Lembar lama tetap berlaku 24 jam agar konter tidak berhenti menerima pembayaran."
+msgstr "The old sheet stays valid for 24 hours so the counter keeps taking payments."
+
+msgid "Belum ada titik pembayaran."
+msgstr "No payment points yet."
+
+msgid "Nama (ditampilkan ke siswa)"
+msgstr "Name (shown to students)"
+
+msgid "Tambah titik pembayaran"
+msgstr "Add payment point"
+
+msgid "Konter — EduCore"
+msgstr "Counter — EduCore"
+
+msgid "ditolak"
+msgstr "refused"
+
+msgid "transaksi hari ini"
+msgstr "charges today"
+
+msgid "Suara aktif"
+msgstr "Sound on"
+
+msgid "Aktifkan suara"
+msgstr "Turn sound on"
+
+msgid "Belum ada pembayaran hari ini."
+msgstr "No payments yet today."
+
+msgid "Tidak terhubung. Mencoba lagi…"
+msgstr "Not connected. Retrying…"
+
+msgid "Nonaktifkan QR statis? Semua lembar tercetak berhenti berlaku."
+msgstr "Turn off static QR? All printed sheets stop working."
+
+msgid "Nonaktifkan QR statis"
+msgstr "Turn off static QR"
+
+msgid "Saya memahami lembar QR statis tidak punya layar dan batas per transaksinya lebih rendah."
+msgstr "I understand printed static QR sheets have no screen and a lower per-transaction cap."
+
+msgid "Aktifkan QR statis"
+msgstr "Turn on static QR"
+
+msgid "Titik pembayaran & lembar QR tercetak"
+msgstr "Payment points & printed QR sheets"
+
+msgid "QR statis diaktifkan."
+msgstr "Static QR turned on."
+
+msgid "QR statis dinonaktifkan."
+msgstr "Static QR turned off."
+
+msgid "Titik pembayaran dibuat."
+msgstr "Payment point created."
+
+msgid "Nama titik pembayaran wajib diisi."
+msgstr "A payment point name is required."
+
+msgid "Titik pembayaran ditutup."
+msgstr "Payment point closed."
+
+msgid "Lembar baru dibuat. Unduh PDF-nya di bawah, lalu cetak dan laminasi."
+msgstr "New sheet created. Download its PDF below, then print and laminate it."
+
+msgid "Tanggal kedaluwarsa tidak valid (YYYY-MM-DD)."
+msgstr "Invalid expiry date (YYYY-MM-DD)."
+
+msgid "Lembar dicabut."
+msgstr "Sheet revoked."
+
+msgid "Melebihi batas pembayaran lewat QR."
+msgstr "Over the QR payment limit."

@@ -1,0 +1,109 @@
+{% extends "base_console.html" %}
+{% load i18n %}
+
+{% comment %}
+Page: Counter (spec 18 §3b, QRS-038). The operator's phone: live feed of paid charges and refusals at one
+counter, newest first, with a chime. Served by apps.wallet.web_qr_views.CounterPageView; polls
+CounterFeedWebView every 3 s. All feed text is set with textContent.
+{% endcomment %}
+
+{% block title %}{% translate "Konter — EduCore" %}{% endblock %}
+
+{% block console_content %}
+{% include "components/_console_ui.html" %}
+<style>
+  .ct { max-width: 520px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .ct-row { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid #E5DDD9; background: #fff; }
+  .ct-row.is-new { border-color: #047857; background: #ECFDF5; }
+  .ct-row.is-refused { border-color: #FECACA; background: #FEF2F2; }
+  .ct-name { font-weight: 700; font-size: 17px; }
+  .ct-amount { font-weight: 800; font-size: 22px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ct-sub { font-size: 13px; color: #5C514A; }
+  .ct-code { font-family: 'IBM Plex Mono', monospace; letter-spacing: .15em; }
+  .ct-totals { display: flex; justify-content: space-between; padding: 12px 14px; background: #F9F6F4; font-weight: 700; }
+</style>
+<main class="ct" id="ct" data-feed="{% url 'canteen-qr-counter-feed' point.id %}?school_id={{ merchant.school_id }}"
+      data-currency="{{ merchant.school.base_currency }}"
+      data-refused="{% translate 'ditolak' %}" data-charges="{% translate 'transaksi hari ini' %}"
+      data-sound-on="{% translate 'Suara aktif' %}" data-sound-off="{% translate 'Aktifkan suara' %}"
+      data-empty="{% translate 'Belum ada pembayaran hari ini.' %}" data-offline="{% translate 'Tidak terhubung. Mencoba lagi…' %}">
+  <div>
+    <span class="cn-eyebrow">{{ merchant.name }}</span>
+    <h1 class="cn-title">{{ point.name }}</h1>
+    {% if point.location %}<span class="ct-sub">{{ point.location }}</span>{% endif %}
+  </div>
+  <button type="button" class="btn btn-secondary" id="ct-sound" aria-pressed="false">{% translate "Aktifkan suara" %}</button>
+  <div class="ct-totals" id="ct-totals" aria-live="polite"></div>
+  <p class="ct-sub" id="ct-status" role="status"></p>
+  <div id="ct-list" style="display:flex;flex-direction:column;gap:8px"></div>
+</main>
+
+<script>
+(function () {
+  var root = document.getElementById('ct');
+  var feedUrl = root.dataset.feed, currency = root.dataset.currency;
+  var list = document.getElementById('ct-list'), totals = document.getElementById('ct-totals');
+  var status = document.getElementById('ct-status'), soundBtn = document.getElementById('ct-sound');
+  var seen = null, sound = false, audio = null;
+
+  function money(v) {
+    var n = Math.round(parseFloat(v));
+    return currency === 'IDR' ? 'Rp ' + String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.') : currency + ' ' + parseFloat(v).toFixed(2);
+  }
+  function chime() {
+    if (!sound) return;
+    try {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      var o = audio.createOscillator(), g = audio.createGain();
+      o.type = 'sine'; o.frequency.value = 880; g.gain.value = 0.2;
+      o.connect(g); g.connect(audio.destination); o.start(); o.stop(audio.currentTime + 0.25);
+    } catch (e) {}
+  }
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+  function clock(iso) { var d = new Date(iso); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+
+  function render(d, fresh) {
+    totals.textContent = '';
+    totals.appendChild(el('span', '', d.count_today + ' ' + root.dataset.charges));
+    totals.appendChild(el('span', '', money(d.total_today)));
+    list.textContent = '';
+    if (!d.items.length) { list.appendChild(el('p', 'ct-sub', root.dataset.empty)); return; }
+    d.items.forEach(function (it) {
+      var refused = it.status === 'REJECTED';
+      var row = el('div', 'ct-row' + (refused ? ' is-refused' : '') + (fresh[it.id] ? ' is-new' : ''));
+      var left = el('div');
+      left.appendChild(el('div', 'ct-name', it.student_name));
+      var sub = clock(it.occurred_at) + ' · ' + it.student_nis;
+      if (refused) sub += ' · ' + root.dataset.refused + (it.reject_label ? ': ' + it.reject_label : '');
+      else if (it.confirmation_code) sub += ' · ';
+      var subEl = el('div', 'ct-sub', sub);
+      if (!refused && it.confirmation_code) subEl.appendChild(el('span', 'ct-code', it.confirmation_code));
+      left.appendChild(subEl);
+      row.appendChild(left);
+      row.appendChild(el('div', 'ct-amount', money(it.amount)));
+      list.appendChild(row);
+    });
+  }
+  function poll() {
+    fetch(feedUrl, { credentials: 'same-origin' })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (d) {
+        status.textContent = '';
+        var maxId = d.items.reduce(function (m, i) { return Math.max(m, i.id); }, 0);
+        var fresh = {}, anyPaid = false;
+        if (seen !== null) d.items.forEach(function (i) { if (i.id > seen) { fresh[i.id] = true; if (i.status === 'COMPLETED') anyPaid = true; } });
+        seen = seen === null ? maxId : Math.max(seen, maxId);
+        render(d, fresh);
+        if (anyPaid) chime();
+      })
+      .catch(function () { status.textContent = root.dataset.offline; });
+  }
+  soundBtn.onclick = function () {
+    sound = !sound; soundBtn.setAttribute('aria-pressed', sound);
+    soundBtn.textContent = sound ? root.dataset.soundOn : root.dataset.soundOff;
+    if (sound) chime();  // also unlocks audio under the browser's autoplay policy
+  };
+  poll(); setInterval(poll, 3000);
+})();
+</script>
+{% endblock %}

@@ -284,6 +284,9 @@ class POSTransaction(TenantModel):
         max_length=64, blank=True, default='',
         help_text=_("Nonce from the offline-minted QR token; unique per terminal to reject replays (WAL-015)"),
     )
+    reject_reason = models.CharField(
+        max_length=32, blank=True, default='', help_text=_("Spec-18 error code for a REJECTED self-entered charge"),
+    )
 
     class Meta:
         db_table = 'pos_transactions'

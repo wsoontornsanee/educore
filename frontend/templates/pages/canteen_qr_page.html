@@ -66,6 +66,22 @@ daily underpayment signals. Served by apps.wallet.web_qr_views.CanteenQRPageView
                         <button type="submit" class="btn btn-primary">{% translate "Aktifkan QR Charge" %}</button>
                       </form>
                     {% endif %}
+                    {% if m.qr_self_amount_enabled %}
+                      {% if m.static_qr_enabled %}
+                        <form method="post" action="{% url 'canteen-qr-static-switch' m.id %}?school_id={{ school.id }}" style="margin-top:6px"
+                              onsubmit="return confirm('{% translate "Nonaktifkan QR statis? Semua lembar tercetak berhenti berlaku." %}')">
+                          {% csrf_token %}<input type="hidden" name="enabled" value="0">
+                          <button type="submit" class="cn-link" style="background:none;border:0;padding:0;cursor:pointer">{% translate "Nonaktifkan QR statis" %}</button>
+                        </form>
+                      {% else %}
+                        <form method="post" action="{% url 'canteen-qr-static-switch' m.id %}?school_id={{ school.id }}" style="display:flex;flex-direction:column;gap:6px;max-width:340px;margin-top:8px">
+                          {% csrf_token %}<input type="hidden" name="enabled" value="1">
+                          <label style="display:flex;gap:8px;align-items:flex-start"><input type="checkbox" name="acknowledged" required>
+                            <span>{% translate "Saya memahami lembar QR statis tidak punya layar dan batas per transaksinya lebih rendah." %}</span></label>
+                          <button type="submit" class="btn btn-secondary">{% translate "Aktifkan QR statis" %}</button>
+                        </form>
+                      {% endif %}
+                    {% endif %}
                     {% if m.qr_dispute_flagged_at %}
                       <form method="post" action="{% url 'canteen-qr-flag-clear' m.id %}?school_id={{ school.id }}" style="margin-top:6px">
                         {% csrf_token %}<button type="submit" class="cn-link" style="background:none;border:0;padding:0;cursor:pointer">{% translate "Tutup tanda tinjauan" %}</button>
