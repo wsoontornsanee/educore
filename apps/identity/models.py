@@ -17,6 +17,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 from apps.core.fields import CoordinateField, MoneyField, soft_delete_uniqueness_marker
 from apps.core.models import TenantModel
 from .managers import UserManager, AllUsersManager
@@ -363,14 +364,14 @@ class RoleAssignment(TenantModel):
     ROLE_CLINIC_OFFICER = 'clinic_officer'
     ROLE_PARENT = 'parent'
     ROLE_CHOICES = [
-        (ROLE_FOUNDATION_ADMIN, 'Foundation Admin'),
-        (ROLE_SCHOOL_ADMIN, 'School Admin'),
-        (ROLE_FINANCE_OFFICER, 'Finance Officer'),
-        (ROLE_TEACHER, 'Teacher'),
-        (ROLE_COUNSELLOR, 'Counsellor'),
-        (ROLE_CANTEEN_OPERATOR, 'Canteen Operator'),
-        (ROLE_CLINIC_OFFICER, 'Clinic Officer'),
-        (ROLE_PARENT, 'Parent'),
+        (ROLE_FOUNDATION_ADMIN, _('Admin Yayasan')),
+        (ROLE_SCHOOL_ADMIN, _('Admin Sekolah')),
+        (ROLE_FINANCE_OFFICER, _('Bendahara')),
+        (ROLE_TEACHER, _('Guru')),
+        (ROLE_COUNSELLOR, _('Konselor')),
+        (ROLE_CANTEEN_OPERATOR, _('Operator Kantin')),
+        (ROLE_CLINIC_OFFICER, _('Petugas UKS')),
+        (ROLE_PARENT, _('Wali Murid')),
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='role_assignments')
@@ -933,7 +934,7 @@ class PlatformRoleAssignment(models.Model):
     """
     ROLE_PLATFORM_OPERATOR = 'platform_operator'
     ROLE_CHOICES = [
-        (ROLE_PLATFORM_OPERATOR, 'Platform Operator'),
+        (ROLE_PLATFORM_OPERATOR, _('Operator Platform')),
     ]
 
     # Forward access to .user on a freshly-loaded (not select_related'd) PlatformRoleAssignment
