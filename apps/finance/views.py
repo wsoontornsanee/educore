@@ -528,6 +528,8 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         try:
             written_off = write_off_invoice(invoice, request.user, reason)
             return Response(self.get_serializer(written_off).data)
+        except PermissionDenied as pe:
+            return Response({'error': str(pe)}, status=status.HTTP_403_FORBIDDEN)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
