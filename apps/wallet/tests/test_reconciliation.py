@@ -55,7 +55,7 @@ class ReconciliationCaseCreationTests(TestCase):
             foundation_id=self.fx['foundation'].id, category=NotificationCategory.WALLET_RECONCILIATION,
         ).first()
         self.assertIsNotNone(intent)
-        self.assertEqual(intent.payload['shortfall'], '5000.00')
+        self.assertEqual(intent.payload['shortfall'], '5.000')
         self.assertEqual(intent.payload['txn_count'], '1')
 
     def test_multiple_overspends_in_one_batch_produce_one_row_each_but_one_notice(self):

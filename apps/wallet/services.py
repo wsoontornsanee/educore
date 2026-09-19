@@ -1192,6 +1192,38 @@ def _resolve_financial_guardians(student):
     ).select_related('guardian__user', 'guardian__person')
 
 
+def _format_notice_amount(amount: Decimal, currency: str = 'IDR') -> str:
+    """Guardian-facing figure for the reconciliation copy, which already carries the "Rp" prefix:
+    "20.000" for IDR (grouping, no decimals), "20,000.00" otherwise. A raw ``str(Decimal)`` would
+    render as "Rp 20000.00"."""
+    if currency == 'IDR':
+        return f"{amount:,.0f}".replace(',', '.')
+    return f"{amount:,.2f}"
+
+
+def _format_notice_date(day) -> str:
+    """"19 September 2026" — the copy is id-ID, so an ISO date reads as machine output."""
+    from apps.finance.services.receipts import MONTH_NAMES_ID
+
+    return f"{day.day} {MONTH_NAMES_ID[day.month]} {day.year}"
+
+
+def _recon_notice_payload(wallet: Wallet, guardian, cases: list, detected_date, deadline_date) -> dict:
+    """Payload of `wallet.recon.notice`, shared by the first notice and the manual resend so the two
+    can never render differently."""
+    student = wallet.student
+    return {
+        'guardian_name': guardian.person.full_name if guardian.person else '',
+        'student_name': student.person.full_name if student.person else '',
+        'school_name': student.school.name if student.school else '',
+        'shortfall': _format_notice_amount(sum((c.shortfall for c in cases), Decimal('0.00')), wallet.currency),
+        'txn_count': str(len(cases)),
+        'detected_date': _format_notice_date(detected_date),
+        'deadline_date': _format_notice_date(deadline_date),
+        'deep_link': 'educore://wallet',
+    }
+
+
 def queue_reconciliation_notice(wallet: Wallet) -> list:
     """REC-004/007/009/010/011: one combined notice per wallet per day across every
     un-notified OPEN case. Safe to call once per affected wallet after a sync batch."""
@@ -1207,7 +1239,6 @@ def queue_reconciliation_notice(wallet: Wallet) -> list:
     if not cases:
         return []
 
-    total_shortfall = sum((c.shortfall for c in cases), Decimal('0.00'))
     detected_date = timezone.localtime(cases[0].detected_at).date()
     deadline_date = detected_date + timedelta(days=7)
     dedupe_key = f"wallet_recon:{wallet.id}:{detected_date.isoformat()}"
@@ -1224,16 +1255,7 @@ def queue_reconciliation_notice(wallet: Wallet) -> list:
             foundation_id=wallet.foundation_id,
             category=NotificationCategory.WALLET_RECONCILIATION,
             template_key='wallet.recon.notice',
-            payload={
-                'guardian_name': guardian.person.full_name if guardian.person else '',
-                'student_name': student.person.full_name if student.person else '',
-                'school_name': student.school.name if student.school else '',
-                'shortfall': str(total_shortfall),
-                'txn_count': str(len(cases)),
-                'detected_date': detected_date.isoformat(),
-                'deadline_date': deadline_date.isoformat(),
-                'deep_link': 'educore://wallet',
-            },
+            payload=_recon_notice_payload(wallet, guardian, cases, detected_date, deadline_date),
             school_id=student.school_id,
             recipient_user=guardian.user,
             recipient_phone=getattr(guardian.user, 'phone_e164', ''),
@@ -1348,9 +1370,9 @@ def queue_reconciliation_reminder(wallet: Wallet) -> list:
             template_key='wallet.recon.reminder',
             payload={
                 'student_name': student.person.full_name if student.person else '',
-                'shortfall': str(total_shortfall),
-                'detected_date': detected_date.isoformat(),
-                'deadline_date': deadline_date.isoformat(),
+                'shortfall': _format_notice_amount(total_shortfall, wallet.currency),
+                'detected_date': _format_notice_date(detected_date),
+                'deadline_date': _format_notice_date(deadline_date),
             },
             school_id=student.school_id,
             recipient_user=guardian.user,
@@ -1417,8 +1439,8 @@ def invoice_reconciliation_case(case: WalletReconciliation, actor=None) -> Walle
             template_key='wallet.recon.invoiced',
             payload={
                 'student_name': student.person.full_name if student.person else '',
-                'shortfall': str(case.shortfall),
-                'detected_date': case.detected_at.date().isoformat(),
+                'shortfall': _format_notice_amount(case.shortfall, case.currency),
+                'detected_date': _format_notice_date(timezone.localtime(case.detected_at).date()),
             },
             school_id=school.id,
             recipient_user=guardian.user,
@@ -1577,7 +1599,6 @@ def resend_reconciliation_notice(case: WalletReconciliation, actor=None) -> list
             status=WalletReconciliationStatus.OPEN, deleted_at__isnull=True,
         )
     )
-    total_shortfall = sum((c.shortfall for c in open_cases), Decimal('0.00'))
     detected_date = timezone.localtime(case.detected_at).date()
     deadline_date = detected_date + timedelta(days=7)
     student = wallet.student
@@ -1591,16 +1612,7 @@ def resend_reconciliation_notice(case: WalletReconciliation, actor=None) -> list
             foundation_id=wallet.foundation_id,
             category=NotificationCategory.WALLET_RECONCILIATION,
             template_key='wallet.recon.notice',
-            payload={
-                'guardian_name': guardian.person.full_name if guardian.person else '',
-                'student_name': student.person.full_name if student.person else '',
-                'school_name': student.school.name if student.school else '',
-                'shortfall': str(total_shortfall),
-                'txn_count': str(len(open_cases)),
-                'detected_date': detected_date.isoformat(),
-                'deadline_date': deadline_date.isoformat(),
-                'deep_link': 'educore://wallet',
-            },
+            payload=_recon_notice_payload(wallet, guardian, open_cases, detected_date, deadline_date),
             school_id=student.school_id,
             recipient_user=guardian.user,
             recipient_phone=getattr(guardian.user, 'phone_e164', ''),
