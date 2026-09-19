@@ -86,6 +86,13 @@ From `spec/01 §5`:
    - Transitions to `DEAD_LETTER` upon exceeding `max_attempts`.
 4. **Scheduled Job Logging (`ARC-008`):**
    - Every scheduled cron command writes an execution row to `core.JobRun` tracking `job_name`, `started_at`, `finished_at`, `status`, `items_processed`, and `error_text`.
+5. **Row Lock Order for Money Paths (wallet, then sale):**
+   - One order everywhere, or two paths deadlock (InnoDB 1213 = a 500 on a charge): `QRDispute` row (dispute resolution) or `POSQRSession` row (session-token charge) -> `Wallet` row -> `POSTransaction` (sale) row. Settlement is separate: `Merchant` row -> `MerchantSettlementAdjustment` rows. `mark_settlement_paid` takes the `Merchant` row too. Never lock a sale before its wallet (`void_pos_transaction`, `resolve_qr_dispute` and `charge_qr_session` all follow this).
+   - Inserting a child row (sale, adjustment, wallet transaction) takes a shared lock on its foreign-key parent (`Merchant`, `Wallet`). That is what queues a settlement run behind an in-flight dispute resolution instead of crossing it.
+   - A locking read (`select_for_update`) on `pos_transactions` by a non-unique index can take gap locks that collide with another transaction's row lock. It is safe only after the wallet lock is held, because every writer of that wallet queues on it first.
+   - Under REPEATABLE READ a plain read after waiting for a lock still shows the transaction's older snapshot. Re-check "already done?" (idempotency key, dispute status, settlement status) with a locking read once the lock is held. `record_wallet_transaction` and `charge_qr_session` do this.
+   - A unique key that includes a nullable column does not bind rows where it is NULL (a decal charge has no terminal), so idempotency for those rests on the wallet lock and the re-check above, not on the constraint.
+   - Every new money path adds a real-thread round test to `apps/wallet/tests/test_mysql_money_concurrency.py` (MySQL only; `_run_together` helper).
 
 ---
 
