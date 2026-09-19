@@ -45,7 +45,7 @@ CADENCE_TIERS = {
         'pull_bank_statements', 'mark_absent_students', 'remind_library_loans', 'send_digests',
         'reconcile_payments', 'reconcile_wallet_balances', 'refresh_reporting_full', 'run_arrears_ladder',
         'enforce_retention', 'purge_gate_photos', 'purge_biometric_templates', 'backup_database',
-        'invoice_stale_reconciliations',
+        'invoice_stale_reconciliations', 'archive_high_write_tables',
     ]),
     'weekly': (timedelta(days=8), [
         'settle_merchants',
