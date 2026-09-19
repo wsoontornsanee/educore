@@ -82,6 +82,22 @@ daily underpayment signals. Served by apps.wallet.web_qr_views.CanteenQRPageView
                         </form>
                       {% endif %}
                     {% endif %}
+                    {% if m.static_qr_enabled %}
+                      <details style="margin-top:6px">
+                        <summary class="cn-link" style="cursor:pointer">{% translate "Peringatan lembar QR" %}</summary>
+                        <form method="post" action="{% url 'canteen-qr-alert-settings' m.id %}?school_id={{ school.id }}" style="display:flex;flex-direction:column;gap:6px;margin-top:8px;max-width:340px">
+                          {% csrf_token %}
+                          <label class="cn-eyebrow" for="oh-s-{{ m.id }}">{% translate "Jam buka" %}</label>
+                          <input id="oh-s-{{ m.id }}" type="time" name="operating_start" class="cn-select" value="{{ m.operating_start|time:'H:i' }}">
+                          <label class="cn-eyebrow" for="oh-e-{{ m.id }}">{% translate "Jam tutup" %}</label>
+                          <input id="oh-e-{{ m.id }}" type="time" name="operating_end" class="cn-select" value="{{ m.operating_end|time:'H:i' }}">
+                          <label class="cn-eyebrow" for="th-{{ m.id }}">{% translate "Ambang pembayaran per lembar per hari" %}</label>
+                          <input id="th-{{ m.id }}" type="number" min="1" name="static_decal_daily_alert" class="cn-select" value="{{ m.static_decal_daily_alert }}" required>
+                          <span class="text-caption">{% translate "Admin sekolah diberi tahu bila sebuah lembar melewati ambang ini atau dipakai di luar jam operasional. Kosongkan jam untuk mematikan peringatan luar jam." %}</span>
+                          <button type="submit" class="btn btn-secondary">{% translate "Simpan" %}</button>
+                        </form>
+                      </details>
+                    {% endif %}
                     {% if m.qr_dispute_flagged_at %}
                       <form method="post" action="{% url 'canteen-qr-flag-clear' m.id %}?school_id={{ school.id }}" style="margin-top:6px">
                         {% csrf_token %}<button type="submit" class="cn-link" style="background:none;border:0;padding:0;cursor:pointer">{% translate "Tutup tanda tinjauan" %}</button>

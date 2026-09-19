@@ -132,6 +132,11 @@ class Merchant(TenantModel):
     static_qr_max = MoneyField(
         default=Decimal('25000.00'), help_text=_("Per-charge cap for static decals; the lower of this and the school cap applies"),
     )
+    operating_start = models.TimeField(null=True, blank=True, help_text=_("Opening time in the school's timezone; with operating_end enables the out-of-hours decal alert (QRS-041)"))
+    operating_end = models.TimeField(null=True, blank=True)
+    static_decal_daily_alert = models.PositiveIntegerField(
+        default=300, help_text=_("A decal with more charges than this in a day raises an operations alert (QRS-041)"),
+    )
     static_qr_ack_by = models.ForeignKey('identity.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     static_qr_ack_at = models.DateTimeField(null=True, blank=True)
     qr_dispute_flagged_at = models.DateTimeField(

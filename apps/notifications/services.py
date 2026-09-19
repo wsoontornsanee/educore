@@ -276,6 +276,9 @@ def render_template_message(
         elif template_key == 'device.offline':
             body_fmt = "Perangkat {device_name} di {school_name} ({location}) terdeteksi offline. Mohon segera diperiksa."
             subj_fmt = "Peringatan: Perangkat Offline"
+        elif template_key == 'wallet.decal_alert':
+            body_fmt = "Peringatan QR Charge: lembar {human_id} di {payment_point_name} ({merchant_name}) {reason_text} Periksa lalu cabut atau cetak ulang lembar bila perlu."
+            subj_fmt = "Peringatan Lembar QR Kantin"
         elif template_key == 'notifications.daily_digest':
             # Body is fully pre-rendered by build_digest_body() before dispatch_intent is called.
             body_fmt = "{digest_body}"

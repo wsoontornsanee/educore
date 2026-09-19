@@ -7,6 +7,7 @@ locked balance; there is no offline path and no line items.
 """
 import hashlib
 import hmac
+import logging
 import secrets
 from datetime import timedelta
 from decimal import ROUND_HALF_UP, Decimal
@@ -41,6 +42,8 @@ from apps.wallet.services import (
     get_or_create_wallet,
     record_wallet_transaction,
 )
+
+logger = logging.getLogger(__name__)
 
 QR_SESSION_TTL_SECONDS = 120  # QRS-005 default `qr_session_ttl_seconds`
 _TOKEN_SALT = 'wallet.qr.session'
@@ -402,11 +405,23 @@ def charge_qr_session(token: str, student, amount, idempotency_key: str) -> POST
                     'static': target.is_static,
                 },
             )
-            return pos_tx
     except QRChargeError as exc:
         if target is not None and exc.code in _LOGGED_REJECTIONS:
             _log_rejection(target, student, amount, client_transaction_id, exc.code)
         raise
+
+    if target.is_static:
+        _alert_on_static_charge(pos_tx)
+    return pos_tx
+
+
+def _alert_on_static_charge(pos_tx: POSTransaction) -> None:
+    """QRS-041, after commit. An alerting fault must never fail or undo a payment that already succeeded."""
+    try:
+        from apps.wallet.qr_alerts import check_static_charge_anomalies
+        check_static_charge_anomalies(pos_tx)
+    except Exception:
+        logger.exception("QRS-041 decal anomaly check failed for POS transaction %s", pos_tx.id)
 
 
 def get_qr_session_result(session: POSQRSession) -> Dict[str, Any]:

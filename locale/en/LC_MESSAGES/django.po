@@ -8645,3 +8645,33 @@ msgstr "Sheet revoked."
 
 msgid "Melebihi batas pembayaran lewat QR."
 msgstr "Over the QR payment limit."
+
+msgid "Jam tidak valid (HH:MM)."
+msgstr "Invalid time (HH:MM)."
+
+msgid "Isi jam buka dan jam tutup, atau kosongkan keduanya."
+msgstr "Fill both opening and closing time, or leave both empty."
+
+msgid "Ambang harian harus berupa angka minimal 1."
+msgstr "The daily threshold must be a number of at least 1."
+
+msgid "Pengaturan peringatan disimpan."
+msgstr "Alert settings saved."
+
+msgid "Peringatan lembar QR"
+msgstr "QR sheet alerts"
+
+msgid "Jam buka"
+msgstr "Opening time"
+
+msgid "Jam tutup"
+msgstr "Closing time"
+
+msgid "Ambang pembayaran per lembar per hari"
+msgstr "Payments per sheet per day threshold"
+
+msgid "Admin sekolah diberi tahu bila sebuah lembar melewati ambang ini atau dipakai di luar jam operasional. Kosongkan jam untuk mematikan peringatan luar jam."
+msgstr "School admins are notified when a sheet passes this threshold or is used outside operating hours. Leave the times empty to turn the out-of-hours alert off."
+
+msgid "Peringatan Lembar QR (QR Decal Alert)"
+msgstr "QR Decal Alert"

@@ -37,6 +37,7 @@ class NotificationCategory(models.TextChoices):
     ABSENCE = 'ABSENCE', _('Ketidakhadiran (Absence)')
     CLINIC_INCIDENT = 'CLINIC_INCIDENT', _('Insiden Klinik (Clinic Incident)')
     DEVICE_OFFLINE = 'DEVICE_OFFLINE', _('Perangkat Offline (Device Offline)')
+    QR_DECAL_ALERT = 'QR_DECAL_ALERT', _('Peringatan Lembar QR (QR Decal Alert)')
     DAILY_DIGEST = 'DAILY_DIGEST', _('Ringkasan Aktivitas Harian (Daily Digest)')
     LIBRARY_LOAN_DUE = 'LIBRARY_LOAN_DUE', _('Peminjaman Perpustakaan Jatuh Tempo (Library Loan Due)')
     COUNSELLING_URGENT = 'COUNSELLING_URGENT', _('Eskalasi BK Mendesak (Urgent Counselling Escalation)')
@@ -218,6 +219,15 @@ CATEGORY_CONFIG = {
         # it, and it fires at most once per device per day (dedupe_key).
         'default_channels': [ChannelType.WHATSAPP, ChannelType.PUSH],
         'priority': NotificationPriority.CRITICAL,
+        'quiet_hours_respected': False,
+        'opt_out_allowed': False,
+    },
+    NotificationCategory.QR_DECAL_ALERT: {
+        # QRS-041: a printed QR sheet with abnormal volume or out-of-hours use is the signature of a
+        # photographed/shared sheet. The school admin can act (revoke or reprint), so it is HIGH,
+        # not opt-out-able, and deduped per sheet, reason, day and recipient by the sender.
+        'default_channels': [ChannelType.WHATSAPP, ChannelType.PUSH],
+        'priority': NotificationPriority.HIGH,
         'quiet_hours_respected': False,
         'opt_out_allowed': False,
     },
