@@ -25,7 +25,7 @@ from apps.wallet.qr_oversight import (
 )
 from apps.wallet.services import process_pos_transaction, topup_wallet, void_pos_transaction
 from apps.wallet.tests.test_qr_charge import QRFixtureMixin, make_guardian
-from apps.wallet.models import QRDispute, WalletTransaction
+from apps.wallet.models import MerchantSettlementAdjustment, QRDispute, WalletTransaction
 from educore.middleware.tenancy import set_current_foundation_id
 
 
@@ -93,15 +93,73 @@ class DisputeTests(QRFixtureMixin, TestCase):
         pos_tx.refresh_from_db()
         self.assertEqual(pos_tx.status, POSTransactionStatus.COMPLETED)
 
-    def test_upholding_a_dispute_on_an_already_voided_sale_is_refused_and_never_refunds_twice(self):
+    def test_voiding_a_sale_closes_its_open_dispute_as_voided(self):
         pos_tx = self.pay('18000')
         dispute = open_qr_dispute(pos_tx, self.guardian, 'x')
-        void_pos_transaction(pos_tx, 'salah input')  # the void already refunded the guardian
-        self.assertDisputeError('DISPUTE_NOT_ELIGIBLE', resolve_qr_dispute, dispute, 'UPHELD', self.staff)
+        void_pos_transaction(pos_tx, 'salah input', actor=self.staff)
+        dispute.refresh_from_db()
+        self.assertEqual(dispute.status, QRDisputeStatus.VOIDED)
+        self.assertIsNotNone(dispute.resolved_at)
+        self.assertEqual(dispute.resolved_by_id, self.staff.id)
+        self.assertEqual(dispute.resolution_transaction.type, WalletTransactionType.REFUND)
+        self.assertIn('dibatalkan', dispute.resolution_note)
+        self.wallet.refresh_from_db()
+        self.assertEqual(self.wallet.balance, Decimal('100000.00'))  # refunded once, by the void
+
+    def test_a_dispute_closed_by_void_needs_no_settlement_adjustment_and_never_flags_the_merchant(self):
+        topup_wallet(self.wallet, Decimal('500000'), 'CASH', 'seed-2')
+        for i in range(DISPUTE_FLAG_THRESHOLD):
+            pos_tx = self.pay('5000', key=f'v{i}')
+            open_qr_dispute(pos_tx, self.guardian, 'x')
+            void_pos_transaction(pos_tx, 'salah input')
+        self.assertEqual(QRDispute.objects.filter(status=QRDisputeStatus.VOIDED).count(), DISPUTE_FLAG_THRESHOLD)
+        self.assertFalse(MerchantSettlementAdjustment.objects.filter(merchant=self.merchant).exists())
+        self.merchant.refresh_from_db()
+        self.assertIsNone(self.merchant.qr_dispute_flagged_at)  # only UPHELD counts (QRS-028)
+
+    def test_voiding_leaves_an_already_resolved_dispute_alone(self):
+        pos_tx = self.pay('18000')
+        dispute = resolve_qr_dispute(open_qr_dispute(pos_tx, self.guardian, 'x'), 'REJECTED', self.staff, 'sudah benar')
+        void_pos_transaction(pos_tx, 'salah input')
+        dispute.refresh_from_db()
+        self.assertEqual(dispute.status, QRDisputeStatus.REJECTED)
+
+    def test_voiding_a_sale_with_no_dispute_is_unchanged(self):
+        pos_tx = self.pay('18000')
+        void_pos_transaction(pos_tx, 'salah input')
+        self.assertEqual(QRDispute.objects.count(), 0)
+        self.wallet.refresh_from_db()
+        self.assertEqual(self.wallet.balance, Decimal('100000.00'))
+
+    def test_a_voided_sale_can_no_longer_be_disputed(self):
+        pos_tx = self.pay('18000')
+        void_pos_transaction(pos_tx, 'salah input')
+        pos_tx.refresh_from_db()
+        self.assertDisputeError('DISPUTE_NOT_ELIGIBLE', open_qr_dispute, pos_tx, self.guardian, 'x')
+
+    def _legacy_open_dispute_on_voided_sale(self):
+        """A case left OPEN by a void that ran before voids closed their disputes."""
+        pos_tx = self.pay('18000')
+        dispute = open_qr_dispute(pos_tx, self.guardian, 'x')
+        void_pos_transaction(pos_tx, 'salah input')
+        QRDispute.objects.filter(id=dispute.id).update(
+            status=QRDisputeStatus.OPEN, resolved_at=None, resolved_by=None, resolution_transaction=None, resolution_note='',
+        )
+        dispute.refresh_from_db()
+        return dispute
+
+    def test_upholding_a_legacy_open_dispute_on_a_voided_sale_is_refused_with_its_own_reason_and_never_refunds_twice(self):
+        dispute = self._legacy_open_dispute_on_voided_sale()
+        self.assertDisputeError('DISPUTE_SALE_VOIDED', resolve_qr_dispute, dispute, 'UPHELD', self.staff)
         self.wallet.refresh_from_db()
         self.assertEqual(self.wallet.balance, Decimal('100000.00'))
         dispute.refresh_from_db()
         self.assertEqual(dispute.status, QRDisputeStatus.OPEN)
+
+    def test_a_legacy_open_dispute_on_a_voided_sale_can_still_be_rejected_to_close_it(self):
+        dispute = self._legacy_open_dispute_on_voided_sale()
+        resolved = resolve_qr_dispute(dispute, 'REJECTED', self.staff, 'sudah dibatalkan')
+        self.assertEqual(resolved.status, QRDisputeStatus.REJECTED)
 
     def test_refund_amount_bounds(self):
         pos_tx = self.pay('18000')

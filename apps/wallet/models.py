@@ -407,6 +407,9 @@ class QRDisputeStatus(models.TextChoices):
     OPEN = 'OPEN', _('Terbuka')
     UPHELD = 'UPHELD', _('Dikabulkan')
     REJECTED = 'REJECTED', _('Ditolak')
+    # Closed by the system when the disputed sale was voided: the void already refunded the guardian in full.
+    # Deliberately not UPHELD, so it never counts toward the merchant flag (QRS-028).
+    VOIDED = 'VOIDED', _('Selesai (pembayaran dibatalkan)')
 
 
 class QRDispute(TenantModel):
