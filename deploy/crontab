@@ -41,3 +41,4 @@
 0 4 * * 0      sleep 81; python /app/manage.py settle_merchants
 15 * * * *     sleep 84; python /app/manage.py sync_rbac_sheet                   # RBAC visibility Google Sheet (no-op if unchanged)
 */5 * * * *    sleep 8; python /app/manage.py check_service_health  # Service status page: DB probe + daily rollup
+*/15 * * * *   sleep 87; python /app/manage.py check_job_freshness           # ARC-008: email platform operators when a scheduled job stops succeeding

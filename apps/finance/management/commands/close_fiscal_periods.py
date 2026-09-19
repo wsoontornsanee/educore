@@ -12,6 +12,7 @@ import logging
 from django.utils import timezone
 
 from apps.core.locks import advisory_lock
+from apps.core.job_runs import track_job_run
 from apps.core.management.base import CronHostCommand
 from apps.identity.models import Foundation, School
 from apps.finance.models import FiscalPeriod, FiscalPeriodStatus
@@ -80,72 +81,75 @@ class Command(CronHostCommand):
                 f"Memulai proses penutupan periode fiskal {period} (dry_run={dry_run})"
             )
 
-            foundations = Foundation.objects.filter(status=Foundation.STATUS_ACTIVE)
-            total_closed = 0
-            total_already_closed = 0
-            total_failed = 0
+            with track_job_run('close_fiscal_periods', record=not dry_run) as run:
+                foundations = Foundation.objects.filter(status=Foundation.STATUS_ACTIVE)
+                total_closed = 0
+                total_already_closed = 0
+                total_failed = 0
 
-            for foundation in foundations:
-                with tenant_context(foundation.id):
-                    schools_qs = School.objects.filter(foundation_id=foundation.id, is_active=True)
-                    if school_id:
-                        schools_qs = schools_qs.filter(id=school_id)
+                for foundation in foundations:
+                    with tenant_context(foundation.id):
+                        schools_qs = School.objects.filter(foundation_id=foundation.id, is_active=True)
+                        if school_id:
+                            schools_qs = schools_qs.filter(id=school_id)
 
-                    for school in schools_qs:
-                        # Check if already closed
-                        existing = FiscalPeriod.all_tenants.filter(
-                            foundation_id=foundation.id,
-                            school=school,
-                            period=period,
-                            deleted_at__isnull=True,
-                        ).first()
-
-                        if existing and existing.status == FiscalPeriodStatus.CLOSED:
-                            self.stdout.write(
-                                f"  [{school.name}] Periode {period} sudah ditutup sebelumnya."
-                            )
-                            total_already_closed += 1
-                            continue
-
-                        if dry_run:
-                            start_date, end_date = get_period_date_range(period)
-                            start_dt = timezone.make_aware(datetime.datetime.combine(start_date, datetime.time.min))
-                            end_dt = timezone.make_aware(datetime.datetime.combine(end_date, datetime.time.max))
-                            entries_qs = LedgerEntry.all_tenants.filter(
+                        for school in schools_qs:
+                            # Check if already closed
+                            existing = FiscalPeriod.all_tenants.filter(
                                 foundation_id=foundation.id,
                                 school=school,
-                                occurred_at__gte=start_dt,
-                                occurred_at__lte=end_dt,
+                                period=period,
                                 deleted_at__isnull=True,
-                            )
-                            aggregates = entries_qs.aggregate(
-                                total_dr=Sum('debit'),
-                                total_cr=Sum('credit'),
-                            )
-                            dr = aggregates['total_dr'] or 0
-                            cr = aggregates['total_cr'] or 0
-                            balanced = (dr == cr)
-                            self.stdout.write(
-                                f"  [{school.name}] [DRY-RUN] Periode {period}: Total Debit={dr}, Total Kredit={cr}, "
-                                f"Balanced={balanced}"
-                            )
-                        else:
-                            try:
-                                close_fiscal_period(
-                                    school=school,
-                                    period=period,
-                                    closed_by=None,
-                                    notes="Penutupan otomatis akhir periode via cron.",
+                            ).first()
+
+                            if existing and existing.status == FiscalPeriodStatus.CLOSED:
+                                self.stdout.write(
+                                    f"  [{school.name}] Periode {period} sudah ditutup sebelumnya."
                                 )
-                                self.stdout.write(self.style.SUCCESS(
-                                    f"  [{school.name}] Periode {period} berhasil ditutup."
-                                ))
-                                total_closed += 1
-                            except (PeriodCloseValidationError, ValueError) as exc:
-                                self.stdout.write(self.style.ERROR(
-                                    f"  [{school.name}] Gagal menutup periode {period}: {exc}"
-                                ))
-                                total_failed += 1
+                                total_already_closed += 1
+                                continue
+
+                            if dry_run:
+                                start_date, end_date = get_period_date_range(period)
+                                start_dt = timezone.make_aware(datetime.datetime.combine(start_date, datetime.time.min))
+                                end_dt = timezone.make_aware(datetime.datetime.combine(end_date, datetime.time.max))
+                                entries_qs = LedgerEntry.all_tenants.filter(
+                                    foundation_id=foundation.id,
+                                    school=school,
+                                    occurred_at__gte=start_dt,
+                                    occurred_at__lte=end_dt,
+                                    deleted_at__isnull=True,
+                                )
+                                aggregates = entries_qs.aggregate(
+                                    total_dr=Sum('debit'),
+                                    total_cr=Sum('credit'),
+                                )
+                                dr = aggregates['total_dr'] or 0
+                                cr = aggregates['total_cr'] or 0
+                                balanced = (dr == cr)
+                                self.stdout.write(
+                                    f"  [{school.name}] [DRY-RUN] Periode {period}: Total Debit={dr}, Total Kredit={cr}, "
+                                    f"Balanced={balanced}"
+                                )
+                            else:
+                                try:
+                                    close_fiscal_period(
+                                        school=school,
+                                        period=period,
+                                        closed_by=None,
+                                        notes="Penutupan otomatis akhir periode via cron.",
+                                    )
+                                    self.stdout.write(self.style.SUCCESS(
+                                        f"  [{school.name}] Periode {period} berhasil ditutup."
+                                    ))
+                                    total_closed += 1
+                                    run.items_processed += 1
+                                except (PeriodCloseValidationError, ValueError) as exc:
+                                    self.stdout.write(self.style.ERROR(
+                                        f"  [{school.name}] Gagal menutup periode {period}: {exc}"
+                                    ))
+                                    total_failed += 1
+                                    run.add_error(f"{school.name} {period}: {exc}")
 
             self.stdout.write(self.style.SUCCESS(
                 f"Selesai. Ditutup: {total_closed}, Sudah ditutup: {total_already_closed}, Gagal: {total_failed}."

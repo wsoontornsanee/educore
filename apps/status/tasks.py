@@ -5,6 +5,8 @@ from django.utils import timezone
 
 from apps.core.services import register_task_handler
 
+from apps.identity.models import User
+
 from .models import StatusIncident, StatusSubscriber
 
 
@@ -32,3 +34,21 @@ def send_subscriber_incident_email(payload: dict):
         f"Berhenti berlangganan pembaruan status: {unsubscribe_url}"
     )
     send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, [subscriber.email])
+
+
+@register_task_handler('status.job_alert_email.send')
+def send_job_alert_email(payload: dict):
+    """Email one platform operator the scheduled jobs that stopped succeeding (ARC-008).
+
+    A missing or address-less user is an expected race (removed since enqueue), not a failure."""
+    user = User.all_tenants.filter(pk=payload['user_id']).first()
+    if user is None or not user.email:
+        return
+    lines = payload['lines']
+    subject = f"[EduCore Ops] {len(lines)} job terjadwal perlu perhatian"
+    body = (
+        "Job terjadwal berikut belum berhasil dalam batas waktunya:\n\n"
+        + "\n".join(f"- {line}" for line in lines)
+        + f"\n\nDetail dan pesan kesalahan: {settings.EDUCORE_PUBLIC_BASE_URL}/web/status/manage/\n"
+    )
+    send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, [user.email])
