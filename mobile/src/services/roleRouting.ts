@@ -22,6 +22,16 @@ export function isStaff(user: UserProfile | null): boolean {
   return !!user?.roles?.some((r) => STAFF_ROLES.includes(r.role));
 }
 
+/**
+ * A clinic officer with no other staff role. The spec's persona table gives them the web console as their
+ * surface, so on mobile they get the small clinic app (visits, medication stock) instead of the teacher tabs.
+ * Someone who also holds another staff role keeps the teacher tabs; parent/canteen routing is unchanged.
+ */
+export function isClinicOfficerOnly(user: UserProfile | null): boolean {
+  const staffRoles = (user?.roles ?? []).filter((r) => STAFF_ROLES.includes(r.role));
+  return staffRoles.length > 0 && staffRoles.every((r) => r.role === 'clinic_officer');
+}
+
 export function isParent(user: UserProfile | null): boolean {
   if (isStaff(user)) return false;
   return !!user?.roles?.some((r) => r.role === 'parent');

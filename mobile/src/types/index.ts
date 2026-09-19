@@ -155,6 +155,18 @@ export interface ClinicVisitItem {
   updated_at: string;
 }
 
+export interface MedicationStockItem {
+  id: number;
+  school: number;
+  name: string;
+  unit: string;
+  quantity: number;
+  expiry_date: string | null;
+  reorder_level: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface InvoiceItem {
   id: number;
   number: string;
