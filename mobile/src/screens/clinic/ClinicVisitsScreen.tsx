@@ -1,6 +1,7 @@
 /**
- * Clinic officer: recent clinic visits (spec/10 LIF-001). Read-only. Health notes are shown only in the detail
- * sheet and are never persisted on the device (see services/clinicStaff.ts).
+ * Clinic officer: clinic visits, newest first with "load older", and the entry point to record a new one
+ * (spec/10 LIF-001). Health notes are shown only in the detail sheet and are never persisted on the device
+ * (see services/clinicStaff.ts).
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -14,10 +15,12 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { fetchRecentClinicVisits } from '../../services/clinicStaff.ts';
+import { fetchClinicVisitsPage } from '../../services/clinicStaff.ts';
+import { StudentSearchStep } from './StudentSearchStep';
+import { VisitFormStep } from './VisitFormStep';
 import { useLocale } from '../../i18n/LocaleContext.tsx';
 import { colors, radius, spacing, typography } from '../../theme/tokens.ts';
-import type { ClinicVisitItem } from '../../types/index.ts';
+import type { ClinicVisitItem, StudentLookupItem } from '../../types/index.ts';
 
 function formatDateTime(iso: string): string {
   try {
@@ -36,12 +39,19 @@ export const ClinicVisitsScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
   const [selected, setSelected] = useState<ClinicVisitItem | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [student, setStudent] = useState<StudentLookupItem | null>(null);
+  const [saved, setSaved] = useState<ClinicVisitItem | null>(null);
 
   const load = useCallback(async (isRefresh: boolean) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
     setError(false);
     try {
-      setVisits(await fetchRecentClinicVisits());
+      const page = await fetchClinicVisitsPage();
+      setVisits(page.visits);
+      setNextCursor(page.nextCursor);
     } catch {
       setError(true);
     } finally {
@@ -49,6 +59,28 @@ export const ClinicVisitsScreen: React.FC = () => {
       setRefreshing(false);
     }
   }, []);
+
+  const loadMore = async () => {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const page = await fetchClinicVisitsPage(nextCursor);
+      setVisits((current) => [...current, ...page.visits]);
+      setNextCursor(page.nextCursor);
+    } catch {
+      setError(true);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const closeRecording = () => { setRecording(false); setStudent(null); };
+
+  const onSaved = (visit: ClinicVisitItem) => {
+    closeRecording();
+    setSaved(visit);
+    load(true);
+  };
 
   useEffect(() => { load(false); }, [load]);
 
@@ -68,6 +100,19 @@ export const ClinicVisitsScreen: React.FC = () => {
           <View>
             <Text style={styles.title}>{t('clinicstaff.visits.title')}</Text>
             <Text style={styles.privacy}>{t('clinicstaff.privacy')}</Text>
+            <TouchableOpacity
+              style={styles.record} onPress={() => { setSaved(null); setRecording(true); }} accessibilityRole="button"
+            >
+              <Text style={styles.recordText}>{t('clinicstaff.record.cta')}</Text>
+            </TouchableOpacity>
+            {saved && (
+              <View style={styles.savedCard} accessibilityRole="alert">
+                <Text style={styles.savedText}>{t('clinicstaff.saved')}</Text>
+                {saved.outcome !== 'RETURNED_TO_CLASS' && (
+                  <Text style={styles.savedText}>{t('clinicstaff.saved.notified')}</Text>
+                )}
+              </View>
+            )}
             {error && (
               <View style={styles.errorCard} accessibilityRole="alert">
                 <Text style={styles.errorText}>{t('clinic.load_error')}</Text>
@@ -78,6 +123,13 @@ export const ClinicVisitsScreen: React.FC = () => {
             )}
           </View>
         }
+        ListFooterComponent={nextCursor ? (
+          <TouchableOpacity style={styles.retry} onPress={loadMore} disabled={loadingMore} accessibilityRole="button">
+            {loadingMore
+              ? <ActivityIndicator color={colors.primary} />
+              : <Text style={styles.retryText}>{t('clinicstaff.visits.load_more')}</Text>}
+          </TouchableOpacity>
+        ) : null}
         ListEmptyComponent={error ? null : <Text style={styles.empty}>{t('clinicstaff.visits.empty')}</Text>}
         renderItem={({ item }) => (
           <TouchableOpacity style={styles.card} onPress={() => setSelected(item)} accessibilityRole="button">
@@ -89,6 +141,20 @@ export const ClinicVisitsScreen: React.FC = () => {
           </TouchableOpacity>
         )}
       />
+
+      <Modal visible={recording} animationType="slide" onRequestClose={closeRecording}>
+        <SafeAreaView style={styles.root}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.title}>{t('clinicstaff.record.title')}</Text>
+            <TouchableOpacity onPress={closeRecording} accessibilityRole="button" style={styles.modalClose}>
+              <Text style={styles.retryText}>{t('common.cancel')}</Text>
+            </TouchableOpacity>
+          </View>
+          {student
+            ? <VisitFormStep student={student} onChangeStudent={() => setStudent(null)} onSaved={onSaved} />
+            : <StudentSearchStep onPick={setStudent} />}
+        </SafeAreaView>
+      </Modal>
 
       <Modal visible={!!selected} animationType="slide" onRequestClose={() => setSelected(null)}>
         <SafeAreaView style={styles.root}>
@@ -139,6 +205,18 @@ const styles = StyleSheet.create({
   errorText: { color: colors.alpa, fontSize: typography.fontSize.sm },
   retry: { marginTop: spacing.sm, minHeight: 44, justifyContent: 'center' },
   retryText: { color: colors.primary, fontWeight: typography.fontWeight.bold },
+  record: {
+    minHeight: 48, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.primary,
+    borderRadius: radius.button, marginBottom: spacing.md,
+  },
+  recordText: { color: colors.white, fontWeight: typography.fontWeight.bold, fontSize: typography.fontSize.base },
+  savedCard: { backgroundColor: colors.hadirLight, padding: spacing.md, marginBottom: spacing.md },
+  savedText: { color: colors.hadir, fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.bold },
+  modalHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.base,
+    paddingTop: spacing.base,
+  },
+  modalClose: { minHeight: 44, justifyContent: 'center' },
   card: {
     backgroundColor: colors.white, borderRadius: radius.card, borderWidth: 1, borderColor: colors.border,
     padding: spacing.md, marginBottom: spacing.sm, minHeight: 44,

@@ -133,6 +133,15 @@ export interface HealthProfileItem {
   updated_at: string;
 }
 
+/** The few fields of a student the clinic lookup keeps: enough to pick the right child, no more. */
+export interface StudentLookupItem {
+  id: number;
+  name: string;
+  nis: string;
+  school: number;
+  school_name: string;
+}
+
 export interface ClinicVisitItem {
   id: number;
   school: number;
