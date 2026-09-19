@@ -9106,3 +9106,7 @@ msgstr "Wali terdaftar (Registered guardian)"
 #: apps/attendance
 msgid "Pengecualian admin sekolah (School admin override)"
 msgstr "Pengecualian admin sekolah (School admin override)"
+
+#: apps/notifications/models.py
+msgid "Penjemputan oleh Penjemput Tidak Terdaftar (Pickup Override)"
+msgstr "Penjemputan oleh Penjemput Tidak Terdaftar (Pickup Override)"
