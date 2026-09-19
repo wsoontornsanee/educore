@@ -3,6 +3,8 @@ from datetime import timedelta
 from decimal import Decimal
 from io import StringIO
 
+from unittest import mock
+
 from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
@@ -163,3 +165,30 @@ class ArchiveCommandTests(TestCase):
         output = self.run_command('--dry-run')
         self.assertIn('3 row(s) would be archived', output)
         self.assertEqual(AuditEvent.objects.count(), 3)
+
+    def test_a_dry_run_records_no_run_and_does_not_claim_to_have_archived_anything(self):
+        output = self.run_command('--dry-run')
+        self.assertFalse(JobRun.objects.filter(job_name='archive_high_write_tables').exists())
+        self.assertIn('dry run', output)
+        self.assertIn('nothing moved', output)
+        self.assertNotIn('archived 0 row(s)', output)
+
+    def test_a_real_run_records_exactly_one_successful_run(self):
+        self.run_command()
+        run = JobRun.objects.get(job_name='archive_high_write_tables')
+        self.assertEqual((run.status, run.items_processed), (JobRun.STATUS_SUCCESS, 3))
+        self.assertIsNotNone(run.finished_at)
+
+    def test_a_dry_run_before_a_real_run_does_not_stop_the_real_one_being_recorded(self):
+        self.run_command('--dry-run')
+        self.run_command()
+        self.assertEqual(JobRun.objects.filter(job_name='archive_high_write_tables').count(), 1)
+
+    def test_a_failing_run_is_recorded_failed_with_the_reason_and_still_raises(self):
+        with mock.patch('apps.core.management.commands.archive_high_write_tables.archive_batch', side_effect=RuntimeError('disk full')):
+            with self.assertRaises(RuntimeError):
+                self.run_command()
+        run = JobRun.objects.get(job_name='archive_high_write_tables')
+        self.assertEqual(run.status, JobRun.STATUS_FAILED)
+        self.assertIn('disk full', run.error_text)
+        self.assertEqual(AuditEvent.objects.count(), 3)  # nothing was half-moved
