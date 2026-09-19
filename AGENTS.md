@@ -53,9 +53,14 @@ Every task must strictly adhere to the following 5-phase SOP:
    - Verify that the PR is strictly mergeable without conflicts, with all automated tests passing.
    - Prepare atomic conventional commits on a feature branch and open a clean Pull Request.
    - Strictly follow the **Pre-PR Synchronization & Conflict Resolution Protocol** below.
-5. **Wait for PR Merged & Deploy Instruction:**
-   - Never deploy or merge unilaterally; wait for explicit PR merge approval and subsequent deployment instructions from the user.
-   - Upon task completion / merge, update the Notion task status to `Done` with PR link and verification summary in `Logs`.
+5. **Merge After CI, Then Wait for Deploy Instruction:**
+   - **Merge automatically once CI has passed** (standing instruction, 2026-09-19). Do not wait for a separate "merge N" message. Merge only when ALL of these hold, checked immediately before merging:
+     - Every CI check has finished and passed (`gh pr checks <N>`; nothing pending or failing).
+     - The branch is current with `main` (`git fetch origin` then `git rev-list --count HEAD..origin/main` is `0`) and the PR is `MERGEABLE` with no conflicts. If `main` moved, sync it (Pre-PR protocol below) and wait for CI on the new head; never merge on a CI result from an older head.
+     - The PR is one you opened for the task at hand, and the user has not said to hold it.
+   - Merge with `gh pr merge <N> --merge`. `main` requires one approving review, which the PR author cannot supply, so when `REVIEW_REQUIRED` is the *only* blocker use `--admin`. This is a standing choice by the user, not a general licence: never use `--admin` to get past failing or pending CI, conflicts, or any other block.
+   - Confirm with `gh pr view <N>` that it is `MERGED`, then set the Notion task to `Done` with the PR link, merge commit and verification summary in `Logs`, and report what was merged and any deploy step it needs.
+   - **Deployment is still never automatic.** Never deploy, sync the production crontab, or run production data steps (backfills, migrations) without an explicit instruction from the user; report them as next steps.
 
 ### PRE-PR SYNCHRONIZATION & CONFLICT RESOLUTION PROTOCOL
 

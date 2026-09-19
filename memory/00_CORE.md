@@ -67,7 +67,7 @@ From `spec/appendix.md §2`:
 9. **Fail closed on permissions:** Undeclared handler permissions cause build/test failure.
 10. **`id-ID` first:** Indonesian is the primary language and source; English is secondary translation.
 11. **Zero Unscoped or Destructive Operations:** Never perform any `DELETE`, `TRUNCATE`, `DROP`, or bulk destructive command without an explicit `WHERE` clause and explicit user confirmation.
-12. **Mandatory 5-Stage SOP:** Strictly adhere to **Plan -> Dev -> Test -> PR (fetch latest main & ensure mergeable via Pre-PR Synchronization & Conflict Resolution Protocol) -> Wait for PR merged and deploy instruction**. Never deploy or merge without explicit user instruction.
+12. **Mandatory 5-Stage SOP:** Strictly adhere to **Plan -> Dev -> Test -> PR (fetch latest main & ensure mergeable via Pre-PR Synchronization & Conflict Resolution Protocol) -> Merge automatically once CI has passed -> Wait for the deploy instruction**. Merging follows `AGENTS.md` §4 stage 5 (no separate "merge N" instruction needed once CI is green); never deploy without an explicit user instruction.
 
 ---
 
