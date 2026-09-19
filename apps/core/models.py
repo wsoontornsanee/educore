@@ -7,6 +7,7 @@ Adheres strictly to:
 """
 from django.db import models
 from django.utils import timezone
+from .archiving import build_archive_model
 from .managers import TenantManager, AllTenantsManager
 
 class TenantModel(models.Model):
@@ -73,6 +74,10 @@ class AuditEvent(models.Model):
     def __str__(self):
         return f"{self.timestamp} - {self.actor_id or 'system'} - {self.action} ({self.entity_type}#{self.entity_id})"
 
+
+AuditEventArchive = build_archive_model(AuditEvent)  # NFR-009
+
+
 class DomainEvent(models.Model):
     """Database-backed transactional domain event model (ARC-010, spec/01 §8.4)."""
     id = models.BigAutoField(primary_key=True)
@@ -90,6 +95,10 @@ class DomainEvent(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.id}) - Foundation: {self.foundation_id}"
+
+
+DomainEventArchive = build_archive_model(DomainEvent)  # NFR-009
+
 
 class TaskQueue(models.Model):
     """Asynchronous tasks queue stored in MySQL (ARC-010, ARC-011, ARC-012)."""
