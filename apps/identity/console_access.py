@@ -21,6 +21,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied
 from educore.middleware.tenancy import get_current_foundation_id
 
 from .models import RoleAssignment, School, Staff
+from .nav import has_staff_access
 from .permissions import HasRequiredPermission
 from .rbac import SCOPE_SCHOOL, get_user_permissions, has_permission_in_any_scope, is_foundation_admin
 
@@ -153,13 +154,17 @@ class ConsolePermissionMixin(LoginRequiredMixin):
 
     Subclasses set `required_permission` (an RBAC key), or
     `foundation_admin_only = True` for pages whose backing API is gated by
-    is_foundation_admin rather than a permission key. A denied user is
+    is_foundation_admin rather than a permission key, or
+    `staff_access_only = True` for pages open to any staff user (a staff
+    role or a Staff row — the task inbox: its sources each apply their own
+    check, but a guardian-only account has no business on the staff console). A denied user is
     redirected to web-console-home with a message rather than shown a raw 403
     (matching StaffConsoleMixin: never leave a user at a dead end).
     `self.foundation_id` is set once the gate passes.
     """
     required_permission = None
     foundation_admin_only = False
+    staff_access_only = False
 
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated:
@@ -171,6 +176,8 @@ class ConsolePermissionMixin(LoginRequiredMixin):
     def _is_allowed(self, user):
         if self.foundation_admin_only:
             return is_foundation_admin(user, self.foundation_id)
+        if self.staff_access_only:
+            return has_staff_access(user, self.foundation_id)
         return has_permission_in_any_scope(user, self.required_permission, self.foundation_id)
 
 

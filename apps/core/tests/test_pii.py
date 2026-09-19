@@ -31,6 +31,7 @@ class PIITypeRegistryTests(SimpleTestCase):
     def test_sensitive_keys_is_union_of_credential_and_biometric(self):
         self.assertEqual(SENSITIVE_KEYS, CREDENTIAL_KEYS | BIOMETRIC_KEYS)
         self.assertIn('password', CREDENTIAL_KEYS)
+        self.assertIn('private_key', CREDENTIAL_KEYS)  # service-account key JSON
         self.assertIn('biometric', BIOMETRIC_KEYS)
         self.assertTrue(CREDENTIAL_KEYS.isdisjoint(BIOMETRIC_KEYS))
 

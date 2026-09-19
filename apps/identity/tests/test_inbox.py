@@ -22,7 +22,7 @@ from apps.finance.services.invoicing import create_discount_with_approval_check
 from apps.identity.inbox import ITEMS_PER_SECTION, get_inbox_count, get_inbox_for_user
 from apps.identity.models import Person, School, Staff, User
 from apps.identity.rbac import (
-    ROLE_FINANCE_OFFICER, ROLE_FOUNDATION_ADMIN, ROLE_SCHOOL_ADMIN, ROLE_TEACHER, SCOPE_FOUNDATION, SCOPE_SCHOOL, assign_role,
+    ROLE_FINANCE_OFFICER, ROLE_FOUNDATION_ADMIN, ROLE_PARENT, ROLE_SCHOOL_ADMIN, ROLE_TEACHER, SCOPE_FOUNDATION, SCOPE_SCHOOL, assign_role,
 )
 from educore.middleware.tenancy import clear_current_foundation_id, set_current_foundation_id
 
@@ -205,6 +205,12 @@ class ConsoleInboxViewTests(InboxTestBase):
         response = self.client.get(reverse('console-inbox'))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Tidak ada tugas')
+
+    def test_guardian_only_account_is_sent_home(self):
+        parent = _user(self.fx, '+6281290000005', 'Wali', ROLE_PARENT, scope=SCOPE_FOUNDATION)
+        self.client.force_login(parent)
+        response = self.client.get(reverse('console-inbox'))
+        self.assertRedirects(response, reverse('web-console-home'), fetch_redirect_response=False)
 
     def test_renders_sections_and_items(self):
         AbsenceRequest.objects.create(

@@ -116,6 +116,21 @@ class GetNavForUserTests(TestCase):
         items = {item['id']: item['url_name'] for group in nav for item in group['items']}
         self.assertEqual(items['canteen'], 'canteen-console-page')
 
+    def test_inbox_hidden_from_a_guardian_only_account(self):
+        """A parent-only login has no staff role, so the staff console's
+        Kotak tugas must not be offered; a staff role holder still sees it."""
+        parent = User.objects.create(
+            phone_e164='+6281300000003', full_name='Parent One', foundation_id=self.foundation.id,
+        )
+        RoleAssignment.objects.create(
+            foundation_id=self.foundation.id, user=parent, role=RoleAssignment.ROLE_PARENT,
+            scope_type=RoleAssignment.SCOPE_FOUNDATION, scope_id=self.foundation.id,
+        )
+        nav = get_nav_for_user(parent, self.foundation.id)
+        self.assertNotIn('inbox', {item['id'] for group in nav for item in group['items']})
+        nav = get_nav_for_user(self.teacher, self.foundation.id)
+        self.assertIn('inbox', {item['id'] for group in nav for item in group['items']})
+
     def test_empty_groups_are_omitted(self):
         nav = get_nav_for_user(self.canteen, self.foundation.id)
         for group in nav:
@@ -128,7 +143,8 @@ class GetNavForUserTests(TestCase):
         """Regression test for the N+1: computing the nav for a user with 2
         assigned schools must cost a small, fixed number of queries —
         1 (assigned-schools list) + 1 (foundation-scope permissions) +
-        2 (one per assigned school) + 1 (the single Staff-profile existence
+        2 (one per assigned school) + 2 (the inbox's staff-access check:
+        foundation-scope role, then any role) + 1 (the single Staff-profile existence
         check, run once regardless of how many items declare
         requires_staff_profile) + 1 (the single is_foundation_admin check,
         likewise once for all requires_foundation_admin items) — regardless
@@ -140,7 +156,7 @@ class GetNavForUserTests(TestCase):
             foundation_id=self.foundation.id, user=self.teacher, role=RoleAssignment.ROLE_TEACHER,
             scope_type=RoleAssignment.SCOPE_SCHOOL, scope_id=school_2.id,
         )
-        with self.assertNumQueries(6):
+        with self.assertNumQueries(8):
             get_nav_for_user(self.teacher, self.foundation.id)
 
 
