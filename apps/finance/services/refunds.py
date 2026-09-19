@@ -75,7 +75,8 @@ def request_refund(
 
     if currency != payment.currency:
         raise RefundValidationError(
-            _(f"Mata uang pengembalian ({currency}) tidak sesuai dengan mata uang pembayaran ({payment.currency}).")
+            _("Mata uang pengembalian (%(currency)s) tidak sesuai dengan mata uang pembayaran (%(payment_currency)s).")
+            % {'currency': currency, 'payment_currency': payment.currency}
         )
 
     if not destination_bank_name or not destination_bank_name.strip():
@@ -99,7 +100,8 @@ def request_refund(
     cumulative_amount = sum(r.amount for r in existing_refunds)
     if cumulative_amount + amount > payment.amount:
         raise ExceededPaymentAmountError(
-            _(f"Total pengembalian dana ({cumulative_amount + amount}) melebihi nominal pembayaran yang diselesaikan ({payment.amount}).")
+            _("Total pengembalian dana (%(total)s) melebihi nominal pembayaran yang diselesaikan (%(amount)s).")
+            % {'total': cumulative_amount + amount, 'amount': payment.amount}
         )
 
     # Check threshold policy (FIN-032, FND-007)
