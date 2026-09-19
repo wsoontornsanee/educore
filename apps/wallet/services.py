@@ -546,8 +546,10 @@ def void_pos_transaction(pos_transaction: POSTransaction, reason: str, actor=Non
                           void_window_minutes=DEFAULT_VOID_WINDOW_MINUTES) -> POSTransaction:
     """WAL-025: operator void within the window reverses the purchase and restores balance.
 
-    Locks the sale row first (before the wallet row, the same order dispute resolution uses), so a second
-    void or an upheld dispute on the same sale queues behind this one and then sees it already refunded."""
+    Lock order is wallet, then sale (as charge and dispute resolution take them), so a second void or an
+    upheld dispute on the same sale queues behind this one and then sees it already refunded. Taking the
+    sale first would deadlock against a charge that holds the wallet and re-checks its idempotency key."""
+    _get_locked_wallet(pos_transaction.wallet_transaction.wallet_id, pos_transaction.foundation_id)
     pos_transaction = POSTransaction.all_tenants.select_for_update().get(
         id=pos_transaction.id, foundation_id=pos_transaction.foundation_id,
     )

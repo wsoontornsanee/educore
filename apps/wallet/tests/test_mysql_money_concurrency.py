@@ -123,6 +123,23 @@ class MoneyPathConcurrencyTests(QRFixtureMixin, TransactionTestCase):
         self.assertEqual(self._balance(), START_BALANCE - Decimal('1000'))
         self._assert_ledger_balances()
 
+    def test_void_and_charge_for_one_student_never_deadlock_over_many_rounds(self):
+        # Void and charge take the same locks in the same order (wallet, then sale). A single round hits a
+        # bad ordering only some of the time, so repeat: a lock-order regression shows up as InnoDB 1213.
+        rounds = 12
+        for i in range(rounds):
+            sale = self._sale(key=f'sale-a-{i}')
+            token = create_qr_session(self.terminal)['token']
+            outcomes = _run_together(
+                self.foundation_id,
+                lambda sale=sale: void_pos_transaction(POSTransaction.objects.get(id=sale.id), 'salah input'),
+                lambda token=token, i=i: charge_qr_session(token, self.student, Decimal('1000'), f'sale-b-{i}'),
+            )
+            self.assertEqual([error for _result, error in outcomes], [None, None], (i, outcomes))
+        # Each round: A charged and voided, B charged.
+        self.assertEqual(self._balance(), START_BALANCE - Decimal('1000') * rounds)
+        self._assert_ledger_balances()
+
     def test_void_racing_an_upheld_dispute_on_the_same_sale_refunds_once(self):
         sale = self._sale()
         dispute = open_qr_dispute(sale, make_guardian(self.fx), 'Saya hanya beli minum')
