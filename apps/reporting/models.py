@@ -132,6 +132,37 @@ class RptActiveStudent(TenantModel):
         return f"{self.school.name} - {self.month:%Y-%m}: {self.active_count} active"
 
 
+class RptActiveStudentRoster(TenantModel):
+    """WHICH students one `RptActiveStudent` count was made of (RPT-009), so an invoice dispute can be settled.
+
+    Written by `refresh_active_students` in the same transaction as the count and frozen with it (RPT-008).
+    Past months cannot be reconstructed (the repo keeps no historical status or enrolment), so a month
+    whose count was frozen before this table existed simply has no roster; readers must say so rather
+    than show an empty list. Holds student ids only: names and NIS are joined in at read time, so this
+    table carries no PII of its own.
+    """
+    school = models.ForeignKey(School, on_delete=models.PROTECT, related_name='active_student_rosters')
+    month = models.DateField(help_text=_("Normalized to the 1st of the month"))
+    student_ids = models.JSONField(default=list, help_text=_("Ids of the students counted, in ascending order"))
+    captured_at = models.DateTimeField(help_text=_("When the roster was taken (same instant as the count)"))
+    active_uniq_marker = soft_delete_uniqueness_marker()
+
+    class Meta:
+        db_table = 'rpt_active_student_rosters'
+        indexes = [
+            models.Index(fields=['foundation_id', 'school_id', 'month']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['foundation_id', 'school', 'month', 'active_uniq_marker'],
+                name='unique_rpt_active_student_roster_per_school_month',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.school.name} - {self.month:%Y-%m}: {len(self.student_ids)} students"
+
+
 class RptDailyFinance(TenantModel):
     """Daily finance rollup per school (spec/15 §2). Feeds the "Collection
     performance" report (spec/15 §3). Rebuilt by `refresh_reporting`.

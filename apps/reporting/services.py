@@ -2,6 +2,7 @@ import datetime
 from datetime import timedelta
 from decimal import Decimal
 
+from django.db import transaction
 from django.db.models import Count, Sum
 from django.utils import timezone
 
@@ -10,6 +11,7 @@ from apps.identity.models import School
 from apps.reporting.models import (
     RptAcademicPerformance,
     RptActiveStudent,
+    RptActiveStudentRoster,
     RptArAging,
     RptDailyAttendance,
     RptDailyFinance,
@@ -294,18 +296,27 @@ def refresh_active_students(scope: str, since=None) -> dict:
             if existing and _month_is_closed(month, today):
                 continue  # RPT-008: a closed month's row is frozen forever
 
-            active_count = Student.all_tenants.filter(
+            counted_ids = sorted(Student.all_tenants.filter(
                 foundation_id=school.foundation_id, school=school,
                 status=Student.STATUS_ACTIVE, id__in=active_student_ids,
                 deleted_at__isnull=True,
-            ).count()
+            ).values_list('id', flat=True))
 
-            RptActiveStudent.all_tenants.update_or_create(
-                foundation_id=school.foundation_id,
-                school=school,
-                month=month,
-                defaults={'active_count': active_count, 'computed_at': now},
-            )
+            # The count and the roster it was made from are written together, so they can never disagree
+            # (RPT-009), and they freeze together (the `existing` check above covers both).
+            with transaction.atomic():
+                RptActiveStudent.all_tenants.update_or_create(
+                    foundation_id=school.foundation_id,
+                    school=school,
+                    month=month,
+                    defaults={'active_count': len(counted_ids), 'computed_at': now},
+                )
+                RptActiveStudentRoster.all_tenants.update_or_create(
+                    foundation_id=school.foundation_id,
+                    school=school,
+                    month=month,
+                    defaults={'student_ids': counted_ids, 'captured_at': now},
+                )
             rows_written += 1
 
     return {'rows_written': rows_written, 'scope': scope}
@@ -682,6 +693,9 @@ def get_metering_statement(foundation_id, month, school_ids=None, today=None) ->
             foundation_id=foundation_id, month=month, deleted_at__isnull=True,
         )
     }
+    with_roster = set(RptActiveStudentRoster.all_tenants.filter(
+        foundation_id=foundation_id, month=month, deleted_at__isnull=True,
+    ).values_list('school_id', flat=True))
     closed = _month_is_closed(month, today)
     entries = []
     for school in schools:
@@ -694,6 +708,8 @@ def get_metering_statement(foundation_id, month, school_ids=None, today=None) ->
         entries.append({
             'school_id': school.id, 'school_name': school.name, 'is_active': school.is_active,
             'state': state, 'active_count': active_count, 'computed_at': computed_at,
+            # A roster exists only for counts made after rosters were captured; older frozen months have none.
+            'roster_available': school.id in with_roster,
         })
     counted = [e['active_count'] for e in entries if e['active_count'] is not None]
     return {
@@ -701,4 +717,51 @@ def get_metering_statement(foundation_id, month, school_ids=None, today=None) ->
         'schools': entries,
         'total_active': sum(counted),
         'complete': len(counted) == len(entries),
+    }
+
+
+def get_metering_roster(foundation_id, school, month, today=None) -> dict:
+    """RPT-009: WHICH students one school's count for a month was made of, so an invoice dispute can be settled.
+
+    `school` must already be checked as belonging to the foundation and to the caller's ceiling. Reads the
+    roster captured with the count; it never recomputes one, because the past cannot be reconstructed. When
+    there is no roster (count frozen before rosters existed, or not computed yet) `roster_available` is
+    False and `students` is empty, and `state` says which, so an empty list is never read as "zero students".
+    Each student carries their CURRENT status: someone counted in September who has since left shows as such.
+    NIS is included so two students with the same name can be told apart; NISN is deliberately left out.
+    """
+    from apps.identity.models import Student
+
+    today = today or timezone.now().date()
+    month = month.replace(day=1)
+    count = RptActiveStudent.all_tenants.filter(
+        foundation_id=foundation_id, school=school, month=month, deleted_at__isnull=True,
+    ).first()
+    roster = RptActiveStudentRoster.all_tenants.filter(
+        foundation_id=foundation_id, school=school, month=month, deleted_at__isnull=True,
+    ).first()
+
+    if count is None:
+        state = METERING_NOT_COMPUTED
+    else:
+        state = METERING_FROZEN if _month_is_closed(month, today) else METERING_OPEN
+
+    students = []
+    if roster is not None:
+        rows = Student.all_tenants.filter(
+            foundation_id=foundation_id, id__in=roster.student_ids,
+        ).select_related('person').order_by('person__full_name', 'id')
+        students = [
+            {'student_id': s.id, 'full_name': s.person.full_name, 'nis': s.nis, 'current_status': s.status}
+            for s in rows
+        ]
+    return {
+        'month': month.strftime('%Y-%m'),
+        'school_id': school.id,
+        'school_name': school.name,
+        'state': state,
+        'active_count': count.active_count if count else None,
+        'roster_available': roster is not None,
+        'captured_at': roster.captured_at if roster else None,
+        'students': students,
     }

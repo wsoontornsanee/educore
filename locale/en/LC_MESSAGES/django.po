@@ -8970,3 +8970,11 @@ msgid "Total ini belum lengkap: %(n)s sekolah belum dihitung untuk bulan ini."
 msgid_plural "Total ini belum lengkap: %(n)s sekolah belum dihitung untuk bulan ini."
 msgstr[0] "This total is incomplete: %(n)s school has not been counted for this month."
 msgstr[1] "This total is incomplete: %(n)s schools have not been counted for this month."
+
+#: apps/reporting/models.py
+msgid "Ids of the students counted, in ascending order"
+msgstr "Ids of the students counted, in ascending order"
+
+#: apps/reporting/models.py
+msgid "When the roster was taken (same instant as the count)"
+msgstr "When the roster was taken (same instant as the count)"

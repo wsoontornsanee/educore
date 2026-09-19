@@ -22,7 +22,7 @@ from apps.reporting.serializers import (
     RptDailyFinanceSerializer,
     RptWalletActivitySerializer,
 )
-from apps.reporting.services import get_metering_statement
+from apps.reporting.services import get_metering_roster, get_metering_statement
 from educore.middleware.tenancy import get_current_foundation_id
 
 
@@ -201,16 +201,64 @@ class MeteringStatementView(APIView):
         if requested and str(requested) != str(foundation_id):
             return Response({'error': _("Yayasan tidak valid.")}, status=status.HTTP_404_NOT_FOUND)
 
-        raw_month = request.query_params.get('month')
-        if raw_month:
-            try:
-                month = _dt.datetime.strptime(raw_month, '%Y-%m').date()
-            except ValueError:
-                return Response(
-                    {'error': _("Format bulan tidak valid (YYYY-MM).")}, status=status.HTTP_400_BAD_REQUEST,
-                )
-        else:
-            month = timezone.now().date().replace(day=1)  # same 'current month' as the rollup
+        month, error = _parse_metering_month(request)
+        if error:
+            return error
 
         ceiling = accessible_school_ids(request.user, foundation_id, self.required_permission)
         return Response(get_metering_statement(foundation_id, month, school_ids=ceiling))
+
+
+def _parse_metering_month(request):
+    """(first day of the requested month, None), or (None, a 400 response). Defaults to the current month,
+    the same one the rollup treats as open."""
+    raw_month = request.query_params.get('month')
+    if not raw_month:
+        return timezone.now().date().replace(day=1), None
+    try:
+        return _dt.datetime.strptime(raw_month, '%Y-%m').date(), None
+    except ValueError:
+        return None, Response(
+            {'error': _("Format bulan tidak valid (YYYY-MM).")}, status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+def _schools_allowed_for_all(user, foundation_id, *permissions):
+    """School ids where `user` holds EVERY permission; None means every school of the foundation."""
+    allowed = None
+    for permission in permissions:
+        ceiling = accessible_school_ids(user, foundation_id, permission)
+        if ceiling is None:
+            continue
+        allowed = set(ceiling) if allowed is None else allowed & set(ceiling)
+    return allowed
+
+
+class MeteringRosterView(APIView):
+    """GET /metering/statements/roster/?school_id=&month=YYYY-MM (spec/15 RPT-009).
+
+    WHICH students one school's count was made of, so an invoice dispute can be settled. It lists students
+    with their NIS, so it needs both `reporting.read` (the metering surface) and `student_records.read`
+    (the PII), held for that school. A school-scoped caller asking for another school is refused with a 403 by the
+    permission layer (it reads `school_id`); a school of another foundation, or one that does not exist, is a 404.
+    A month with no roster (frozen before rosters were captured, or not computed) says so instead of
+    returning an empty list. NISN is not returned.
+    """
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'reporting.read'
+
+    def get(self, request):
+        foundation_id = get_current_foundation_id()
+
+        school_id = request.query_params.get('school_id')
+        if not school_id:
+            return Response({'error': _("Parameter school_id wajib diisi.")}, status=status.HTTP_400_BAD_REQUEST)
+        month, error = _parse_metering_month(request)
+        if error:
+            return error
+
+        allowed = _schools_allowed_for_all(request.user, foundation_id, 'reporting.read', 'student_records.read')
+        school = School.objects.filter(id=school_id, foundation_id=foundation_id).first() if str(school_id).isdigit() else None
+        if school is None or (allowed is not None and school.id not in allowed):
+            return Response({'error': _("Sekolah tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        return Response(get_metering_roster(foundation_id, school, month))
