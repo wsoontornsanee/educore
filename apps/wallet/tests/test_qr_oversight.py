@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.identity.models import RoleAssignment, User
+from apps.identity.models import GuardianLink, RoleAssignment, User
 from apps.wallet.models import (
     POSEntryMode,
     POSTransaction,
@@ -25,7 +25,8 @@ from apps.wallet.qr_oversight import (
 )
 from apps.wallet.services import process_pos_transaction, topup_wallet
 from apps.wallet.tests.test_qr_charge import QRFixtureMixin, make_guardian
-from apps.wallet.models import WalletTransaction
+from apps.wallet.models import QRDispute, WalletTransaction
+from educore.middleware.tenancy import set_current_foundation_id
 
 
 class DisputeTests(QRFixtureMixin, TestCase):
@@ -274,3 +275,50 @@ class OversightApiTests(QRFixtureMixin, TestCase):
         self.client.force_authenticate(user=admin)
         res = self.client.post(f'/api/v1/wallet/qr-disputes/{dispute_id}/resolve/', {'outcome': 'UPHELD'}, format='json')
         self.assertEqual(res.status_code, 404)
+
+
+class GuardianDisputeStatusTests(QRFixtureMixin, TestCase):
+    def setUp(self):
+        super().setUp()
+        self.client = APIClient()
+        self.guardian = make_guardian(self.fx)
+        self.staff = self.fx['finance_user']
+        self.pos_tx = self.pay('18000')
+        self.url = f'/api/v1/wallet/transactions/{self.pos_tx.wallet_transaction_id}/dispute/'
+
+    def history_row(self):
+        rows = self.client.get(f'/api/v1/wallets/{self.student.id}/transactions/').json()
+        rows = rows['results'] if 'results' in rows else rows
+        return next(r for r in rows if r['id'] == self.pos_tx.wallet_transaction_id)
+
+    def test_status_follows_the_dispute_through_to_the_outcome(self):
+        self.client.force_authenticate(user=self.guardian)
+        self.assertEqual(self.client.get(self.url).status_code, 404)  # nothing disputed yet
+        self.assertIsNone(self.history_row()['dispute_status'])
+
+        self.client.post(self.url, {'reason': 'Salah nominal'}, format='json')
+        self.assertEqual(self.client.get(self.url).json()['status'], 'OPEN')
+        self.assertEqual(self.history_row()['dispute_status'], 'OPEN')
+
+        dispute = QRDispute.all_tenants.get(pos_transaction=self.pos_tx)
+        set_current_foundation_id(self.fx['foundation'].id)
+        resolve_qr_dispute(dispute, 'UPHELD', self.staff, 'sudah dikembalikan', Decimal('6000'))
+        body = self.client.get(self.url).json()
+        self.assertEqual((body['status'], body['refund_amount'], body['resolution_note']), ('UPHELD', '6000.00', 'sudah dikembalikan'))
+        self.assertEqual(self.history_row()['dispute_status'], 'UPHELD')
+
+    def test_only_the_linked_guardian_can_read_it(self):
+        self.client.force_authenticate(user=self.guardian)
+        self.client.post(self.url, {'reason': 'x'}, format='json')
+        self.client.force_authenticate(user=self.staff)
+        self.assertEqual(self.client.get(self.url).status_code, 404)
+        other = make_guardian(self.fx, nik='3471010101014444')
+        GuardianLink.all_tenants.filter(guardian__user=other).delete()
+        self.client.force_authenticate(user=other)
+        self.assertEqual(self.client.get(self.url).status_code, 404)
+
+    def test_undisputed_history_rows_have_null_status(self):
+        self.client.force_authenticate(user=self.guardian)
+        rows = self.client.get(f'/api/v1/wallets/{self.student.id}/transactions/').json()
+        rows = rows['results'] if 'results' in rows else rows
+        self.assertTrue(all(r['dispute_status'] is None for r in rows))
