@@ -2,7 +2,7 @@ from datetime import datetime
 import base64
 from decimal import Decimal
 
-from django.db.models import Exists, OuterRef
+from django.db.models import Exists, OuterRef, Subquery
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import permissions, status, viewsets
@@ -183,6 +183,9 @@ class WalletTransactionsView(APIView):
             self_entered=Exists(POSTransaction.objects.filter(
                 wallet_transaction_id=OuterRef('pk'), entry_mode=POSEntryMode.SELF_ENTERED,
             )),
+            dispute_status_value=Subquery(QRDispute.objects.filter(
+                pos_transaction__wallet_transaction_id=OuterRef('pk'), deleted_at__isnull=True,
+            ).values('status')[:1]),
         ).order_by('-occurred_at')
 
         paginator = self.pagination_class()
@@ -890,18 +893,35 @@ class QRChargeView(_QRStudentView):
 
 
 class QRDisputeOpenView(_QRStudentView):
-    """POST /wallet/transactions/:id/dispute/: guardian contests a self-entered charge (QRS-026)."""
+    """/wallet/transactions/:id/dispute/ — a guardian contests a self-entered charge and follows the outcome (QRS-026).
 
-    def post(self, request, wallet_transaction_id):
-        payload = QRDisputeOpenSerializer(data=request.data)
-        payload.is_valid(raise_exception=True)
+    POST {reason}  open a dispute (7-day window, one per charge)
+    GET            the dispute's status, the staff note and any refund
+    """
+
+    def _pos_transaction(self, request, wallet_transaction_id):
+        """The POS sale behind a wallet history row, if the caller is that student's linked guardian."""
         wallet_tx = WalletTransaction.objects.filter(
             id=wallet_transaction_id, foundation_id=get_current_foundation_id(), deleted_at__isnull=True,
         ).select_related('wallet').first()
         student = self._guardian_student(request, wallet_tx.wallet.student_id) if wallet_tx else None
-        pos_tx = POSTransaction.objects.filter(
-            foundation_id=wallet_tx.foundation_id, wallet_transaction=wallet_tx,
-        ).first() if student else None
+        if not student:
+            return None
+        return POSTransaction.objects.filter(foundation_id=wallet_tx.foundation_id, wallet_transaction=wallet_tx).first()
+
+    def get(self, request, wallet_transaction_id):
+        pos_tx = self._pos_transaction(request, wallet_transaction_id)
+        dispute = QRDispute.objects.filter(
+            foundation_id=pos_tx.foundation_id, pos_transaction=pos_tx, deleted_at__isnull=True,
+        ).first() if pos_tx else None
+        if not dispute:
+            return Response({'error': _("Sanggahan tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        return Response(QRDisputeSerializer(dispute).data)
+
+    def post(self, request, wallet_transaction_id):
+        payload = QRDisputeOpenSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        pos_tx = self._pos_transaction(request, wallet_transaction_id)
         if not pos_tx:
             return Response({'error': _("Transaksi tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
         try:
