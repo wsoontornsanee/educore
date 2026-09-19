@@ -7942,3 +7942,100 @@ msgstr "Covered by %(name)s"
 #, python-format
 msgid "Pengganti %(name)s"
 msgstr "Substitute for %(name)s"
+
+#: frontend/templates/pages/academic_grading_queue.html
+msgid "Penilaian"
+msgstr "Grading"
+
+#: frontend/templates/pages/academic_grading_queue.html
+msgid "Nilai (0–100)"
+msgstr "Score (0–100)"
+
+#: frontend/templates/pages/academic_grading_queue.html
+msgid "Umpan balik"
+msgstr "Feedback"
+
+#: frontend/templates/pages/academic_grading_queue.html
+msgid "Simpan nilai"
+msgstr "Save grade"
+
+#: frontend/templates/pages/academic_grading_queue.html
+msgid "Kembalikan tugas ini ke siswa? Umpan balik wajib diisi."
+msgstr "Return this homework to the student? Feedback is required."
+
+#: frontend/templates/pages/academic_report_card_list.html
+msgid "Buat rapor untuk kelas"
+msgstr "Generate report cards for class"
+
+#: frontend/templates/pages/academic_report_card_list.html
+msgid "Buat rapor"
+msgstr "Generate report cards"
+
+#: frontend/templates/pages/academic_report_card_list.html
+msgid "Buat atau perbarui rapor konsep untuk kelas ini? Rapor yang sudah disetujui tidak diubah."
+msgstr "Create or update draft report cards for this class? Approved report cards are left unchanged."
+
+#: frontend/templates/pages/academic_report_card_detail.html
+msgid "Setujui rapor ini? Isi rapor tidak dapat diubah setelah diterbitkan."
+msgstr "Approve this report card? It cannot be edited once published."
+
+#: frontend/templates/pages/academic_report_card_detail.html
+msgid "Terbitkan rapor ini? Rapor yang terbit tidak dapat diubah, hanya direvisi."
+msgstr "Publish this report card? A published card cannot be edited, only revised."
+
+#: frontend/templates/pages/academic_report_card_detail.html
+msgid "Buat revisi"
+msgstr "Create revision"
+
+#: frontend/templates/pages/academic_report_card_detail.html
+msgid "Buat versi revisi sebagai konsep baru? Versi terbit tetap tersimpan."
+msgstr "Create a revision as a new draft? The published version is kept."
+
+#: apps/academic/console_actions.py
+msgid "Pengumpulan ini sudah dinilai atau dikembalikan."
+msgstr "This submission has already been graded or returned."
+
+#: apps/academic/console_actions.py
+msgid "Nilai harus berupa angka 0–100 dengan maksimal dua desimal."
+msgstr "The score must be a number from 0 to 100 with at most two decimals."
+
+#: apps/academic/console_actions.py
+msgid "Nilai tersimpan."
+msgstr "Grade saved."
+
+#: apps/academic/console_actions.py
+msgid "Umpan balik wajib diisi untuk mengembalikan tugas."
+msgstr "Feedback is required to return homework."
+
+#: apps/academic/console_actions.py
+msgid "Tugas dikembalikan ke siswa."
+msgstr "Homework returned to the student."
+
+#: apps/academic/console_actions.py
+msgid "Pilih kelas dan semester yang valid."
+msgstr "Choose a valid class and term."
+
+#: apps/academic/console_actions.py
+msgid "Semester tidak sesuai dengan tahun ajaran kelas."
+msgstr "The term does not belong to the class's academic year."
+
+#: apps/academic/console_actions.py
+msgid "Status rapor tidak memungkinkan tindakan ini."
+msgstr "The report card's status does not allow this action."
+
+#: apps/academic/console_actions.py
+msgid "Rapor disetujui."
+msgstr "Report card approved."
+
+#: apps/academic/console_actions.py
+msgid "Rapor diterbitkan."
+msgstr "Report card published."
+
+#: apps/academic/console_actions.py
+msgid "Versi revisi dibuat sebagai konsep."
+msgstr "Revision created as a draft."
+
+#: apps/academic/console_actions.py
+#, python-format
+msgid "Rapor dibuat: %(created)s baru, %(updated)s diperbarui, %(skipped)s dilewati."
+msgstr "Report cards: %(created)s created, %(updated)s updated, %(skipped)s skipped."

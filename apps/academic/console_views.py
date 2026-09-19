@@ -33,6 +33,7 @@ from apps.academic.models import (
     TimetableSubstitution,
 )
 from apps.academic.services import compute_descriptor, get_homework_grading_queue, render_report_card_html
+from apps.academic.console_actions import permitted_school_ids
 from apps.identity.console_access import StaffConsoleMixin
 from apps.identity.models import Staff
 from educore.middleware.tenancy import get_current_foundation_id
@@ -271,6 +272,9 @@ class GradingQueuePageView(StaffConsoleMixin, APIView):
         total_count = queue.count()
         late_count = queue.filter(status=HomeworkSubmissionStatus.LATE).count()
         submissions = list(queue[:GRADING_QUEUE_PAGE_SIZE])
+        writable_schools = permitted_school_ids(request.user, foundation_id, 'grades.write')
+        for submission in submissions:
+            submission.can_write = submission.homework.class_subject.class_group.school_id in writable_schools
 
         class_subjects = ClassSubject.objects.filter(
             foundation_id=foundation_id, deleted_at__isnull=True, class_group__academic_year__is_active=True,
@@ -350,9 +354,11 @@ class ReportCardListPageView(StaffConsoleMixin, APIView):
             .order_by('class_group__name', 'student__person__full_name', 'id')[:REPORT_CARD_PAGE_SIZE]
         )
 
+        writable_schools = permitted_school_ids(request.user, foundation_id, 'grades.write')
         return render(request, 'pages/academic_report_card_list.html', {
             'terms': terms,
             'class_groups': class_groups,
+            'generate_class_groups': [c for c in class_groups if c.school_id in writable_schools],
             'selected_term_id': selected_term_id,
             'selected_class_group_id': selected_class_group_id,
             'status_counts': status_counts,
@@ -402,7 +408,16 @@ class ReportCardDetailPageView(_ReportCardAccessMixin, APIView):
             for key, label in ATTENDANCE_SUMMARY_LABELS if key in attendance_summary
         ]
 
+        foundation_id = report_card.foundation_id
+        school_id = report_card.class_group.school_id
+        can_approve = school_id in permitted_school_ids(request.user, foundation_id, 'school_config.write')
+        can_write_grades = school_id in permitted_school_ids(request.user, foundation_id, 'grades.write')
         return render(request, 'pages/academic_report_card_detail.html', {
+            'can_approve': can_approve and report_card.status in (
+                ReportCardStatus.DRAFT, ReportCardStatus.PENDING_REVIEW),
+            'can_publish': can_approve and report_card.status == ReportCardStatus.APPROVED,
+            'can_revise': can_write_grades and report_card.status == ReportCardStatus.PUBLISHED
+            and report_card.is_current,
             'report_card': report_card,
             'grade_rows': grade_rows,
             'attendance_rows': attendance_rows,

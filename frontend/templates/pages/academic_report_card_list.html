@@ -40,6 +40,31 @@ status_counts ([{status, label, count}]), total_count, shown_count, report_cards
     </form>
   </header>
 
+  {% include "components/_console_flash.html" %}
+
+  {% if generate_class_groups %}
+    <form method="post" action="{% url 'academic-report-card-generate' %}" class="card" style="padding:16px 20px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+      {% csrf_token %}
+      <label style="display:flex;flex-direction:column;gap:4px">
+        <span class="text-label text-ink-500">{% translate "Buat rapor untuk kelas" %}</span>
+        <select name="class_group" class="text-body-sm" style="padding:8px 10px;border:1px solid var(--color-line);border-radius:0;background:var(--color-surface)">
+          {% for class_group in generate_class_groups %}
+            <option value="{{ class_group.id }}"{% if class_group.id == selected_class_group_id %} selected{% endif %}>{{ class_group.name }} ({{ class_group.school.name }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label style="display:flex;flex-direction:column;gap:4px">
+        <span class="text-label text-ink-500">{% translate "Semester" %}</span>
+        <select name="term" class="text-body-sm" style="padding:8px 10px;border:1px solid var(--color-line);border-radius:0;background:var(--color-surface)">
+          {% for term in terms %}
+            <option value="{{ term.id }}"{% if term.id == selected_term_id %} selected{% endif %}>{{ term.academic_year.school.name }} — {{ term.academic_year.name }} {{ term.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button type="submit" class="btn btn-primary text-body-sm" onclick="return confirm('{% translate "Buat atau perbarui rapor konsep untuk kelas ini? Rapor yang sudah disetujui tidak diubah." %}')">{% translate "Buat rapor" %}</button>
+    </form>
+  {% endif %}
+
   <div style="display:flex;gap:16px;flex-wrap:wrap">
     {% for item in status_counts %}
       <div class="card" style="padding:16px 20px;flex:1 1 130px">
