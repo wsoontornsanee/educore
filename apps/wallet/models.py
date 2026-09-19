@@ -439,6 +439,10 @@ class MerchantSettlement(TenantModel):
     gross = MoneyField(default=Decimal('0.00'))
     commission = MoneyField(default=Decimal('0.00'))
     net = MoneyField(default=Decimal('0.00'))
+    adjustments_total = MoneyField(
+        default=Decimal('0.00'),
+        help_text=_("Upheld-dispute deductions absorbed by this run; net = gross - commission - adjustments_total"),
+    )
     status = models.CharField(max_length=16, choices=MerchantSettlementStatus.choices, default=MerchantSettlementStatus.PENDING)
     paid_at = models.DateTimeField(null=True, blank=True)
     statement_pdf_key = models.CharField(max_length=255, blank=True, default='')
@@ -458,6 +462,33 @@ class MerchantSettlement(TenantModel):
 
     def __str__(self):
         return f"{self.merchant.name} {self.period_start}..{self.period_end}: net {self.net} ({self.status})"
+
+
+class MerchantSettlementAdjustment(TenantModel):
+    """What an upheld QR dispute takes back from the merchant (spec 18 QRS-026; Notion: settlement netting).
+
+    ``deduction`` is exactly what voiding the refunded portion of the sale would have removed from the
+    merchant's net: the refund minus the commission share on it. It waits (``settlement`` null) until an
+    unpaid settlement run has room for it, so a payout never goes negative and a PAID settlement is never
+    touched.
+    """
+    merchant = models.ForeignKey(Merchant, on_delete=models.PROTECT, related_name='settlement_adjustments')
+    dispute = models.OneToOneField('QRDispute', on_delete=models.PROTECT, related_name='settlement_adjustment')
+    pos_transaction = models.ForeignKey(POSTransaction, on_delete=models.PROTECT, related_name='dispute_adjustments')
+    refund_amount = MoneyField()
+    commission_recovered = MoneyField()
+    deduction = MoneyField()
+    occurred_at = models.DateTimeField()
+    settlement = models.ForeignKey(
+        MerchantSettlement, on_delete=models.PROTECT, null=True, blank=True, related_name='adjustments',
+    )
+
+    class Meta:
+        db_table = 'merchant_settlement_adjustments'
+        indexes = [models.Index(fields=['foundation_id', 'merchant_id', 'settlement_id', 'occurred_at'])]
+
+    def __str__(self):
+        return f"Adjustment {self.deduction} for {self.merchant.name} ({'waiting' if self.settlement_id is None else 'absorbed'})"
 
 
 class WalletReconciliationTrigger(models.TextChoices):

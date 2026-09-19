@@ -8729,3 +8729,9 @@ msgstr "Payment point"
 
 msgid "Kasir / terminal (bukan lembar QR)"
 msgstr "Cashier / terminal (not a QR sheet)"
+
+msgid "Potongan menunggu"
+msgstr "Deductions waiting"
+
+msgid "Dikembalikan (sanggahan)"
+msgstr "Refunded (dispute)"
