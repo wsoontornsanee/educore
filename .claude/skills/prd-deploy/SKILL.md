@@ -52,7 +52,7 @@ ssh -i "$KEY" root@188.166.212.206 "cd /root/myproject/educore-prd/app && GIT_SS
 Note the file list in the merge output — check it for:
 - **New/changed `*/crypto.py` files** referencing a new `EDUCORE_*_FERNET_KEY` setting → see "New Fernet keys" below.
 - **New migrations** → step 4 handles them, but note if any touch a table you'd want to sanity-check after.
-- **New dependency** in `requirements.txt` → `pip install -r requirements.txt` may be needed (check `git diff` on that file specifically; the venv doesn't auto-update).
+- **New dependency** in `requirements.txt` → `pip install -r requirements.txt` may be needed (check `git diff` on that file specifically; the venv doesn't auto-update). A `weasyprint` bump or a fresh host also needs the smoke check in "System packages" below.
 - **Changes to `deploy/crontab`** → see "Syncing cron" below; this file is NOT auto-applied by pulling, the live crontab is separate.
 
 ### 2a. New Fernet keys (if a `*/crypto.py` diff references one)
@@ -89,6 +89,29 @@ Expect `200`. A `502`/`000` immediately after restart is usually just the worker
 A 200 on `/admin/login/` proves gunicorn is alive, nothing about what you just shipped. For anything behind a new code path (a new endpoint, a cron command, a config-driven behavior change), exercise it for real against PRD — call the endpoint, run the management command directly, check `journalctl -u gunicorn-educore` or `logs/cron.log` for the actual output. This session caught two real bugs this way that `check`/`migrate`/a green smoke test all missed:
 - a missing `django_cache` table (DRF throttling raised 500 until `manage.py createcachetable` was run — nothing had used the cache before)
 - rate limiting silently not working behind Cloudflare (nginx's `X-Forwarded-For` shifts per request; fixed by keying on `CF-Connecting-IP` instead)
+
+## System packages (native libraries the venv cannot provide)
+
+`pip install -r requirements.txt` does not install `weasyprint`'s native libraries. Without them
+the import fails and every PDF path **silently falls back to printable HTML** (QR decal sheets,
+payment receipts, merchant settlement statements, report cards, foundation dashboard export;
+each logs `weasyprint unavailable, falling back to HTML ...` at WARNING). The droplet is Ubuntu 24.04:
+
+```bash
+apt-get install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
+```
+
+(`weasyprint>=62` renders through Pango/HarfBuzz and Pillow; it no longer needs cairo or gdk-pixbuf.)
+
+Smoke check on a new or rebuilt host, and after any `weasyprint` bump in `requirements.txt`:
+
+```bash
+ssh -i "$KEY" root@188.166.212.206 "/root/myproject/educore-prd/venv/bin/python -c \"import weasyprint; print(weasyprint.__version__, weasyprint.HTML(string='x').write_pdf()[:4])\""
+```
+
+Expect a version and `b'%PDF'`. An `OSError`/`ImportError` about `libpango`/`libgobject` means the packages above are missing.
+To find out whether production has been silently degraded, grep for the fallback:
+`journalctl -u gunicorn-educore | grep "weasyprint unavailable"`.
 
 ## Syncing cron (only when `deploy/crontab` changed)
 
