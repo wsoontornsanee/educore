@@ -194,6 +194,15 @@ class BehaviourRecordViewSet(viewsets.ModelViewSet):
                 else:
                     return BehaviourRecord.objects.none()
 
+        # Teacher-only users read the behaviour records of their own classes' students,
+        # plus every record they wrote themselves (a duty teacher logs students outside
+        # their classes, and must still be able to see and supersede those entries).
+        from apps.academic.class_scope import ClassScope
+        from django.db.models import Q
+        scope = ClassScope(user, foundation_id)
+        if scope.is_restricted:  # (an empty Q OR-ed with another would wrongly narrow an unrestricted user)
+            qs = qs.filter(scope.student_q('student_id', 'school_id') | Q(recorded_by=user))
+
         student_id = self.request.query_params.get('student_id')
         if student_id:
             qs = qs.filter(student_id=student_id)

@@ -159,6 +159,8 @@ def _absence_request_qs(user, foundation_id):
     qs = AbsenceRequest.objects.filter(
         foundation_id=foundation_id, status=AbsenceRequestStatus.PENDING, deleted_at__isnull=True,
     ).select_related('student__person').order_by('-created_at')
+    from apps.academic.class_scope import ClassScope
+    qs = qs.filter(ClassScope(user, foundation_id).student_q('student_id', 'school_id'))
     return _in_scope(qs, scope, 'school_id')
 
 

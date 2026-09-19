@@ -15,6 +15,7 @@ school B is restricted in A only.
 from django.db.models import Q
 
 from apps.academic.models import ClassEnrollment, ClassGroup, ClassSubject
+from apps.identity.guardian_access import get_guardian_student_ids
 from apps.identity.models import RoleAssignment, School, Staff
 
 _UNRESTRICTING_ROLES = {
@@ -32,9 +33,11 @@ class ClassScope:
     of queries at construction, none afterwards."""
 
     def __init__(self, user, foundation_id):
+        self.foundation_id = foundation_id
         self.restricted_school_ids = set()
         self.own_class_ids = set()
         self.staff_ids = set()
+        self.guardian_student_ids = set()
         if getattr(user, 'is_superuser', False):
             return
 
@@ -59,6 +62,7 @@ class ClassScope:
             self.staff_ids = set(Staff.all_tenants.filter(
                 foundation_id=foundation_id, user=user, deleted_at__isnull=True,
             ).values_list('id', flat=True))
+            self.guardian_student_ids = get_guardian_student_ids(user, foundation_id)
             self.own_class_ids = set(ClassSubject.all_tenants.filter(
                 foundation_id=foundation_id, teacher_id__in=self.staff_ids, deleted_at__isnull=True,
             ).values_list('class_group_id', flat=True)) | set(ClassGroup.all_tenants.filter(
@@ -76,6 +80,22 @@ class ClassScope:
             return Q()
         return ~Q(**{f'{school_field}__in': self.restricted_school_ids}) | Q(
             **{f'{class_field}__in': self.own_class_ids},
+        )
+
+    def student_q(self, student_field, school_field):
+        """Q limiting a queryset of student-keyed rows to the visible students:
+        those enrolled in one of the user's classes, plus the user's own children
+        as a guardian. `student_field` is the lookup of the row's student id."""
+        if not self.restricted_school_ids:
+            return Q()
+        own_students = ClassEnrollment.all_tenants.filter(
+            foundation_id=self.foundation_id, class_group_id__in=self.own_class_ids,
+            is_active=True, deleted_at__isnull=True,
+        ).values('student_id')
+        return (
+            ~Q(**{f'{school_field}__in': self.restricted_school_ids})
+            | Q(**{f'{student_field}__in': own_students})
+            | Q(**{f'{student_field}__in': self.guardian_student_ids})
         )
 
     def class_groups(self, queryset):
@@ -97,12 +117,12 @@ def can_view_student_academics(user, student_id, foundation_id, scope=None):
     be a parent) always keeps access to their own child. Kept out of
     can_guardian_access_student itself because that check also guards finance,
     clinic and wallet data, which this class scope does not govern."""
-    from apps.identity.guardian_access import can_guardian_access_student, get_guardian_student_ids
+    from apps.identity.guardian_access import can_guardian_access_student
 
     if not can_guardian_access_student(user, student_id, foundation_id):
         return False
     scope = scope or ClassScope(user, foundation_id)
-    if not scope.is_restricted or student_id in get_guardian_student_ids(user, foundation_id):
+    if not scope.is_restricted or student_id in scope.guardian_student_ids:
         return True
     return any(
         scope.allows(class_group) for class_group in ClassGroup.all_tenants.filter(

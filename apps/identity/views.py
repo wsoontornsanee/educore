@@ -406,6 +406,10 @@ class StudentViewSet(viewsets.ModelViewSet):
                     # Neither staff nor linked students
                     return qs.none()
 
+        # Teacher-only users see just the students of their own classes (plus their own children).
+        from apps.academic.class_scope import ClassScope
+        qs = qs.filter(ClassScope(user, foundation_id).student_q('id', 'school_id'))
+
         # Filters
         school_id = self.request.query_params.get('school_id')
         if school_id and school_id.isdigit():

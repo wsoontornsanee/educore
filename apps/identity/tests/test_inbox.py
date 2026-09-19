@@ -94,8 +94,22 @@ class AbsenceRequestInboxTests(InboxTestBase):
         )
 
     def test_shown_to_holder_of_attendance_write_in_that_school(self):
-        for user in (self.admin, self.school_admin, self.teacher):
+        for user in (self.admin, self.school_admin):
             self.assertEqual(_section_ids(user, self.foundation), ['absence_requests'], user.full_name)
+
+    def test_teacher_sees_only_requests_of_students_in_their_own_classes(self):
+        # Per-teacher class scope: a teacher with no class of this student sees nothing...
+        self.assertEqual(_section_ids(self.teacher, self.foundation), [])
+        # ...and sees the request once the student is in a class they are homeroom teacher of.
+        from apps.academic.tests.base import enroll_in_class_of
+        from apps.identity.models import Person, Staff
+        person = Person.all_tenants.create(foundation_id=self.foundation.id, full_name='Guru Wali')
+        staff = Staff.all_tenants.create(
+            foundation_id=self.foundation.id, person=person, user=self.teacher, school=self.school,
+            join_date=datetime.date(2020, 1, 1),
+        )
+        enroll_in_class_of(staff, self.fx['student'], name='Kelas Guru Wali')
+        self.assertEqual(_section_ids(self.teacher, self.foundation), ['absence_requests'])
 
     def test_school_scoped_user_never_sees_another_schools_requests(self):
         self.assertEqual(_section_ids(self.admin_b, self.foundation), [])
@@ -229,7 +243,8 @@ class InboxBadgeTests(InboxTestBase):
             class_group=self.fx['class_group'], status=ReportCardStatus.PENDING_REVIEW, is_current=True,
         )
         self.assertEqual(get_inbox_count(self.admin, self.foundation.id), ITEMS_PER_SECTION + 6)
-        self.assertEqual(get_inbox_count(self.teacher, self.foundation.id), ITEMS_PER_SECTION + 5)
+        self.assertEqual(get_inbox_count(self.school_admin, self.foundation.id), ITEMS_PER_SECTION + 6)
+        self.assertEqual(get_inbox_count(self.teacher, self.foundation.id), 0)  # teacher has no classes
 
     def test_nav_shows_badge_only_when_something_is_pending(self):
         self.client.force_login(self.school_admin)

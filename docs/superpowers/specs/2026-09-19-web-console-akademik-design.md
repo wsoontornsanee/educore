@@ -99,8 +99,18 @@ The same `ClassScope` policy now applies to the academic JSON API, after a compa
 
 **Student-scoped endpoints** (grades, homework, report cards, attainment, timetable, permission slips, broadcasts) use `can_view_student_academics`: `can_guardian_access_student` plus, for a restricted teacher, the student must be enrolled in one of their classes. A linked guardian always keeps access to their own child, even if they are also a teacher. `can_guardian_access_student` itself is unchanged because it also guards finance, clinic and wallet data.
 
-**Not covered** (own Todos): the attendance, behaviour, identity `/students/`, wallet and clinic endpoints, `TimetableSlotViewSet` (its retrieve already limits to the slot's teacher, substitute or an admin) and the school-level expected-periods rollup.
+**Not covered** (see the next section and the Todos): `TimetableSlotViewSet` (its retrieve already limits to the slot's teacher, substitute or an admin) and the school-level expected-periods rollup.
+
+## Follow-on: class scope on the non-academic student endpoints
+
+Same policy, applied to the student-keyed reads a teacher-only user can reach outside the academic app. Decided with the product owner: **reads only; behaviour writes stay school-wide** (duty teachers log incidents for students outside their own classes).
+
+- `ClassScope.student_q(student_field, school_field)`: in a restricted school a row is visible if its student is actively enrolled in one of the user's classes or is the user's own child as a guardian. `ClassScope` also exposes `guardian_student_ids` (one extra query, only for restricted users).
+- Applied to: the identity student directory (`/students/`), daily attendance (`attendance/daily`, including the override action), staff absence requests (`attendance/absence-requests`, including approve/reject) and the Kotak tugas absence-request section, and behaviour-record reads.
+- Behaviour records: a restricted teacher reads their classes' students' records plus every record they wrote themselves, so a hallway entry can still be read and superseded; creating a record for any student in the school is unchanged. Careful: an empty `Q()` OR-ed with another condition silently narrows the query, so this branch only ORs when the user is restricted.
+- Mobile: the teacher app builds its student list from the agenda roster, never from `/students/`, and uses no attendance-day, absence-request or behaviour-list endpoint, so nothing there changes.
+- Unchanged on purpose: gate feeds and gate events, manual check-in, period roll-call (already limited to the teacher's own slots), the wallet and clinic endpoints (teachers hold neither `clinic.read` nor wallet access).
 
 ## Out of scope (Notion Todos)
 
-- Class scope on non-academic endpoints (attendance, behaviour, identity students).
+- Class scope on gate events / manual check-in, wallet and any other student-keyed endpoint added later.
