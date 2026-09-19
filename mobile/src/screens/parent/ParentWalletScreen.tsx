@@ -51,6 +51,8 @@ import {
   fetchWallet,
   fetchWalletTransactions,
   formatRupiah,
+  formatSignedRupiah,
+  isCreditAmount,
   pollTopupIntent,
   updateAutoTopupConfig,
   updateSpendRules,
@@ -77,6 +79,8 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
   onNavigateNutrition,
 }) => {
   const { t, locale } = useLocale();
+  // A type the app does not know yet shows as the raw code rather than nothing.
+  const txTypeLabel = (type: string) => t(`wallet.tx_type.${type}`, type);
   // Screen state
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -793,7 +797,7 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
             </View>
           ) : (
             transactions.map((tx) => {
-              const isCredit = tx.type === 'TOPUP' || tx.type === 'REFUND';
+              const isCredit = isCreditAmount(tx.amount);
               const formattedDate = new Date(tx.occurred_at).toLocaleString(locale, {
                 dateStyle: 'medium',
                 timeStyle: 'short',
@@ -814,7 +818,7 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
                           isCredit ? styles.txTypeTextCredit : styles.txTypeTextDebit,
                         ]}
                       >
-                        {tx.type}
+                        {txTypeLabel(tx.type)}
                       </Text>
                     </View>
                     <Text style={styles.txReference}>
@@ -850,7 +854,7 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
                         isCredit ? styles.txAmountCredit : styles.txAmountDebit,
                       ]}
                     >
-                      {isCredit ? `+${formatRupiah(tx.amount)}` : `-${formatRupiah(tx.amount)}`}
+                      {formatSignedRupiah(tx.amount)}
                     </Text>
                     <Text style={styles.txBalanceAfter}>
                       Saldo: {formatRupiah(tx.balance_after)}
@@ -1156,7 +1160,7 @@ export const ParentWalletScreen: React.FC<ParentWalletScreenProps> = ({
             <ScrollView contentContainerStyle={styles.modalBody} keyboardShouldPersistTaps="handled">
               {disputeTx && (
                 <Text style={styles.switchTitle}>
-                  {formatRupiah(disputeTx.amount)} ·{' '}
+                  {formatRupiah(Math.abs(Number(disputeTx.amount)))} ·{' '}
                   {new Date(disputeTx.occurred_at).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' })}
                 </Text>
               )}

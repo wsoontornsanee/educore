@@ -20,8 +20,12 @@ import {
   Alert,
   ActivityIndicator,
   useWindowDimensions,
+  SafeAreaView,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import { colors, typography, spacing } from '../theme/tokens.ts';
+import { posCategoryLabel } from '../services/posCategoryLabels.ts';
 import type {
   POSCartItem,
   POSProduct,
@@ -307,7 +311,8 @@ export const POSKioskScreen: React.FC<POSKioskScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* Top Header */}
+      {/* Top Header: the coloured band runs up under the status bar / notch, the controls stay below it. */}
+      <SafeAreaView style={styles.headerSafeArea}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           {onBack && (
@@ -354,6 +359,7 @@ export const POSKioskScreen: React.FC<POSKioskScreenProps> = ({
           )}
         </View>
       </View>
+      </SafeAreaView>
 
       {/* Main Kiosk Content */}
       <View style={[styles.mainLayout, isTablet ? styles.landscapeRow : styles.portraitCol]}>
@@ -384,7 +390,7 @@ export const POSKioskScreen: React.FC<POSKioskScreenProps> = ({
                       selectedCategory === cat && styles.categoryTabTextActive,
                     ]}
                   >
-                    {cat}
+                    {posCategoryLabel(cat)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -737,6 +743,11 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     fontSize: typography.fontSize.base,
     color: colors.muted,
+  },
+  headerSafeArea: {
+    backgroundColor: colors.primary,
+    // SafeAreaView insets nothing on Android, where the status bar overlaps the app instead.
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight ?? 0 : 0,
   },
   header: {
     height: 64,

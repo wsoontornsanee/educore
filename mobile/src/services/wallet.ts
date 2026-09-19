@@ -51,14 +51,35 @@ export interface AutoTopupFetchResult {
 
 const CACHE_PREFIX = 'educore_parent_wallet';
 
+function toAmount(amount: number | string | null | undefined): number {
+  if (amount === null || amount === undefined || amount === '') return 0;
+  const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+  return isNaN(num) ? 0 : num;
+}
+
 /**
- * Format a number or numeric string as Indonesian Rupiah currency.
+ * Format a number or numeric string as Indonesian Rupiah currency. A negative amount reads "-Rp 18.000", the
+ * sign before the currency, never "Rp -18.000".
  */
 export function formatRupiah(amount: number | string | null | undefined): string {
-  if (amount === null || amount === undefined || amount === '') return 'Rp 0';
-  const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-  if (isNaN(num)) return 'Rp 0';
-  return 'Rp ' + Math.round(num).toLocaleString('id-ID');
+  const num = Math.round(toAmount(amount));
+  const digits = Math.abs(num).toLocaleString('id-ID');
+  return num < 0 ? `-Rp ${digits}` : `Rp ${digits}`;
+}
+
+/**
+ * The ledger stores money leaving a wallet (a purchase) as a negative amount and money entering as a positive
+ * one, so the sign is read from the amount itself: "+Rp 50.000" / "-Rp 18.000". Adding a sign by transaction
+ * type on top of that is what produced "-Rp -18.000".
+ */
+export function formatSignedRupiah(amount: number | string | null | undefined): string {
+  const num = Math.round(toAmount(amount));
+  return num > 0 ? `+${formatRupiah(num)}` : formatRupiah(num);
+}
+
+/** True when the amount adds to the balance (drawn green in the history), false for spends and zero. */
+export function isCreditAmount(amount: number | string | null | undefined): boolean {
+  return Math.round(toAmount(amount)) > 0;
 }
 
 /**
