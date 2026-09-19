@@ -20,7 +20,11 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#C8102E"
-      }
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       [
@@ -36,6 +40,12 @@
           "cameraPermission": "EduCore memakai kamera untuk memindai kode QR pembayaran kantin."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "68d7a971-c1e9-4c74-aa01-dc4f588f486e"
+      }
+    },
+    "owner": "nat.wutti"
   }
 }
