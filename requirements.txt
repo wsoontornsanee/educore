@@ -28,3 +28,4 @@ python-dotenv>=1.0.0
 # Testing & Quality
 pytest>=8.3.2
 pytest-django>=4.9.0
+segno>=1.6.0

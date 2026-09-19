@@ -21,7 +21,7 @@ from apps.identity.console_access import StaffConsoleMixin
 from apps.identity.rbac import has_permission
 from educore.middleware.tenancy import tenant_context
 
-from .models import WalletReconciliation, WalletReconciliationStatus, WalletRefundRequest, WalletRefundStatus
+from .models import POSTerminal, POSTerminalStatus, WalletReconciliation, WalletReconciliationStatus, WalletRefundRequest, WalletRefundStatus
 from .services import (
     get_canteen_console_snapshot,
     get_reconciliation_queue,
@@ -50,6 +50,14 @@ class CanteenConsolePageView(StaffConsoleMixin, APIView):
         snapshot = get_canteen_console_snapshot(foundation_id, school) if school else None
         can_act = bool(school) and has_permission(request.user, ACTION_PERMISSION, foundation_id, school_id=school.id)
         ctx = {'schools': schools, 'school': school, 'snapshot': snapshot, 'can_act': can_act}
+        if school:
+            # QR Charge entry points (spec 18): oversight page for finance/admin, tablet screen for operators.
+            ctx['can_qr_manage'] = has_permission(request.user, 'finance.payment.read', foundation_id, school_id=school.id)
+            if has_permission(request.user, 'wallet.topup.write', foundation_id, school_id=school.id):
+                ctx['qr_terminals'] = list(POSTerminal.objects.filter(
+                    foundation_id=foundation_id, merchant__school=school, merchant__qr_self_amount_enabled=True,
+                    merchant__is_active=True, status=POSTerminalStatus.ACTIVE, deleted_at__isnull=True,
+                ).select_related('merchant').order_by('merchant__name', 'name'))
         if can_act:
             with tenant_context(foundation_id):
                 ctx.update({
