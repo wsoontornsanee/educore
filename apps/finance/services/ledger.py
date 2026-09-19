@@ -218,10 +218,19 @@ def post_invoice_issuance_journal(invoice: Invoice) -> LedgerJournal:
 def post_payment_settlement_journal(
     payment: Payment,
     allocations: list[PaymentAllocation],
-    overpayment: Decimal = Decimal('0.00'),
+    credit_balance_delta: Decimal = Decimal('0.00'),
 ) -> LedgerJournal:
     """
-    FIN-023: payment settled → Dr Cash, Dr Fee Expense / Cr AR, Cr Student Credit (if overpaid).
+    FIN-023: payment settled → Dr Cash, Dr Fee Expense / Cr AR, +/- Student Credit.
+
+    `credit_balance_delta` is the SIGNED movement on the student's
+    StudentCreditBalance for this settlement: positive is the normal FIN-015
+    overpayment-beyond-invoices case (Cr 2200); negative is a reconciliation
+    shortfall (Dr 2200) — a gateway settlement that arrived short of the
+    amount allocated to invoices (spec/06 FIN-024). Whichever direction, this
+    is what keeps `payment.net` (the actual cash movement, which for a
+    reconciled AMOUNT_MISMATCH is the gateway's real net, not the recorded
+    invoice amount) balanced against AR allocated at the billed amount.
     """
     entries = []
     # Dr Cash/Bank (1100)
@@ -251,13 +260,21 @@ def post_payment_settlement_journal(
             'credit': allocated_total,
         })
 
-    # Cr Student Credit Balance (2200) if overpaid (FIN-015)
-    if overpayment > Decimal('0.00'):
+    # +/- Student Credit Balance (2200): Cr if overpaid (FIN-015), Dr if a
+    # reconciliation shortfall left the student owing more than invoiced.
+    if credit_balance_delta > Decimal('0.00'):
         entries.append({
             'account_code': AccountCode.STUDENT_CREDIT,
             'account_name': 'Saldo Deposit Siswa',
             'debit': Decimal('0.00'),
-            'credit': overpayment,
+            'credit': credit_balance_delta,
+        })
+    elif credit_balance_delta < Decimal('0.00'):
+        entries.append({
+            'account_code': AccountCode.STUDENT_CREDIT,
+            'account_name': 'Saldo Deposit Siswa',
+            'debit': -credit_balance_delta,
+            'credit': Decimal('0.00'),
         })
 
     return post_ledger_journal(
