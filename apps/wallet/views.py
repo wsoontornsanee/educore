@@ -565,6 +565,18 @@ class WalletReconciliationQueueView(APIView):
         })
 
 
+def _school_scoped(qs, request, foundation_id, permission):
+    """Narrow a student-bearing queryset to the schools `request.user` holds
+    `permission` in (None ceiling = foundation-wide). The permission class only
+    sees a school when the URL/query names one, so an id-addressed action must
+    check the row's own school or a school-scoped officer could act on another
+    school's rows (IAM-012)."""
+    from apps.identity.console_access import accessible_school_ids
+
+    ceiling = accessible_school_ids(request.user, foundation_id, permission)
+    return qs if ceiling is None else qs.filter(student__school_id__in=ceiling)
+
+
 class WalletReconciliationCaseView(APIView):
     """Detail + admin actions on one reconciliation case (REC-026)."""
     permission_classes = [HasRequiredPermission]
@@ -572,7 +584,8 @@ class WalletReconciliationCaseView(APIView):
 
     def _get_case(self, request, case_id):
         foundation_id = get_current_foundation_id()
-        return WalletReconciliation.objects.filter(id=case_id, foundation_id=foundation_id).first()
+        qs = WalletReconciliation.objects.filter(id=case_id, foundation_id=foundation_id)
+        return _school_scoped(qs, request, foundation_id, self.required_permission).first()
 
 
 class WalletReconciliationSettleCashView(WalletReconciliationCaseView):
@@ -665,7 +678,8 @@ class WalletRefundActionView(APIView):
 
     def _get_request(self, request, refund_id):
         foundation_id = get_current_foundation_id()
-        return WalletRefundRequest.objects.filter(id=refund_id, foundation_id=foundation_id).first()
+        qs = WalletRefundRequest.objects.filter(id=refund_id, foundation_id=foundation_id)
+        return _school_scoped(qs, request, foundation_id, self.required_permission).first()
 
 
 class WalletRefundMarkPaidView(WalletRefundActionView):
