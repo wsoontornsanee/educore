@@ -30,7 +30,7 @@ from apps.wallet.qr_decals import (
     set_merchant_static_qr,
     terbilang,
 )
-from apps.wallet.tests.test_qr_charge import QRFixtureMixin, make_guardian
+from apps.wallet.tests.test_qr_charge import GUARDIAN_PIN, QRFixtureMixin, make_guardian
 
 
 class StaticFixture(QRFixtureMixin):
@@ -322,7 +322,7 @@ class StaticApiTests(StaticFixture, TestCase):
         self.assertEqual(res.json()['type'], 'STATIC')
         self.assertEqual(res.json()['payment_point_name'], 'Gerobak Minuman')
         res = self.client.post('/api/v1/wallet/qr/charge/', {
-            'token': token, 'student_id': self.student.id, 'amount': '8000.00', 'idempotency_key': 'g1',
+            'token': token, 'student_id': self.student.id, 'amount': '8000.00', 'idempotency_key': 'g1', 'pin': GUARDIAN_PIN,
         }, format='json')
         self.assertEqual(res.status_code, 201, res.content)
         self.assertEqual(res.json()['balance_after'], '92000.00')

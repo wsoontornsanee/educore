@@ -295,6 +295,28 @@ class User(AbstractBaseUser, PermissionsMixin, TenantModel):
             self.locked_until = None
             self.save(update_fields=['failed_login_attempts', 'locked_until'])
 
+class UserPin(TenantModel):
+    """A guardian's 6-digit spending PIN (spec 18 QRS-029), verified server-side at QR charge time.
+
+    Only a peppered Argon2id verifier is stored (see ``apps.identity.pin``). ``failed_count`` counts
+    failures since the last success inside a 24 h window; three in a row lock the PIN for 15 minutes,
+    ten require an OTP reset.
+    """
+    user = models.OneToOneField('User', on_delete=models.CASCADE, related_name='spending_pin')
+    pin_hash = models.CharField(max_length=255)
+    set_at = models.DateTimeField()
+    failed_count = models.PositiveIntegerField(default=0)
+    first_failed_at = models.DateTimeField(null=True, blank=True)
+    locked_until = models.DateTimeField(null=True, blank=True)
+    requires_otp_reset = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'user_pins'
+
+    def __str__(self):
+        return f"PIN for user {self.user_id}"
+
+
 class OTPChallenge(models.Model):
     """WhatsApp/SMS OTP authentication challenge (IAM-002, IAM-003)."""
     id = models.BigAutoField(primary_key=True)
