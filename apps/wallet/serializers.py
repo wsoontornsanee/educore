@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from apps.wallet.models import (
+    QRDispute,
     Merchant,
     MerchantSettlement,
     WalletAutoTopupConfig,
@@ -112,10 +113,13 @@ class MerchantSerializer(serializers.ModelSerializer):
         model = Merchant
         fields = [
             'id', 'foundation_id', 'school', 'name', 'type', 'settlement_account', 'commission_bps', 'is_active',
-            'qr_self_amount_enabled', 'qr_self_amount_ack_at', 'created_at', 'updated_at',
+            'qr_self_amount_enabled', 'qr_self_amount_ack_at', 'qr_dispute_flagged_at', 'created_at', 'updated_at',
         ]
         # QR Charge is switched only through POST /merchants/:id/qr-charge/, which records the acknowledgement.
-        read_only_fields = ['id', 'foundation_id', 'qr_self_amount_enabled', 'qr_self_amount_ack_at', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'foundation_id', 'qr_self_amount_enabled', 'qr_self_amount_ack_at', 'qr_dispute_flagged_at',
+            'created_at', 'updated_at',
+        ]
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -271,3 +275,25 @@ class QRChargeSerializer(QRStudentTokenSerializer):
 class MerchantQRChargeSerializer(serializers.Serializer):
     enabled = serializers.BooleanField()
     acknowledged = serializers.BooleanField(required=False, default=False)
+
+
+class QRDisputeOpenSerializer(serializers.Serializer):
+    reason = serializers.CharField(max_length=500)
+
+
+class QRDisputeResolveSerializer(serializers.Serializer):
+    outcome = serializers.ChoiceField(choices=['UPHELD', 'REJECTED'])
+    note = serializers.CharField(max_length=500, required=False, allow_blank=True, default='')
+    refund_amount = serializers.DecimalField(max_digits=18, decimal_places=2, required=False, allow_null=True, default=None)
+
+
+class QRDisputeSerializer(serializers.ModelSerializer):
+    refund_amount = serializers.DecimalField(max_digits=18, decimal_places=2, coerce_to_string=True, allow_null=True)
+
+    class Meta:
+        model = QRDispute
+        fields = [
+            'id', 'pos_transaction', 'merchant', 'student', 'reason', 'status', 'resolved_at',
+            'resolution_note', 'refund_amount', 'created_at',
+        ]
+        read_only_fields = fields

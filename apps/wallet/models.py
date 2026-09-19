@@ -125,6 +125,10 @@ class Merchant(TenantModel):
         help_text=_("Admin who acknowledged the operator-verifies-amount statement (QRS-001)"),
     )
     qr_self_amount_ack_at = models.DateTimeField(null=True, blank=True)
+    qr_dispute_flagged_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text=_("Raised when 3+ QR disputes are upheld in 30 days; cleared on school-admin review (QRS-028)"),
+    )
 
     class Meta:
         db_table = 'merchants'
@@ -255,6 +259,43 @@ class POSQRSession(TenantModel):
 
     def __str__(self):
         return f"QR session {self.pk} @ {self.terminal_id}"
+
+
+class QRDisputeStatus(models.TextChoices):
+    OPEN = 'OPEN', _('Terbuka')
+    UPHELD = 'UPHELD', _('Dikabulkan')
+    REJECTED = 'REJECTED', _('Ditolak')
+
+
+class QRDispute(TenantModel):
+    """A guardian's dispute of a self-entered QR charge (spec 18 §7, QRS-026).
+
+    Opening one never reverses anything; an upheld outcome is a separate REFUND or
+    ADJUSTMENT ledger line recorded in ``resolution_transaction``.
+    """
+    pos_transaction = models.ForeignKey(POSTransaction, on_delete=models.PROTECT, related_name='disputes')
+    merchant = models.ForeignKey(Merchant, on_delete=models.PROTECT, related_name='qr_disputes')
+    student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name='+')
+    opened_by = models.ForeignKey('identity.User', on_delete=models.PROTECT, related_name='+')
+    reason = models.CharField(max_length=500)
+    status = models.CharField(max_length=16, choices=QRDisputeStatus.choices, default=QRDisputeStatus.OPEN)
+    resolved_by = models.ForeignKey('identity.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolution_note = models.CharField(max_length=500, blank=True, default='')
+    refund_amount = MoneyField(null=True, blank=True)
+    resolution_transaction = models.ForeignKey(
+        WalletTransaction, on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+    )
+
+    class Meta:
+        db_table = 'pos_qr_disputes'
+        indexes = [
+            models.Index(fields=['foundation_id', 'merchant_id', 'status']),
+            models.Index(fields=['foundation_id', 'student_id']),
+        ]
+
+    def __str__(self):
+        return f"Dispute #{self.pk} on POS {self.pos_transaction_id} ({self.status})"
 
 
 class MerchantSettlementStatus(models.TextChoices):

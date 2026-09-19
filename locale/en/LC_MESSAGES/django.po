@@ -966,9 +966,6 @@ msgstr "Major Violation"
 
 #: apps/campus/models.py:20 apps/finance/models.py:555
 #: apps/wallet/models.py:258
-msgid "Terbuka"
-msgstr "Open"
-
 #: apps/campus/models.py:21
 msgid "Dalam Penanganan"
 msgstr "In Progress"
@@ -8281,3 +8278,35 @@ msgstr "Something went wrong while processing the request. Please try again."
 
 msgid "Formulir ini sudah dikirim atau kedaluwarsa. Muat ulang halaman lalu coba lagi."
 msgstr "This form was already submitted or has expired. Reload the page and try again."
+msgid "Terbuka"
+msgstr "Open"
+
+msgid "Dikabulkan"
+msgstr "Upheld"
+
+msgid "Hanya pembayaran QR yang diinput siswa dan masih berlaku yang dapat disanggah."
+msgstr "Only valid, student-entered QR payments can be disputed."
+
+msgid "Batas waktu sanggahan 7 hari sudah lewat."
+msgstr "The 7-day dispute window has passed."
+
+msgid "Pembayaran ini sudah pernah disanggah."
+msgstr "This payment has already been disputed."
+
+msgid "Hasil sanggahan tidak valid."
+msgstr "Invalid dispute outcome."
+
+msgid "Sanggahan ini sudah diselesaikan."
+msgstr "This dispute has already been resolved."
+
+msgid "Jumlah pengembalian harus lebih dari nol dan tidak melebihi pembayaran."
+msgstr "The refund must be more than zero and no more than the payment."
+
+msgid "Tanggal tidak valid (YYYY-MM-DD)."
+msgstr "Invalid date (YYYY-MM-DD)."
+
+msgid "Transaksi tidak ditemukan."
+msgstr "Transaction not found."
+
+msgid "Sanggahan tidak ditemukan."
+msgstr "Dispute not found."

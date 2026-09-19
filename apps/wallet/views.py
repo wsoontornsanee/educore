@@ -19,6 +19,7 @@ from educore.middleware.tenancy import get_current_foundation_id
 from apps.wallet.models import (
     POSEntryMode,
     POSQRSession,
+    QRDispute,
     Merchant,
     MerchantSettlement,
     WalletAutoTopupConfig,
@@ -47,6 +48,9 @@ from apps.wallet.serializers import (
     POSTransactionVoidSerializer,
     ProductSerializer,
     QRChargeSerializer,
+    QRDisputeOpenSerializer,
+    QRDisputeResolveSerializer,
+    QRDisputeSerializer,
     QRSessionCreateSerializer,
     QRStudentTokenSerializer,
     ReconciliationCashSettleSerializer,
@@ -71,6 +75,13 @@ from apps.wallet.qr_charge import (
     get_qr_session_result,
     resolve_qr_session,
     set_merchant_qr_charge,
+)
+from apps.wallet.qr_oversight import (
+    QRDisputeError,
+    clear_merchant_qr_flag,
+    get_underpayment_signals,
+    open_qr_dispute,
+    resolve_qr_dispute,
 )
 from apps.wallet.services import (
     CurrencyMismatchError,
@@ -374,8 +385,47 @@ class MerchantViewSet(TenantScopedCatalogViewSet):
         'create': 'school_config.write', 'update': 'school_config.write',
         'partial_update': 'school_config.write', 'destroy': 'school_config.write',
         'sales': 'finance.payment.read', 'settlements': 'finance.payment.read', 'run_settlement': 'finance.payment.write',
-        'qr_charge': 'school_config.write',
+        'qr_charge': 'school_config.write', 'clear_qr_flag': 'school_config.write',
+        'qr_disputes': 'finance.payment.read', 'underpayment_signals': 'finance.payment.read',
     }
+
+    @action(detail=True, methods=['post'], url_path='qr-flag/clear')
+    def clear_qr_flag(self, request, pk=None):
+        """POST /merchants/:id/qr-flag/clear/ — school-admin review closes the dispute flag (QRS-028)."""
+        merchant = self.get_object()
+        clear_merchant_qr_flag(merchant, request.user)
+        return Response(self.get_serializer(merchant).data)
+
+    @action(detail=True, methods=['get'], url_path='qr-disputes')
+    def qr_disputes(self, request, pk=None):
+        """GET /merchants/:id/qr-disputes/?status= — merchant-visible dispute cases (QRS-026)."""
+        merchant = self.get_object()
+        qs = QRDispute.objects.filter(
+            foundation_id=merchant.foundation_id, merchant=merchant, deleted_at__isnull=True,
+        ).order_by('-created_at')
+        wanted = request.query_params.get('status')
+        if wanted:
+            qs = qs.filter(status=wanted)
+        return Response(QRDisputeSerializer(qs, many=True).data)
+
+    @action(detail=True, methods=['get'], url_path='underpayment-signals')
+    def underpayment_signals(self, request, pk=None):
+        """GET /merchants/:id/underpayment-signals/?date=YYYY-MM-DD (QRS-027)."""
+        merchant = self.get_object()
+        raw = request.query_params.get('date')
+        day = None
+        if raw:
+            try:
+                day = datetime.strptime(raw, '%Y-%m-%d').date()
+            except ValueError:
+                return Response({'error': _("Tanggal tidak valid (YYYY-MM-DD).")}, status=status.HTTP_400_BAD_REQUEST)
+        report = get_underpayment_signals(merchant, day)
+        report['p10'] = None if report['p10'] is None else str(report['p10'])
+        for row in report['students']:
+            row['total'] = str(row['total'])
+            for tx in row['transactions']:
+                tx['amount'] = str(tx['amount'])
+        return Response(report)
 
     @action(detail=True, methods=['post'], url_path='qr-charge')
     def qr_charge(self, request, pk=None):
@@ -688,6 +738,51 @@ class QRChargeView(_QRStudentView):
             'balance_after': str(pos_tx.wallet_transaction.balance_after),
             'occurred_at': pos_tx.occurred_at,
         }, status=status.HTTP_201_CREATED)
+
+
+class QRDisputeOpenView(_QRStudentView):
+    """POST /wallet/transactions/:id/dispute/: guardian contests a self-entered charge (QRS-026)."""
+
+    def post(self, request, wallet_transaction_id):
+        payload = QRDisputeOpenSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        wallet_tx = WalletTransaction.objects.filter(
+            id=wallet_transaction_id, foundation_id=get_current_foundation_id(), deleted_at__isnull=True,
+        ).select_related('wallet').first()
+        student = self._guardian_student(request, wallet_tx.wallet.student_id) if wallet_tx else None
+        pos_tx = POSTransaction.objects.filter(
+            foundation_id=wallet_tx.foundation_id, wallet_transaction=wallet_tx,
+        ).first() if student else None
+        if not pos_tx:
+            return Response({'error': _("Transaksi tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            dispute = open_qr_dispute(pos_tx, request.user, payload.validated_data['reason'])
+        except QRDisputeError as e:
+            return Response({'error': e.code, 'message': e.message}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(QRDisputeSerializer(dispute).data, status=status.HTTP_201_CREATED)
+
+
+class QRDisputeResolveView(APIView):
+    """POST /wallet/qr-disputes/:id/resolve/: school staff uphold (refund/adjust) or reject."""
+    permission_classes = [HasRequiredPermission]
+    required_permission = 'school_config.write'
+
+    def post(self, request, dispute_id):
+        payload = QRDisputeResolveSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        data = payload.validated_data
+        dispute = QRDispute.objects.filter(
+            id=dispute_id, foundation_id=get_current_foundation_id(), deleted_at__isnull=True,
+        ).first()
+        if not dispute:
+            return Response({'error': _("Sanggahan tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            dispute = resolve_qr_dispute(dispute, data['outcome'], request.user, data['note'], data['refund_amount'])
+        except QRDisputeError as e:
+            return Response({'error': e.code, 'message': e.message}, status=status.HTTP_400_BAD_REQUEST)
+        except WalletNotActiveError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(QRDisputeSerializer(dispute).data)
 
 
 class POSSyncView(APIView):
