@@ -534,3 +534,80 @@ class AbsenceRequest(TenantModel):
     def __str__(self):
         return f"{self.type} - {self.student.nis} ({self.date_from} s/d {self.date_to}) [{self.status}]"
 
+
+
+class PickupMethod(models.TextChoices):
+    QR = 'QR', _('QR penjemputan (QR pickup)')
+    GUARDIAN = 'GUARDIAN', _('Wali terdaftar (Registered guardian)')
+    OVERRIDE = 'OVERRIDE', _('Pengecualian admin sekolah (School admin override)')
+
+
+class PickupAuthorization(TenantModel):
+    """A guardian's authorisation for one named person to collect one student (spec/05 §5, ATT-014, ATT-015).
+
+    Created by a guardian of the student who may pick up; it is proven at the gate by a signed QR token whose
+    only content is this row's id, so revoking or using the row invalidates every copy of the QR. The window
+    (`valid_from`..`valid_to`) is checked in the database, never trusted from the token. A `one_time`
+    authorisation is spent by the first completed pickup. `person_name`, `phone` and `photo_key` are PII of a
+    third party: they are shown to staff at the gate and never written to logs or audit diffs.
+    """
+    school = models.ForeignKey('identity.School', on_delete=models.PROTECT, related_name='pickup_authorizations')
+    student = models.ForeignKey('identity.Student', on_delete=models.PROTECT, related_name='pickup_authorizations')
+    created_by_guardian = models.ForeignKey(
+        'identity.Guardian', on_delete=models.PROTECT, related_name='pickup_authorizations',
+    )
+    person_name = models.CharField(max_length=120)
+    relation = models.CharField(max_length=64, blank=True, default='')
+    phone = models.CharField(max_length=32, blank=True, default='')
+    photo_key = models.CharField(max_length=500, blank=True, default='')
+    valid_from = models.DateTimeField()
+    valid_to = models.DateTimeField(db_index=True)
+    one_time = models.BooleanField(default=True)
+    used_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked_by = models.ForeignKey(
+        'identity.User', null=True, blank=True, on_delete=models.PROTECT, related_name='+',
+    )
+
+    class Meta(TenantModel.Meta):
+        db_table = 'pickup_authorizations'
+        indexes = [
+            models.Index(fields=['foundation_id', 'student', 'valid_to'], name='idx_pickauth_fnd_stu_to'),
+            models.Index(fields=['foundation_id', 'school', 'valid_to'], name='idx_pickauth_fnd_sch_to'),
+        ]
+
+    def __str__(self):
+        return f"Pickup authorisation #{self.pk} for student {self.student_id} ({self.valid_from:%Y-%m-%d %H:%M} - {self.valid_to:%Y-%m-%d %H:%M})"
+
+
+class PickupEvent(TenantModel):
+    """One completed release of a student to a person (spec/05 §5, ATT-016..ATT-018).
+
+    `verified_by` is the staff member who checked the person at the gate. `method` says why the release was
+    allowed: a valid QR authorisation, a registered guardian with `can_pickup`, or a school-admin override
+    (then `override_reason` is mandatory). `picked_up_by` is a name, snapshotted so the record survives edits
+    to the authorisation or guardian.
+    """
+    school = models.ForeignKey('identity.School', on_delete=models.PROTECT, related_name='pickup_events')
+    student = models.ForeignKey('identity.Student', on_delete=models.PROTECT, related_name='pickup_events')
+    authorization = models.ForeignKey(
+        PickupAuthorization, null=True, blank=True, on_delete=models.PROTECT, related_name='events',
+    )
+    authorized_by_guardian = models.ForeignKey(
+        'identity.Guardian', null=True, blank=True, on_delete=models.PROTECT, related_name='+',
+    )
+    picked_up_by = models.CharField(max_length=120)
+    verified_by = models.ForeignKey('identity.User', on_delete=models.PROTECT, related_name='+')
+    occurred_at = models.DateTimeField(default=timezone.now, db_index=True)
+    method = models.CharField(max_length=16, choices=PickupMethod.choices, db_index=True)
+    override_reason = models.TextField(blank=True, default='')
+
+    class Meta(TenantModel.Meta):
+        db_table = 'pickup_events'
+        indexes = [
+            models.Index(fields=['foundation_id', 'school', 'occurred_at'], name='idx_pickev_fnd_sch_at'),
+            models.Index(fields=['foundation_id', 'student', 'occurred_at'], name='idx_pickev_fnd_stu_at'),
+        ]
+
+    def __str__(self):
+        return f"Pickup event #{self.pk} student {self.student_id} via {self.method}"
