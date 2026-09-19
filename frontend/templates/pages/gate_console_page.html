@@ -24,6 +24,7 @@ apps.attendance.web_views.GateConsolePageView at /web/attendance/gate/.
   {% include "components/_console_flash.html" %}
 
   {% if school and can_write %}
+    <p><a class="btn" href="{% url 'attendance-pickup-console-page' %}?school_id={{ school.id }}">{% translate "Penjemputan siswa" %}</a></p>
     <section class="cn-section" aria-labelledby="gate-piket-h">
       <h2 id="gate-piket-h">{% translate "Tindakan piket" %}</h2>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px;padding:16px">

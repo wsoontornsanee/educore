@@ -210,6 +210,14 @@ PURPOSE_RULES = {
         },
         'required_permission': 'grades.write',
     },
+    # ATT-015/ATT-016: the photo of the person a guardian authorises to collect their child. Small images only,
+    # uploaded by a guardian (`pickup.authorize`); a pickup authorisation accepts only the uploader's own
+    # confirmed file of this purpose.
+    'pickup_photo': {
+        'max_size': 2 * 1024 * 1024,
+        'allowed_content_types': {'image/jpeg', 'image/png'},
+        'required_permission': 'pickup.authorize',
+    },
 }
 
 

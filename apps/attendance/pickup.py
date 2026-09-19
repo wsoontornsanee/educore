@@ -26,6 +26,8 @@ from apps.identity.recipients import get_school_admin_users
 logger = logging.getLogger(__name__)
 
 TOKEN_SALT = 'attendance.pickup.qr.v1'
+PICKUP_PHOTO_PURPOSE = 'pickup_photo'
+PHOTO_URL_SECONDS = 300
 MAX_AUTHORIZATION_WINDOW = timedelta(days=366)
 MAX_OVERRIDE_REASON_AUDIT_CHARS = 500
 
@@ -37,6 +39,51 @@ class PickupError(ValueError):
         super().__init__(code)
         self.code = code
         self.message = message
+
+
+# ── Photo (ATT-015, ATT-016) ────────────────────────────────────────────────────────────────────────────
+
+def _confirmed_pickup_photo(foundation_id, photo_key, uploaded_by=None):
+    """The confirmed `pickup_photo` StoredFile for `photo_key` in this foundation (optionally by one uploader)."""
+    from apps.core.models import StoredFile
+
+    filters = dict(
+        foundation_id=foundation_id, key=photo_key, purpose=PICKUP_PHOTO_PURPOSE,
+        confirmed_at__isnull=False, deleted_at__isnull=True,
+    )
+    if uploaded_by is not None:
+        filters['uploaded_by'] = str(uploaded_by)
+    return StoredFile.all_tenants.filter(**filters).first()
+
+
+def _validated_photo_key(user, foundation_id, photo_key) -> str:
+    """A guardian supplies `photo_key`, so it must be that guardian's own confirmed `pickup_photo` upload in
+    this foundation. Anything else could point at another tenant's file, which staff would then be shown."""
+    if not photo_key:
+        return ''
+    if _confirmed_pickup_photo(foundation_id, photo_key, uploaded_by=user.id) is None:
+        raise PickupError(
+            'PICKUP_INVALID_PHOTO',
+            _("Foto tidak valid: unggah foto penjemput terlebih dahulu dan pastikan unggahannya sudah dikonfirmasi."),
+        )
+    return photo_key
+
+
+def pickup_photo_url(authorization: PickupAuthorization) -> str:
+    """A short-lived download link for the authorisation's photo, or '' when there is none. Only a key that still
+    resolves to a confirmed pickup photo of the same foundation is ever signed (defence in depth: an authorisation
+    stored before the key was validated is not trusted), and a storage failure reads as no photo."""
+    if not authorization.photo_key:
+        return ''
+    if _confirmed_pickup_photo(authorization.foundation_id, authorization.photo_key) is None:
+        return ''
+    from apps.core import storage
+    try:
+        url = storage.generate_download_url(authorization.photo_key, expires_seconds=PHOTO_URL_SECONDS)
+    except Exception as exc:  # noqa: BLE001 - a missing photo must not block a release decision
+        logger.warning("pickup photo link failed for authorization %s: %s", authorization.id, type(exc).__name__)
+        return ''
+    return str(url) if isinstance(url, str) else ''
 
 
 # ── Authorisations (guardian side, ATT-015) ─────────────────────────────────────────────────────────────
@@ -63,10 +110,11 @@ def create_pickup_authorization(
             'PICKUP_INVALID_WINDOW',
             _("Masa berlaku tidak valid: harus berakhir di masa depan, setelah waktu mulai, dan paling lama 366 hari."),
         )
+    photo_key = _validated_photo_key(user, student.foundation_id, photo_key)
     authorization = PickupAuthorization.all_tenants.create(
         foundation_id=student.foundation_id, school=student.school, student=student,
         created_by_guardian=link.guardian, person_name=person_name, relation=(relation or '').strip(),
-        phone=(phone or '').strip(), photo_key=photo_key or '', valid_from=valid_from, valid_to=valid_to,
+        phone=(phone or '').strip(), photo_key=photo_key, valid_from=valid_from, valid_to=valid_to,
         one_time=one_time,
     )
     audit(
@@ -167,6 +215,7 @@ def verification_summary(authorization: PickupAuthorization) -> dict:
         'person_name': authorization.person_name,
         'relation': authorization.relation,
         'photo_key': authorization.photo_key,
+        'photo_url': pickup_photo_url(authorization),
         'phone_last4': phone[-4:] if phone else '',
         'valid_from': authorization.valid_from,
         'valid_to': authorization.valid_to,
