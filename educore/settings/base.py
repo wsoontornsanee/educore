@@ -346,6 +346,12 @@ CALENDAR_SYNC_REDIRECT_URI = os.environ.get(
 # SECRET_KEY when unset — production must set an explicit key).
 EDUCORE_CALENDAR_FERNET_KEY = os.environ.get('EDUCORE_CALENDAR_FERNET_KEY', '')
 
+# RBAC visibility sheet — `manage.py sync_rbac_sheet` (docs/superpowers/specs/2026-09-19-rbac-sheet-sync-design.md).
+# Google service-account key JSON (one line; named *_KEY so Django's HIDDEN_SETTINGS hides it) + target spreadsheet ID; share the sheet with the
+# service account email as Editor. Either empty disables the sync (command exits 0).
+RBAC_SHEET_ID = os.environ.get('RBAC_SHEET_ID', '')
+RBAC_SHEET_SERVICE_ACCOUNT_KEY = os.environ.get('RBAC_SHEET_SERVICE_ACCOUNT_KEY', '')
+
 # Structured JSON logging + universal PII scrubbing (AGENTS Red Line #5:
 # NIK/NISN/phone/passwords/tokens must never reach raw logs). Every handler
 # runs PIIScrubbingFilter before JSONFormatter renders the line — see
