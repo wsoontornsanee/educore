@@ -7,6 +7,7 @@ from unittest import mock
 
 from django.contrib.messages import get_messages
 from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -149,11 +150,15 @@ class GradeAndReturnTests(ConsoleActionTestBase):
             self.foundation, self.school, "+628133000009", "wali@aksi.test", "Wali Aksi",
             "3471010101022009", student=self.fx['student'],
         )
-        for user, expected in ((counsellor, 403), (guardian_user, 403), (no_staff, 404), (other_school, 404)):
+        # no permission -> sent home (never a raw JSON 403); no Staff profile / other school -> 404
+        home = reverse('web-console-home')
+        for user, expected in ((counsellor, 302), (guardian_user, 302), (no_staff, 404), (other_school, 404)):
             self.client.force_authenticate(user=user)
             for url in (self.grade_url, self.return_url):
                 res = self.client.post(url, {'score': '90', 'feedback': 'x'})
                 self.assertEqual(res.status_code, expected, (user.full_name, url))
+                if expected == 302:
+                    self.assertEqual(res['Location'], home, (user.full_name, url))
             self.assertEqual(self.reload().status, S.SUBMITTED)
         self.client.force_authenticate(user=None)
         self.assertIn(self.client.post(self.grade_url, {'score': '90'}).status_code, (401, 403))
@@ -281,13 +286,15 @@ class ReportCardActionTests(ConsoleActionTestBase):
 
     def test_permission_gates_per_action(self):
         # teacher: grades.write but not school_config.write -> cannot approve/publish; can revise
-        self.assertEqual(self.client.post(self.url('approve')).status_code, 403)
-        self.assertEqual(self.client.post(self.url('publish')).status_code, 403)
+        home = reverse('web-console-home')
+        for action in ('approve', 'publish'):
+            res = self.client.post(self.url(action))
+            self.assertEqual((res.status_code, res['Location']), (302, home), action)
         counsellor = self.make_staff_user('counsellor', phone='+628119990300')
         self.client.force_authenticate(user=counsellor)
         for action in ('approve', 'publish', 'revise'):
-            self.assertEqual(self.client.post(self.url(action)).status_code, 403, action)
-        self.assertEqual(self.client.post(f'{CARDS}generate/', {}).status_code, 403)
+            self.assertEqual(self.client.post(self.url(action)).status_code, 302, action)
+        self.assertEqual(self.client.post(f'{CARDS}generate/', {}).status_code, 302)
         no_staff = self.make_staff_user('school_admin', phone='+628119990600', with_staff=False)
         self.client.force_authenticate(user=no_staff)
         self.assertEqual(self.client.post(self.url('approve')).status_code, 404)

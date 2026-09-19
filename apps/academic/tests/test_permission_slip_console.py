@@ -10,6 +10,7 @@ from unittest import mock
 from django.template.loader import render_to_string
 from django.test import TestCase
 from django.utils import timezone
+from django.urls import reverse
 from rest_framework.test import APIClient
 
 from apps.academic.models import ClassEnrollment, PermissionSlip, PermissionSlipAcknowledgement
@@ -190,12 +191,12 @@ class PermissionSlipConsoleEndpointTests(TestCase):
         self.assertIn('Judul izin wajib diisi', res.content.decode())
 
     def test_console_create_rejected_for_guardian_role(self):
-        # A guardian lacks grades.write -> 403 before any staff lookup
+        # A guardian lacks grades.write -> denied (sent home) before any staff lookup
         self.client.force_authenticate(user=self.guardian_user)
         res = self.client.post('/web/academic/permission-slips/create/', {
             'title': 'X', 'class_group_id': self.class_group.id,
         })
-        self.assertEqual(res.status_code, 403)
+        self.assertRedirects(res, reverse('web-console-home'), fetch_redirect_response=False)
 
     def test_tally_fragment_reflects_acknowledgements(self):
         slip = create_permission_slip(self.teacher, self.class_group, 'Izin tally fragmen')

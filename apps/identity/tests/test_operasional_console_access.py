@@ -5,6 +5,7 @@ cross-tenant 404, via apps.identity.console_access.
 import datetime
 
 from django.test import TestCase
+from django.urls import reverse
 from rest_framework.test import APIClient
 
 from apps.academic.tests.base import build_academic_fixture
@@ -98,17 +99,23 @@ class OperasionalConsoleAccessTests(TestCase):
         for url in PAGES:
             self.assertEqual(self.client.get(url).status_code, 404, url)
 
-    def test_role_without_the_page_permission_gets_403(self):
-        # clinic_officer holds none of attendance.read / grades.read / wallet.topup.read
+    def test_role_without_the_page_permission_is_sent_home_with_a_message(self):
+        # clinic_officer holds none of attendance.read / grades.read / wallet.topup.read;
+        # a browser page must never answer with DRF's raw JSON 403 body.
         self.client.force_authenticate(user=self._staff('clinic_officer', self.school_a, '20'))
         for url in PAGES:
-            self.assertEqual(self.client.get(url).status_code, 403, url)
+            res = self.client.get(url)
+            self.assertRedirects(res, reverse('web-console-home'), fetch_redirect_response=False, msg_prefix=url)
+            self.assertIn("Anda tidak memiliki akses ke halaman tersebut.", [str(m) for m in res.wsgi_request._messages], url)
 
     def test_school_scoped_staff_cannot_open_another_school(self):
         # HasRequiredPermission (IAM-012) already denies a school the role isn't assigned to.
         for i, (url, role) in enumerate(PAGES.items()):
             self.client.force_authenticate(user=self._staff(role, self.school_a, f'3{i}'))
-            self.assertEqual(self.client.get(url, {'school_id': self.school_b.id}).status_code, 403, url)
+            self.assertRedirects(
+                self.client.get(url, {'school_id': self.school_b.id}), reverse('web-console-home'),
+                fetch_redirect_response=False, msg_prefix=url,
+            )
 
     def test_malformed_school_id_is_404(self):
         for i, (url, role) in enumerate(PAGES.items()):

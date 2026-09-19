@@ -8220,3 +8220,6 @@ msgstr "Revision created as a draft."
 msgid "Rapor dibuat: %(created)s baru, %(updated)s diperbarui, %(skipped)s dilewati."
 msgstr "Report cards: %(created)s created, %(updated)s updated, %(skipped)s skipped."
 
+
+msgid "Anda tidak memiliki akses ke halaman tersebut."
+msgstr "You do not have access to that page."

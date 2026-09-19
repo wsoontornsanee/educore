@@ -3,6 +3,7 @@ import uuid
 
 from django.test import TestCase
 from django.utils import timezone
+from django.urls import reverse
 from rest_framework.test import APIClient
 
 from apps.academic.tests.base import build_academic_fixture
@@ -165,10 +166,10 @@ class GateConsoleWriteActionTests(TestCase):
     def test_read_only_user_cannot_write(self):
         self.client.force_authenticate(user=self.reader)
         res = self.client.post(self.url(self.MANUAL), {'nis': self.student.nis, 'direction': 'IN', 'reason': 'x'})
-        self.assertEqual(res.status_code, 403)
+        self.assertRedirects(res, reverse('web-console-home'), fetch_redirect_response=False)
         self.assertEqual(GateEvent.all_tenants.filter(method=GateMethod.MANUAL).count(), 0)
         res = self.client.post(self.url(self.OVERRIDE), {'nis': self.student.nis, 'status': 'SAKIT', 'note': 'x'})
-        self.assertEqual(res.status_code, 403)
+        self.assertRedirects(res, reverse('web-console-home'), fetch_redirect_response=False)
 
     def test_student_of_another_school_or_foundation_is_not_found(self):
         other = build_academic_fixture("Yayasan Piket Lain")
@@ -176,9 +177,9 @@ class GateConsoleWriteActionTests(TestCase):
         res = self.client.post(self.url(self.MANUAL), {'nis': other['student'].nis, 'direction': 'IN', 'reason': 'x'})
         if other['student'].nis != self.student.nis:
             self.assertEqual(GateEvent.all_tenants.filter(method=GateMethod.MANUAL).count(), 0)
-        # a school the user cannot write for 404s outright
+        # a school the user cannot write for is refused outright
         res = self.client.post(f"{self.MANUAL}?school_id={other['school'].id}", {'nis': 'x', 'reason': 'x'})
-        self.assertIn(res.status_code, (403, 404))
+        self.assertIn(res.status_code, (302, 404))
 
     def test_override_changes_status_with_note_and_audits(self):
         day = AttendanceDay.objects.create(
