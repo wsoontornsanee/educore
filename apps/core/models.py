@@ -196,6 +196,7 @@ class StoredFile(TenantModel):
         db_table = 'stored_files'
         indexes = [
             models.Index(fields=['purpose', 'deleted_at']),
+            models.Index(fields=['foundation_id', 'purpose'], name='idx_storedfile_fnd_purpose'),
         ]
 
     def __str__(self):

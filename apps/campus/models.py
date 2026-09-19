@@ -146,6 +146,9 @@ class BehaviourRecord(TenantModel):
     class Meta:
         db_table = 'campus_behaviour_records'
         ordering = ['-occurred_at', '-id']
+        indexes = [
+            models.Index(fields=['foundation_id', 'student', 'occurred_at'], name='idx_behrec_fnd_stu_occ'),
+        ]
 
     def delete(self, *args, **kwargs):
         raise PermissionDenied("Catatan perilaku tidak dapat dihapus secara fisik (LIF-013). Gunakan perbaikan/koreksi catatan.")
@@ -194,6 +197,9 @@ class BehaviourCase(TenantModel):
     class Meta:
         db_table = 'campus_behaviour_cases'
         ordering = ['-opened_at', '-id']
+        indexes = [
+            models.Index(fields=['foundation_id', 'student', 'status'], name='idx_behcase_fnd_stu_st'),
+        ]
 
     def __str__(self):
         return f"BehaviourCase({self.student_id}, {self.status}, trigger={self.trigger})"
@@ -514,6 +520,9 @@ class MedicationStock(TenantModel):
     class Meta:
         db_table = 'campus_medication_stock'
         ordering = ['name']
+        indexes = [
+            models.Index(fields=['foundation_id', 'school', 'expiry_date'], name='idx_medstock_fnd_sch_exp'),
+        ]
 
     def __str__(self):
         return f"MedicationStock({self.name}, qty={self.quantity})"
