@@ -1,14 +1,17 @@
+from django.db.models import Q
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.utils.translation import gettext_lazy as _
 from rest_framework import mixins, status, viewsets
+from rest_framework.exceptions import NotFound
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.academic.class_scope import ClassScope, can_view_student_academics
 from apps.core.idempotency import IdempotentViewMixin
 from apps.core.pagination import StandardCursorPagination
 from apps.core.services import build_signed_download
@@ -162,6 +165,19 @@ class TenantScopedModelViewSet(viewsets.ModelViewSet):
     pagination_class = StandardCursorPagination
     permission_classes = [HasRequiredPermission]
 
+    # Per-teacher class scope (docs/superpowers/specs/2026-09-19-web-console-akademik-design.md).
+    # `class_scope_fields` = (lookup of the row's class group id, lookup of that class group's
+    # school id); rows outside a restricted teacher's classes then 404 on every action.
+    # `class_scope_write` = dotted path from validated_data to the target ClassGroup, checked
+    # on create/update so a teacher cannot write into another teacher's class either.
+    class_scope_fields = None
+    class_scope_write = None
+
+    def class_scope(self):
+        if not hasattr(self, '_class_scope'):
+            self._class_scope = ClassScope(self.request.user, get_current_foundation_id())
+        return self._class_scope
+
     def get_queryset(self):
         foundation_id = get_current_foundation_id()
         if not foundation_id:
@@ -171,10 +187,27 @@ class TenantScopedModelViewSet(viewsets.ModelViewSet):
             value = self.request.query_params.get(param)
             if value:
                 qs = qs.filter(**{field: value})
+        if self.class_scope_fields:
+            qs = qs.filter(self.class_scope().q(*self.class_scope_fields))
         return qs
 
+    def assert_class_write_allowed(self, validated_data):
+        if not self.class_scope_write:
+            return
+        first, *rest = self.class_scope_write.split('.')
+        target = validated_data.get(first)
+        for attribute in rest:
+            target = getattr(target, attribute, None)
+        if target is not None and not self.class_scope().allows(target):
+            raise NotFound()
+
     def perform_create(self, serializer):
+        self.assert_class_write_allowed(serializer.validated_data)
         serializer.save(foundation_id=get_current_foundation_id())
+
+    def perform_update(self, serializer):
+        self.assert_class_write_allowed(serializer.validated_data)
+        serializer.save()
 
 
 class AcademicYearViewSet(TenantScopedModelViewSet):
@@ -222,6 +255,8 @@ class ClassGroupViewSet(TenantScopedModelViewSet):
 
 
 class ClassEnrollmentViewSet(TenantScopedModelViewSet):
+    class_scope_fields = ('class_group_id', 'class_group__school_id')
+    class_scope_write = 'class_group'
     model = ClassEnrollment
     serializer_class = ClassEnrollmentSerializer
     filter_params = {'class_group_id': 'class_group_id', 'student_id': 'student_id'}
@@ -255,6 +290,8 @@ class LearningObjectiveViewSet(TenantScopedModelViewSet):
 
 
 class AssessmentViewSet(TenantScopedModelViewSet):
+    class_scope_fields = ('class_subject__class_group_id', 'class_subject__class_group__school_id')
+    class_scope_write = 'class_subject.class_group'
     model = Assessment
     serializer_class = AssessmentSerializer
     filter_params = {'class_subject_id': 'class_subject_id', 'type': 'type'}
@@ -405,6 +442,19 @@ class TimetableSubstitutionViewSet(TenantScopedModelViewSet):
         'slot': 'attendance.read',
     }
 
+    def get_queryset(self):
+        """A restricted teacher sees substitutions in their own classes, plus every
+        one they take part in as the original or the substitute teacher — the
+        mobile teacher app opens a substitution for a class they do not teach."""
+        qs = super().get_queryset()
+        scope = self.class_scope()
+        if not scope.is_restricted:
+            return qs
+        return qs.filter(
+            scope.q('slot__class_subject__class_group_id', 'slot__class_subject__class_group__school_id')
+            | Q(original_teacher_id__in=scope.staff_ids) | Q(substitute_teacher_id__in=scope.staff_ids)
+        )
+
     def create(self, request, *args, **kwargs):
         foundation_id = get_current_foundation_id()
         slot = TimetableSlot.objects.filter(id=request.data.get('slot'), foundation_id=foundation_id).first()
@@ -499,6 +549,8 @@ class TimetableSubstitutionViewSet(TenantScopedModelViewSet):
 
 
 class HomeworkViewSet(TenantScopedModelViewSet):
+    class_scope_fields = ('class_subject__class_group_id', 'class_subject__class_group__school_id')
+    class_scope_write = 'class_subject.class_group'
     model = Homework
     serializer_class = HomeworkSerializer
     filter_params = {'class_subject_id': 'class_subject_id'}
@@ -522,7 +574,9 @@ class HomeworkViewSet(TenantScopedModelViewSet):
             homework_id=request.query_params.get('homework_id'),
             class_subject_id=request.query_params.get('class_subject_id'),
             include_graded=request.query_params.get('include_graded', '').lower() in ('1', 'true'),
-        )
+        ).filter(self.class_scope().q(
+            'homework__class_subject__class_group_id', 'homework__class_subject__class_group__school_id',
+        ))
 
         serializer = HomeworkGradingQueueItemSerializer(qs, many=True)
         return Response(serializer.data)
@@ -554,6 +608,7 @@ class HomeworkViewSet(TenantScopedModelViewSet):
         return Response(file_meta, status=status.HTTP_201_CREATED)
 
     def perform_create(self, serializer):
+        self.assert_class_write_allowed(serializer.validated_data)
         homework = assign_homework(
             class_subject=serializer.validated_data['class_subject'],
             title=serializer.validated_data['title'],
@@ -611,6 +666,8 @@ class HomeworkViewSet(TenantScopedModelViewSet):
 
 
 class HomeworkSubmissionViewSet(TenantScopedModelViewSet):
+    class_scope_fields = ('homework__class_subject__class_group_id', 'homework__class_subject__class_group__school_id')
+    class_scope_write = 'homework.class_subject.class_group'
     model = HomeworkSubmission
     serializer_class = HomeworkSubmissionSerializer
     filter_params = {'homework_id': 'homework_id', 'student_id': 'student_id', 'status': 'status'}
@@ -650,6 +707,8 @@ class HomeworkSubmissionViewSet(TenantScopedModelViewSet):
 
 
 class ExamViewSet(TenantScopedModelViewSet):
+    class_scope_fields = ('class_subject__class_group_id', 'class_subject__class_group__school_id')
+    class_scope_write = 'class_subject.class_group'
     model = Exam
     serializer_class = ExamSerializer
     filter_params = {'class_subject_id': 'class_subject_id'}
@@ -706,6 +765,8 @@ class ExamViewSet(TenantScopedModelViewSet):
 
 
 class ExamQuestionViewSet(TenantScopedModelViewSet):
+    class_scope_fields = ('exam__class_subject__class_group_id', 'exam__class_subject__class_group__school_id')
+    class_scope_write = 'exam.class_subject.class_group'
     model = ExamQuestion
     serializer_class = ExamQuestionSerializer
     filter_params = {'exam_id': 'exam_id'}
@@ -717,6 +778,7 @@ class ExamQuestionViewSet(TenantScopedModelViewSet):
 
 
 class ExamAttemptViewSet(IdempotentViewMixin, TenantScopedModelViewSet):
+    class_scope_fields = ('exam__class_subject__class_group_id', 'exam__class_subject__class_group__school_id')
     model = ExamAttempt
     serializer_class = ExamAttemptSerializer
     filter_params = {'exam_id': 'exam_id', 'student_id': 'student_id', 'status': 'status'}
@@ -794,6 +856,7 @@ class ReportCardViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewse
         if not foundation_id:
             return ReportCard.objects.none()
         qs = ReportCard.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True).order_by('-created_at')
+        qs = qs.filter(ClassScope(self.request.user, foundation_id).q('class_group_id', 'class_group__school_id'))
         for param, field in {
             'student_id': 'student_id', 'term_id': 'term_id', 'class_group_id': 'class_group_id',
         }.items():
@@ -810,7 +873,9 @@ class ReportCardViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewse
         payload = ReportCardGenerateSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
 
-        class_group = ClassGroup.objects.filter(id=payload.validated_data['class_group_id'], foundation_id=foundation_id).first()
+        class_group = ClassScope(request.user, foundation_id).class_groups(
+            ClassGroup.objects.filter(id=payload.validated_data['class_group_id'], foundation_id=foundation_id)
+        ).first()
         term = Term.objects.filter(id=payload.validated_data['term_id'], foundation_id=foundation_id).first()
         if not class_group or not term:
             return Response({'error': _("Kelas atau semester tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
@@ -928,8 +993,7 @@ class StudentReportCardView(APIView):
         if not student:
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
-        from apps.identity.guardian_access import can_guardian_access_student
-        if not can_guardian_access_student(request.user, student.id, foundation_id):
+        if not can_view_student_academics(request.user, student.id, foundation_id):
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
         term_id = request.query_params.get('term_id')
@@ -992,6 +1056,8 @@ class StudentReportCardView(APIView):
 
 
 class LessonPlanViewSet(TenantScopedModelViewSet):
+    class_scope_fields = ('class_subject__class_group_id', 'class_subject__class_group__school_id')
+    class_scope_write = 'class_subject.class_group'
     model = LessonPlan
     serializer_class = LessonPlanSerializer
     filter_params = {'class_subject_id': 'class_subject_id', 'week_start_date': 'week_start_date'}
@@ -1003,6 +1069,7 @@ class LessonPlanViewSet(TenantScopedModelViewSet):
     }
 
     def perform_create(self, serializer):
+        self.assert_class_write_allowed(serializer.validated_data)
         serializer.save(foundation_id=get_current_foundation_id(), created_by=self.request.user)
 
     @action(detail=True, methods=['post'], url_path='duplicate')
@@ -1028,6 +1095,7 @@ class BroadcastViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         if not foundation_id:
             return Broadcast.objects.none()
         qs = Broadcast.objects.filter(foundation_id=foundation_id, deleted_at__isnull=True).order_by('-sent_at')
+        qs = qs.filter(ClassScope(self.request.user, foundation_id).q('class_group_id', 'class_group__school_id'))
         class_group_id = self.request.query_params.get('class_group_id')
         if class_group_id:
             qs = qs.filter(class_group_id=class_group_id)
@@ -1042,7 +1110,9 @@ class BroadcastViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         payload = BroadcastCreateSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
 
-        class_group = ClassGroup.objects.filter(id=payload.validated_data['class_group_id'], foundation_id=foundation_id).first()
+        class_group = ClassScope(request.user, foundation_id).class_groups(
+            ClassGroup.objects.filter(id=payload.validated_data['class_group_id'], foundation_id=foundation_id)
+        ).first()
         if not class_group:
             return Response({'error': _("Kelas tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
@@ -1094,7 +1164,9 @@ class GradebookView(APIView):
         if not class_subject_id:
             return Response({'error': _("Parameter class_subject_id wajib diisi.")}, status=status.HTTP_400_BAD_REQUEST)
 
-        class_subject = ClassSubject.objects.filter(id=class_subject_id, foundation_id=foundation_id).first()
+        class_subject = ClassSubject.objects.filter(
+            id=class_subject_id, foundation_id=foundation_id,
+        ).filter(ClassScope(request.user, foundation_id).q('class_group_id', 'class_group__school_id')).first()
         if not class_subject:
             return Response({'error': _("Kelas/mapel tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
@@ -1143,12 +1215,13 @@ class StudentAttainmentView(APIView):
         if not student:
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
-        from apps.identity.guardian_access import can_guardian_access_student
-        if not can_guardian_access_student(request.user, student.id, foundation_id):
+        if not can_view_student_academics(request.user, student.id, foundation_id):
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
         class_subject_id = request.query_params.get('class_subject_id')
-        class_subject = ClassSubject.objects.filter(id=class_subject_id, foundation_id=foundation_id).first()
+        class_subject = ClassSubject.objects.filter(
+            id=class_subject_id, foundation_id=foundation_id,
+        ).filter(ClassScope(request.user, foundation_id).q('class_group_id', 'class_group__school_id')).first()
         if not class_subject:
             return Response({'error': _("Kelas/mapel tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
@@ -1241,8 +1314,7 @@ class StudentGradesView(APIView):
         if not student:
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
-        from apps.identity.guardian_access import can_guardian_access_student
-        if not can_guardian_access_student(request.user, student.id, foundation_id):
+        if not can_view_student_academics(request.user, student.id, foundation_id):
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
         enrollments = ClassEnrollment.objects.filter(
@@ -1327,8 +1399,7 @@ class StudentHomeworkView(APIView):
         if not student:
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
-        from apps.identity.guardian_access import can_guardian_access_student
-        if not can_guardian_access_student(request.user, student.id, foundation_id):
+        if not can_view_student_academics(request.user, student.id, foundation_id):
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
         enrollments = ClassEnrollment.objects.filter(
@@ -1387,8 +1458,7 @@ class StudentTimetableView(APIView):
         if not student:
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
-        from apps.identity.guardian_access import can_guardian_access_student
-        if not can_guardian_access_student(request.user, student.id, foundation_id):
+        if not can_view_student_academics(request.user, student.id, foundation_id):
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
         enrollments = ClassEnrollment.objects.filter(
@@ -1486,7 +1556,9 @@ class TeacherPermissionSlipView(APIView):
         foundation_id = get_current_foundation_id()
         qs = PermissionSlip.objects.filter(
             foundation_id=foundation_id, deleted_at__isnull=True,
-        ).select_related('class_group', 'created_by__person').order_by('-created_at')
+        ).filter(ClassScope(request.user, foundation_id).q('class_group_id', 'class_group__school_id')).select_related(
+            'class_group', 'created_by__person',
+        ).order_by('-created_at')
 
         class_group_id = request.query_params.get('class_group_id')
         if class_group_id:
@@ -1505,7 +1577,9 @@ class TeacherPermissionSlipView(APIView):
             return Response({'error': _("Akun ini tidak terhubung ke profil staf.")}, status=status.HTTP_404_NOT_FOUND)
 
         class_group_id = request.data.get('class_group_id')
-        class_group = ClassGroup.objects.filter(id=class_group_id, foundation_id=foundation_id).first()
+        class_group = ClassScope(request.user, foundation_id).class_groups(
+            ClassGroup.objects.filter(id=class_group_id, foundation_id=foundation_id)
+        ).first()
         if not class_group:
             return Response({'error': _("Kelas tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
@@ -1555,7 +1629,9 @@ class TeacherPermissionSlipTallyView(APIView):
         foundation_id = get_current_foundation_id()
         slip = PermissionSlip.objects.filter(
             id=slip_id, foundation_id=foundation_id, deleted_at__isnull=True,
-        ).select_related('class_group').first()
+        ).filter(ClassScope(request.user, foundation_id).q('class_group_id', 'class_group__school_id')).select_related(
+            'class_group',
+        ).first()
         if not slip:
             return Response({'error': _("Izin tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
@@ -1613,8 +1689,7 @@ class StudentPermissionSlipView(APIView):
         if not student:
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
-        from apps.identity.guardian_access import can_guardian_access_student
-        if not can_guardian_access_student(request.user, student.id, foundation_id):
+        if not can_view_student_academics(request.user, student.id, foundation_id):
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
         from apps.identity.models import Guardian, GuardianLink
@@ -1664,8 +1739,7 @@ class StudentBroadcastView(APIView):
         if not student:
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
-        from apps.identity.guardian_access import can_guardian_access_student
-        if not can_guardian_access_student(request.user, student.id, foundation_id):
+        if not can_view_student_academics(request.user, student.id, foundation_id):
             return Response({'error': _("Siswa tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
         class_group_ids = ClassEnrollment.objects.filter(
@@ -1692,7 +1766,9 @@ class PermissionSlipAcknowledgeView(APIView):
         foundation_id = get_current_foundation_id()
         slip = PermissionSlip.objects.filter(
             id=slip_id, foundation_id=foundation_id, deleted_at__isnull=True,
-        ).select_related('class_group').first()
+        ).filter(ClassScope(request.user, foundation_id).q('class_group_id', 'class_group__school_id')).select_related(
+            'class_group',
+        ).first()
         if not slip:
             return Response({'error': _("Izin tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
@@ -1762,13 +1838,16 @@ class PermissionSlipConsolePageView(PermissionSlipWebAccessMixin, APIView):
             return Response({'error': _("Akun ini tidak terhubung ke profil staf.")}, status=status.HTTP_404_NOT_FOUND)
 
         foundation_id = get_current_foundation_id()
-        class_groups = ClassGroup.objects.filter(
+        scope = ClassScope(request.user, foundation_id)
+        class_groups = scope.class_groups(ClassGroup.objects.filter(
             foundation_id=foundation_id, deleted_at__isnull=True,
-        ).select_related('school').order_by('school__name', 'name')
+        )).select_related('school').order_by('school__name', 'name')
 
         slips_qs = PermissionSlip.objects.filter(
             foundation_id=foundation_id, deleted_at__isnull=True,
-        ).select_related('class_group', 'created_by__person').order_by('-created_at')[:CONSOLE_SLIP_PAGE_SIZE]
+        ).filter(scope.q('class_group_id', 'class_group__school_id')).select_related(
+            'class_group', 'created_by__person',
+        ).order_by('-created_at')[:CONSOLE_SLIP_PAGE_SIZE]
 
         slips = [_serialize_permission_slip(slip, get_slip_consent_tally(slip)) for slip in slips_qs]
 
@@ -1803,9 +1882,9 @@ class PermissionSlipConsoleCreateView(PermissionSlipWebAccessMixin, APIView):
             return self._error_response(request, _("Akun ini tidak terhubung ke profil staf."), 404)
 
         foundation_id = get_current_foundation_id()
-        class_group = ClassGroup.objects.filter(
+        class_group = ClassScope(request.user, foundation_id).class_groups(ClassGroup.objects.filter(
             id=request.data.get('class_group_id'), foundation_id=foundation_id, deleted_at__isnull=True,
-        ).first()
+        )).first()
         if not class_group:
             return self._error_response(request, _("Kelas tidak ditemukan."), 400)
 
@@ -1847,7 +1926,9 @@ class PermissionSlipConsoleCreateView(PermissionSlipWebAccessMixin, APIView):
     def _slip_list_response(self, request, foundation_id):
         slips_qs = PermissionSlip.objects.filter(
             foundation_id=foundation_id, deleted_at__isnull=True,
-        ).select_related('class_group', 'created_by__person').order_by('-created_at')[:CONSOLE_SLIP_PAGE_SIZE]
+        ).filter(ClassScope(request.user, foundation_id).q('class_group_id', 'class_group__school_id')).select_related(
+            'class_group', 'created_by__person',
+        ).order_by('-created_at')[:CONSOLE_SLIP_PAGE_SIZE]
         slips = [_serialize_permission_slip(slip, get_slip_consent_tally(slip)) for slip in slips_qs]
         html = render_to_string('components/_permission_slip_list.html', {
             'slips': slips,
@@ -1867,7 +1948,9 @@ class PermissionSlipConsoleTallyView(PermissionSlipWebAccessMixin, APIView):
         foundation_id = get_current_foundation_id()
         return PermissionSlip.objects.filter(
             id=slip_id, foundation_id=foundation_id, deleted_at__isnull=True,
-        ).select_related('class_group').first()
+        ).filter(ClassScope(request.user, foundation_id).q('class_group_id', 'class_group__school_id')).select_related(
+            'class_group',
+        ).first()
 
     def get(self, request, slip_id):
         slip = self._get_slip_or_404(request, slip_id)
@@ -1887,7 +1970,9 @@ class PermissionSlipConsoleRosterView(PermissionSlipWebAccessMixin, APIView):
         foundation_id = get_current_foundation_id()
         slip = PermissionSlip.objects.filter(
             id=slip_id, foundation_id=foundation_id, deleted_at__isnull=True,
-        ).select_related('class_group').first()
+        ).filter(ClassScope(request.user, foundation_id).q('class_group_id', 'class_group__school_id')).select_related(
+            'class_group',
+        ).first()
         if not slip:
             return Response({'error': _("Izin tidak ditemukan.")}, status=status.HTTP_404_NOT_FOUND)
 
