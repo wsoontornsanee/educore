@@ -9111,6 +9111,7 @@ msgstr "Pengecualian admin sekolah (School admin override)"
 msgid "Penjemputan oleh Penjemput Tidak Terdaftar (Pickup Override)"
 msgstr "Penjemputan oleh Penjemput Tidak Terdaftar (Pickup Override)"
 
+<<<<<<< HEAD
 #: frontend/templates/pages/pickup_console_page.html
 msgid "Penjemputan siswa — EduCore"
 msgstr "Student pickup — EduCore"
@@ -9227,7 +9228,7 @@ msgstr "Pickup authorisation revoked."
 #: apps/attendance
 msgid "Penjemputan dengan pengecualian dicatat dan diberitahukan ke admin sekolah."
 msgstr "The exception pickup was recorded and the school admins were notified."
-
+=======
 #: apps/reporting/views.py
 msgid "Parameter foundation_id tidak valid."
 msgstr "Invalid foundation_id parameter."
@@ -9235,3 +9236,4 @@ msgstr "Invalid foundation_id parameter."
 #: apps/reporting/models.py
 msgid "Monday of the week (Asia/Jakarta calendar)"
 msgstr "Monday of the week (Asia/Jakarta calendar)"
+>>>>>>> b3fc38f (fix(i18n): English entries for the health-metrics 400 message and week_start help text)
