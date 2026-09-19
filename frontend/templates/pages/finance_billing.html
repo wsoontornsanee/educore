@@ -22,6 +22,7 @@
     <h2 class="fin-h2">{% translate "Catat pembayaran tunai" %}</h2>
     <form method="post" action="{% url 'finance-console-cash-payment' %}" class="fin-filters" onsubmit="this.querySelector('button[type=submit]').disabled = true">
       {% csrf_token %}
+      <input type="hidden" name="form_token" value="{{ cash_token }}">
       <label><span class="fin-label">{% translate "NIS siswa" %}</span>
         <input type="text" name="nis" required maxlength="32" autocomplete="off"></label>
       <label><span class="fin-label">{% translate "Jumlah (Rp)" %}</span>

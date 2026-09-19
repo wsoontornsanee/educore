@@ -340,9 +340,13 @@ class CashPaymentTests(ActionTestBase):
         self.url = reverse('finance-console-cash-payment')
         self.invoice = make_invoice(self.foundation, self.s1, 'INV/A1/2026/000001')
 
+    def _token(self):
+        return self.client.get(reverse('finance-console-billing')).context['cash_token']
+
     def _post(self, **data):
         data.setdefault('nis', '0001')
         data.setdefault('amount', '500000')
+        data.setdefault('form_token', self._token())
         return self.client.post(self.url, data, follow=True)
 
     def test_records_cash_payment_and_allocates_to_open_invoice(self):
@@ -425,3 +429,70 @@ class CashPaymentTests(ActionTestBase):
         page = self.client.get(reverse('finance-console-billing'))
         self.assertEqual(page.status_code, 200)
         self.assertNotContains(page, self.url)
+
+
+class CashPaymentFormTokenTests(ActionTestBase):
+    """A cash form is single-use: replays (back + resubmit, retries) never create a second payment."""
+
+    def setUp(self):
+        super().setUp()
+        self.url = reverse('finance-console-cash-payment')
+        self.billing = reverse('finance-console-billing')
+        make_invoice(self.foundation, self.s1, 'INV/A1/2026/000001')
+        self.client.force_login(self.officer)
+
+    def _post(self, token, client=None):
+        return (client or self.client).post(
+            self.url, {'nis': '0001', 'amount': '100000', 'form_token': token}, follow=True,
+        )
+
+    def test_replaying_the_same_form_token_creates_only_one_payment(self):
+        token = self.client.get(self.billing).context['cash_token']
+        first = self._post(token)
+        second = self._post(token)
+        self.assertEqual(Payment.all_tenants.filter(student=self.s1).count(), 1)
+        self.assertIn('kwitansi', flashes(first)[0])
+        self.assertEqual(len(flashes(second)), 1)
+        self.assertNotIn('kwitansi', flashes(second)[0])
+
+    def test_post_without_or_with_unknown_token_is_refused(self):
+        for token in ('', 'not-a-real-token'):
+            response = self._post(token)
+            self.assertEqual(len(flashes(response)), 1)
+        self.assertFalse(Payment.all_tenants.exists())
+
+    def test_token_is_rendered_in_the_form(self):
+        page = self.client.get(self.billing)
+        self.assertContains(page, f'name="form_token" value="{page.context["cash_token"]}"')
+
+    def test_two_open_tabs_each_have_a_valid_token(self):
+        first = self.client.get(self.billing).context['cash_token']
+        second = self.client.get(self.billing).context['cash_token']
+        self.assertNotEqual(first, second)
+        self._post(first)
+        self._post(second)
+        self.assertEqual(Payment.all_tenants.filter(student=self.s1).count(), 2)
+
+    def test_oldest_token_is_evicted_after_many_page_loads(self):
+        tokens = [self.client.get(self.billing).context['cash_token'] for _ in range(25)]
+        self._post(tokens[0])
+        self.assertFalse(Payment.all_tenants.exists())
+        self._post(tokens[-1])
+        self.assertEqual(Payment.all_tenants.filter(student=self.s1).count(), 1)
+
+    def test_token_from_another_session_is_refused(self):
+        from django.test import Client
+        token = self.client.get(self.billing).context['cash_token']
+        other = Client()
+        other.force_login(self.admin)
+        response = self._post(token, client=other)
+        self.assertEqual(len(flashes(response)), 1)
+        self.assertFalse(Payment.all_tenants.exists())
+
+    def test_invalid_amount_consumes_the_token_and_reload_issues_a_fresh_one(self):
+        token = self.client.get(self.billing).context['cash_token']
+        bad = self.client.post(self.url, {'nis': '0001', 'amount': 'abc', 'form_token': token}, follow=True)
+        fresh = bad.context['cash_token']
+        self.assertNotEqual(fresh, token)
+        self._post(fresh)
+        self.assertEqual(Payment.all_tenants.filter(student=self.s1).count(), 1)
