@@ -95,12 +95,14 @@ class Command(CronHostCommand):
                                 dry_run=dry_run,
                             )
                             dry_tag = " [DRY RUN]" if dry_run else ""
-                            error_tag = f" ERROR: {result.get('error', '')}" if 'error' in result else ""
+                            note_tag = f" ERROR: {result.get('error', '')}" if 'error' in result else ""
+                            if result.get('skipped'):
+                                note_tag = " SKIPPED (provider not configured, no payments use it)"
                             self.stdout.write(
                                 f"  [{foundation.brand_name}] {provider_name}{dry_tag}: "
                                 f"total={result['total']} matched={result['matched']} "
                                 f"missing={result['missing']} mismatch={result['mismatch']}"
-                                f"{error_tag}"
+                                f"{note_tag}"
                             )
                             grand_total += result['total']
                             run.items_processed += result['total']

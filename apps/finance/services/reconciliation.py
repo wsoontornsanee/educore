@@ -31,6 +31,7 @@ from apps.finance.models import (
     Payment,
     PaymentAllocation,
     PaymentDiscrepancy,
+    PaymentIntent,
     PaymentStatus,
     SettlementBatchStatus,
 )
@@ -49,15 +50,35 @@ logger = logging.getLogger(__name__)
 AMOUNT_TOLERANCE = Decimal('1.00')
 
 
-def _get_or_create_batch(provider_name: str, settlement_date: datetime.date, foundation_id: int):
+def _get_or_create_batch(provider_name: str, settlement_date: datetime.date, foundation_id: int, dry_run: bool = False):
     """Get-or-create the batch record (idempotent re-runs overwrite).
-    Use all_tenants to bypass thread-local tenant scoping."""
+    Use all_tenants to bypass thread-local tenant scoping.
+
+    A dry run must not write: it reads an existing batch, or gets an unsaved one (no id) that only carries
+    the run's in-memory state."""
+    if dry_run:
+        existing = GatewaySettlementBatch.all_tenants.filter(
+            foundation_id=foundation_id, provider=provider_name.upper(), settlement_date=settlement_date,
+        ).first()
+        if existing is not None:
+            return existing, False
+        return GatewaySettlementBatch(
+            foundation_id=foundation_id, provider=provider_name.upper(), settlement_date=settlement_date,
+            status=SettlementBatchStatus.PENDING,
+        ), True
     return GatewaySettlementBatch.all_tenants.get_or_create(
         foundation_id=foundation_id,
         provider=provider_name.upper(),
         settlement_date=settlement_date,
         defaults={'status': SettlementBatchStatus.PENDING},
     )
+
+
+def _provider_in_use(provider_name: str, foundation_id: int) -> bool:
+    """Has this foundation ever created a payment intent through this provider?"""
+    return PaymentIntent.all_tenants.filter(
+        foundation_id=foundation_id, provider=provider_name.upper(),
+    ).exists()
 
 
 def _fail_batch(batch, error: str, provider_name: str, settlement_date, dry_run: bool) -> dict:
@@ -166,7 +187,21 @@ def reconcile_gateway_settlement(
     """
     provider = get_payment_provider(provider_name)
 
-    batch, created = _get_or_create_batch(provider_name, settlement_date, foundation_id)
+    if not provider.is_configured() and not _provider_in_use(provider_name, foundation_id):
+        # No credentials and no payment ever went through it: this deployment simply does not use the
+        # gateway. Not a failure, and not worth a FAILED batch row every night. Credentials missing while
+        # payments exist is a misconfiguration and falls through to the failing path below.
+        logger.info(
+            "Reconciliation %s/%s skipped: provider not configured and no payment intents use it.",
+            provider_name, settlement_date,
+        )
+        return {
+            'batch_id': None, 'provider': provider_name, 'settlement_date': settlement_date,
+            'total': 0, 'matched': 0, 'missing': 0, 'mismatch': 0, 'errors': 0, 'dry_run': dry_run,
+            'skipped': 'PROVIDER_NOT_CONFIGURED',
+        }
+
+    batch, created = _get_or_create_batch(provider_name, settlement_date, foundation_id, dry_run=dry_run)
 
     if not created and batch.status == SettlementBatchStatus.COMPLETED and not dry_run:
         logger.info(
